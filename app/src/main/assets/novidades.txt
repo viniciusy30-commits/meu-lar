@@ -1,3 +1,10 @@
+#id 2026-10-28-b
+#titulo Agora em 3D!
+- Casa 3D com câmera livre: arraste no vazio para girar e use dois dedos para zoom
+- Móveis modelados em 3D com sombras e iluminação
+- Arraste móveis pelo chão; Girar agora vira de 4 lados
+- Janela, cortinas, quadro e jardim ao redor da casa
+
 #id 2026-10-28-a
 #titulo Primeira versão da sua casa!
 - Casa pequena com cama, mesa e cadeira para testar

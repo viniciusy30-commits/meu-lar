@@ -93,6 +93,10 @@ class MainActivity : AppCompatActivity() {
         Updater.autoCheck(this)
     }
 
+    override fun onResume() { super.onResume(); game.onResume() }
+
+    override fun onPause() { super.onPause(); game.onPause() }
+
     private fun atualizarDinheiro(pulso: Boolean) {
         dinheiro.text = "R$ ${st.money}"
         if (pulso) dinheiro.animate().scaleX(1.3f).scaleY(1.3f).setDuration(120).withEndAction {
@@ -114,9 +118,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun girar() {
         val s = game.selected ?: return
-        if (st.canPlace(s, s.x, s.y, !s.rot)) {
-            s.rot = !s.rot; st.save(); game.invalidate()
-        } else Toast.makeText(this, "Sem espaço para girar aqui.", Toast.LENGTH_SHORT).show()
+        if (st.rotate(s)) st.save()
+        else Toast.makeText(this, "Sem espaço para girar aqui.", Toast.LENGTH_SHORT).show()
     }
 
     private fun vender() {
@@ -148,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         if (spot == null) { Toast.makeText(this, "Sem espaço na casa. Venda algo ou amplie.", Toast.LENGTH_LONG).show(); return }
         st.money -= t.preco
         val novo = Item(t, spot.first, spot.second)
+        novo.born = System.nanoTime()
         st.items.add(novo)
         st.save()
         atualizarDinheiro(true)
