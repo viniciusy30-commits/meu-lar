@@ -1,0 +1,7 @@
+#id 2026-10-28-a
+#titulo Primeira versão da sua casa!
+- Casa pequena com cama, mesa e cadeira para testar
+- Toque em Trabalhar para ganhar dinheiro
+- Compre móveis na Loja e arraste para posicionar
+- Toque num móvel para girar ou vender
+- Amplie a casa quando tiver dinheiro
