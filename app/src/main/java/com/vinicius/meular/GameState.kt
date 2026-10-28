@@ -3,18 +3,22 @@ package com.vinicius.meular
 import android.content.Context
 import java.util.concurrent.CopyOnWriteArrayList
 
-enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float) {
-    CHAIR("Cadeira", 1, 1, 20, 1.05f),
-    TABLE("Mesa", 2, 1, 60, 1.25f),
-    BED("Cama", 1, 2, 120, 1.05f),
-    SOFA("Sofá", 2, 1, 150, 1.0f),
-    SHELF("Estante", 2, 1, 100, 1.9f),
-    PLANT("Planta", 1, 1, 30, 1.45f),
-    RUG("Tapete", 2, 2, 40, 0.07f),
-    TV("TV com rack", 2, 1, 250, 1.4f),
-    FRIDGE("Geladeira", 1, 1, 300, 1.9f),
-    STOVE("Fogão", 1, 1, 220, 1.2f),
-    LAMP("Abajur", 1, 1, 35, 1.6f)
+/** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração */
+enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int) {
+    CHAIR("Cadeira", 1, 1, 20, 1.0f, 2),
+    TABLE("Mesa de jantar", 2, 1, 60, 1.25f, 2),
+    BED("Cama", 1, 2, 120, 1.1f, 1),
+    SOFA("Sofá", 2, 1, 150, 1.05f, 0),
+    SHELF("Estante", 2, 1, 100, 1.9f, 0),
+    PLANT("Planta", 1, 1, 30, 1.5f, 3),
+    RUG("Tapete", 2, 2, 40, 0.07f, 3),
+    TV("TV com rack", 2, 1, 250, 1.4f, 0),
+    FRIDGE("Geladeira", 1, 1, 300, 1.9f, 2),
+    STOVE("Fogão", 1, 1, 220, 1.2f, 2),
+    LAMP("Abajur de chão", 1, 1, 35, 1.6f, 3),
+    NIGHT("Criado-mudo", 1, 1, 45, 0.9f, 1),
+    COFFEE("Mesa de centro", 2, 1, 70, 0.55f, 0),
+    WARDROBE("Guarda-roupa", 2, 1, 180, 2.1f, 1)
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -28,9 +32,19 @@ class GameState(ctx: Context) {
     var money = 50
     var gw = 6
     var gh = 5
+    var floorIdx = 0
+    var wallIdx = 0
+    var ownFloors = 1
+    var ownWalls = 1
+    var sens = 1
     val items = CopyOnWriteArrayList<Item>()
 
     init {
+        floorIdx = prefs.getInt("floor", 0).coerceIn(0, Finish.floors.size - 1)
+        wallIdx = prefs.getInt("wall", 0).coerceIn(0, Finish.walls.size - 1)
+        ownFloors = prefs.getInt("ownF", 1) or 1
+        ownWalls = prefs.getInt("ownW", 1) or 1
+        sens = prefs.getInt("sens", 1).coerceIn(0, 2)
         val raw = prefs.getString("state", null)
         var ok = false
         if (raw != null) {
@@ -84,16 +98,30 @@ class GameState(ctx: Context) {
         return true
     }
 
-    fun findSpot(t: Type): Pair<Int, Int>? {
+    fun findSpot(t: Type): Pair<Int, Int>? = findSpotNear(t, 0f, 0f)
+
+    /** Primeiro lugar livre mais próximo do ponto (fx, fz) em coordenadas de mundo. */
+    fun findSpotNear(t: Type, fx: Float, fz: Float): Pair<Int, Int>? {
         val probe = Item(t, 0, 0)
+        var best: Pair<Int, Int>? = null
+        var bd = Float.MAX_VALUE
         for (y in 0 until gh) for (x in 0 until gw) {
-            if (canPlace(probe, x, y, 0)) return Pair(x, y)
+            if (!canPlace(probe, x, y, 0)) continue
+            val dx = x + t.w / 2f - fx
+            val dz = y + t.h / 2f - fz
+            val d = dx * dx + dz * dz
+            if (d < bd) { bd = d; best = Pair(x, y) }
         }
-        return null
+        return best
     }
 
     fun save() {
         val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot}" }
-        prefs.edit().putString("state", "$money|$gw|$gh|$s").apply()
+        prefs.edit()
+            .putString("state", "$money|$gw|$gh|$s")
+            .putInt("floor", floorIdx).putInt("wall", wallIdx)
+            .putInt("ownF", ownFloors).putInt("ownW", ownWalls)
+            .putInt("sens", sens)
+            .apply()
     }
 }

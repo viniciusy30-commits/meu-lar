@@ -8,101 +8,160 @@ import kotlin.math.floor
 import kotlin.math.hypot
 
 class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
-    var onSelect: ((Item?) -> Unit)? = null
+    val r = Renderer3D(st)
+    var onFocus: ((Item?, Boolean) -> Unit)? = null
     var onChanged: (() -> Unit)? = null
-    private val r = Renderer3D(st)
 
-    var selected: Item? = null
-        set(v) { field = v; r.selected = v; onSelect?.invoke(v) }
+    // joystick virtual (primeira pessoa)
+    @Volatile var joyActive = false
+    @Volatile var joyBx = 0f
+    @Volatile var joyBy = 0f
+    @Volatile var joyKx = 0f
+    @Volatile var joyKy = 0f
+    val joyR = 58f * ctx.resources.displayMetrics.density
 
-    private var mode = 0
+    private var joyId = -1
+    private var lookId = -1
     private var lx = 0f
     private var ly = 0f
-    private var moved = false
+
+    // vista aérea
+    private var amode = 0
+    private var ax = 0f
+    private var ay = 0f
+    private var amoved = false
     private var pinchD = 0f
     private var dragDx = 0
     private var dragDz = 0
 
+    var mode: Int
+        get() = r.mode
+        set(v) {
+            if (v == r.mode) return
+            if (v == 1) {
+                r.grabbed = null
+                r.aimed = null
+                clearFp()
+            } else {
+                r.selected = null
+            }
+            r.mode = v
+        }
+
+    var selected: Item?
+        get() = r.selected
+        set(v) { r.selected = v }
+
     init {
+        Tex.pregen()
         setEGLContextClientVersion(2)
         setEGLConfigChooser(MsaaChooser())
         setRenderer(r)
         renderMode = RENDERMODE_CONTINUOUSLY
+        r.onFocus = { f, g -> post { onFocus?.invoke(f, g) } }
     }
+
+    /** Ponto no chão (x, z) a uns passos à frente do jogador, ou o centro da casa na vista aérea. */
+    fun frontTarget(): FloatArray =
+        if (r.mode == 0) floatArrayOf(r.eyeX + r.fwdX * 2.4f, r.eyeZ + r.fwdZ * 2.4f)
+        else floatArrayOf(st.gw / 2f, st.gh / 2f)
+
+    private fun clearFp() {
+        joyId = -1; lookId = -1; joyActive = false
+        r.moveX = 0f; r.moveY = 0f
+    }
+
+    override fun onPause() {
+        clearFp()
+        super.onPause()
+    }
+
+    // ------------------------------------------------------------ primeira pessoa
+
+    private fun fpTouch(e: MotionEvent): Boolean {
+        val sens = 0.0052f * floatArrayOf(0.65f, 1f, 1.6f)[st.sens]
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val i = e.actionIndex
+                val id = e.getPointerId(i)
+                val x = e.getX(i)
+                val y = e.getY(i)
+                if (joyId == -1 && x < width * 0.45f && y > height * 0.35f) {
+                    joyId = id; joyBx = x; joyBy = y; joyKx = x; joyKy = y; joyActive = true
+                } else if (lookId == -1) {
+                    lookId = id; lx = x; ly = y
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                for (i in 0 until e.pointerCount) {
+                    val id = e.getPointerId(i)
+                    val x = e.getX(i)
+                    val y = e.getY(i)
+                    if (id == joyId) {
+                        var dx = x - joyBx
+                        var dy = y - joyBy
+                        val d = hypot(dx, dy)
+                        if (d > joyR) { dx = dx / d * joyR; dy = dy / d * joyR }
+                        joyKx = joyBx + dx; joyKy = joyBy + dy
+                        if (d < 8f) { r.moveX = 0f; r.moveY = 0f }
+                        else { r.moveX = dx / joyR; r.moveY = -dy / joyR }
+                    } else if (id == lookId) {
+                        r.fyaw = r.fyaw + (x - lx) * sens
+                        r.fpitch = (r.fpitch - (y - ly) * sens).coerceIn(-1.3f, 1.3f)
+                        lx = x; ly = y
+                    }
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                val id = e.getPointerId(e.actionIndex)
+                if (id == joyId) { joyId = -1; joyActive = false; r.moveX = 0f; r.moveY = 0f }
+                if (id == lookId) lookId = -1
+            }
+            MotionEvent.ACTION_CANCEL -> clearFp()
+        }
+        return true
+    }
+
+    // ------------------------------------------------------------ vista aérea
 
     private fun floorCell(px: Float, py: Float): Pair<Int, Int>? {
         val ry = r.ray(px, py, width, height) ?: return null
-        if (abs(ry[4]) < 1e-6f) return null
-        val t = -ry[1] / ry[4]
-        if (t < 0f) return null
-        return Pair(floor(ry[0] + t * ry[3]).toInt(), floor(ry[2] + t * ry[5]).toInt())
-    }
-
-    private fun hitBox(ry: FloatArray, x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float): Float {
-        var tmin = 0f
-        var tmax = 1e9f
-        val mn = floatArrayOf(x0, y0, z0)
-        val mx = floatArrayOf(x1, y1, z1)
-        for (i in 0..2) {
-            val o = ry[i]
-            val d = ry[3 + i]
-            if (abs(d) < 1e-6f) {
-                if (o < mn[i] || o > mx[i]) return -1f
-            } else {
-                var t1 = (mn[i] - o) / d
-                var t2 = (mx[i] - o) / d
-                if (t1 > t2) { val s = t1; t1 = t2; t2 = s }
-                if (t1 > tmin) tmin = t1
-                if (t2 < tmax) tmax = t2
-                if (tmin > tmax) return -1f
-            }
-        }
-        return tmin
+        val fp = r.floorPoint(ry) ?: return null
+        return Pair(floor(fp[0]).toInt(), floor(fp[1]).toInt())
     }
 
     private fun pick(px: Float, py: Float): Item? {
         val ry = r.ray(px, py, width, height) ?: return null
-        var best: Item? = null
-        var bt = 1e9f
-        for (o in st.items) {
-            if (o.type == Type.RUG) continue
-            val t = hitBox(ry, o.x.toFloat(), 0f, o.y.toFloat(), (o.x + o.w).toFloat(), o.type.alt, (o.y + o.h).toFloat())
-            if (t >= 0f && t < bt) { bt = t; best = o }
-        }
-        if (best != null) return best
-        val c = floorCell(px, py) ?: return null
-        return st.items.lastOrNull { o ->
-            o.type == Type.RUG && c.first >= o.x && c.first < o.x + o.w && c.second >= o.y && c.second < o.y + o.h
-        }
+        return r.pickRay(ry)
     }
 
     private fun dist(e: MotionEvent): Float = hypot(e.getX(0) - e.getX(1), e.getY(0) - e.getY(1))
 
-    override fun onTouchEvent(e: MotionEvent): Boolean {
+    private fun aerialTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                lx = e.x; ly = e.y; moved = false
+                ax = e.x; ay = e.y; amoved = false
                 val h = pick(e.x, e.y)
                 if (h != null) {
                     selected = h
-                    mode = 2
+                    amode = 2
                     val c = floorCell(e.x, e.y)
                     dragDx = (c?.first ?: h.x) - h.x
                     dragDz = (c?.second ?: h.y) - h.y
-                } else mode = 1
+                } else amode = 1
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                if (e.pointerCount >= 2) { mode = 3; pinchD = dist(e) }
+                if (e.pointerCount >= 2) { amode = 3; pinchD = dist(e) }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (mode == 1) {
-                    val dx = e.x - lx
-                    val dy = e.y - ly
-                    if (abs(dx) + abs(dy) > 6f) moved = true
+                if (amode == 1) {
+                    val dx = e.x - ax
+                    val dy = e.y - ay
+                    if (abs(dx) + abs(dy) > 6f) amoved = true
                     r.yaw = r.yaw - dx * 0.008f
                     r.pitch = (r.pitch + dy * 0.006f).coerceIn(0.4f, 1.35f)
-                    lx = e.x; ly = e.y
-                } else if (mode == 2) {
+                    ax = e.x; ay = e.y
+                } else if (amode == 2) {
                     val s = selected
                     val c = floorCell(e.x, e.y)
                     if (s != null && c != null) {
@@ -110,26 +169,29 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                         val nz = (c.second - dragDz).coerceIn(0, maxOf(0, st.gh - s.h))
                         if ((nx != s.x || nz != s.y) && st.canPlace(s, nx, nz, s.rot)) { s.x = nx; s.y = nz }
                     }
-                } else if (mode == 3 && e.pointerCount >= 2) {
+                } else if (amode == 3 && e.pointerCount >= 2) {
                     val d = dist(e)
                     if (pinchD > 0f && d > 0f) r.zoom = (r.zoom * pinchD / d).coerceIn(0.5f, 1.7f)
                     pinchD = d
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
-                if (mode == 3) {
+                if (amode == 3) {
                     val idx = if (e.actionIndex == 0) 1 else 0
-                    if (idx < e.pointerCount) { lx = e.getX(idx); ly = e.getY(idx) }
-                    mode = 1
-                    moved = true
+                    if (idx < e.pointerCount) { ax = e.getX(idx); ay = e.getY(idx) }
+                    amode = 1
+                    amoved = true
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (mode == 1 && !moved) selected = null
-                if (mode == 2) onChanged?.invoke()
-                mode = 0
+                if (amode == 1 && !amoved) selected = null
+                if (amode == 2) onChanged?.invoke()
+                amode = 0
             }
         }
         return true
     }
+
+    override fun onTouchEvent(e: MotionEvent): Boolean =
+        if (r.mode == 0) fpTouch(e) else aerialTouch(e)
 }

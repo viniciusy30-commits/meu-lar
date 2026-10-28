@@ -1,3 +1,13 @@
+#id 2026-10-28-c
+#titulo Primeira pessoa e visual novo!
+- Ande pela casa e pelo quintal em primeira pessoa: joystick à esquerda, olhar à direita
+- Aponte a mira para um móvel e toque em Pegar para movê-lo; Girar e Vender ficam ao lado
+- Texturas novas de madeira, porcelanato, tecidos, grama e pedra; móveis com cantos arredondados
+- Quintal com cerca, caminho, varanda, canteiros, árvores e céu com nuvens
+- Novos móveis: criado-mudo, mesa de centro e guarda-roupa
+- Troque piso e cor das paredes na Loja
+- Menus redesenhados; o botão da casa alterna para a vista aérea
+
 #id 2026-10-28-b
 #titulo Agora em 3D!
 - Casa 3D com câmera livre: arraste no vazio para girar e use dois dedos para zoom
