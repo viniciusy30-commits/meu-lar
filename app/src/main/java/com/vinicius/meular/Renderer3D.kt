@@ -9,7 +9,9 @@ import javax.microedition.khronos.egl.EGLDisplay
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.atan2
 import kotlin.math.floor
+import kotlin.math.min
 import kotlin.math.sin
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
@@ -48,6 +50,25 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var pitch = 0.8f
     @Volatile var zoom = 1f
     @Volatile var selected: Item? = null
+
+    // criador de personagem (modo 2)
+    @Volatile var cyaw = 0.35f
+    @Volatile var cTargetDist = 3.7f
+    @Volatile var cTargetY = 0.95f
+    @Volatile var autoSpin = true
+    @Volatile var avDirty = true
+    private var cdist = 3.7f
+    private var cfy = 0.95f
+    private var avMesh: Mesh? = null
+    private var stageM: Mesh? = null
+    private var avX = Float.NaN
+    private var avZ = 0f
+    private var avTX = 0f
+    private var avTZ = 0f
+    private var avYaw = 0f
+    private var avFrame = 0
+    private val STX = -60f
+    private val STZ = -60f
 
     @Volatile var grabbed: Item? = null
     @Volatile var aimed: Item? = null
@@ -194,6 +215,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(aUV)
         Tex.init()
         skyM = Models.sky()
+        stageM = AvatarModel.stage()
+        avDirty = true
         bw = -1
     }
 
@@ -298,6 +321,54 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
     }
 
+    // ------------------------------------------------------------ personagem
+
+    private fun drawCreator(now: Long) {
+        GLES20.glClearColor(0.105f, 0.125f, 0.19f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        GLES20.glUniform3f(uEye, ex, ey, ez)
+        GLES20.glUniform2f(uRoom, 0f, 0f)
+        GLES20.glUniform3f(uLight, STX + 0.9f, 2.4f, STZ + 1.7f)
+        Matrix.setIdentityM(mdl, 0)
+        Matrix.translateM(mdl, 0, STX, 0f, STZ)
+        stageM?.let { draw(it, mdl, 1f) }
+        val t = (now / 1_000_000L % 100000L) / 1000f
+        val br = 1f + 0.006f * sin(t * 2.2f)
+        Matrix.setIdentityM(mdl, 0)
+        Matrix.translateM(mdl, 0, STX, 0.082f, STZ)
+        Matrix.scaleM(mdl, 0, 1f, br, 1f)
+        avMesh?.let { draw(it, mdl, 1f) }
+    }
+
+    private fun drawHouseAvatar(now: Long, dt: Float) {
+        val m = avMesh ?: return
+        if (avX.isNaN() || avFrame++ % 30 == 0) {
+            val sp = st.findSpotNear(Type.CHAIR, st.gw / 2f, st.gh - 0.6f)
+            if (sp != null) { avTX = sp.first + 0.5f; avTZ = sp.second + 0.5f }
+            if (avX.isNaN()) { avX = avTX; avZ = avTZ }
+        }
+        val dx = avTX - avX
+        val dz = avTZ - avZ
+        val dist = kotlin.math.sqrt(dx * dx + dz * dz)
+        var bob = 0f
+        if (dist > 0.04f) {
+            val stp = min(dist, 2.2f * dt)
+            avX += dx / dist * stp
+            avZ += dz / dist * stp
+            avYaw = Math.toDegrees(atan2(dx, dz).toDouble()).toFloat()
+            bob = abs(sin((now / 1_000_000L % 100000L) / 1000f * 11f)) * 0.035f
+        } else {
+            avYaw += (0f - avYaw) * min(1f, dt * 3f)
+        }
+        val t = (now / 1_000_000L % 100000L) / 1000f
+        val br = 1f + 0.006f * sin(t * 2.2f)
+        Matrix.setIdentityM(mdl, 0)
+        Matrix.translateM(mdl, 0, avX, bob, avZ)
+        Matrix.rotateM(mdl, 0, avYaw, 0f, 1f, 0f)
+        Matrix.scaleM(mdl, 0, 1f, br, 1f)
+        draw(m, mdl, 1f)
+    }
+
     // ------------------------------------------------------------ picking
 
     private fun hitBox(ry: FloatArray, x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float): Float {
@@ -398,8 +469,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val cx = gw / 2f
         val cz = gh / 2f
         val fp = mode == 0
+        val cr = mode == 2
 
-        if (fp) {
+        if (cr) {
+            val k = min(1f, dt * 6f)
+            cdist += (cTargetDist - cdist) * k
+            cfy += (cTargetY - cfy) * k
+            if (autoSpin) cyaw += dt * 0.45f
+            val cp = 0.10f
+            ex = STX + cdist * cos(cp) * sin(cyaw)
+            ey = cfy + cdist * sin(cp) + 0.1f
+            ez = STZ + cdist * cos(cp) * cos(cyaw)
+            Matrix.perspectiveM(proj, 0, 34f, aspect, 0.1f, 200f)
+            Matrix.setLookAtM(view, 0, ex, ey, ez, STX, cfy - 0.14f * cdist, STZ, 0f, 1f, 0f)
+        } else if (fp) {
             ex = px; ey = 1.62f; ez = pz
             val cp = cos(fpitch)
             val fx = sin(fyaw) * cp
@@ -425,6 +508,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         updateGrab()
         updateFocus()
 
+        if (avDirty) {
+            avMesh = AvatarModel.build(st.avatar)
+            avDirty = false
+        }
+        if (cr) {
+            drawCreator(now)
+            return
+        }
+        GLES20.glClearColor(0.66f, 0.85f, 0.94f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUniform3f(uEye, ex, ey, ez)
         GLES20.glUniform2f(uRoom, gw.toFloat(), gh.toFloat())
@@ -475,6 +567,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(mesh, mdl, 1f)
         }
 
+        if (mode == 1) drawHouseAvatar(now, dt)
+
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f
         for (item in items) {
@@ -483,6 +577,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val shm = sm.getOrPut(key) { Models.shadow(item.w, item.h) }
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, item.x.toFloat(), 0f, item.y.toFloat())
+            draw(shm, mdl, 1f)
+        }
+        if (mode == 1 && !avX.isNaN()) {
+            val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
+            Matrix.setIdentityM(mdl, 0)
+            Matrix.translateM(mdl, 0, avX - 0.5f, 0f, avZ - 0.5f)
             draw(shm, mdl, 1f)
         }
         val sel = focus

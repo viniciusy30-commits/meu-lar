@@ -38,13 +38,13 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
         get() = r.mode
         set(v) {
             if (v == r.mode) return
-            if (v == 1) {
+            if (v != 0) {
                 r.grabbed = null
                 r.aimed = null
                 clearFp()
-            } else {
-                r.selected = null
             }
+            if (v != 1) r.selected = null
+            if (v == 2) r.autoSpin = true
             r.mode = v
         }
 
@@ -192,6 +192,39 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
         return true
     }
 
-    override fun onTouchEvent(e: MotionEvent): Boolean =
-        if (r.mode == 0) fpTouch(e) else aerialTouch(e)
+    // ------------------------------------------------------------ criador de personagem
+
+    private fun creatorTouch(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { ax = e.x; amode = 1; r.autoSpin = false }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (e.pointerCount >= 2) { amode = 3; pinchD = dist(e) }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (amode == 1) {
+                    r.cyaw = r.cyaw - (e.x - ax) * 0.011f
+                    ax = e.x
+                } else if (amode == 3 && e.pointerCount >= 2) {
+                    val d = dist(e)
+                    if (pinchD > 0f && d > 0f) r.cTargetDist = (r.cTargetDist * pinchD / d).coerceIn(1.0f, 5.0f)
+                    pinchD = d
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (amode == 3) {
+                    val idx = if (e.actionIndex == 0) 1 else 0
+                    if (idx < e.pointerCount) ax = e.getX(idx)
+                    amode = 1
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> amode = 0
+        }
+        return true
+    }
+
+    override fun onTouchEvent(e: MotionEvent): Boolean = when (r.mode) {
+        0 -> fpTouch(e)
+        1 -> aerialTouch(e)
+        else -> creatorTouch(e)
+    }
 }

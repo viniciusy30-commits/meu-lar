@@ -1,3 +1,11 @@
+#id 2026-10-28-d
+#titulo Crie seu personagem!
+- Criador de personagem 3D, masculino ou feminino, no estilo The Sims
+- Escolha pele, porte, olhos, barba, óculos, cabelo, roupas e sapatos
+- Botão do dado sorteia um visual; arraste para girar e use dois dedos para zoom
+- Seu personagem anda pela casa na vista aérea
+- Abra o criador pelo ícone de pessoa no topo ou em Configurações
+
 #id 2026-10-28-c
 #titulo Primeira pessoa e visual novo!
 - Ande pela casa e pelo quintal em primeira pessoa: joystick à esquerda, olhar à direita

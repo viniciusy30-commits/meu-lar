@@ -37,6 +37,8 @@ class GameState(ctx: Context) {
     var ownFloors = 1
     var ownWalls = 1
     var sens = 1
+    var avatar = Avatar()
+    var avatarSet = false
     val items = CopyOnWriteArrayList<Item>()
 
     init {
@@ -45,6 +47,7 @@ class GameState(ctx: Context) {
         ownFloors = prefs.getInt("ownF", 1) or 1
         ownWalls = prefs.getInt("ownW", 1) or 1
         sens = prefs.getInt("sens", 1).coerceIn(0, 2)
+        Avatar.decode(prefs.getString("avatar", null))?.let { avatar = it; avatarSet = true }
         val raw = prefs.getString("state", null)
         var ok = false
         if (raw != null) {
@@ -122,6 +125,7 @@ class GameState(ctx: Context) {
             .putInt("floor", floorIdx).putInt("wall", wallIdx)
             .putInt("ownF", ownFloors).putInt("ownW", ownWalls)
             .putInt("sens", sens)
+            .putString("avatar", avatar.encode())
             .apply()
     }
 }

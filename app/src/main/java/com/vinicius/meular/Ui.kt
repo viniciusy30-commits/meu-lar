@@ -74,6 +74,8 @@ object Ic {
     const val COIN = 110
     const val INFO = 111
     const val REFRESH = 112
+    const val PERSON = 113
+    const val DICE = 114
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -169,6 +171,16 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
             Ic.INFO -> {
                 fill(w); c.drawCircle(50f, 50f, 44f, p)
                 fill(a); c.drawCircle(50f, 30f, 6f, p); rr(c, 44f, 42f, 56f, 74f, 4f)
+            }
+            Ic.PERSON -> {
+                fill(w); c.drawCircle(50f, 28f, 18f, p)
+                path.reset(); path.moveTo(14f, 92f); path.cubicTo(14f, 52f, 86f, 52f, 86f, 92f); path.close(); c.drawPath(path, p)
+            }
+            Ic.DICE -> {
+                fill(w); rr(c, 10f, 10f, 90f, 90f, 18f)
+                fill(a)
+                c.drawCircle(30f, 30f, 8f, p); c.drawCircle(70f, 30f, 8f, p); c.drawCircle(50f, 50f, 8f, p)
+                c.drawCircle(30f, 70f, 8f, p); c.drawCircle(70f, 70f, 8f, p)
             }
             Ic.REFRESH -> {
                 stroke(w, 10f); rf.set(18f, 18f, 82f, 82f); c.drawArc(rf, -20f, 290f, false, p)

@@ -32,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewIcon: IconView
     private lateinit var hud: LinearLayout
     private lateinit var bottom: LinearLayout
+    private lateinit var creator: CreatorUi
+    private var prevMode = 0
     private var progresso = 0
     private var bottomInset = 0
 
@@ -130,6 +132,7 @@ class MainActivity : AppCompatActivity() {
         val vb = roundBtn(Ic.HOME, 46) { alternarVista() }
         viewIcon = vb.second
         hud.addView(vb.first)
+        hud.addView(roundBtn(Ic.PERSON, 46) { abrirCriador() }.first)
         hud.addView(roundBtn(Ic.GEAR, 46) { config() }.first)
         root.addView(hud, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
@@ -166,6 +169,10 @@ class MainActivity : AppCompatActivity() {
         bottom.addView(dock, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(bottom, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
 
+        creator = CreatorUi(this, st, game) { fecharCriador() }
+        creator.visibility = View.GONE
+        root.addView(creator, FrameLayout.LayoutParams(-1, -1))
+
         setContentView(root)
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, ins ->
@@ -173,6 +180,7 @@ class MainActivity : AppCompatActivity() {
             hud.setPadding(dp(12), b.top + dp(10), dp(12), dp(4))
             bottom.setPadding(dp(14), 0, dp(14), b.bottom + dp(12))
             bottomInset = b.bottom
+            creator.setInsets(b.top, b.bottom)
             (msgTv.layoutParams as FrameLayout.LayoutParams).topMargin = b.top + dp(78)
             ins
         }
@@ -182,6 +190,7 @@ class MainActivity : AppCompatActivity() {
         atualizarDinheiro(false)
         mostrarNovidades()
         Updater.autoCheck(this)
+        if (!st.avatarSet) root.post { abrirCriador() }
     }
 
     override fun onResume() { super.onResume(); game.onResume() }
@@ -218,7 +227,35 @@ class MainActivity : AppCompatActivity() {
         else { moveIcon.set(Ic.MOVE); moveLbl.text = "Pegar" }
     }
 
+    private fun abrirCriador() {
+        if (game.mode == 2) return
+        prevMode = game.mode
+        game.r.avDirty = true
+        game.mode = 2
+        editBar.visibility = View.GONE
+        hud.visibility = View.GONE
+        bottom.visibility = View.GONE
+        creator.visibility = View.VISIBLE
+        creator.open()
+    }
+
+    private fun fecharCriador() {
+        st.avatarSet = true
+        st.save()
+        creator.visibility = View.GONE
+        hud.visibility = View.VISIBLE
+        bottom.visibility = View.VISIBLE
+        game.mode = prevMode
+        viewIcon.set(if (prevMode == 0) Ic.HOME else Ic.EYE)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (game.mode == 2) fecharCriador() else super.onBackPressed()
+    }
+
     private fun alternarVista() {
+        if (game.mode == 2) return
         val novo = if (game.mode == 0) 1 else 0
         game.mode = novo
         viewIcon.set(if (novo == 0) Ic.HOME else Ic.EYE)
@@ -497,6 +534,7 @@ class MainActivity : AppCompatActivity() {
         var dlg: Dialog? = null
         dlg = sheet("Configurações") { panel ->
             linha(panel, Ic.REFRESH, "Verificar atualização") { dlg?.dismiss(); Updater.check(this, true) }
+            linha(panel, Ic.PERSON, "Meu personagem") { dlg?.dismiss(); abrirCriador() }
             linha(panel, Ic.INFO, "O que mudou") { dlg?.dismiss(); mostrarNovidades(true) }
             var sens: TextView? = null
             sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}") {
