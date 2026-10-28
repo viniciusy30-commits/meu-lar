@@ -53,12 +53,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     // criador de personagem (modo 2)
     @Volatile var cyaw = 0.35f
-    @Volatile var cTargetDist = 3.7f
-    @Volatile var cTargetY = 0.95f
+    @Volatile var cTargetDist = 5.0f
+    @Volatile var cTargetY = 1.0f
     @Volatile var autoSpin = true
     @Volatile var avDirty = true
-    private var cdist = 3.7f
-    private var cfy = 0.95f
+    private var cdist = 5.0f
+    private var cfy = 1.0f
     private var avMesh: Mesh? = null
     private var stageM: Mesh? = null
     private var avX = Float.NaN
