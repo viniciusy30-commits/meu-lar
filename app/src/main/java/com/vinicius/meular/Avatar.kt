@@ -1,8 +1,10 @@
 package com.vinicius.meular
 
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /** Paletas e nomes usados pelo criador de personagem. */
@@ -113,18 +115,42 @@ class Avatar(
     }
 }
 
-/** Modelo 3D do personagem (origem nos pés, rosto virado para +z) e o palco do criador. */
+/** Modelo 3D do personagem (origem nos pés, rosto virado para +z) e o palco do criador. Estilo fofinho: cabeça grande, formas lisas e olhos brilhantes. */
 object AvatarModel {
     private fun pick(arr: IntArray, i: Int): Int = arr[i.coerceIn(0, arr.size - 1)]
+
+    private const val HR = 0.42   // raio horizontal da cabeça
+    private const val HY = 0.385  // raio vertical da cabeça
+    private const val HEAD_Y = 1.08
+
+    /** Profundidade (z) da superfície da cabeça no ponto (x, dy) relativo ao centro. */
+    private fun hz(x: Double, dy: Double): Double {
+        val v = 1.0 - (x / HR) * (x / HR) - (dy / HY) * (dy / HY)
+        return HR * sqrt(if (v > 0.0) v else 0.0)
+    }
 
     fun stage(): Mesh {
         val b = MB()
         b.m(Mt.PLAIN)
-        b.cyl(0.0, 0.0, 0.0, 1.36, 1.36, 0.05, C("#FF7A59"), true, 56)
-        b.cyl(0.0, 0.0, 0.0, 1.3, 1.3, 0.082, C("#2C3450"), true, 56)
-        b.cyl(0.0, 0.0, 0.0, 1.0, 1.0, 0.0835, C("#343D5C"), true, 56)
+        b.cyl(0.0, 0.0, 0.0, 1.36, 1.36, 0.05, C("#FF7A59"), true, 64)
+        b.cyl(0.0, 0.0, 0.0, 1.3, 1.3, 0.082, C("#2C3450"), true, 64)
+        b.cyl(0.0, 0.0, 0.0, 1.0, 1.0, 0.0835, C("#343D5C"), true, 64)
         b.blob(0.0, 0.0855, 0.0, 0.62, 0.5, 0.45f)
         return b.toMesh()
+    }
+
+    /** Perfil suave em forma de ovo para o tronco: pares raio e y. */
+    private fun egg(h: Double, rBot: Double, rMid: Double, rTop: Double): FloatArray {
+        val n = 12
+        val out = FloatArray(n * 2)
+        for (i in 0 until n) {
+            val t = i.toDouble() / (n - 1)
+            val base = if (t < 0.45) rBot + (rMid - rBot) * (t / 0.45) else rMid + (rTop - rMid) * ((t - 0.45) / 0.55)
+            val round = 0.62 + 0.38 * sqrt(sin(PI * (0.04 + 0.92 * t)))
+            out[i * 2] = (base * round).toFloat()
+            out[i * 2 + 1] = (h * t).toFloat()
+        }
+        return out
     }
 
     fun build(a: Avatar): Mesh {
@@ -140,193 +166,235 @@ object AvatarModel {
         val shoe = pick(AvaPal.SHOE, a.shoeC)
         val bi = a.body.coerceIn(0, 2)
         val sides = doubleArrayOf(-1.0, 1.0)
-
-        // proporções estilizadas: cabeça grande, pernas curtas
-        val k = doubleArrayOf(0.88, 1.0, 1.15)[bi]
-        val hipY = 0.62
-        val shY = 1.0
-        val headY = 1.36
-        val lx = 0.095 * (0.92 + 0.08 * k) + (if (f) 0.004 else 0.0)
-        val chest = (if (f) 0.165 else 0.185) * k
-        val armX = chest + 0.05
+        val k = doubleArrayOf(0.9, 1.0, 1.13)[bi]
+        val hy = HEAD_Y
+        val white = C("#FFFFFF")
+        val ink = C("#2A1F2E")
         val dress = a.top == 4
-        val skinD = shade(skin, -22)
-        val white = C("#FAFAFA")
-        val dark = C("#15171D")
+        val skinD = shade(skin, -20)
+        val hcL = shade(hc, 22)
+        val hcD = shade(hc, -22)
 
         // ---------- pernas e sapatos
+        val lx = 0.105
         for (sx in sides) {
-            val x = sx * lx
-            b.cyl(x, 0.09, 0.0, 0.066, 0.097, hipY - 0.09, skin, true, 16)
-            b.rbox(x, 0.055, 0.04, 0.165, 0.105, 0.31, 0.05, shoe)
-            b.box(x, 0.012, 0.045, 0.168, 0.024, 0.318, C("#F2F2F2"))
+            val x = sx * lx * (0.95 + 0.05 * k)
+            b.limb(x, 0.32, 0.0, x, 0.11, 0.0, 0.072, 0.068, skin, 18)
+            b.ell(x, 0.062, 0.05, 0.108, 0.068, 0.155, shoe, 20)
+            b.ell(x, 0.022, 0.05, 0.112, 0.024, 0.16, C("#F4F1EC"), 18)
+            b.ell(x, 0.105, 0.135, 0.07, 0.04, 0.05, shade(shoe, 14), 12)
         }
 
         // ---------- roupa de baixo
         val botC = if (dress) tc else bot
-        b.sphere(0.0, hipY + 0.01, 0.0, 0.175 * k + (if (f) 0.012 else 0.0), botC, 0.115, 18)
+        b.ell(0.0, 0.345, 0.0, 0.205 * k + (if (f) 0.012 else 0.0), 0.125, 0.17 * k, botC, 22)
         if (!dress) {
             when (a.bottom) {
-                0 -> for (sx in sides) b.cyl(sx * lx, 0.09, 0.0, 0.074, 0.106, hipY - 0.07, bot, true, 16)
-                1 -> for (sx in sides) b.cyl(sx * lx, 0.30, 0.0, 0.098, 0.106, hipY - 0.28, bot, true, 16)
-                2 -> b.lathe(0.0, 0.30, 0.0, floatArrayOf(0.31f, 0f, 0.28f, 0.12f, 0.23f, 0.24f, 0.19f, 0.33f, 0.18f, 0.37f), bot, true, 28)
-                else -> for (sx in sides) b.cyl(sx * lx, 0.44, 0.0, 0.102, 0.108, hipY - 0.42, bot, true, 16)
+                0 -> for (sx in sides) { val x = sx * lx * (0.95 + 0.05 * k); b.limb(x, 0.35, 0.0, x, 0.12, 0.0, 0.092, 0.088, bot, 18) }
+                1 -> for (sx in sides) { val x = sx * lx * (0.95 + 0.05 * k); b.limb(x, 0.35, 0.0, x, 0.20, 0.0, 0.094, 0.092, bot, 18) }
+                2 -> b.lathe(0.0, 0.21, 0.0, floatArrayOf(0.33f, 0f, 0.31f, 0.05f, 0.27f, 0.12f, 0.22f, 0.19f, 0.19f, 0.24f), bot, true, 40)
+                else -> for (sx in sides) { val x = sx * lx * (0.95 + 0.05 * k); b.limb(x, 0.35, 0.0, x, 0.27, 0.0, 0.097, 0.095, bot, 18) }
             }
         } else {
-            val prof = floatArrayOf(0.33f, 0f, 0.30f, 0.12f, 0.24f, 0.26f, 0.19f, 0.38f, 0.17f, 0.46f)
-            b.lathe(0.0, 0.24, 0.0, prof, tc, true, 28)
+            b.lathe(0.0, 0.17, 0.0, floatArrayOf(0.36f, 0f, 0.345f, 0.04f, 0.30f, 0.12f, 0.24f, 0.21f, 0.19f, 0.30f), tc, true, 44)
+            b.ell(0.0, 0.17, 0.0, 0.36, 0.022, 0.36, shade(tc, 26), 16)
         }
 
         // ---------- tronco
         val hood = a.top == 3
         val ks = if (hood) 1.08 else 1.0
-        val tp = if (f) floatArrayOf(0.155f, 0f, 0.14f, 0.12f, 0.145f, 0.22f, 0.165f, 0.32f, 0.15f, 0.40f, 0.10f, 0.44f, 0.05f, 0.46f)
-        else floatArrayOf(0.150f, 0f, 0.165f, 0.08f, 0.175f, 0.2f, 0.19f, 0.32f, 0.175f, 0.40f, 0.10f, 0.44f, 0.05f, 0.46f)
-        val prof = FloatArray(tp.size) { i -> (tp[i] * (if (i % 2 == 0) (k * ks) else 1.0)).toFloat() }
-        b.lathe(0.0, 0.58, 0.0, prof, tc, true, 28)
-        if (f) for (sx in sides) b.sphere(sx * 0.07, 0.84, 0.115, 0.06, tc, 0.055, 12)
-        // gola
-        b.cyl(0.0, 1.0, 0.0, 0.075, 0.068, 0.04, shade(tc, -28), true, 18)
+        val rb = (if (f) 0.165 else 0.185) * k * ks
+        val rm = (if (f) 0.155 else 0.19) * k * ks
+        val rt = (if (f) 0.13 else 0.16) * k * ks
+        b.lathe(0.0, 0.30, 0.0, egg(0.50, rb, rm, rt), tc, true, 40)
+        if (f) for (sx in sides) b.ell(sx * 0.07, 0.62, 0.13, 0.062, 0.058, 0.055, tc, 14)
+        b.cyl(0.0, 0.76, 0.0, 0.088, 0.078, 0.04, shade(tc, -26), true, 28)
         if (hood) {
-            b.sphere(0.0, 1.03, -0.09, 0.11, tc, 0.07, 12)
-            b.rbox(0.0, 0.72, 0.165 * k, 0.2, 0.09, 0.05, 0.03, shade(tc, -18))
+            b.ell(0.0, 0.82, -0.10, 0.17, 0.11, 0.11, shade(tc, -10), 18)
+            b.ell(0.0, 0.47, 0.185 * k, 0.12, 0.06, 0.03, shade(tc, -16), 16)
+            for (sx in sides) b.limb(sx * 0.04, 0.74, 0.16, sx * 0.045, 0.60, 0.175, 0.012, 0.012, white, 8)
+        }
+        if (dress) {
+            val bw = shade(tc, -34)
+            b.ell(0.0, 0.62, 0.16, 0.035, 0.035, 0.03, bw, 12)
+            for (sx in sides) b.ell(sx * 0.07, 0.62, 0.16, 0.06, 0.04, 0.03, bw, 12, true, sx * 0.4)
         }
 
         // ---------- braços
         val sleeveLong = a.top == 1 || a.top == 3
         val sleeveShort = a.top == 0 || a.top == 4
         for (sx in sides) {
-            val x = sx * armX
-            b.cyl(x, 0.58, 0.0, 0.040, 0.050, 0.42, skin, true, 14)
-            b.sphere(x, 0.565, 0.0, 0.056, skin, 0.058, 12)
-            if (sleeveLong) b.cyl(x, 0.60, 0.0, 0.052, 0.066, 0.40, tc, true, 14)
-            else if (sleeveShort) b.cyl(x, 0.84, 0.0, 0.062, 0.068, 0.16, tc, true, 14)
-            b.sphere(x, 0.985, 0.0, 0.07, if (a.top == 2) skin else tc, 0.066, 12)
+            val sxp = sx * (0.175 * k + 0.035); val syp = 0.70
+            val hxp = sx * (0.225 * k + 0.085); val hyp = 0.41; val hzp = 0.035
+            fun at(t: Double, v0: Double, v1: Double) = v0 + (v1 - v0) * t
+            b.limb(sxp, syp, 0.0, hxp, hyp, hzp, 0.052, 0.046, skin, 16)
+            b.ell(hxp, hyp - 0.005, hzp, 0.058, 0.058, 0.055, skin, 16)
+            if (sleeveLong) {
+                val t = 0.88
+                b.limb(sxp, syp, 0.0, at(t, sxp, hxp), at(t, syp, hyp), at(t, 0.0, hzp), if (hood) 0.068 else 0.06, 0.056, tc, 16)
+                b.ell(at(t, sxp, hxp), at(t, syp, hyp), at(t, 0.0, hzp), 0.062, 0.03, 0.062, shade(tc, -20), 12, true, -sx * 0.25)
+            } else if (sleeveShort) {
+                val t = 0.36
+                b.limb(sxp, syp, 0.0, at(t, sxp, hxp), at(t, syp, hyp), at(t, 0.0, hzp), 0.066, 0.062, tc, 16)
+            }
+            b.ell(sxp, syp, 0.0, 0.07, 0.07, 0.07, if (a.top == 2) skin else tc, 16)
         }
 
         // ---------- pescoço e cabeça
-        b.cyl(0.0, 1.0, 0.0, 0.058, 0.052, 0.12, skin, true, 14)
-        b.sphere(0.0, headY, 0.0, 0.30, skin, 0.29, 24)
+        b.limb(0.0, 0.74, 0.0, 0.0, 0.88, 0.0, 0.065, 0.06, skin, 16)
+        b.ell(0.0, hy, 0.0, HR, HY, HR, skin, 34)
+        // orelhas
         for (sx in sides) {
-            b.sphere(sx * 0.295, headY - 0.01, -0.01, 0.045, skin, 0.06, 10)
-            b.sphere(sx * 0.304, headY - 0.01, -0.005, 0.025, skinD, 0.036, 8)
+            b.ell(sx * 0.405, hy - 0.03, -0.01, 0.05, 0.07, 0.05, skin, 14)
+            b.ell(sx * 0.425, hy - 0.03, 0.0, 0.025, 0.043, 0.03, skinD, 12)
         }
         // bochechas e nariz
-        val blush = mix(skin, C("#FF6B7E"), 0.30f)
-        for (sx in sides) b.sphere(sx * 0.17, headY - 0.075, 0.225, 0.036, blush, 0.02, 10)
-        b.sphere(0.0, headY - 0.05, 0.292, 0.028, shade(skin, -8), 0.026, 10)
-
-        // olhos grandes
-        val browC = shade(bc, -35)
+        val blush = mix(skin, C("#FF5E7A"), 0.45f)
         for (sx in sides) {
-            val x = sx * 0.11
-            b.sphere(x, headY + 0.005, 0.245, 0.062, white, 0.078, 14)
-            b.sphere(x, headY + 0.005, 0.268, 0.044, eyeC, 0.058, 14)
-            b.sphere(x, headY + 0.005, 0.287, 0.026, dark, 0.034, 10)
-            b.sphere(x + 0.016, headY + 0.03, 0.31, 0.012, white, 0.012, 6, false)
-            b.sphere(x - 0.012, headY - 0.02, 0.305, 0.006, white, 0.006, 6, false)
-            b.box(x, headY + 0.098, 0.262, 0.085, 0.017, 0.02, browC)
+            val bx = sx * 0.235
+            b.ell(bx, hy - 0.115, hz(bx, -0.115) - 0.018, 0.065, 0.036, 0.03, blush, 14, true, -sx * 0.18)
+        }
+        b.ell(0.0, hy - 0.085, hz(0.0, -0.085) + 0.004, 0.024, 0.018, 0.022, shade(skin, -10), 12)
+
+        // ---------- olhos grandes e brilhantes
+        val eyeDy = -0.025
+        val eyeX = 0.152
+        for (sx in sides) {
+            val ex = sx * eyeX
+            val zs = hz(ex, eyeDy)
+            val ey = hy + eyeDy
+            b.ell(ex, ey, zs - 0.045, 0.088, 0.112, 0.05, ink, 22)
+            b.ell(ex, ey - 0.004, zs - 0.036, 0.074, 0.098, 0.05, eyeC, 22)
+            b.ell(ex, ey - 0.03, zs - 0.032, 0.058, 0.055, 0.05, mix(eyeC, white, 0.38f), 18)
+            b.ell(ex, ey + 0.004, zs - 0.03, 0.044, 0.062, 0.05, shade(eyeC, -70), 18)
+            b.ell(ex, ey + 0.006, zs - 0.026, 0.03, 0.044, 0.05, C("#0E0A12"), 16)
+            b.ell(ex + 0.028, ey + 0.04, zs - 0.012, 0.027, 0.032, 0.05, white, 14, false)
+            b.ell(ex - 0.026, ey - 0.04, zs - 0.012, 0.013, 0.015, 0.05, white, 10, false)
+            // pálpebra superior
+            b.ell(ex, ey + 0.1, zs - 0.027, 0.098, 0.022, 0.045, ink, 14, true, -sx * 0.1)
             if (f) {
-                b.box(x, headY + 0.082, 0.272, 0.115, 0.012, 0.02, dark)
-                b.box(sx * 0.172, headY + 0.07, 0.25, 0.014, 0.016, 0.018, dark)
+                b.ell(ex + sx * 0.085, ey + 0.095, zs - 0.045, 0.038, 0.013, 0.03, ink, 10, true, sx * 0.55)
+                b.ell(ex + sx * 0.09, ey + 0.065, zs - 0.05, 0.03, 0.011, 0.03, ink, 10, true, sx * 0.9)
             }
         }
-        // boca (sorriso)
-        val lip = if (f) C("#D4566A") else C("#B24A55")
-        for (i in -3..3) {
-            b.sphere(i * 0.016, headY - 0.125 + 0.0034 * i * i, 0.262, 0.0085, lip, 0.0085, 6)
+        // sobrancelhas
+        val browC = shade(bc, -30)
+        for (sx in sides) {
+            val bx = sx * 0.155
+            b.ell(bx, hy + 0.165, hz(bx, 0.165) - 0.004, 0.07, 0.014, 0.022, browC, 12, true, sx * 0.12)
         }
+        // boca (sorriso pequenino)
+        val lip = if (f) C("#D9576C") else C("#B8505A")
+        for (i in -4..4) {
+            val x = i * 0.0165
+            val dy = -0.172 - 0.016 * (1.0 - (i / 4.0) * (i / 4.0))
+            b.ell(x, hy + dy, hz(x, dy) - 0.003, 0.0105, 0.0105, 0.012, lip, 8)
+        }
+        for (sx in sides) b.ell(sx * 0.082, hy - 0.162, hz(sx * 0.082, -0.162) - 0.003, 0.008, 0.008, 0.01, shade(lip, -25), 8)
 
         // ---------- barba
         if (a.beard > 0) {
-            b.rbox(0.0, headY - 0.092, 0.283, 0.13, 0.026, 0.026, 0.012, bc)
+            for (sx in sides) b.ell(sx * 0.022, hy - 0.125, hz(sx * 0.022, -0.125) + 0.012, 0.045, 0.018, 0.022, bc, 12, true, sx * 0.3)
             if (a.beard == 2) {
-                b.rbox(0.0, headY - 0.235, 0.172, 0.075, 0.085, 0.075, 0.03, bc)
+                b.ell(0.0, hy - 0.285, hz(0.0, -0.285) + 0.0, 0.065, 0.075, 0.055, bc, 14)
             } else if (a.beard == 3) {
-                b.sphere(0.0, headY - 0.20, 0.03, 0.268, bc, 0.12, 20)
-                b.rbox(0.0, headY - 0.245, 0.17, 0.12, 0.07, 0.07, 0.03, bc)
+                b.ell(0.0, hy - 0.30, 0.02, 0.43, 0.17, 0.43, bc, 30)
+                for (sx in sides) b.limb(sx * 0.37, hy - 0.02, 0.07, sx * 0.33, hy - 0.2, 0.12, 0.05, 0.05, bc, 12)
             }
-        }
-
-        // ---------- óculos
-        if (a.glasses > 0) {
-            val fr = C("#1D222B")
-            val hy = headY + 0.005
-            for (sx in sides) {
-                val x = sx * 0.11
-                when (a.glasses) {
-                    1 -> for (i in 0 until 16) {
-                        val an = 2.0 * PI * i / 16
-                        b.box(x + 0.082 * cos(an), hy + 0.082 * sin(an), 0.318, 0.016, 0.016, 0.014, fr)
-                    }
-                    2 -> {
-                        b.box(x, hy + 0.075, 0.318, 0.17, 0.014, 0.014, fr)
-                        b.box(x, hy - 0.075, 0.318, 0.17, 0.014, 0.014, fr)
-                        b.box(x - 0.085, hy, 0.318, 0.014, 0.16, 0.014, fr)
-                        b.box(x + 0.085, hy, 0.318, 0.014, 0.16, 0.014, fr)
-                    }
-                    else -> b.rbox(x, hy, 0.318, 0.18, 0.13, 0.016, 0.04, C("#0E1117"))
-                }
-                b.box(sx * 0.285, hy + 0.01, 0.15, 0.012, 0.012, 0.3, fr)
-            }
-            b.box(0.0, hy + 0.02, 0.318, 0.05, 0.012, 0.014, fr)
         }
 
         // ---------- cabelo
-        fun dome() {
-            val n = 8
-            val pr = FloatArray(n * 2)
-            for (i in 0 until n) {
-                val an = PI / 2.0 * i / (n - 1)
-                pr[i * 2] = (0.322 * cos(an)).toFloat()
-                pr[i * 2 + 1] = (0.25 * sin(an)).toFloat()
-            }
-            b.lathe(0.0, headY + 0.10, -0.01, pr, hc, true, 24)
-        }
-        fun fringe() {
-            for (j in -2..2) {
-                val x = j * 0.075
-                b.sphere(x, headY + 0.15 - 0.012 * (if (j % 2 == 0) 0 else 1), 0.19, 0.062, hc, 0.07, 10)
+        fun shell(dy: Double, ry: Double, rr: Double, zc: Double) = b.ell(0.0, hy + dy, zc, rr, ry, rr, hc, 30)
+        fun bangs(n: Int, lift: Double) {
+            for (j in 0 until n) {
+                val u = if (n == 1) 0.0 else (j - (n - 1) / 2.0) / ((n - 1) / 2.0)
+                val x = u * 0.27
+                val dyb = 0.215 - 0.05 * u * u + lift
+                val sw = 0.085 + 0.012 * (1 - abs(u))
+                b.ell(x, hy + dyb, hz(x, dyb) + 0.012, sw, 0.07, 0.06, if (j % 2 == 0) hc else hcL, 14, true, -u * 0.25)
             }
         }
-        fun back(ry: Double, dy: Double) {
-            b.sphere(0.0, headY + dy, -0.05, 0.312, hc, ry, 20)
+        fun temples() {
+            for (sx in sides) b.ell(sx * 0.335, hy + 0.06, hz(sx * 0.335, 0.06) - 0.005, 0.07, 0.115, 0.06, hc, 14, true, sx * 0.1)
+        }
+        fun shine(r: Double) {
+            b.ell(0.0, hy + r, 0.12, 0.2, 0.012, 0.09, hcL, 10, true, 0.0, -0.5)
         }
         when (a.hair) {
-            1 -> { dome(); back(0.25, 0.05); fringe() }
+            1 -> { shell(0.12, 0.38, 0.445, -0.06); bangs(5, 0.0); temples() }
             2 -> {
-                dome(); back(0.30, -0.02); fringe()
-                for (sx in sides) b.sphere(sx * 0.27, headY - 0.04, 0.02, 0.07, hc, 0.16, 10)
+                shell(0.05, 0.45, 0.47, -0.08); bangs(5, 0.0); temples()
+                for (sx in sides) b.limb(sx * 0.37, hy + 0.02, 0.04, sx * 0.39, hy - 0.2, 0.0, 0.075, 0.07, hc, 14)
+                b.ell(0.0, hy - 0.15, -0.2, 0.36, 0.25, 0.2, hcD, 22)
             }
             3 -> {
-                dome(); back(0.30, -0.02); fringe()
-                b.rbox(0.0, headY - 0.32, -0.16, 0.5, 0.6, 0.13, 0.06, hc)
-                for (sx in sides) b.rbox(sx * 0.29, headY - 0.22, 0.0, 0.07, 0.36, 0.2, 0.03, hc)
+                shell(0.05, 0.45, 0.47, -0.1); bangs(5, 0.0); temples()
+                b.ell(0.0, 0.68, -0.2, 0.38, 0.46, 0.17, hcD, 26)
+                for (sx in sides) {
+                    b.limb(sx * 0.37, hy + 0.0, 0.05, sx * 0.36, 0.6, 0.1, 0.08, 0.07, hc, 14)
+                    b.ell(sx * 0.36, 0.56, 0.1, 0.07, 0.06, 0.07, hc, 12)
+                }
             }
             4 -> {
-                dome(); back(0.25, 0.05); fringe()
-                b.sphere(0.0, headY + 0.03, -0.31, 0.04, C("#E5484D"), 0.04, 8)
-                b.cyl(0.0, headY - 0.34, -0.36, 0.035, 0.07, 0.4, hc, true, 12)
-                b.sphere(0.0, headY - 0.36, -0.36, 0.06, hc, 0.06, 10)
+                shell(0.12, 0.38, 0.445, -0.06); bangs(5, 0.0); temples()
+                b.limb(0.0, hy + 0.2, -0.42, 0.0, hy - 0.3, -0.5, 0.1, 0.05, hc, 16)
+                b.ell(0.0, hy + 0.2, -0.4, 0.06, 0.055, 0.06, C("#E5484D"), 14)
             }
             5 -> {
-                dome(); back(0.25, 0.05); fringe()
-                b.sphere(0.0, headY + 0.40, -0.04, 0.12, hc, 0.11, 14)
-                b.cyl(0.0, headY + 0.30, -0.04, 0.07, 0.07, 0.03, C("#E5484D"), true, 12)
+                shell(0.12, 0.38, 0.445, -0.06); bangs(5, 0.0); temples()
+                b.ell(0.0, hy + 0.5, -0.05, 0.15, 0.13, 0.15, hc, 22)
+                b.ell(0.0, hy + 0.38, -0.05, 0.115, 0.032, 0.115, C("#E5484D"), 14)
             }
             6 -> {
-                b.sphere(0.0, headY + 0.03, -0.02, 0.305, mix(skin, hc, 0.30f), 0.29, 20)
-                b.rbox(0.0, headY + 0.33, -0.02, 0.075, 0.16, 0.46, 0.035, hc)
+                b.ell(0.0, hy + 0.01, 0.0, HR + 0.006, HY + 0.006, HR + 0.006, mix(skin, hc, 0.30f), 30)
+                for (i in 0..6) {
+                    val t = i / 6.0
+                    b.ell(0.0, hy + 0.37 + 0.06 * sin(PI * t), 0.3 - 0.62 * t, 0.045, 0.13, 0.09, if (i % 2 == 0) hc else hcL, 14)
+                }
             }
             7 -> {
-                b.sphere(0.0, headY + 0.10, -0.10, 0.38, hc, 0.32, 18)
-                for (sx in sides) b.sphere(sx * 0.2, headY + 0.28, 0.0, 0.14, hc, 0.12, 10)
+                b.ell(0.0, hy + 0.14, -0.17, 0.56, 0.5, 0.52, hc, 30)
+                for (i in 0 until 8) {
+                    val an = PI * (0.1 + 0.8 * i / 7.0)
+                    b.ell(0.5 * cos(an), hy + 0.12 + 0.46 * sin(an), -0.14, 0.15, 0.14, 0.15, if (i % 2 == 0) hcD else hc, 14)
+                }
+                b.ell(0.0, hy + 0.62, -0.14, 0.17, 0.12, 0.17, hc, 14)
             }
             8 -> {
-                dome(); back(0.25, 0.05); fringe()
-                b.rbox(0.0, headY + 0.33, 0.07, 0.34, 0.13, 0.3, 0.06, hc)
+                shell(0.12, 0.38, 0.445, -0.06); bangs(3, 0.03); temples()
+                b.ell(0.0, hy + 0.4, 0.1, 0.2, 0.11, 0.23, hc, 18, true, 0.0, -0.4)
+                b.ell(0.1, hy + 0.43, 0.14, 0.12, 0.07, 0.15, hcL, 14, true, -0.3, -0.4)
             }
             else -> {}
+        }
+        if (a.hair in listOf(1, 2, 3, 4, 5, 8)) shine(0.33)
+
+        // ---------- óculos (por último, por causa da transparência)
+        if (a.glasses > 0) {
+            val fr = if (a.glasses == 3) C("#0E1117") else C("#242A35")
+            val zOff = 0.05
+            for (sx in sides) {
+                val ex = sx * eyeX
+                val ec = hy + eyeDy
+                val rr = if (a.glasses == 2) 0.125 else 0.115
+                val steps = 22
+                for (i in 0 until steps) {
+                    val an = 2.0 * PI * i / steps
+                    var cx0 = cos(an); var sy0 = sin(an)
+                    if (a.glasses == 2) {
+                        cx0 = Math.signum(cx0) * Math.pow(abs(cx0), 0.5)
+                        sy0 = Math.signum(sy0) * Math.pow(abs(sy0), 0.5)
+                    }
+                    val px = ex + rr * cx0
+                    val py = rr * 0.92 * sy0 + eyeDy
+                    b.ell(px, hy + py, hz(px, py) + zOff, 0.0125, 0.0125, 0.012, fr, 8)
+                }
+                b.al = if (a.glasses == 3) 0.86f else 0.22f
+                b.ell(ex, ec, hz(ex, eyeDy) + zOff - 0.004, rr, rr * 0.92, 0.006, if (a.glasses == 3) C("#0A0C10") else C("#BFE3FF"), 14)
+                b.al = 1f
+                b.limb(sx * (eyeX + rr), ec + 0.02, hz(sx * (eyeX + rr), 0.0) + zOff - 0.01, sx * 0.4, ec + 0.02, 0.06, 0.009, 0.009, fr, 8)
+            }
+            b.ell(0.0, hy + eyeDy + 0.025, hz(0.0, 0.0) + zOff + 0.005, 0.045, 0.011, 0.011, fr, 8)
         }
         return b.toMesh()
     }

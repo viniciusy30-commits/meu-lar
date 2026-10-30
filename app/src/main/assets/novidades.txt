@@ -1,3 +1,9 @@
+#id 2026-10-30-a
+#titulo Personagem fofinho de verdade
+- Personagem refeito do zero: cabeça grande, corpo arredondado e formas lisas, sem aquele monte de polígonos
+- Olhos enormes e brilhantes com reflexo, bochechas rosadas, sorrisinho e cílios
+- Cabelos, barbas, óculos e roupas redesenhados com volume e mechas suaves
+
 #id 2026-10-28-g
 #titulo Criação de herói: mais raças, rosto e altura
 - 4 raças novas: Meio-elfo, Gnomo, Halfling e Aasimar (13 no total). Gnomo e Halfling são bem menores; o Aasimar tem pele dourada e cura aos poucos
@@ -262,7 +268,7 @@
 #titulo Editor de mapas
 - Novo botão "Editor de mapas" no menu: monte seus próprios mapas dentro do jogo
 - Pincel, retângulo, balde, borracha, desfazer/refazer, zoom com dois dedos
-- Chão, paredes, objetos (caixote, barril, pilar, braseiro...) e entidades (início, inimigos, chefe)
+- Chão, paredes, objetos (caixote, barril, pilar, braseiro e outros) e entidades (início, inimigos, chefe)
 - Botão "Testar" joga o mapa na hora; depois volta para o editor
 - Em "Jogar" agora você escolhe entre o mundo aberto e seus mapas
 - Texturas de teste no estilo Minecraft Dungeons (troque por PNGs em assets/tiles)

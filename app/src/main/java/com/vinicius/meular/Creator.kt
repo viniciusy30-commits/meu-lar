@@ -115,8 +115,8 @@ class CreatorUi(
     }
 
     private fun camera() {
-        if (tab == 1 || tab == 2) { game.r.cTargetDist = 2.6f; game.r.cTargetY = 1.44f }
-        else { game.r.cTargetDist = 5.0f; game.r.cTargetY = 1.0f }
+        if (tab == 1 || tab == 2) { game.r.cTargetDist = 2.5f; game.r.cTargetY = 1.12f }
+        else { game.r.cTargetDist = 4.6f; game.r.cTargetY = 0.82f }
     }
 
     private fun refresh() {
