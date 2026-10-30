@@ -53,7 +53,7 @@ public final class Figure {
         } else {
             Body.Hand h = part.equals("handL") ? body.handL : body.handR;
             float[] w = part.equals("handL") ? body.wristL : body.wristR;
-            Mesher.Out o = Mesher.run(body, w[0] - 0.09f, w[1] - 0.17f, w[2] - 0.09f, w[0] + 0.09f, w[1] + 0.03f, w[2] + 0.09f, 0.0038f);
+            Mesher.Out o = Mesher.run(body, w[0] - 0.12f, w[1] - 0.25f, w[2] - 0.12f, w[0] + 0.12f, w[1] + 0.03f, w[2] + 0.12f, 0.0040f);
             l = Layer.from(o, tg);
         }
         cache.put(key, l);

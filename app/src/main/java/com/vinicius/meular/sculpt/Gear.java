@@ -89,14 +89,14 @@ final class Gear {
         final float H = CH;
         final boolean sleeves = kind == 0 || kind == 1 || kind == 3;
         final boolean longS = kind == 1 || kind == 3;
-        final float hem = snapY(kind == 3 ? 0.79f : (kind == 4 ? 0.93f : (kind == 2 ? 0.86f : 0.84f)), H);
+        final float hem = snapY(kind == 3 ? 0.77f : (kind == 4 ? 0.93f : (kind == 2 ? 0.86f : 0.82f)), H);
         final float cutY = snapY(longS ? b.wristL[1] + 0.030f : 1.07f, H);
         final float base = kind == 3 ? 0.0125f : (kind == 2 || kind == 4 ? 0.0085f : 0.0075f);
         final float loose = kind == 3 ? 0.020f : (kind == 4 ? 0.0f : (kind == 2 ? 0.011f : 0.013f));
         final float sh = b.shW;
         final float[] sL = b.shoulderL, eL = b.elbowL, wL = b.wristL;
-        final Tube upT = new Tube(sL[0], sL[1], sL[2], eL[0], eL[1], eL[2], 0.066f);
-        final Tube foT = new Tube(eL[0], eL[1], eL[2], wL[0], wL[1], wL[2], 0.060f);
+        final Tube upT = new Tube(sL[0], sL[1], sL[2], eL[0], eL[1], eL[2], 0.058f);
+        final Tube foT = new Tube(eL[0], eL[1], eL[2], wL[0], wL[1], wL[2], 0.050f);
         final boolean wide = kind == 2 || kind == 4;
         final Ell neck = wide ? new Ell(0, 1.318f, 0.030f, 0.074f, 0.060f, 0.084f)
                 : (kind == 3 ? new Ell(0, 1.346f, 0.014f, 0.060f, 0.052f, 0.066f) : new Ell(0, 1.322f, 0.022f, 0.064f, 0.050f, 0.080f));
@@ -105,11 +105,11 @@ final class Gear {
             float d = b.d(x, y, z);
             if (d > 0.08f) return d;
             float ax = Math.abs(x);
-            float sd = d - (base + loose * sstep(1.10f, 0.92f, y));
-            float xl = wide ? mixf((b.female ? 0.130f : 0.152f) * b.wScale + 0.012f, sh - 0.045f, sstep(1.13f, 1.20f, y)) : sh + 0.025f;
-            float reg = Math.max(ax - xl, Math.max(hem - y, y - 1.345f));
+            float sd = d - (base + loose * sstep(1.12f, 0.94f, y) * (1f - sstep(sh - 0.03f, sh + 0.01f, ax)));
+            float xl = wide ? mixf((b.female ? 0.130f : 0.152f) * b.wScale + 0.012f, sh - 0.045f, sstep(1.15f, 1.23f, y)) : sh + 0.025f;
+            float reg = Math.max(ax - xl, Math.max(hem - y, y - 1.350f));
             if (sleeves) {
-                float rs = Math.max(upT.d(ax, y, z, -0.42f, 9f), y - 1.345f);
+                float rs = Math.max(upT.d(ax, y, z, -0.42f, 9f), y - 1.350f);
                 if (longS) rs = Math.min(rs, foT.d(ax, y, z, -0.035f, 9f));
                 rs = Math.max(rs, cutY - y);
                 reg = Math.min(reg, rs);
@@ -140,7 +140,7 @@ final class Gear {
         final float H = CH;
         final float hem = snapY(kind == 0 ? 0.080f : (kind == 1 ? 0.405f : 0.600f), H);
         final float top = snapY(0.960f, H);
-        final float xlim = Math.max(b.shW + 0.006f, b.legX + 0.095f);
+        final float xlim = b.legX + 0.078f;
         final float base = kind == 0 ? 0.0085f : 0.011f;
         final float flare = kind == 0 ? 0.004f : 0.009f;
         final Field f = (x, y, z) -> {

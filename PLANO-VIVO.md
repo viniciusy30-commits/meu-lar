@@ -28,5 +28,11 @@ Feedback mais recente do usuário: corpo parecia "boneco de feira" (peças colad
 ## Arquivos alterados
 app/src/main/java/com/vinicius/meular/{SculptAvatar.kt (novo), sculpt/*.java (novos), Gfx.kt, Renderer3D.kt, Avatar.kt, Creator.kt, GameView.kt}, app/src/main/assets/novidades.txt
 
+## Rodada final (proporções/mãos/rosto)
+- [x] Torso mais alto/largo, braços mais finos e curtos, pernas e quadril reajustados; roupas acompanham
+- [x] Mãos refeitas (palma, polegar, 4 dedos) e caixa de malha da mão ampliada (pontas dos dedos não são mais cortadas)
+- [x] Rosto mais fino estilo Sims (mandíbula, queixo, maçãs do rosto mais altas, lábios mais cheios)
+- [x] Teste PC: 324 combinações sem erro/NaN
+
 ## PRÓXIMO PASSO
 Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no celular e ajustar rosto/moicano/desempenho conforme o que aparecer.
