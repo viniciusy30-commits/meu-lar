@@ -153,7 +153,15 @@ object AvatarModel {
         return out
     }
 
-    fun build(a: Avatar): Mesh {
+    /** Personagem esculpido (superfície contínua); se algo falhar, cai no modelo simples antigo. */
+    fun build(a: Avatar): Mesh = try {
+        SculptAvatar.build(a)
+    } catch (e: Throwable) {
+        buildCute(a)
+    }
+
+    /** Modelo simples de elipsoides (reserva). */
+    fun buildCute(a: Avatar): Mesh {
         val b = MB()
         b.m(Mt.PLAIN)
         val f = a.female

@@ -206,7 +206,7 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                     ax = e.x
                 } else if (amode == 3 && e.pointerCount >= 2) {
                     val d = dist(e)
-                    if (pinchD > 0f && d > 0f) r.cTargetDist = (r.cTargetDist * pinchD / d).coerceIn(1.6f, 6.0f)
+                    if (pinchD > 0f && d > 0f) r.cTargetDist = (r.cTargetDist * pinchD / d).coerceIn(0.9f, 6.0f)
                     pinchD = d
                 }
             }

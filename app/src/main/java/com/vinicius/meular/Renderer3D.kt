@@ -245,7 +245,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glVertexAttribPointer(aCol, 4, GLES20.GL_FLOAT, false, bytes, p.buf)
             p.buf.position(10)
             GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, bytes, p.buf)
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
+            val ib = p.idx
+            if (ib != null) {
+                ib.position(0)
+                GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, ib)
+            } else {
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
+            }
         }
     }
 
@@ -509,9 +515,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         updateFocus()
 
         if (avDirty) {
-            avMesh = AvatarModel.build(st.avatar)
             avDirty = false
+            AvatarBuilder.request(st.avatar)
         }
+        AvatarBuilder.take()?.let { avMesh = it }
         if (cr) {
             drawCreator(now)
             return

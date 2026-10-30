@@ -1,3 +1,11 @@
+#id 2026-10-30-b
+#titulo Personagem esculpido de verdade
+- Corpo, cabeça, mãos, cabelo e roupas agora são uma superfície contínua e lisa, sem peças coladas
+- Rosto novo: olhos com pálpebra e brilho, sobrancelhas, nariz, bochechas coradas e sorriso suave
+- Mãos com dedos de verdade; roupas que acompanham o corpo, com decote, mangas e barras abertas
+- Cabelos com volume e mechas, barbas e óculos redesenhados; câmera do criador ajustada ao novo tamanho
+- O personagem é montado em segundo plano: na primeira vez pode levar alguns segundos
+
 #id 2026-10-30-a
 #titulo Personagem fofinho de verdade
 - Personagem refeito do zero: cabeça grande, corpo arredondado e formas lisas, sem aquele monte de polígonos

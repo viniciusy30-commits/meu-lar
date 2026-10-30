@@ -7,6 +7,7 @@ import android.opengl.GLUtils
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.nio.ShortBuffer
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -39,7 +40,8 @@ object Mt {
     val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f)
 }
 
-class Part(val mat: Int, val buf: FloatBuffer, val count: Int)
+/** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
+class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuffer? = null, val icount: Int = 0)
 class Mesh(val parts: List<Part>)
 
 fun C(s: String): Int = Color.parseColor(s)

@@ -115,8 +115,12 @@ class CreatorUi(
     }
 
     private fun camera() {
-        if (tab == 1 || tab == 2) { game.r.cTargetDist = 2.5f; game.r.cTargetY = 1.12f }
-        else { game.r.cTargetDist = 4.6f; game.r.cTargetY = 0.82f }
+        // palco a 0,082 de altura: cTargetY é o centro do que aparece (rosto, cabelo ou corpo inteiro)
+        when (tab) {
+            1 -> { game.r.cTargetDist = 1.25f; game.r.cTargetY = 1.54f }
+            2 -> { game.r.cTargetDist = 1.85f; game.r.cTargetY = 1.46f }
+            else -> { game.r.cTargetDist = 5.0f; game.r.cTargetY = 0.88f }
+        }
     }
 
     private fun refresh() {
