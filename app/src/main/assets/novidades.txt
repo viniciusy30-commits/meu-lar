@@ -2,6 +2,7 @@
 #titulo Primeiro personagem do pack Cute Characters
 - Importado o personagem pronto f_1 (menina de coques, jaqueta vermelha) do pack Cute Characters – Modular Animated Pack
 - Já com esqueleto, textura e animações: parada (Idle) no criador e andando (Walk) quando se move pela casa
+- Corrigido: personagem aparecia todo preto (cor de vértice do modelo é máscara, agora ignorada)
 - Os outros 24 personagens e as outras animações do pack já foram lidos e podem ser importados do mesmo jeito
 - A personalização antiga (corpo, rosto, cabelo, roupa) foi removida: a tela do personagem mostra só o novo, com o botão Pronto
 
