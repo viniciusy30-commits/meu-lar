@@ -156,7 +156,7 @@ object CuteChar {
         slotNs[sl] = now
 
         if (slotClip[sl] != c) {
-            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP) 0.06f else 0.15f
+            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP) 0.06f else 0.25f
             slotClip[sl] = c
             slotT0[sl] = t
         }
@@ -176,7 +176,7 @@ object CuteChar {
 
         val prev = slotLast[sl]
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
-            val dur = if (c == JUMP) 0.06f else 0.15f
+            val dur = if (c == JUMP) 0.06f else 0.25f
             val k = smooth01(1f - slotBlend[sl] / dur)
             for (j in 0 until n12) bone[j] = prev[j] + (bone[j] - prev[j]) * k
             slotBlend[sl] -= dt
