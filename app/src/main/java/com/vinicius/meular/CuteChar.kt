@@ -11,8 +11,8 @@ import java.nio.ShortBuffer
 
 /**
  * Personagem do pack "Cute Characters – Modular Animated Pack" (f_1), convertido do FBX
- * para assets/cute/f_1.bin (malha + pesos de pele + animações Idle e Walk já "assadas"
- * em matrizes de osso por quadro, 24 fps) e assets/cute/textures.png.
+ * para assets/cute/f_1.bin (malha + pesos de pele + animações já "assadas"
+ * em matrizes de osso por quadro) e assets/cute/textures.png.
  * A pele é feita na CPU a cada quadro (≈6,5 mil vértices, barato).
  * Se qualquer coisa falhar, [frame] devolve null e o app usa o personagem antigo.
  */
@@ -120,21 +120,72 @@ object CuteChar {
     fun clipSeconds(clip: Int): Float =
         if (loaded && clip in clipLen.indices) clipLen[clip] else 1f
 
-    /** Pose do clip [clip] no tempo [t] (segundos, repete em laço). Devolve a malha pronta para desenhar. */
-    fun frame(clip: Int, t: Float): Mesh? {
+    // estado por "slot" (0 = jogador, 1 = avatar da casa, 2 = criador): fase do laço e transição suave
+    private val slotClip = IntArray(3) { -1 }
+    private val slotT0 = FloatArray(3)
+    private val slotBlend = FloatArray(3)
+    private val slotNs = LongArray(3)
+    private val slotLast = arrayOfNulls<FloatArray>(3)
+    private var bone = FloatArray(0)
+
+    private fun smooth01(x: Float): Float {
+        val c = if (x < 0f) 0f else if (x > 1f) 1f else x
+        return c * c * (3f - 2f * c)
+    }
+
+    /**
+     * Pose do clip [clip] no tempo [t] (segundos). Devolve a malha pronta para desenhar.
+     * Nos clips em laço (parado/andar) a fase recomeça do zero quando o clip muda, e a troca
+     * de clip é suavizada (≈0,15 s), sem "pulo" de pose. [slot] separa quem está desenhando.
+     */
+    fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         val m = mesh ?: return null
         if (!loaded) return null
         val c = clip.coerceIn(0, clipData.size - 1)
+        val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = clipFrames[c]
         val len = clipLen[c].coerceAtLeast(0.001f)
-        val ft = ((t % len) / len) * (nf - 1).coerceAtLeast(1)
+        val d = clipData[c] ?: return null
+        val n12 = nb * 12
+        if (bone.size != n12) bone = FloatArray(n12)
+
+        val now = System.nanoTime()
+        var dt = (now - slotNs[sl]) / 1_000_000_000f
+        if (dt < 0f || dt > 0.25f) dt = 0.016f
+        slotNs[sl] = now
+
+        if (slotClip[sl] != c) {
+            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP) 0.06f else 0.15f
+            slotClip[sl] = c
+            slotT0[sl] = t
+        }
+        var lt = if (c == JUMP) t else t - slotT0[sl]
+        if (c != JUMP) {
+            lt %= len
+            if (lt < 0f) lt += len
+        } else if (lt < 0f) lt = 0f
+
+        val ft = (lt / len) * (nf - 1).coerceAtLeast(1)
         val f0 = ft.toInt().coerceIn(0, nf - 1)
         val f1 = (f0 + 1).coerceAtMost(nf - 1)
         val a = ft - f0
-        val d = clipData[c] ?: return null
-        val o0 = f0 * nb * 12
-        val o1 = f1 * nb * 12
-        val mm = FloatArray(12)
+        val o0 = f0 * n12
+        val o1 = f1 * n12
+        for (j in 0 until n12) bone[j] = d[o0 + j] + (d[o1 + j] - d[o0 + j]) * a
+
+        val prev = slotLast[sl]
+        if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
+            val dur = if (c == JUMP) 0.06f else 0.15f
+            val k = smooth01(1f - slotBlend[sl] / dur)
+            for (j in 0 until n12) bone[j] = prev[j] + (bone[j] - prev[j]) * k
+            slotBlend[sl] -= dt
+        } else {
+            slotBlend[sl] = 0f
+        }
+        val keep: FloatArray = if (prev != null && prev.size == n12) prev else FloatArray(n12).also { slotLast[sl] = it }
+        System.arraycopy(bone, 0, keep, 0, n12)
+
+        val mm = bone
         for (v in 0 until nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
@@ -144,13 +195,12 @@ object CuteChar {
                 val w = bw[v * 4 + k]
                 if (w <= 0f) continue
                 val bo = bi[v * 4 + k] * 12
-                for (j in 0 until 12) mm[j] = d[o0 + bo + j] + (d[o1 + bo + j] - d[o0 + bo + j]) * a
-                x += w * (mm[0] * px + mm[1] * py + mm[2] * pz + mm[3])
-                y += w * (mm[4] * px + mm[5] * py + mm[6] * pz + mm[7])
-                z += w * (mm[8] * px + mm[9] * py + mm[10] * pz + mm[11])
-                X += w * (mm[0] * nx + mm[1] * ny + mm[2] * nz)
-                Y += w * (mm[4] * nx + mm[5] * ny + mm[6] * nz)
-                Z += w * (mm[8] * nx + mm[9] * ny + mm[10] * nz)
+                x += w * (mm[bo] * px + mm[bo + 1] * py + mm[bo + 2] * pz + mm[bo + 3])
+                y += w * (mm[bo + 4] * px + mm[bo + 5] * py + mm[bo + 6] * pz + mm[bo + 7])
+                z += w * (mm[bo + 8] * px + mm[bo + 9] * py + mm[bo + 10] * pz + mm[bo + 11])
+                X += w * (mm[bo] * nx + mm[bo + 1] * ny + mm[bo + 2] * nz)
+                Y += w * (mm[bo + 4] * nx + mm[bo + 5] * ny + mm[bo + 6] * nz)
+                Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
             out[o] = x; out[o + 1] = y; out[o + 2] = z

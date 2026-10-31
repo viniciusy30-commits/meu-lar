@@ -1,3 +1,10 @@
+#id 2026-10-31-d
+#titulo Mary: andar natural e animação mais fluida
+- Andar refeito do zero: passos mais naturais (sem aquela corrida), braços relaxados balançando ao lado do corpo, quadril e ombros girando de leve e o pé sempre tocando o chão
+- Saia não é mais atravessada pela coxa ao andar
+- Chega de travadinhas: a pele do personagem ficou bem mais leve de calcular em cada quadro
+- Transição suave entre parada, andar e pulo (sem "tranco" de pose) e o andar sempre começa do passo certo
+
 #id 2026-10-31-c
 #titulo Nova personagem: Mary (pack BoZo)
 - Personagem trocada pela Mary: cabelo ruivo com pontas rosas, suéter roxo, saia rosa e sandálias, com rosto e olhos bem mais fofos

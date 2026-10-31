@@ -57,5 +57,11 @@ Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no 
 - [x] Animações criadas à mão nos ossos: Idle 3 s (laço), Walk 1 s (laço), Jump 0,71 s (sem agachar; o jogo já começa no ar)
 - Limitações: cabelo e olhos presos à cabeça (sem física); mãos com dedos abertos como no modelo original; saia segue as coxas
 - Licença: o pack veio de site de redistribuição; para publicar o jogo, ter a licença original do BoZo
+## Rodada animação do andar (Mary)
+- [x] Walk refeito: ciclo de 0,8 s (passada ±25°, joelho até ~57°), braços relaxados (balanço ±21°, cotovelo ~26–50°), contra-rotação de pelve/coluna/cabeça, altura da pelve ajustada por quadro para o pé de apoio tocar o chão (ground-lock); coxa não atravessa mais a saia
+- [x] CuteChar.kt otimizado: os 55 ossos são interpolados uma vez por quadro (antes por vértice, ~4x mais caro) — causa provável das travadinhas
+- [x] CuteChar.frame(clip, t, slot): fase do laço reinicia ao trocar de clip e transição suave de ~0,15 s (0,06 s para o pulo); slots 0 = jogador, 1 = avatar da casa, 2 = criador (Renderer3D passa slot nas chamadas 1 e 2)
+- [ ] Ainda não compilado nem testado no celular
+- Ferramentas de geração (fora do repo): scripts Python em /home/claude (fbx.py, ext.py, asm.py, anim.py, build.py, render.py); a animação é gerada em anim.py (walk/idle/jump) e assada em f_1.bin
 ## PRÓXIMO PASSO
-Ver no APK no celular; se algo estiver torto (rosto virado, tamanho, velocidade do andar), ajustar só os números em anim.py/asm.py e regerar. Se o build falhar, corrigir só o erro apontado.
+Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprimento do ciclo (0,8 s em build.py) e a amplitude S em anim.py; mãos ainda ficam com dedos abertos (possível curvar dedos).

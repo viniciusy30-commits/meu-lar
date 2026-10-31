@@ -382,7 +382,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         stageM?.let { draw(it, mdl, 1f) }
         val t = (now / 1_000_000L % 100000L) / 1000f
         val br = 1f + 0.006f * sin(t * 2.2f)
-        val cute = CuteChar.frame(CuteChar.IDLE, t)
+        val cute = CuteChar.frame(CuteChar.IDLE, t, 2)
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, STX, 0.082f, STZ)
         if (cute != null) {
@@ -394,7 +394,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     }
 
     private fun drawHouseAvatar(now: Long, dt: Float) {
-        val cute = CuteChar.frame(if (avMoving) CuteChar.WALK else CuteChar.IDLE, (now / 1_000_000L % 100000L) / 1000f)
+        val cute = CuteChar.frame(if (avMoving) CuteChar.WALK else CuteChar.IDLE, (now / 1_000_000L % 100000L) / 1000f, 1)
         val m = cute ?: avMesh ?: return
         if (avX.isNaN() || avFrame++ % 30 == 0) {
             val sp = st.findSpotNear(Type.CHAIR, st.gw / 2f, st.gh - 0.6f)
