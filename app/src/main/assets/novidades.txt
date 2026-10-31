@@ -1,3 +1,10 @@
+#id 2026-10-31-e
+#titulo Cores do personagem (Mary)
+- Na tela do personagem agora dá para escolher as cores: Pele, Olhos, Cabelo, Pontas do cabelo, Blusa, Detalhe da blusa, Saia, Sandália e Tiras da sandália
+- Toque numa parte e depois numa bolinha de cor; "Original" volta à cor da Mary. Pontas, detalhe e tiras acompanham a cor principal até você escolher uma cor para elas
+- As cores ficam salvas e voltam quando você abre o jogo (saves antigos continuam funcionando)
+- Animações (parada, andar, pulo) não mudaram
+
 #id 2026-10-31-d
 #titulo Mary: passos de verdade, sem deslizar no chão
 - Os pés agora ficam colados no chão enquanto o corpo passa por cima: cada passo vai para a frente de verdade, sem a sensação de patinar

@@ -48,11 +48,13 @@ class Avatar(
     var botC: Int = 0,
     var shoeC: Int = 0,
     var glasses: Int = 0,
-    var beard: Int = 0
+    var beard: Int = 0,
+    /** Cores do personagem modular (Etapa 2): índice na paleta de cada slot de [CuteColor]; -1 = cor original da Mary. */
+    var cc: IntArray = CuteColor.defaults()
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).joinToString(",")
+    ).plus(cc.toList()).joinToString(",")
 
     /** Troca de gênero com um visual-base bonito, mantendo pele, olhos e cor do cabelo. */
     fun applyGender(f: Boolean) {
@@ -85,7 +87,12 @@ class Avatar(
                     p[10].coerceIn(0, AvaPal.SHOE.size - 1),
                     p[11].coerceIn(0, AvaPal.GLASS_N.size - 1),
                     p[12].coerceIn(0, AvaPal.BEARD_N.size - 1)
-                )
+                ).also { av ->
+                    // saves antigos (13 números) ficam com as cores originais; os novos trazem 9 números a mais
+                    for (k in 0 until CuteColor.SLOTS) {
+                        if (13 + k < p.size) av.cc[k] = p[13 + k].coerceIn(-1, CuteColor.palette(k).size - 1)
+                    }
+                }
             } catch (e: Exception) {
                 null
             }

@@ -48,6 +48,7 @@ class GameState(ctx: Context) {
         ownWalls = prefs.getInt("ownW", 1) or 1
         sens = prefs.getInt("sens", 1).coerceIn(0, 2)
         Avatar.decode(prefs.getString("avatar", null))?.let { avatar = it; avatarSet = true }
+        CuteColor.setColors(avatar.cc)
         val raw = prefs.getString("state", null)
         var ok = false
         if (raw != null) {

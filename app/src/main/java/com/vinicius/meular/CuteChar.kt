@@ -67,6 +67,7 @@ object CuteChar {
     private val texIds = HashMap<String, Int>()
     private var loaded = false
     private var failed = false
+    private var atlasTex = 0
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -110,6 +111,8 @@ object CuteChar {
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0) }
                 for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
                 rebuildActive()
+                atlasTex = texIds["textures.png"] ?: 0
+                CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
             }
         } catch (e: Throwable) {
             failed = true
@@ -265,6 +268,7 @@ object CuteChar {
      */
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         val cs = cur ?: return null
+        CuteColor.uploadIfPending(atlasTex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
         val c = clip.coerceIn(0, clipData.size - 1)

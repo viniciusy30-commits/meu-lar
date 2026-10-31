@@ -82,3 +82,14 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - Para testar: a Mary deve aparecer IGUAL (criador, casa e câmera 3ª pessoa), com Idle, andar e pulo iguais. Detalhe técnico: agora são 6 desenhos por personagem em vez de 1.
 - Observação: existe uma pasta antiga `viniciusy30-commits-meu-lar-46a5cc2/` na raiz do repositório (cópia velha, não é usada pelo app).
 - PRÓXIMO: Etapa 2 (cores por máscara), só depois do teste.
+
+## Personalização modular BoZo — Etapa 2 (cores)
+- [x] Recoloração por máscara do pack, **sem mexer em malha, ossos nem animações** e sem mexer no shader: o atlas `cute/textures.png` continua sendo a base; `CuteColor.kt` gera uma textura recolorida numa thread de fundo e a thread GL só sobe ela (glTexSubImage2D) no começo de `CuteChar.frame`.
+- [x] Dados gerados no PC por `ferramentas/etapa2_masks.py` a partir das máscaras do pack (canais R/G/B = cor 1/cor 2/cavidades): `cute/recolor.png` (R=peso do slot 0, G=peso do slot 1, B=id da região), `cute/recolor_s.png` (sombra do pixel) e `cute/recolor.txt` (regiões, slots e cor de referência de cada uma = cor com que a Mary foi assada). Regiões: corpo(pele), blusa(2 cores), saia, cabelo trás/frente (cor + pontas rosa), olhos (só a íris, detectada pela cor assada), sandália (2 cores).
+- [x] Modelo por pixel/canal (sRGB): `saida = (base + S*(w0*max(D0,0)+w1*max(D1,0))) * (1 + w0*min(D0/ref0,0)+w1*min(D1/ref1,0))`, D = cor escolhida − referência. Clarear soma, escurecer multiplica (mantém o detalhe). Com as cores originais a saída é idêntica ao textures.png (diferença 0, verificado em `ferramentas/etapa2_sim.py`).
+- [x] 9 slots (`CuteColor.SLOT_NAMES`): Pele, Olhos, Cabelo, Pontas, Blusa, Detalhe, Saia, Sandália, Tiras; paletas de 8 a 14 cores; -1 = original. Pontas acompanham o cabelo (25% mais claro), Detalhe acompanha a blusa (25% mais claro) e Tiras acompanham a sandália, enquanto não escolhidos.
+- [x] `Avatar.cc` (IntArray de 9) salvo no `encode()` DEPOIS dos 13 números antigos; `decode()` aceita saves antigos (sem cc = tudo original). GameState aplica `CuteColor.setColors(avatar.cc)` ao carregar; se o contexto GL for recriado a textura recolorida sobe de novo.
+- [x] `Creator.kt`: fileira de partes + fileira de cores + "Pronto"; a câmera do criador sobe um pouco (alvo 0,7) para o painel não cobrir os pés.
+- [ ] Ainda NÃO compilado nem testado no celular (sem Gradle/Kotlin no ambiente). Se o build falhar, corrigir só o erro apontado.
+- Limitações conhecidas: cor da peça é a cor MÉDIA da região (as sombras do pack acompanham); cabelo branco/preto mostra um resto leve das pontas rosa; cores só valem para as 5 peças atuais (as próximas peças das Etapas 3–5 entram no mesmo atlas/mesmo esquema com novas regiões).
+- PRÓXIMO: Etapa 3 (cabelos), só depois do teste.
