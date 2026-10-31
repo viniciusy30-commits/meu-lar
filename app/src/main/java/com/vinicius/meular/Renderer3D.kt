@@ -339,7 +339,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val mx = moveX
         val my = moveY
         if (mx * mx + my * my > 0.0004f) {
-            val sp = 1.9f * dt  // casado com o passo da animação (CuteChar.WALK_RATE)
+            val sp = 1.28f * dt  // casado com o passo da animação (CuteChar.WALK_RATE)
             val fx = sin(fyaw)
             val fz = -cos(fyaw)
             val rx = cos(fyaw)
@@ -407,7 +407,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var bob = 0f
         avMoving = dist > 0.04f
         if (dist > 0.04f) {
-            val stp = min(dist, 1.9f * dt)
+            val stp = min(dist, 1.28f * dt)
             avX += dx / dist * stp
             avZ += dz / dist * stp
             avYaw = Math.toDegrees(atan2(dx, dz).toDouble()).toFloat()

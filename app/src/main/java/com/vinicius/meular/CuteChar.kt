@@ -21,8 +21,8 @@ object CuteChar {
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
-    /** Velocidade de reprodução do andar: com 1,9 m/s no jogo os pés não deslizam no chão. */
-    private const val WALK_RATE = 1.14f
+    /** Velocidade de reprodução do andar: com 1,28 m/s no jogo (1,065 m/s do clip × 1,2) os pés não deslizam no chão. */
+    private const val WALK_RATE = 1.2f
 
     @Volatile var assets: AssetManager? = null
 

@@ -66,3 +66,7 @@ Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no 
 - Ferramentas de geração (fora do repo): scripts Python em /home/claude (fbx.py, ext.py, asm.py, anim.py, build.py, render.py); a animação é gerada em anim.py (walk/idle/jump) e assada em f_1.bin
 ## PRÓXIMO PASSO
 Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprimento do ciclo (0,8 s em build.py) e a amplitude S em anim.py; mãos ainda ficam com dedos abertos (possível curvar dedos).
+
+- [x] 3ª versão do walk (feedback "driblando"): curvas de perna simplificadas (joelho máx ~42°, quadril ±22°), ciclo 0,9 s, altura da pelve suavizada por FFT (2 harmônicas; o ground-lock cru dava soluço); velocidade de solo medida 1,18 m/s → jogo 1,4 m/s com CuteChar.WALK_RATE=1,19 (ciclo efetivo ≈0,76 s)
+
+- [x] 4ª versão do walk (feedback "deslizando"): perna guiada por pé (IK de 2 ossos no plano sagital, anim.py: foot_target/_ik): tornozelo anda linear no apoio (60% do ciclo, curso 70 unid) e faz arco no balanço; pelve baixa só o necessário (bob ≈5 unid). Pé de apoio varia ≈2 unid no chão (medido). Ciclo 0,9 s; WALK_RATE=1,2; velocidade do jogo 1,28 m/s (=clip 1,065 m/s × 1,2). Para mudar a velocidade: mudar juntos Renderer3D (1,28) e WALK_RATE
