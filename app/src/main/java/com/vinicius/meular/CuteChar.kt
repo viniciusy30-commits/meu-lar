@@ -10,11 +10,14 @@ import java.nio.FloatBuffer
 import java.nio.ShortBuffer
 
 /**
- * Personagem do pack "Cute Characters – Modular Animated Pack" (f_1), convertido do FBX
- * para assets/cute/f_1.bin (malha + pesos de pele + animações já "assadas"
- * em matrizes de osso por quadro) e assets/cute/textures.png.
- * A pele é feita na CPU a cada quadro (≈6,5 mil vértices, barato).
- * Se qualquer coisa falhar, [frame] devolve null e o app usa o personagem antigo.
+ * Personagem modular (BoZo Stylized Modular Characters), convertido para assets/cute:
+ *  - base.bin (CUT1): corpo + boca + cabeça + olhos + os clips Idle/Walk/Jump já "assados" em matrizes de osso por quadro;
+ *  - p_*.bin (CUP1): uma peça por arquivo (roupa, cabelo, sapato...), só malha + pesos + UV para o MESMO esqueleto;
+ *  - pieces.txt: manifesto das peças (slot|id|arquivo|textura) e a roupa padrão (outfit=slot/id,...).
+ * A pele é feita na CPU a cada quadro: os 55 ossos são interpolados uma vez e cada peça ativa usa as mesmas matrizes,
+ * então qualquer peça acompanha Idle/Walk/Jump sem alterar as animações.
+ * Se o carregamento modular falhar, volta ao arquivo antigo f_1.bin (personagem inteiro, sem peças);
+ * se isso também falhar, [frame] devolve null e o app usa o personagem antigo esculpido.
  */
 object CuteChar {
     const val ENABLED = true
@@ -27,62 +30,192 @@ object CuteChar {
     @Volatile var assets: AssetManager? = null
 
     /** true quando o personagem novo carregou e pode ser desenhado. */
-    val ready: Boolean get() = ENABLED && loaded && mesh != null
+    val ready: Boolean get() = ENABLED && loaded && cur != null
 
-    private var nv = 0
-    private var ni = 0
+    /** true quando está usando base.bin + peças (false = reserva f_1.bin inteiro). */
+    @Volatile var modular = false
+        private set
+
+    /** Malha rígida que segue o esqueleto: o corpo-base ou uma peça. */
+    private class Skin(
+        val key: String,
+        val tex: String,
+        val nv: Int,
+        val ni: Int,
+        val pos: FloatArray,      // 3 por vértice (pose de referência)
+        val nor: FloatArray,      // 3 por vértice
+        val bi: IntArray,         // 4 por vértice
+        val bw: FloatArray,       // 4 por vértice
+        val out: FloatArray,      // STRIDE por vértice (já com cor e UV; pos/normal são reescritos por quadro)
+        val fb: FloatBuffer,
+        val ib: ShortBuffer
+    ) {
+        var part: Part? = null
+    }
+
+    /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
+    private class Active(val skins: List<Skin>, val mesh: Mesh)
+
     private var nb = 0
-    private var pos = FloatArray(0)      // 3 por vértice (pose de referência)
-    private var nor = FloatArray(0)      // 3 por vértice
-    private var bi = IntArray(0)         // 4 por vértice
-    private var bw = FloatArray(0)       // 4 por vértice
     private var clipLen = FloatArray(0)
     private var clipFrames = IntArray(0)
     private var clipData = arrayOfNulls<FloatArray>(0) // frames * nb * 12
-    private var out = FloatArray(0)
-    private var fb: FloatBuffer? = null
-    private var ib: ShortBuffer? = null
-    private var mesh: Mesh? = null
-    private var texId = 0
+    private var baseSkin: Skin? = null
+    private val library = LinkedHashMap<String, Skin>()   // todas as peças conhecidas, na ordem do manifesto
+    @Volatile private var wanted: List<String> = emptyList()
+    @Volatile private var cur: Active? = null
+    private val texIds = HashMap<String, Int>()
     private var loaded = false
     private var failed = false
 
-    /** Chamar na thread GL (onSurfaceCreated): carrega o modelo e cria a textura. */
+    /** Chaves ("slot/id") de todas as peças disponíveis. */
+    fun available(): List<String> = library.keys.toList()
+
+    /** Peças em uso agora (chaves "slot/id", na ordem de desenho). */
+    fun outfit(): List<String> = wanted
+
+    /** Troca a roupa: lista de chaves "slot/id". Chaves desconhecidas são ignoradas. A ordem de desenho é a do manifesto. */
+    fun setOutfit(keys: List<String>) {
+        wanted = keys.toList()
+        rebuildActive()
+    }
+
+    private fun rebuildActive() {
+        val bs = baseSkin ?: return
+        val bp = bs.part ?: return        // GL ainda não pronto: o initGl chama de novo
+        val act = ArrayList<Skin>()
+        val parts = ArrayList<Part>()
+        parts.add(bp)
+        for ((k, s) in library) {
+            if (k !in wanted) continue
+            val p = s.part ?: continue
+            act.add(s)
+            parts.add(p)
+        }
+        cur = Active(act, Mesh(parts))
+    }
+
+    /** Chamar na thread GL (onSurfaceCreated): carrega o modelo e cria as texturas. */
     fun initGl() {
         if (!ENABLED) return
         val am = assets ?: return
         try {
             if (!loaded && !failed) load(am)
             if (loaded) {
-                val ids = IntArray(1)
-                GLES20.glGenTextures(1, ids, 0)
-                texId = ids[0]
-                val bmp = am.open("cute/textures.png").use { BitmapFactory.decodeStream(it) }
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texId)
-                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-                bmp.recycle()
-                mesh = Mesh(listOf(Part(Mt.PLAIN, fb!!, nv, ib, ni, texId)))
+                texIds.clear()
+                val names = LinkedHashSet<String>()
+                baseSkin?.let { names.add(it.tex) }
+                for (s in library.values) names.add(s.tex)
+                for (n in names) texIds[n] = uploadTexture(am, n)
+                baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0) }
+                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
+                rebuildActive()
             }
         } catch (e: Throwable) {
             failed = true
             loaded = false
-            mesh = null
+            cur = null
         }
     }
 
+    private fun uploadTexture(am: AssetManager, name: String): Int {
+        val ids = IntArray(1)
+        GLES20.glGenTextures(1, ids, 0)
+        val bmp = am.open("cute/$name").use { BitmapFactory.decodeStream(it) }
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        bmp.recycle()
+        return ids[0]
+    }
+
     private fun load(am: AssetManager) {
-        val raw = am.open("cute/f_1.bin").use { it.readBytes() }
+        try {
+            loadModular(am)
+            modular = true
+        } catch (e: Throwable) {
+            // modular falhou (arquivo ausente/corrompido): volta ao personagem inteiro antigo
+            baseSkin = null
+            library.clear()
+            wanted = emptyList()
+            clipData = arrayOfNulls(0)
+            modular = false
+            loadLegacy(am)
+        }
+        loaded = true
+    }
+
+    private fun loadModular(am: AssetManager) {
+        baseSkin = readBase(am, "cute/base.bin", "base", "textures.png")
+        library.clear()
+        var outfit: List<String> = emptyList()
+        val lines = am.open("cute/pieces.txt").bufferedReader(Charsets.UTF_8).use { it.readLines() }
+        for (raw in lines) {
+            val ln = raw.trim()
+            if (ln.isEmpty() || ln.startsWith("#")) continue
+            if (ln.startsWith("outfit=")) {
+                outfit = ln.substring(7).split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                continue
+            }
+            val f = ln.split('|').map { it.trim() }
+            require(f.size >= 4)
+            val key = f[0] + "/" + f[1]
+            library[key] = readPiece(am, "cute/" + f[2], key, f[3])
+        }
+        wanted = outfit
+    }
+
+    private fun loadLegacy(am: AssetManager) {
+        baseSkin = readBase(am, "cute/f_1.bin", "base", "textures.png")
+        library.clear()
+        wanted = emptyList()
+    }
+
+    /** CUT1: cabeçalho, vértices, índices e clips. O f_1.bin antigo tem o mesmo formato (só com mais vértices). */
+    private fun readBase(am: AssetManager, path: String, key: String, tex: String): Skin {
+        val raw = am.open(path).use { it.readBytes() }
         val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
         require(b.get().toInt() == 'C'.code && b.get().toInt() == 'U'.code && b.get().toInt() == 'T'.code && b.get().toInt() == '1'.code)
-        nv = b.int; ni = b.int; nb = b.int
+        val nv = b.int
+        val ni = b.int
+        nb = b.int
         val nc = b.int
-        pos = FloatArray(nv * 3); nor = FloatArray(nv * 3)
-        bi = IntArray(nv * 4); bw = FloatArray(nv * 4)
-        out = FloatArray(nv * STRIDE)
+        val sk = readSkin(b, key, tex, nv, ni)
+        clipLen = FloatArray(nc)
+        clipFrames = IntArray(nc)
+        clipData = arrayOfNulls(nc)
+        for (c in 0 until nc) {
+            clipLen[c] = b.float
+            val nf = b.int
+            clipFrames[c] = nf
+            val d = FloatArray(nf * nb * 12)
+            for (i in d.indices) d[i] = b.float
+            clipData[c] = d
+        }
+        return sk
+    }
+
+    /** CUP1: "CUP1", nv, ni, flags (reservado), vértices (44 bytes), índices locais (uint16). */
+    private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin {
+        val raw = am.open(path).use { it.readBytes() }
+        val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
+        require(b.get().toInt() == 'C'.code && b.get().toInt() == 'U'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
+        val nv = b.int
+        val ni = b.int
+        b.int // flags (reservado para esconder partes do corpo, etapa 4)
+        return readSkin(b, key, tex, nv, ni)
+    }
+
+    /** nv vértices (pos, normal, uv, cor, ossos, pesos) e ni índices, a partir da posição atual do buffer. */
+    private fun readSkin(b: ByteBuffer, key: String, tex: String, nv: Int, ni: Int): Skin {
+        val pos = FloatArray(nv * 3)
+        val nor = FloatArray(nv * 3)
+        val bi = IntArray(nv * 4)
+        val bw = FloatArray(nv * 4)
+        val out = FloatArray(nv * STRIDE)
         for (v in 0 until nv) {
             for (k in 0 until 3) pos[v * 3 + k] = b.float
             for (k in 0 until 3) nor[v * 3 + k] = b.float
@@ -100,21 +233,12 @@ object CuteChar {
         }
         val idx = ShortArray(ni)
         for (i in 0 until ni) idx[i] = b.short
-        clipLen = FloatArray(nc); clipFrames = IntArray(nc)
-        clipData = arrayOfNulls(nc)
-        for (c in 0 until nc) {
-            clipLen[c] = b.float
-            val nf = b.int
-            clipFrames[c] = nf
-            val d = FloatArray(nf * nb * 12)
-            for (i in d.indices) d[i] = b.float
-            clipData[c] = d
+        val fb = ByteBuffer.allocateDirect(nv * STRIDE * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        val ib = ByteBuffer.allocateDirect(ni * 2).order(ByteOrder.nativeOrder()).asShortBuffer().also {
+            it.put(idx)
+            it.position(0)
         }
-        fb = ByteBuffer.allocateDirect(nv * STRIDE * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-        ib = ByteBuffer.allocateDirect(ni * 2).order(ByteOrder.nativeOrder()).asShortBuffer().also {
-            it.put(idx); it.position(0)
-        }
-        loaded = true
+        return Skin(key, tex, nv, ni, pos, nor, bi, bw, out, fb, ib)
     }
 
     /** Duração (s) do clip. */
@@ -135,12 +259,13 @@ object CuteChar {
     }
 
     /**
-     * Pose do clip [clip] no tempo [t] (segundos). Devolve a malha pronta para desenhar.
+     * Pose do clip [clip] no tempo [t] (segundos). Devolve a malha (corpo + peças ativas) pronta para desenhar.
      * Nos clips em laço (parado/andar) a fase recomeça do zero quando o clip muda, e a troca
      * de clip é suavizada (≈0,15 s), sem "pulo" de pose. [slot] separa quem está desenhando.
      */
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
-        val m = mesh ?: return null
+        val cs = cur ?: return null
+        val bs = baseSkin ?: return null
         if (!loaded) return null
         val c = clip.coerceIn(0, clipData.size - 1)
         val sl = slot.coerceIn(0, slotClip.size - 1)
@@ -186,8 +311,19 @@ object CuteChar {
         val keep: FloatArray = if (prev != null && prev.size == n12) prev else FloatArray(n12).also { slotLast[sl] = it }
         System.arraycopy(bone, 0, keep, 0, n12)
 
-        val mm = bone
-        for (v in 0 until nv) {
+        // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
+        skinInto(bs, bone)
+        for (s in cs.skins) skinInto(s, bone)
+        return cs.mesh
+    }
+
+    private fun skinInto(s: Skin, mm: FloatArray) {
+        val pos = s.pos
+        val nor = s.nor
+        val bi = s.bi
+        val bw = s.bw
+        val out = s.out
+        for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
             var x = 0f; var y = 0f; var z = 0f
@@ -209,10 +345,9 @@ object CuteChar {
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv
         }
-        val buf = fb ?: return null
+        val buf = s.fb
         buf.position(0)
-        buf.put(out, 0, nv * STRIDE)
+        buf.put(out, 0, s.nv * STRIDE)
         buf.position(0)
-        return m
     }
 }

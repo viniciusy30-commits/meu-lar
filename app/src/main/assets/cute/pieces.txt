@@ -1,0 +1,8 @@
+# slot|id|arquivo|textura   (ordem = ordem de desenho)
+top|Sweater|p_top_sweater.bin|textures.png
+bottom|Skirt|p_bottom_skirt.bin|textures.png
+feet|Sandals|p_feet_sandals.bin|textures.png
+hairBack|Flare|p_hairback_flare.bin|textures.png
+hairFront|LongSweeps|p_hairfront_longsweeps.bin|textures.png
+# roupa padrão (a Mary): chaves slot/id
+outfit=top/Sweater,bottom/Skirt,feet/Sandals,hairBack/Flare,hairFront/LongSweeps

@@ -70,3 +70,15 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] 3ª versão do walk (feedback "driblando"): curvas de perna simplificadas (joelho máx ~42°, quadril ±22°), ciclo 0,9 s, altura da pelve suavizada por FFT (2 harmônicas; o ground-lock cru dava soluço); velocidade de solo medida 1,18 m/s → jogo 1,4 m/s com CuteChar.WALK_RATE=1,19 (ciclo efetivo ≈0,76 s)
 
 - [x] 4ª versão do walk (feedback "deslizando"): perna guiada por pé (IK de 2 ossos no plano sagital, anim.py: foot_target/_ik): tornozelo anda linear no apoio (60% do ciclo, curso 70 unid) e faz arco no balanço; pelve baixa só o necessário (bob ≈5 unid). Pé de apoio varia ≈2 unid no chão (medido). Ciclo 0,9 s; WALK_RATE=1,2; velocidade do jogo 1,28 m/s (=clip 1,065 m/s × 1,2). Para mudar a velocidade: mudar juntos Renderer3D (1,28) e WALK_RATE
+
+## Personalização modular BoZo — Etapa 1 (infraestrutura com a Mary em pedaços)
+- [x] Formato novo em `assets/cute/`: `base.bin` (CUT1: corpo + boca + cabeça + olhos + os 3 clips Idle/Walk/Jump copiados **byte a byte** do f_1.bin aprovado), uma peça por arquivo `p_<slot>_<id>.bin` (CUP1: "CUP1", nv, ni, flags, vértices de 44 bytes iguais ao CUT1, índices locais uint16) e `pieces.txt` (manifesto `slot|id|arquivo|textura` + linha `outfit=` com a roupa padrão; a ordem das linhas é a ordem de desenho).
+- [x] Peças geradas (a Mary inteira, igual à de antes): top/Sweater, bottom/Skirt, feet/Sandals, hairBack/Flare (inclui 2 tufos pequenos que usam a textura do cabelo), hairFront/LongSweeps. Além disso foram descartados ~800 vértices órfãos (nenhum triângulo os usava).
+- [x] `CuteChar.kt`: mesma interface de antes (`frame`, `clipSeconds`, `ready`, `initGl`, `assets`; Renderer3D NÃO mudou). Os 55 ossos são interpolados uma vez por quadro e as mesmas matrizes vestem o corpo-base e cada peça ativa (lista de peças ativas, uma `Part` por peça, todas com `textures.png`). Novos: `setOutfit(chaves "slot/id")`, `outfit()`, `available()`, `modular`.
+- [x] Reserva: se base.bin/pieces.txt/peças falharem, carrega o `f_1.bin` inteiro como antes (mantido nos assets, intocado); se também falhar, `frame` devolve null e o app usa o personagem esculpido.
+- [x] Verificado no PC (`ferramentas/etapa1_verify.py`): clips idênticos byte a byte; malha base+peças × f_1.bin com diferença 0,0 (posição e normal) nos 128 quadros dos 3 clips; mesmos UVs e cores; 24.062 triângulos preservados, mesma ordem de desenho.
+- [ ] Ainda NÃO compilado nem testado no celular (sem Gradle/Kotlin no ambiente). Se o build falhar, corrigir só o erro apontado.
+- Ferramentas (agora no repo): `ferramentas/etapa1_split.py` (divide f_1.bin em base + peças) e `ferramentas/etapa1_verify.py`.
+- Para testar: a Mary deve aparecer IGUAL (criador, casa e câmera 3ª pessoa), com Idle, andar e pulo iguais. Detalhe técnico: agora são 6 desenhos por personagem em vez de 1.
+- Observação: existe uma pasta antiga `viniciusy30-commits-meu-lar-46a5cc2/` na raiz do repositório (cópia velha, não é usada pelo app).
+- PRÓXIMO: Etapa 2 (cores por máscara), só depois do teste.
