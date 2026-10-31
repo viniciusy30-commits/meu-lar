@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.MeuLar" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#FF8A65</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:statusBarColor">#1F2033</item>
+        <item name="android:navigationBarColor">#1F2033</item>
+        <item name="android:windowBackground">#2B2D42</item>
+    </style>
+</resources>
