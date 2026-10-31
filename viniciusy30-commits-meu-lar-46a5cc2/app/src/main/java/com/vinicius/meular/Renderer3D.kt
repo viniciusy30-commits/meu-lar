@@ -525,7 +525,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
         if (avDirty) {
             avDirty = false
-            AvatarBuilder.request(st.avatar)
+            if (!CuteChar.ready) AvatarBuilder.request(st.avatar)
         }
         AvatarBuilder.take()?.let { avMesh = it }
         if (cr) {

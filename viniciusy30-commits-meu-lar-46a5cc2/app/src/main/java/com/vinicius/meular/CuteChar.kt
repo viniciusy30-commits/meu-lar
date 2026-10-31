@@ -24,6 +24,9 @@ object CuteChar {
 
     @Volatile var assets: AssetManager? = null
 
+    /** true quando o personagem novo carregou e pode ser desenhado. */
+    val ready: Boolean get() = ENABLED && loaded && mesh != null
+
     private var nv = 0
     private var ni = 0
     private var nb = 0
