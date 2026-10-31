@@ -36,3 +36,10 @@ app/src/main/java/com/vinicius/meular/{SculptAvatar.kt (novo), sculpt/*.java (no
 
 ## PRÓXIMO PASSO
 Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no celular e ajustar rosto/moicano/desempenho conforme o que aparecer.
+
+## Pack Cute Characters (importação de teste)
+- [x] Pack (RAR5, unitypackage armazenado) extraído: 25 personagens (f_1–f_12, m_1–m_13), 7 animações, textura 128–1024, material
+- [x] f_1.fbx (binário) convertido por script Python (fora do app) para assets/cute/f_1.bin: malha 6550 vértices / 8986 triângulos, 64 ossos, pesos (4 por vértice), animações Idle e Walk em matrizes por quadro (24 fps), altura normalizada 1,5 m, frente em +Z
+- [x] CuteChar.kt: carrega o .bin, pele na CPU por quadro, textura própria (Part.tex); Renderer3D usa no criador (Idle) e na casa (Idle/Walk); se falhar, volta ao personagem antigo
+- [ ] Ainda NÃO compilado/testado no celular (sem Gradle no ambiente). Se o build falhar, corrigir só o erro apontado
+- [ ] Próximo: peças modulares (cabelo/roupa separáveis) e importar mais personagens; painel antigo de personalização REMOVIDO (Creator.kt só tem o botão Pronto)

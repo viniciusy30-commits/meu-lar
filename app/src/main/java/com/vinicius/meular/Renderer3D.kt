@@ -67,6 +67,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var avTZ = 0f
     private var avYaw = 0f
     private var avFrame = 0
+    private var avMoving = false
     private val STX = -60f
     private val STZ = -60f
 
@@ -214,6 +215,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(aCol)
         GLES20.glEnableVertexAttribArray(aUV)
         Tex.init()
+        CuteChar.initGl()
         skyM = Models.sky()
         stageM = AvatarModel.stage()
         avDirty = true
@@ -233,7 +235,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (p in m.parts) {
             if ((p.mat == Mt.GLASS) != glass) continue
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, Tex.ids[p.mat])
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (p.tex != 0) p.tex else Tex.ids[p.mat])
             GLES20.glUniform1i(uTex, 0)
             GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
             val bytes = STRIDE * 4
@@ -340,14 +342,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         stageM?.let { draw(it, mdl, 1f) }
         val t = (now / 1_000_000L % 100000L) / 1000f
         val br = 1f + 0.006f * sin(t * 2.2f)
+        val cute = CuteChar.frame(CuteChar.IDLE, t)
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, STX, 0.082f, STZ)
-        Matrix.scaleM(mdl, 0, 1f, br, 1f)
-        avMesh?.let { draw(it, mdl, 1f) }
+        if (cute != null) {
+            draw(cute, mdl, 1f)
+        } else {
+            Matrix.scaleM(mdl, 0, 1f, br, 1f)
+            avMesh?.let { draw(it, mdl, 1f) }
+        }
     }
 
     private fun drawHouseAvatar(now: Long, dt: Float) {
-        val m = avMesh ?: return
+        val cute = CuteChar.frame(if (avMoving) CuteChar.WALK else CuteChar.IDLE, (now / 1_000_000L % 100000L) / 1000f)
+        val m = cute ?: avMesh ?: return
         if (avX.isNaN() || avFrame++ % 30 == 0) {
             val sp = st.findSpotNear(Type.CHAIR, st.gw / 2f, st.gh - 0.6f)
             if (sp != null) { avTX = sp.first + 0.5f; avTZ = sp.second + 0.5f }
@@ -357,12 +365,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val dz = avTZ - avZ
         val dist = kotlin.math.sqrt(dx * dx + dz * dz)
         var bob = 0f
+        avMoving = dist > 0.04f
         if (dist > 0.04f) {
             val stp = min(dist, 2.2f * dt)
             avX += dx / dist * stp
             avZ += dz / dist * stp
             avYaw = Math.toDegrees(atan2(dx, dz).toDouble()).toFloat()
-            bob = abs(sin((now / 1_000_000L % 100000L) / 1000f * 11f)) * 0.035f
+            if (cute == null) bob = abs(sin((now / 1_000_000L % 100000L) / 1000f * 11f)) * 0.035f
         } else {
             avYaw += (0f - avYaw) * min(1f, dt * 3f)
         }
@@ -371,7 +380,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, avX, bob, avZ)
         Matrix.rotateM(mdl, 0, avYaw, 0f, 1f, 0f)
-        Matrix.scaleM(mdl, 0, 1f, br, 1f)
+        if (cute == null) Matrix.scaleM(mdl, 0, 1f, br, 1f)
         draw(m, mdl, 1f)
     }
 
@@ -516,7 +525,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
         if (avDirty) {
             avDirty = false
-            AvatarBuilder.request(st.avatar)
+            if (!CuteChar.ready) AvatarBuilder.request(st.avatar)
         }
         AvatarBuilder.take()?.let { avMesh = it }
         if (cr) {

@@ -41,7 +41,7 @@ object Mt {
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
-class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuffer? = null, val icount: Int = 0)
+class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuffer? = null, val icount: Int = 0, val tex: Int = 0)
 class Mesh(val parts: List<Part>)
 
 fun C(s: String): Int = Color.parseColor(s)
