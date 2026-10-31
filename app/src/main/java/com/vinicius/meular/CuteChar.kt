@@ -20,6 +20,7 @@ object CuteChar {
     const val ENABLED = true
     const val IDLE = 0
     const val WALK = 1
+    const val JUMP = 2
     private const val FPS = 24f
 
     @Volatile var assets: AssetManager? = null
@@ -114,6 +115,10 @@ object CuteChar {
         }
         loaded = true
     }
+
+    /** Duração (s) do clip. */
+    fun clipSeconds(clip: Int): Float =
+        if (loaded && clip in clipLen.indices) clipLen[clip] else 1f
 
     /** Pose do clip [clip] no tempo [t] (segundos, repete em laço). Devolve a malha pronta para desenhar. */
     fun frame(clip: Int, t: Float): Mesh? {

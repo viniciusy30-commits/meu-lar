@@ -44,6 +44,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var pz = 0f
     @Volatile var moveX = 0f
     @Volatile var moveY = 0f
+    /** true = câmera em 3ª pessoa (vê o personagem); false = 1ª pessoa */
+    @Volatile var third = true
+    /** pedido de pulo (botão na tela) */
+    @Volatile var jumpReq = false
+    @Volatile var py = 0f
+    private var vy = 0f
+    private var pYaw = 0f
+    private var pMoving = false
+    private var jumpT = 0f
 
     // vista aérea
     @Volatile var yaw = 0.75f
@@ -312,8 +321,21 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             px = st.gw / 2f
             pz = st.gh - 0.9f
             posInit = true
+            pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
         }
-        if (mode != 0) return
+        if (mode != 0) { jumpReq = false; return }
+        // pulo
+        if (jumpReq) {
+            jumpReq = false
+            if (py <= 0.001f && vy <= 0f) { vy = 3.9f; jumpT = 0f }
+        }
+        if (py > 0f || vy > 0f) {
+            vy -= 11f * dt
+            jumpT += dt
+            py += vy * dt
+            if (py <= 0f) { py = 0f; vy = 0f }
+        }
+        pMoving = false
         val mx = moveX
         val my = moveY
         if (mx * mx + my * my > 0.0004f) {
@@ -326,7 +348,25 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val dz = (fz * my + rz * mx) * sp
             if (walkable(px + dx, pz, px, pz)) px += dx
             if (walkable(px, pz + dz, px, pz)) pz += dz
+            pMoving = true
+            val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+            var dl = dir - pYaw
+            while (dl > 180f) dl -= 360f
+            while (dl < -180f) dl += 360f
+            pYaw += dl * min(1f, dt * 12f)
         }
+    }
+
+    /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
+    private fun drawPlayer(now: Long) {
+        val t = (now / 1_000_000L % 100000L) / 1000f
+        val air = py > 0.02f
+        val m = (if (air) CuteChar.frame(CuteChar.JUMP, minOf(jumpT, CuteChar.clipSeconds(CuteChar.JUMP) * 0.999f))
+                 else CuteChar.frame(if (pMoving) CuteChar.WALK else CuteChar.IDLE, t)) ?: avMesh ?: return
+        Matrix.setIdentityM(mdl, 0)
+        Matrix.translateM(mdl, 0, px, py, pz)
+        Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
+        draw(m, mdl, 1f)
     }
 
     // ------------------------------------------------------------ personagem
@@ -498,14 +538,31 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.perspectiveM(proj, 0, 34f, aspect, 0.1f, 200f)
             Matrix.setLookAtM(view, 0, ex, ey, ez, STX, cfy - 0.14f * cdist, STZ, 0f, 1f, 0f)
         } else if (fp) {
-            ex = px; ey = 1.62f; ez = pz
             val cp = cos(fpitch)
             val fx = sin(fyaw) * cp
             val fy = sin(fpitch)
             val fz = -cos(fyaw) * cp
             fwdX = sin(fyaw); fwdZ = -cos(fyaw)
-            Matrix.perspectiveM(proj, 0, 68f, aspect, 0.08f, 260f)
-            Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
+            if (third) {
+                // 3ª pessoa: câmera atrás do personagem, orbitando com o olhar
+                val tx = px; val ty = py * 0.6f + 1.05f; val tz = pz
+                val inRoom = px > 0.32f && px < gw - 0.32f && pz > 0.32f && pz < gh - 0.32f
+                var t = 1f
+                var ox = tx; var oy = ty; var oz = tz
+                for (i in 0..12) {
+                    ox = tx - fx * 2.7f * t; oy = ty - fy * 2.7f * t; oz = tz - fz * 2.7f * t
+                    val okRoom = !inRoom || (ox > 0.2f && ox < gw - 0.2f && oz > 0.2f && oz < gh - 0.2f && oy < 2.3f)
+                    if (okRoom) break
+                    t -= 0.07f
+                }
+                ex = ox; ey = maxOf(oy, 0.25f); ez = oz
+                Matrix.perspectiveM(proj, 0, 60f, aspect, 0.08f, 260f)
+                Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
+            } else {
+                ex = px; ey = 1.62f + py; ez = pz
+                Matrix.perspectiveM(proj, 0, 68f, aspect, 0.08f, 260f)
+                Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
+            }
         } else {
             val dist = maxOf(gw, gh) * 2.0f / minOf(aspect, 1f) * zoom
             ex = cx + dist * cos(pitch) * sin(yaw)
@@ -514,7 +571,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.perspectiveM(proj, 0, 40f, aspect, 0.3f, 260f)
             Matrix.setLookAtM(view, 0, ex, ey, ez, cx, 0.4f, cz, 0f, 1f, 0f)
         }
-        eyeX = ex; eyeZ = ez
+        if (fp && third) { eyeX = px; eyeZ = pz } else { eyeX = ex; eyeZ = ez }
         Matrix.multiplyMM(vp, 0, proj, 0, view, 0)
         if (Matrix.invertM(tmp, 0, vp, 0)) {
             synchronized(inv) { System.arraycopy(tmp, 0, inv, 0, 16); invOk = true }
@@ -584,6 +641,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
 
         if (mode == 1) drawHouseAvatar(now, dt)
+        if (fp && third) drawPlayer(now)
 
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f
@@ -599,6 +657,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, avX - 0.5f, 0f, avZ - 0.5f)
+            draw(shm, mdl, 1f)
+        }
+        if (fp && third) {
+            val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
+            Matrix.setIdentityM(mdl, 0)
+            Matrix.translateM(mdl, 0, px - 0.5f, 0f, pz - 0.5f)
             draw(shm, mdl, 1f)
         }
         val sel = focus

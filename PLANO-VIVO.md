@@ -43,3 +43,10 @@ Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no 
 - [x] CuteChar.kt: carrega o .bin, pele na CPU por quadro, textura própria (Part.tex); Renderer3D usa no criador (Idle) e na casa (Idle/Walk); se falhar, volta ao personagem antigo
 - [ ] Ainda NÃO compilado/testado no celular (sem Gradle no ambiente). Se o build falhar, corrigir só o erro apontado
 - [ ] Próximo: peças modulares (cabelo/roupa separáveis) e importar mais personagens; painel antigo de personalização REMOVIDO (Creator.kt só tem o botão Pronto)
+
+## Câmera 3ª pessoa + pulo
+- [x] Renderer3D: `third` (padrão ligado), câmera orbitando o personagem (2,7 m, encurta dentro da casa), drawPlayer (Walk/Idle, vira para a direção do movimento), sombra, pulo (py/vy, jumpReq)
+- [x] Ui.kt: ícones CAMERA e JUMP; MainActivity: botão de câmera no topo, botão de pular (só no modo andar)
+- [ ] Não compilado nem testado no celular. Pular não passa por cima de móveis (colisão é só no plano)
+
+- [x] Animação de pulo: clip Jump = primeiros 17 quadros do "Song Jump" do pack (assado no f_1.bin, 3º clip); drawPlayer usa jumpT (tempo no ar) para sincronizar
