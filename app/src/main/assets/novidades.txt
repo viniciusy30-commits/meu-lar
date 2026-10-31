@@ -1,3 +1,9 @@
+#id 2026-10-31-c
+#titulo Nova personagem: Mary (pack BoZo)
+- Personagem trocada pela Mary: cabelo ruivo com pontas rosas, suéter roxo, saia rosa e sandálias, com rosto e olhos bem mais fofos
+- Esqueleto completo com dedos e animações novas: parada (respirando), andando (braços e pernas balançando) e pulando (braços para cima e pernas dobradas)
+- Modelo mais leve no arquivo (menos de 1 MB) e textura única colorida já pronta
+
 #id 2026-10-31-b
 #titulo Câmera em 3ª pessoa e botão de pular
 - Novo botão de câmera (ícone de câmera, no topo): alterna entre 1ª e 3ª pessoa. Em 3ª pessoa você vê o seu personagem andando pela casa, com a animação de caminhada

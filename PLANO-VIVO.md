@@ -50,3 +50,12 @@ Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no 
 - [ ] Não compilado nem testado no celular. Pular não passa por cima de móveis (colisão é só no plano)
 
 - [x] Animação de pulo: clip Jump = primeiros 17 quadros do "Song Jump" do pack (assado no f_1.bin, 3º clip); drawPlayer usa jumpT (tempo no ar) para sincronizar
+
+## Rodada Mary (BoZo Stylized Modular Characters)
+- [x] Extraído o unitypackage do RAR e lidos os FBX (leitor próprio); montada a Mary: corpo, cabeça, olhos, suéter, saia, sandálias, cabelo traseiro (Flare) e franja (LongSweeps) = 14.691 vértices, 24.062 triângulos, 55 ossos (com dedos)
+- [x] Textura única 2048x1024 (assada das máscaras do pack com as cores da Mary.asset); mesmo formato CUT1 lido por CuteChar.kt (arquivos cute/f_1.bin e cute/textures.png, nomes mantidos; CuteChar.kt não mudou)
+- [x] Animações criadas à mão nos ossos: Idle 3 s (laço), Walk 1 s (laço), Jump 0,71 s (sem agachar; o jogo já começa no ar)
+- Limitações: cabelo e olhos presos à cabeça (sem física); mãos com dedos abertos como no modelo original; saia segue as coxas
+- Licença: o pack veio de site de redistribuição; para publicar o jogo, ter a licença original do BoZo
+## PRÓXIMO PASSO
+Ver no APK no celular; se algo estiver torto (rosto virado, tamanho, velocidade do andar), ajustar só os números em anim.py/asm.py e regerar. Se o build falhar, corrigir só o erro apontado.
