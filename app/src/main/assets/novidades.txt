@@ -1,9 +1,10 @@
 #id 2026-10-31-d
-#titulo Mary: andar natural e animação mais fluida
-- Andar refeito do zero: passos mais naturais (sem aquela corrida), braços relaxados balançando ao lado do corpo, quadril e ombros girando de leve e o pé sempre tocando o chão
-- Saia não é mais atravessada pela coxa ao andar
-- Chega de travadinhas: a pele do personagem ficou bem mais leve de calcular em cada quadro
-- Transição suave entre parada, andar e pulo (sem "tranco" de pose) e o andar sempre começa do passo certo
+#titulo Mary: andar de gente de verdade
+- Andar refeito do zero com passo completo: calcanhar toca o chão, o pé rola e se impulsiona, joelho dobra ao passar a perna
+- Braços relaxados, balançando em sentido oposto às pernas, com cotovelo e mão acompanhando de leve (chega de braço de robô)
+- Quadril, tronco e cabeça giram de leve a cada passo, e os dedos das mãos agora ficam relaxados em vez de abertos
+- Velocidade de andar ajustada (um pouco mais lenta) para os pés não escorregarem no chão
+- Saia não é mais atravessada pela coxa; transições parado/andar/pulo suaves e animação bem mais leve de calcular
 
 #id 2026-10-31-c
 #titulo Nova personagem: Mary (pack BoZo)

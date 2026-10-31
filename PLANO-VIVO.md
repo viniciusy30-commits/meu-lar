@@ -58,7 +58,8 @@ Se o build falhar, corrigir só o erro apontado. Se passar: ver o personagem no 
 - Limitações: cabelo e olhos presos à cabeça (sem física); mãos com dedos abertos como no modelo original; saia segue as coxas
 - Licença: o pack veio de site de redistribuição; para publicar o jogo, ter a licença original do BoZo
 ## Rodada animação do andar (Mary)
-- [x] Walk refeito: ciclo de 0,8 s (passada ±25°, joelho até ~57°), braços relaxados (balanço ±21°, cotovelo ~26–50°), contra-rotação de pelve/coluna/cabeça, altura da pelve ajustada por quadro para o pé de apoio tocar o chão (ground-lock); coxa não atravessa mais a saia
+- [x] Walk refeito (2ª versão, após vídeo do usuário: "robô"): curvas de passada com splines periódicas (quadril, joelho, tornozelo: calcanhar→rolagem→impulso), ciclo 0,72 s, braços opostos às pernas com cotovelo atrasado, torção de pelve/coluna/cabeça, dedos relaxados (curvatura via rz nos ossos dos dedos), ground-lock da pelve; velocidade de solo medida ≈1,66 m/s
+- [x] Velocidade do jogador 2,6→1,9 m/s e da avatar da casa 2,2→1,9; CuteChar.WALK_RATE=1,14 casa o passo com 1,9 m/s (sem deslizar)
 - [x] CuteChar.kt otimizado: os 55 ossos são interpolados uma vez por quadro (antes por vértice, ~4x mais caro) — causa provável das travadinhas
 - [x] CuteChar.frame(clip, t, slot): fase do laço reinicia ao trocar de clip e transição suave de ~0,15 s (0,06 s para o pulo); slots 0 = jogador, 1 = avatar da casa, 2 = criador (Renderer3D passa slot nas chamadas 1 e 2)
 - [ ] Ainda não compilado nem testado no celular

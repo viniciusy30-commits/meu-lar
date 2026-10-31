@@ -21,7 +21,8 @@ object CuteChar {
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
-    private const val FPS = 24f
+    /** Velocidade de reprodução do andar: com 1,9 m/s no jogo os pés não deslizam no chão. */
+    private const val WALK_RATE = 1.14f
 
     @Volatile var assets: AssetManager? = null
 
@@ -159,7 +160,7 @@ object CuteChar {
             slotClip[sl] = c
             slotT0[sl] = t
         }
-        var lt = if (c == JUMP) t else t - slotT0[sl]
+        var lt = if (c == JUMP) t else (t - slotT0[sl]) * (if (c == WALK) WALK_RATE else 1f)
         if (c != JUMP) {
             lt %= len
             if (lt < 0f) lt += len
