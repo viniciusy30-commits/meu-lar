@@ -383,10 +383,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun drawPlayer(now: Long) {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = py > 0.02f
-        val m = (if (air) CuteChar.frame(CuteChar.JUMP, minOf(jumpT, CuteChar.clipSeconds(CuteChar.JUMP) * 0.999f))
-                 else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)) ?: avMesh ?: return
+        val cute = if (air) CuteChar.frame(CuteChar.JUMP, minOf(jumpT, CuteChar.clipSeconds(CuteChar.JUMP) * 0.999f))
+                   else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
+        val m = cute ?: avMesh ?: return
+        val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, px, py, pz)
+        Matrix.translateM(mdl, 0, px, py + up, pz)
         Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
         draw(m, mdl, 1f)
     }
@@ -406,7 +408,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val br = 1f + 0.006f * sin(t * 2.2f)
         val cute = CuteChar.frame(CuteChar.IDLE, t, 2)
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, STX, 0.082f, STZ)
+        Matrix.translateM(mdl, 0, STX, 0.082f + (if (cute != null) CuteChar.lift(2) else 0f), STZ)
         if (cute != null) {
             draw(cute, mdl, 1f)
         } else {
@@ -440,7 +442,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val br = 1f + 0.006f * sin(t * 2.2f)
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, avX, bob, avZ)
+        Matrix.translateM(mdl, 0, avX, bob + (if (cute != null) CuteChar.lift(1) else 0f), avZ)
         Matrix.rotateM(mdl, 0, avYaw, 0f, 1f, 0f)
         if (cute == null) Matrix.scaleM(mdl, 0, 1f, br, 1f)
         draw(m, mdl, 1f)

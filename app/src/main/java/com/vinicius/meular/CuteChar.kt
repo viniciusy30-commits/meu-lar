@@ -1,5 +1,5 @@
 package com.vinicius.meular
-// versao etapa17-fix5 (codigo vivo do object CuteChar; se esta linha aparece no GitHub, este zip foi aplicado)
+// versao etapa20-pes-no-chao (codigo vivo do object CuteChar; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.BitmapFactory
@@ -68,6 +68,7 @@ object CuteChar {
         val pos0: FloatArray = pos.copyOf()   // Etapa 7: posições originais de repouso (pos = pos0 com rosto/proporções aplicados)
         val nor0: FloatArray = nor.copyOf()   // Etapa 13: normais originais (nor = nor0 corrigida pela deformação)
         var warpVer = -1
+        var foot: IntArray? = null   // Etapa 20: vértices da região do pé/sola (para apoiar a sola no chão)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -539,7 +540,87 @@ object CuteChar {
             if (s.warpVer != sv) refit(s, false, sv, bp, fp)
             skinInto(s, bone)
         }
+        updateLift(sl, c, cs, bs, sv, dt)
         return cs.mesh
+    }
+
+    // ---- Etapa 20: sola apoiada no chão ----
+    // A sola dos sapatos (All Star, chinelo, botas...) fica 1 a 3 cm ABAIXO do y=0 do corpo-base, então afundava no piso.
+    // Para cada clip medimos o ponto mais baixo (corpo-base + sapato) e o personagem sobe essa distância ao ser desenhado.
+    private var liftFor: Active? = null
+    private var liftSv = -1
+    private val liftClip = FloatArray(16) { Float.NaN }   // metros (já com a altura do personagem), um por clip
+    private val slotLift = FloatArray(3)
+    private val slotLiftOk = BooleanArray(3)
+
+    /** Quanto (em metros) o personagem do slot [slot] deve subir no eixo Y para a sola ficar em cima do chão. Chamar logo depois de [frame]. */
+    fun lift(slot: Int = 0): Float = slotLift[slot.coerceIn(0, slotLift.size - 1)]
+
+    private fun updateLift(sl: Int, c: Int, cs: Active, bs: Skin, sv: Int, dt: Float) {
+        try {
+            if (liftFor !== cs || liftSv != sv) {
+                java.util.Arrays.fill(liftClip, Float.NaN)
+                liftFor = cs
+                liftSv = sv
+            }
+            val known = c in liftClip.indices
+            var target = if (known) liftClip[c] else Float.NaN
+            if (target.isNaN()) {
+                target = computeLift(c, cs, bs)
+                if (known) liftClip[c] = target
+            }
+            if (!slotLiftOk[sl]) {
+                slotLift[sl] = target
+                slotLiftOk[sl] = true
+            } else {
+                slotLift[sl] += (target - slotLift[sl]) * (dt * 12f).coerceAtMost(1f)
+            }
+        } catch (e: Throwable) {
+            slotLift[sl] = 0f
+            slotLiftOk[sl] = true
+        }
+    }
+
+    /** Vértices de repouso com y < 8 (sola, calcanhar, biqueira): só eles podem ser o ponto mais baixo. */
+    private fun footIdx(s: Skin): IntArray {
+        s.foot?.let { return it }
+        var n = 0
+        for (v in 0 until s.nv) if (s.pos0[v * 3 + 1] < 8f) n++
+        val r = IntArray(n)
+        var k = 0
+        for (v in 0 until s.nv) if (s.pos0[v * 3 + 1] < 8f) r[k++] = v
+        s.foot = r
+        return r
+    }
+
+    /** Menor y (m) do corpo-base e dos sapatos em todos os quadros do clip; devolve a subida necessária (m), com folga de 1,5 mm. */
+    private fun computeLift(c: Int, cs: Active, bs: Skin): Float {
+        val d = clipData.getOrNull(c) ?: return 0f
+        val nf = clipFrames[c]
+        val n12 = nb * 12
+        var low = 0f
+        fun scan(s: Skin) {
+            val ids = footIdx(s)
+            val pos = s.pos
+            for (f in 0 until nf) {
+                val o = f * n12
+                for (v in ids) {
+                    val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
+                    var y = 0f
+                    for (k in 0 until 4) {
+                        val w = s.bw[v * 4 + k]
+                        if (w <= 0f) continue
+                        val bo = o + s.bi[v * 4 + k] * 12
+                        y += w * (d[bo + 4] * px + d[bo + 5] * py + d[bo + 6] * pz + d[bo + 7])
+                    }
+                    if (y < low) low = y
+                }
+            }
+        }
+        scan(bs)
+        for (s in cs.skins) if (s.key.startsWith("feet/")) scan(s)
+        val up = -low * heightS + 0.0015f
+        return up.coerceIn(0f, 0.06f)
     }
 
     // Postura masculina dos braços, no plano frente (X/Y): deg gira o braço inteiro em torno do ombro e
