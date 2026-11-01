@@ -137,7 +137,6 @@ object CuteChar {
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
             if (masc && i == 0) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)   // Etapa 16: como o pack (BodyType 100), só a Masculinidade
-            if (masc && i < BodyMorph.M_FACE_ADD.size) v = (v + BodyMorph.M_FACE_ADD[i]).coerceIn(-1.5f, 1.5f)   // Etapa 23: boca fina, olhar sério
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
@@ -341,7 +340,7 @@ object CuteChar {
         if (isBase && morphIdx.isNotEmpty()) {
             var any = false
             for (c in fp.indices) if (c < morphIdx.size && fp[c] != 0f) { any = true; break }
-            if (any || mascV) {
+            if (any) {
                 if (faceTmp.size != s.pos0.size) faceTmp = FloatArray(s.pos0.size)
                 System.arraycopy(s.pos0, 0, faceTmp, 0, s.pos0.size)
                 for (c in morphIdx.indices) {
@@ -356,7 +355,6 @@ object CuteChar {
                         faceTmp[v + 2] += dl[k * 3 + 2] * w
                     }
                 }
-                if (mascV) BodyMorph.maleEyes(faceTmp, s.nv)   // Etapa 23: olhos menores e mais sérios
                 src = faceTmp
             }
         }
