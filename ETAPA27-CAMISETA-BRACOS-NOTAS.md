@@ -18,3 +18,8 @@ Pedido: a camiseta ficou toda bugada; a parte de cima do braço (sovaco e bícep
 ## Arquivos
 `CuteColor.kt`, `CuteChar.kt`, `base.bin`, `p_top_skatetee.bin`, `skatetee.png`, `skatetee_recolor*.png/txt`, ferramentas `etapa27_camiseta_skate.py` e `etapa27_postura_masculina.py`.
 Sem compilador/teste no aparelho aqui: o build é a prova final.
+
+## Ajuste 28 (a partir do teste no celular)
+- Mangas bem mais largas e compridas (camisa larga de verdade), com pequenas dobras.
+- Folga calculada contra todas as calças/bermudas: o corpo da camisa é empurrado para fora do contorno delas (conferido em parado, andar e correr), então o short não atravessa mais.
+- Tecido menos duro: dobras leves no corpo e barra ondulada.

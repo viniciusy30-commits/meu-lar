@@ -22,7 +22,7 @@ def sm(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
 S0 = np.array([13.3, 142.5, -2.9]); U = np.array([0.6012, -0.7991, -0.0076])   # início e direção do braço na pose de ligação
-PAR = dict(sk=1.4, sf=0.42, ex0=0.24, ex1=0.42, ez0=0.16, ez1=0.30, hem=22.0, drop=1.2)
+PAR = dict(sk=1.9, sf=0.85, ex0=0.24, ex1=0.42, ez0=0.16, ez1=0.30, hem=22.0, drop=1.2)
 
 def frame(P):
     ax = np.abs(P[:, 0]); v = np.stack([ax - S0[0], P[:, 1] - S0[1], P[:, 2] - S0[2]], 1)
@@ -69,6 +69,38 @@ for v in np.where(ws > 0)[0]:
     w = np.array(w); w /= w.sum(); BI2[v] = ids; BW2[v] = w
 r['bi'] = BI2.astype(np.uint8)
 q = np.round(BW2 * 255).astype(int); q[np.arange(len(q)), q.argmax(1)] += 255 - q.sum(1); r['bw'] = q.astype(np.uint8)
+# ---- folga contra as calças (nenhuma calça/bermuda atravessa a camisa) e dobras do tecido
+import glob
+ZC = 2.0
+def polar(Q): return np.arctan2(Q[:, 2] - ZC, Q[:, 0]), np.hypot(Q[:, 0], Q[:, 2] - ZC)
+NA, YB0, YB1 = 48, 70, 124
+env = np.zeros((NA, (YB1 - YB0) // 2 + 1))
+for f in glob.glob(os.path.join(SRC, 'p_bottom_*.bin')) + glob.glob(os.path.join(SRC, 'p_overall_*.bin')):
+    nm = os.path.basename(f)[2:-4]
+    if any(k in nm for k in ('skirt', 'bikini', 'underwear', 'dress', 'sundress')): continue
+    q, _, _, _ = load(nm); Q = q['pos'].astype(float)
+    m = (Q[:, 1] >= YB0) & (Q[:, 1] < YB1)
+    th, rr = polar(Q[m]); ai = ((th + np.pi) / (2 * np.pi) * NA).astype(int) % NA; yi = ((Q[m][:, 1] - YB0) // 2).astype(int)
+    np.maximum.at(env, (ai, yi), rr)
+e2 = env.copy()
+for d in (-2, -1, 1, 2):
+    e2 = np.maximum(e2, np.roll(env, d, 0) - abs(d) * 0.3)
+for d in (-1, 1):
+    e2 = np.maximum(e2, np.roll(e2, d, 1) - 0.2)
+th, rr = polar(P)
+ai = ((th + np.pi) / (2 * np.pi) * NA).astype(int) % NA; yi = np.clip(((P[:, 1] - YB0) // 2).astype(int), 0, e2.shape[1] - 1)
+need = e2[ai, yi] + 2.2
+tor = (1 - ws) * (1 - sm(116, 128, P[:, 1]))
+push = np.clip(need - rr, 0, 7) * tor
+fold = (0.55 * np.sin(th * 9 + 0.7) + 0.35 * np.sin(th * 14 - 1.3)) * 0.9 * sm(128, 92, P[:, 1]) * (1 - ws)
+foldy = 0.9 * np.sin(th * 7 + 0.4) * (1 - sm(86, 96, P[:, 1])) * (1 - ws)
+dr = push + fold
+P = P.copy(); P[:, 0] += np.cos(th) * dr; P[:, 2] += np.sin(th) * dr; P[:, 1] += foldy
+# dobras da manga (ao longo do braço)
+axs, ts, prs, rs = frame(P)
+ph = np.arctan2(prs[:, 2], prs[:, 1])
+sdr = 0.5 * np.sin(ph * 4 + ts * 0.25) * sm(8, 26, ts) * ws
+P += (prs / np.maximum(rs, 1e-6)[:, None]) * sdr[:, None]
 # normais suaves (soldando vértices de mesma posição)
 key = np.round(P, 3); _, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
 fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
