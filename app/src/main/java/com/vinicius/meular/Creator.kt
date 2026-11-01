@@ -48,7 +48,7 @@ class CreatorUi(
         val colors: IntArray,
         val dist: Float = Float.NaN,
         val y: Float = Float.NaN,
-        val sl: Int = 0   // Etapa 7: 1 = controles de proporção do corpo, 2 = controles do formato do rosto
+        val sl: Int = 0   // Etapa 7: 1 = controles de proporção do corpo, 2 = controles do formato do rosto, 3 = expressões, 4 = escolha da base
     )
 
     private class Cat(val name: String, val dist: Float, val y: Float, val subs: List<Sub>)
@@ -57,6 +57,9 @@ class CreatorUi(
 
     // Alturas reais: personagem ~1,55 m (com chifres ~1,65); olhos ~1,45; pés em 0. Altura visível = 0,61 x distância.
     private val cats: List<Cat> = listOf(
+        Cat("Base", 3.5f, 0.82f, listOf(
+            Sub("Masculino / Feminino", 0.3f, null, intArrayOf(0), sl = 4)
+        )),
         Cat("Corpo", 3.5f, 0.82f, listOf(
             Sub("Pele", 0.3f, null, intArrayOf(0)),
             Sub("Proporções", 0.3f, null, intArrayOf(), sl = 1)
@@ -68,6 +71,7 @@ class CreatorUi(
         Cat("Rosto", 1.3f, 1.43f, listOf(
             Sub("Formato", 0f, null, intArrayOf(), sl = 2),
             Sub("Olhos", 0f, null, intArrayOf(1)),
+            Sub("Lábios", 0f, null, intArrayOf(12)),
             Sub("Expressão", 0f, null, intArrayOf(), sl = 3),
             Sub("Óculos", 0f, Style("glasses", AvaPal.GS_IDS, AvaPal.GS_N, { a -> a.cgls }, { a, i -> a.cgls = i }), intArrayOf(10, 11)),
             Sub("Barba", 0f, Style("beard", AvaPal.BD_IDS, AvaPal.BD_N, { a -> a.cbrd }, { a, i -> a.cbrd = i }), intArrayOf(2, 3))
@@ -87,7 +91,7 @@ class CreatorUi(
         ))
     )
 
-    private val EMOJI = listOf("\uD83E\uDDCD", "\uD83D\uDC87", "\uD83D\uDE42", "\uD83D\uDC55", "\uD83D\uDC5F", "\uD83C\uDFA9")
+    private val EMOJI = listOf("\uD83E\uDDEC", "\uD83E\uDDCD", "\uD83D\uDC87", "\uD83D\uDE42", "\uD83D\uDC55", "\uD83D\uDC5F", "\uD83C\uDFA9")
 
     private var cat = 0
     private var sub = 0
@@ -264,7 +268,7 @@ class CreatorUi(
         val s = c.subs[sub]
         val stl = s.style
         if (stl != null) grid(stl, stl.get(av))
-        if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
+        if (s.sl == 4) baseChoice() else if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
         for (slot in s.colors) colorRow(slot)
         body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
         scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
@@ -478,6 +482,35 @@ class CreatorUi(
     }
 
     private var exprSel = -1
+
+    /** Etapa 14: escolha da base. Recomeça o personagem do zero (roupa de baixo, cabelo simples, proporções zeradas). */
+    private fun baseChoice() {
+        val av = st.avatar
+        val info = TextView(context)
+        info.text = "Escolha a base e monte seu personagem do zero. Trocar a base apaga roupas, cabelo e ajustes (mantém pele e olhos)."
+        info.textSize = 12f
+        info.setTextColor(Pal.SUB)
+        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        for ((nome, m) in listOf("Masculino" to true, "Feminino" to false)) {
+            val on = av.masc == m
+            val t = TextView(context)
+            t.text = (if (m) "\u2642  " else "\u2640  ") + nome + (if (on) "  \u2713" else "")
+            t.textSize = 18f
+            t.typeface = Ui.BOLD
+            t.gravity = Gravity.CENTER
+            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(22f)) else Ui.bg(0xFF343C54.toInt(), dpf(22f))
+            t.setOnClickListener {
+                av.applyBase(m)
+                CuteColor.setColors(av.cc)
+                CuteChar.setWear(av.wearKeys())
+                CuteChar.setShape(av.bs, av.fs, av.masc)
+                st.save()
+                refresh(true)
+            }
+            body.addView(t, LinearLayout.LayoutParams(-1, dp(64)).also { it.topMargin = dp(12); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        }
+    }
 
     /** Etapa 8: testar expressões do rosto (só visualização; o jogo continua piscando e fazendo cara de surpresa no pulo). */
     private fun expressions() {

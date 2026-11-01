@@ -1,3 +1,16 @@
+#id 2026-11-01-g
+#titulo Boca e rosto masculinos diferentes + cores de boca
+- Nova aba Rosto > Lábios com 9 cores de boca (rosa, vermelho, vinho, coral, malva, ameixa, pink, nude...). "Original" volta ao coral
+- Base masculina: boca mais larga e lábios mais finos, com cor natural discreta (pode trocar); sobrancelha ainda mais grossa
+- Rosto masculino continua com mandíbula marcada; o feminino mantém o rosto e a boca coral de antes
+
+#id 2026-11-01-f
+#titulo Personagem do zero: base masculina e feminina de verdade
+- Novo primeiro item no criador: "Base" (Masculino / Feminino). Escolher recomeça do zero: roupa de baixo, cabelo simples e ajustes zerados (mantém pele e olhos). A Mary não é mais o ponto de partida
+- Corpo masculino refeito: ombros e braços mais largos, peito reto com peitoral, cintura reta, quadril e coxas mais finos, pescoço grosso e sem faixa de sutiã
+- Rosto masculino completo: mandíbula marcada, sobrancelha mais grossa e cílios curtos
+- Poses próprias do masculino: parado com pés afastados e braços relaxados, andar e correr com os braços mais afastados do corpo. O feminino continua com as animações de antes
+
 #id 2026-11-01-e
 #titulo Corpo masculino e feminino, busto maior e rosto colorido
 - Agora dá para escolher Feminino ou Masculino em Corpo > Proporções. O masculino tem ombros mais largos, peito reto, cintura mais cheia, quadril mais estreito, pescoço grosso e é um pouco mais alto

@@ -51,18 +51,28 @@ object BodyMorph {
     private const val BUST_POS = 8.0f
     private const val BUST_NEG = 3.0f
     private const val BUST_BASE_F = 2.0f
-    private const val BUST_BASE_M = -1.5f
+    private const val BUST_BASE_M = -1.8f
     // Masculino = mesmos controles somados a estes valores (ombros largos, peito/cintura mais cheios, quadril estreito, braços e pescoço grossos)
-    private const val M_OMBRO = 0.75f
-    private const val M_PEITO = 0.6f
-    private const val M_CINT = 0.55f
-    private const val M_QUAD = -0.6f
-    private const val M_BRACO = 0.25f
-    private const val M_PESCOCO = 0.13f
+    private const val M_OMBRO = 1.6f
+    private const val M_PEITO = 1.5f
+    private const val M_CINT = 1.0f
+    private const val M_QUAD = -1.5f
+    private const val M_BRACO = 0.8f
+    private const val M_PESCOCO = 0.32f
+    // Etapa 14: mais peso lateral, peito/cintura quase só para os lados, peitoral, deltoide, trapézio, coxa mais fina, glúteo reto
+    private const val M_PESO = 0.25f
+    private const val M_ZFAC = 0.25f
+    private const val M_PEC = 1.8f
+    private const val M_PEC_Y = 121.0f
+    private const val M_PEC_R = 14.0f
+    private const val M_DELT = 0.9f
+    private const val M_COXA = -0.30f
+    private const val M_BUTT = -0.10f
+    private const val M_TRAP = 0.8f
     /** Altura extra do corpo masculino (multiplica a altura do criador). */
     const val M_ALTURA = 1.035f
     /** Rosto: Masculinidade padrão do corpo masculino (somada ao controle, em fração de 1). */
-    const val M_ROSTO = 0.5f
+    const val M_ROSTO = 1.0f
 
     /**
      * Copia [src] (xyz por vértice, unidades do FBX: personagem com ~162 de altura, frente +Z, lado +X) para [dst] já deformado.
@@ -70,16 +80,17 @@ object BodyMorph {
      */
     fun warp(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray, masc: Boolean = false) {
         val m = if (masc) 1f else 0f
-        val peso = 0.14f * b[1]
+        val peso = 0.14f * (b[1] + M_PESO * m)
         val ombro = 3.0f * (b[2] + M_OMBRO * m)
         val peito = 0.10f * (b[3] + M_PEITO * m)
         val busto = (if (b[4] > 0f) BUST_POS * b[4] else BUST_NEG * b[4]) + (if (masc) BUST_BASE_M else BUST_BASE_F)
         val cint = 0.15f * (b[5] + M_CINT * m)
         val quad = 0.12f * (b[6] + M_QUAD * m)
-        val coxa = 0.25f * b[7]
+        val coxa = 0.25f * (b[7] + M_COXA * m)
         val braco = 0.25f * (b[8] + M_BRACO * m)
         val cab = 0.12f * b[9]
         // eixo do braço (pose de repouso em A): do ombro (13,3; 142,5; -2,9) na direção do cotovelo
+        val zf = 1f - m * (1f - M_ZFAC)
         val dnx = 0.6012f
         val dny = -0.7991f
         val dnz = -0.0076f
@@ -105,7 +116,7 @@ object BodyMorph {
             if (peito != 0f) {
                 val w = sm(100f, 114f, y) * (1f - sm(128f, 140f, y)) * (1f - sm(18f, 28f, ax))
                 dx += x * peito * w
-                dz += z * peito * w
+                dz += z * peito * w * zf
             }
             if (busto != 0f) {
                 val bdx = x - sx * BUST_CX
@@ -123,7 +134,7 @@ object BodyMorph {
             if (cint != 0f) {
                 val w = sm(92f, 100f, y) * (1f - sm(110f, 118f, y)) * (1f - sm(20f, 30f, ax))
                 dx += x * cint * w
-                dz += z * cint * w
+                dz += z * cint * w * zf
             }
             if (quad != 0f) {
                 val w = sm(66f, 78f, y) * (1f - sm(94f, 104f, y)) * (1f - sm(26f, 36f, ax))
@@ -163,6 +174,20 @@ object BodyMorph {
                 val w = gs(y, 149f, 5f)
                 dx += x * M_PESCOCO * w
                 dz += (z + 0.3f) * M_PESCOCO * w
+                // peitoral: placa larga e baixa, para frente
+                val pdx = x - sx * 8.5f
+                val pdy = y - M_PEC_Y
+                val tp = (1f - sqrt(pdx * pdx + pdy * pdy) / M_PEC_R).coerceIn(0f, 1f)
+                dz += M_PEC * (tp * tp * (3f - 2f * tp)) * sm(-3f, 3f, z)
+                // deltoide
+                val ddx = x - sx * 19f
+                val ddy = y - 137f
+                val td = (1f - sqrt(ddx * ddx + ddy * ddy) / 15f).coerceIn(0f, 1f)
+                dx += sx * M_DELT * (td * td * (3f - 2f * td))
+                // trapézio
+                dy += M_TRAP * gs(ax, 11f, 7f) * gs(y, 146f, 4.5f)
+                // glúteo mais reto
+                if (z < 3.8f) dz += M_BUTT * (z - 3.8f) * sm(66f, 78f, y) * (1f - sm(94f, 104f, y))
             }
             dst[v * 3] = x + dx
             dst[v * 3 + 1] = y + dy

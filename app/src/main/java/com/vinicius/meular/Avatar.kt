@@ -93,14 +93,14 @@ class Avatar(
     /** Cores do personagem modular (Etapa 2): índice na paleta de cada slot de [CuteColor]; -1 = cor original da Mary. */
     var cc: IntArray = CuteColor.defaults(),
     /** Etapa 3: índice em [AvaPal.HB_IDS] (cabelo de trás) e [AvaPal.HF_IDS] (franja). Padrão = cabelo da Mary. */
-    var hb: Int = 1,
-    var hf: Int = 1,
+    var hb: Int = 4,
+    var hf: Int = 2,
     /** Etapa 4: índice em [AvaPal.CT_IDS] (blusa), [AvaPal.CB_IDS] (calça/saia) e [AvaPal.CO_IDS] (vestido; se != 0 vale no lugar de blusa e calça). */
-    var ctop: Int = 1,
-    var cbot: Int = 1,
+    var ctop: Int = 0,
+    var cbot: Int = 0,
     var cov: Int = 0,
     /** Etapa 5: índices em [AvaPal.FT_IDS] (sapatos; padrão = sandália da Mary), [AvaPal.GV_IDS], [AvaPal.HT_IDS], [AvaPal.GS_IDS], [AvaPal.BD_IDS], [AvaPal.HA_IDS]. */
-    var cfeet: Int = 1,
+    var cfeet: Int = 0,
     var cglove: Int = 0,
     var chat: Int = 0,
     var cgls: Int = 0,
@@ -114,7 +114,7 @@ class Avatar(
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
@@ -126,7 +126,8 @@ class Avatar(
         if (cov > 0) {
             k.add("overall/" + AvaPal.CO_IDS[cov])
         } else {
-            k.add("top/" + AvaPal.CT_IDS[ctop].ifEmpty { "Underwear" })
+            // Etapa 14: base masculina sem faixa de sutiã (peito nu)
+            if (ctop > 0 || !masc) k.add("top/" + AvaPal.CT_IDS[ctop].ifEmpty { "Underwear" })
             k.add("bottom/" + AvaPal.CB_IDS[cbot].ifEmpty { "Underwear" })
         }
         AvaPal.FT_IDS[cfeet].let { if (it.isNotEmpty()) k.add("feet/$it") }
@@ -136,6 +137,22 @@ class Avatar(
         AvaPal.BD_IDS[cbrd].let { if (it.isNotEmpty()) k.add("beard/$it") }
         AvaPal.HA_IDS[chac].let { if (it.isNotEmpty()) k.add("headAcc/$it") }
         return k
+    }
+
+    /** Etapa 14: recomeça do zero com a base masculina ou feminina (sem roupa da Mary); mantém só tom de pele e cor dos olhos. */
+    fun applyBase(m: Boolean) {
+        masc = m
+        female = !m
+        hb = if (m) 3 else 4          // Curto | Chanel
+        hf = if (m) 0 else 2          // sem franja | franja de lado
+        ctop = 0; cbot = 0; cov = 0; cfeet = 0; cglove = 0; chat = 0; cgls = 0; cbrd = 0; chac = 0
+        java.util.Arrays.fill(bs, 0)
+        java.util.Arrays.fill(fs, 0)
+        val skinC = cc[0]
+        val eyeC = cc[1]
+        for (i in cc.indices) cc[i] = -1
+        cc[0] = skinC; cc[1] = eyeC
+        if (m) cc[12] = 0   // lábios masculinos: tom natural discreto; feminino fica com o coral original (e pode trocar)
     }
 
     /** Troca de gênero com um visual-base bonito, mantendo pele, olhos e cor do cabelo. */
@@ -204,6 +221,8 @@ class Avatar(
                     }
                     // saves anteriores à Etapa 13 não têm o sexo do corpo: ficam com o corpo feminino original
                     if (36 + BodyMorph.NB + BodyMorph.NF < p.size) av.masc = p[36 + BodyMorph.NB + BodyMorph.NF] == 1
+                    // Etapa 15: cor dos lábios (último número)
+                    if (37 + BodyMorph.NB + BodyMorph.NF < p.size) av.cc[12] = p[37 + BodyMorph.NB + BodyMorph.NF].coerceIn(-1, CuteColor.palette(12).size - 1)
                 }
             } catch (e: Exception) {
                 null

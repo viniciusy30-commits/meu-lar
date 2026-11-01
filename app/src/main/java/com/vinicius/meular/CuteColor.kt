@@ -20,7 +20,7 @@ import android.opengl.GLUtils
  * no começo de [CuteChar.frame]. Não mexe em malha, ossos nem animações.
  */
 object CuteColor {
-    const val SLOTS = 12
+    const val SLOTS = 13
     const val S_PELE = 0
     const val S_OLHOS = 1
     const val S_CABELO = 2
@@ -33,8 +33,9 @@ object CuteColor {
     const val S_DETALHE_BAIXO = 9
     const val S_ACESSORIO = 10
     const val S_ACESSORIO2 = 11
+    const val S_LABIOS = 12
 
-    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo", "Acessório", "Acessório 2")
+    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo", "Acessório", "Acessório 2", "Lábios")
 
     private fun pal(vararg hex: String): IntArray = IntArray(hex.size) { Color.parseColor(hex[it]) }
 
@@ -50,7 +51,10 @@ object CuteColor {
     )
     private val SHOE = pal("#FFFFFF", "#1E2230", "#E5484D", "#3E8EDE", "#7A4E32", "#F2A33A", "#EE6FA6", "#6B6F7A")
 
-    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH, CLOTH, CLOTH)
+    /** Lábios (Etapa 15): índice 0 = natural masculino (tom discreto); os outros do natural ao vibrante. */
+    val LIPS = pal("#B9766E", "#D9808A", "#C9444F", "#A3303F", "#E8927C", "#8E4A5C", "#6B2D45", "#D86BA8", "#7A5A52")
+    val LIP_NAMES = listOf("Natural", "Rosa", "Vermelho", "Vinho", "Coral", "Malva", "Ameixa", "Pink", "Nude escuro")
+    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH, CLOTH, CLOTH, LIPS)
 
     /** Cores (ARGB) que o jogador pode escolher no slot. */
     fun palette(slot: Int): IntArray = PALS[slot.coerceIn(0, SLOTS - 1)]
@@ -246,12 +250,12 @@ object CuteColor {
     // ------------------------------------------------------------------ cálculo
 
     private fun compute(l: Layer, e: Array<FloatArray?>) {
-        val p0 = FloatArray(8 * 3)
-        val p1 = FloatArray(8 * 3)
-        val n0 = FloatArray(8 * 3)
-        val n1 = FloatArray(8 * 3)
+        val p0 = FloatArray(9 * 3)
+        val p1 = FloatArray(9 * 3)
+        val n0 = FloatArray(9 * 3)
+        val n1 = FloatArray(9 * 3)
         for (r in l.regions) {
-            if (r.id < 1 || r.id > 7) continue
+            if (r.id < 1 || r.id > 8) continue
             for (c in 0 until 3) {
                 val k = r.id * 3 + c
                 val c0 = if (r.s0 >= 0) e[r.s0] else null
@@ -279,7 +283,7 @@ object CuteColor {
             val mv = m[i]
             val id = mv ushr 24
             val bv = b[i]
-            if (id == 0 || id > 7) {
+            if (id == 0 || id > 8) {
                 o[i] = bv
                 i++
                 continue

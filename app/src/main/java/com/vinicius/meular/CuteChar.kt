@@ -122,7 +122,13 @@ object CuteChar {
         val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
-            if (i == 0 && masc) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)   // Etapa 13: rosto mais marcado no masculino
+            if (masc) {   // Etapa 14: rosto masculino completo (mandíbula, pescoço), sobrancelha mais grossa, cílios curtos
+                if (i == 0) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)
+                if (i == 1) v = (v - 0.6f).coerceAtLeast(-1f)
+                if (i == 2) v = (v + 0.7f).coerceAtMost(1f)
+                if (i == 7) v = (v + 0.25f).coerceAtMost(1f)   // boca mais larga
+                if (i == 8) v = (v + 0.35f).coerceAtMost(1f)   // lábios mais finos
+            }
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
@@ -455,7 +461,9 @@ object CuteChar {
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
-        val c = clip.coerceIn(0, clipData.size - 1)
+        // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
+        val c0 = clip.coerceIn(0, clipData.size - 1)
+        val c = if (mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK || c0 == RUN)) (if (c0 == IDLE) 4 else if (c0 == WALK) 5 else 6) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = clipFrames[c]
         val len = clipLen[c].coerceAtLeast(0.001f)
@@ -473,7 +481,7 @@ object CuteChar {
             slotClip[sl] = c
             slotT0[sl] = t
         }
-        var lt = if (c == JUMP) t else (t - slotT0[sl]) * (if (c == WALK) WALK_RATE else 1f)
+        var lt = if (c == JUMP) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
         if (c != JUMP) {
             lt %= len
             if (lt < 0f) lt += len
