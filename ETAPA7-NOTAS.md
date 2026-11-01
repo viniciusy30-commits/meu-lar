@@ -27,3 +27,8 @@
 3. Rosto > Formato: cada controle muda o rosto (close); Masculinidade também muda o pescoço.
 4. Sair do criador, fechar e abrir o app: os valores continuam.
 5. Saves antigos abrem com tudo em 0.
+
+## Correção dos olhos (feedback do teste)
+- Problema: a íris pintada ocupava quase toda a abertura (sem esclera visível) e sem brilho.
+- Correção: o miolo do olho foi repintado no atlas (`textures.png`, tile 256x256 em (1792,512)): íris menor, pupila no centro, anel escuro, esclera branca sombreada pelas pálpebras e dois brilhos. Pele e cílios pintados ficaram como estavam. Máscara de cor refeita só nesse tile (`recolor.png`, `recolor_s.png`, linha `olhos` de `recolor.txt`): só a íris recolore (pupila, esclera e brilhos não). Script: `ferramentas/etapa7_olhos.py`.
+- Testar: cada cor de olho (Rosto > Olhos), olhando de perto e de lado; com óculos.
