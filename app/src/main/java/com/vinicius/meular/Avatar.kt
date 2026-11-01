@@ -56,9 +56,9 @@ object AvaPal {
 
     /** Etapa 5: sapatos, luvas, chapéus, óculos, barbas e acessórios de cabeça (ids do manifesto cute/pieces.txt). O índice 0 é "Sem". */
     val FT_IDS = listOf("", "Sandals", "ShowerSandal", "SlipOns", "ComfyShoes", "SchoolShoes", "OfficeShoes", "StreetShoes", "CoolShoes", "SportsShoes",
-        "ShortBoots", "WorkBoots", "BigBoots")
+        "ShortBoots", "WorkBoots", "BigBoots", "AllStar")
     val FT_N = listOf("Descalço", "Sandália (Mary)", "Chinelo", "Sapatilha", "Tênis confortável", "Sapato escolar", "Sapato social", "Sapato casual",
-        "Tênis estiloso", "Tênis esportivo", "Bota curta", "Bota de trabalho", "Botão grande")
+        "Tênis estiloso", "Tênis esportivo", "Bota curta", "Bota de trabalho", "Botão grande", "All Star")
     val GV_IDS = listOf("", "ArmWarmers", "FingerlessGloves", "WorkGloves")
     val GV_N = listOf("Sem", "Manguito", "Luva sem dedos", "Luva de trabalho")
     val HT_IDS = listOf("", "Ballcap", "Beanie", "Bucket", "Fedora", "Sunhat")

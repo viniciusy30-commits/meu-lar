@@ -23,3 +23,7 @@
 - Criador em paisagem: personagem à esquerda, painel à direita (46% da largura) com trilho de categorias (emoji), sub-abas, grade 3 colunas com miniaturas maiores, marca de selecionado, cores em grade e botão Pronto. Botões redondos giram o personagem; insets de recorte/barras tratados em `setInsets(l,t,r,b)`.
 - Zoom refeito para paisagem (altura visível = 0,61 x distância): sem deslocamento vertical, assim a cabeça não corta; deslocamento horizontal `cShiftX` coloca o personagem no centro da área livre.
 - Revisão 3: o personagem tem ~1,55 m (olhos ~1,45), não 1,3; câmeras recalculadas com essas alturas (cabeça não corta mais).
+
+## All Star
+- Peça feet/AllStar gerada por ferramentas/allstar.py (região 7 do atlas extra2: cor 1 = lona/faixa, cor 2 = borracha/cadarço). Índice novo no fim de FT_IDS (saves intactos).
+- Testar: forma nos pés, animação de andar/pular, recolor, desempenho (~8,9 mil vértices).

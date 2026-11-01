@@ -79,6 +79,7 @@ feet|SlipOns|p_feet_slipons.bin|extra2.png
 feet|SportsShoes|p_feet_sportsshoes.bin|extra2.png
 feet|StreetShoes|p_feet_streetshoes.bin|extra2.png
 feet|WorkBoots|p_feet_workboots.bin|extra2.png
+feet|AllStar|p_feet_allstar.bin|extra2.png
 gloves|ArmWarmers|p_gloves_armwarmers.bin|extra2.png
 gloves|FingerlessGloves|p_gloves_fingerlessgloves.bin|extra2.png
 gloves|WorkGloves|p_gloves_workgloves.bin|extra2.png

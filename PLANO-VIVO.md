@@ -125,3 +125,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] `Creator.kt` novo (categorias, sub-abas, grade de miniaturas, cores, Girar/Pronto), ícones do pack em `assets/cute/icons/`, câmera com zoom/giro por categoria (`cTargetYaw`, `cShift` em Renderer3D; GameView cancela o giro ao tocar). Detalhes em `ETAPA6-NOTAS.md`.
 - [ ] Ainda NÃO compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
 - PRÓXIMO PASSO: esperar o teste da Etapa 6; depois Etapa 7 (corpo e rosto: sliders e formato da cabeça).
+
+## All Star
+- [x] Peça, atlas, ícone, lista de sapatos
+- [ ] Testar no celular

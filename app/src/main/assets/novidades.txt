@@ -1,5 +1,6 @@
-#id 2026-11-01-b
-#titulo Novo criador de personagem estilo The Sims (Etapa 6)
+#id 2026-11-01-c
+#titulo Novo sapato: All Star de cano alto
+- Novo sapato All Star (cano alto, biqueira, cadarço, patch com estrela), com cores editáveis, na aba Sapatos
 - O jogo agora roda na horizontal
 - Tela do personagem refeita para a horizontal: personagem à esquerda e painel bonito à direita com categorias, sub-abas e miniaturas grandes com os ícones do pack
 - A câmera dá zoom e gira sozinha para a parte que você edita: cabelo de trás mostra as costas, rosto em close, sapatos nos pés
