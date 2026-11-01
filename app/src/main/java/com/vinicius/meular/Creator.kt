@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -52,121 +53,148 @@ class CreatorUi(
     private val PI_F = Math.PI.toFloat()
 
     private val cats: List<Cat> = listOf(
-        Cat("Corpo", 4.3f, 0.65f, listOf(
+        Cat("Corpo", 3.0f, 0.65f, listOf(
             Sub("Pele", 0.3f, null, intArrayOf(0))
         )),
-        Cat("Cabelo", 2.0f, 1.14f, listOf(
+        Cat("Cabelo", 1.6f, 1.0f, listOf(
             Sub("Atrás", PI_F, Style("hairBack", AvaPal.HB_IDS, AvaPal.HB_N, { a -> a.hb }, { a, i -> a.hb = i }), intArrayOf(2, 3)),
             Sub("Frente", 0f, Style("hairFront", AvaPal.HF_IDS, AvaPal.HF_N, { a -> a.hf }, { a, i -> a.hf = i }), intArrayOf(2, 3))
         )),
-        Cat("Rosto", 1.45f, 1.15f, listOf(
+        Cat("Rosto", 1.05f, 1.15f, listOf(
             Sub("Olhos", 0f, null, intArrayOf(1)),
             Sub("Óculos", 0f, Style("glasses", AvaPal.GS_IDS, AvaPal.GS_N, { a -> a.cgls }, { a, i -> a.cgls = i }), intArrayOf(10, 11)),
             Sub("Barba", 0f, Style("beard", AvaPal.BD_IDS, AvaPal.BD_N, { a -> a.cbrd }, { a, i -> a.cbrd = i }), intArrayOf(2, 3))
         )),
-        Cat("Roupa", 3.1f, 0.85f, listOf(
+        Cat("Roupa", 2.0f, 0.85f, listOf(
             Sub("Blusa", 0.3f, Style("top", AvaPal.CT_IDS, AvaPal.CT_N, { a -> a.ctop }, { a, i -> a.ctop = i }), intArrayOf(4, 5)),
-            Sub("Calça/saia", 0.3f, Style("bottom", AvaPal.CB_IDS, AvaPal.CB_N, { a -> a.cbot }, { a, i -> a.cbot = i }), intArrayOf(6, 9), 3.4f, 0.6f),
-            Sub("Vestido", 0.3f, Style("overall", AvaPal.CO_IDS, AvaPal.CO_N, { a -> a.cov }, { a, i -> a.cov = i }), intArrayOf(4, 5, 6, 9), 3.6f, 0.7f)
+            Sub("Calça/saia", 0.3f, Style("bottom", AvaPal.CB_IDS, AvaPal.CB_N, { a -> a.cbot }, { a, i -> a.cbot = i }), intArrayOf(6, 9), 2.2f, 0.5f),
+            Sub("Vestido", 0.3f, Style("overall", AvaPal.CO_IDS, AvaPal.CO_N, { a -> a.cov }, { a, i -> a.cov = i }), intArrayOf(4, 5, 6, 9), 2.6f, 0.7f)
         )),
-        Cat("Sapatos", 2.3f, 0.22f, listOf(
+        Cat("Sapatos", 1.5f, 0.25f, listOf(
             Sub("Sapatos", 0.3f, Style("feet", AvaPal.FT_IDS, AvaPal.FT_N, { a -> a.cfeet }, { a, i -> a.cfeet = i }), intArrayOf(7, 8))
         )),
-        Cat("Acessórios", 2.0f, 1.1f, listOf(
+        Cat("Acessórios", 1.35f, 1.12f, listOf(
             Sub("Chapéu", 0.3f, Style("hat", AvaPal.HT_IDS, AvaPal.HT_N, { a -> a.chat }, { a, i -> a.chat = i }), intArrayOf(10, 11)),
             Sub("Cabeça", 0.3f, Style("headAcc", AvaPal.HA_IDS, AvaPal.HA_N, { a -> a.chac }, { a, i -> a.chac = i }), intArrayOf(10, 11)),
-            Sub("Luvas", 0.3f, Style("gloves", AvaPal.GV_IDS, AvaPal.GV_N, { a -> a.cglove }, { a, i -> a.cglove = i }), intArrayOf(10, 11), 3.0f, 0.75f)
+            Sub("Luvas", 0.3f, Style("gloves", AvaPal.GV_IDS, AvaPal.GV_N, { a -> a.cglove }, { a, i -> a.cglove = i }), intArrayOf(10, 11), 2.0f, 0.7f)
         ))
     )
 
+    private val EMOJI = listOf("\uD83E\uDDCD", "\uD83D\uDC87", "\uD83D\uDE42", "\uD83D\uDC55", "\uD83D\uDC5F", "\uD83C\uDFA9")
+
     private var cat = 0
     private var sub = 0
-    private var viewBack = false
 
-    private val catRow = LinearLayout(ctx)
+    private val rail = LinearLayout(ctx)
     private val subRow = LinearLayout(ctx)
     private val body = LinearLayout(ctx)
     private val scroll = ScrollView(ctx)
     private val panel = LinearLayout(ctx)
-    private val topBar = LinearLayout(ctx)
+    private val titleTv = TextView(ctx)
+    private val stageTitle = TextView(ctx)
+    private val stageBtns = LinearLayout(ctx)
     private val icons = HashMap<String, Bitmap?>()
 
-    init {
-        // barra de cima: título, girar, pronto
-        topBar.orientation = LinearLayout.HORIZONTAL
-        topBar.gravity = Gravity.CENTER_VERTICAL
-        topBar.setPadding(dp(14), dp(36), dp(14), dp(4))
-        val title = TextView(ctx)
-        title.text = "Meu personagem"
-        title.textSize = 18f
-        title.typeface = Ui.BOLD
-        title.setTextColor(Color.WHITE)
-        topBar.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-        val rot = pill("Girar", Pal.GLASS)
-        rot.setOnClickListener {
-            viewBack = !viewBack
-            game.r.autoSpin = false
-            game.r.cTargetYaw = if (viewBack) PI_F else 0.3f
-        }
-        topBar.addView(rot, LinearLayout.LayoutParams(-2, dp(40)).also { it.rightMargin = dp(8) })
-        val ok = pill("Pronto", Pal.GREEN)
-        ok.setOnClickListener { st.avatarSet = true; st.save(); onDone() }
-        topBar.addView(ok, LinearLayout.LayoutParams(-2, dp(40)))
-        addView(topBar, LayoutParams(-1, -2, Gravity.TOP))
+    private fun grad(c1: Int, c2: Int, r: Float, stroke: Int = 0, sw: Float = 0f): GradientDrawable {
+        val g = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(c1, c2))
+        g.cornerRadius = r
+        if (stroke != 0) g.setStroke(sw.toInt().coerceAtLeast(1), stroke)
+        return g
+    }
 
-        // painel de baixo
-        panel.orientation = LinearLayout.VERTICAL
-        panel.background = Ui.topSheet(Pal.BG, dpf(26f))
-        panel.setPadding(dp(12), dp(12), dp(12), dp(10))
-        catRow.orientation = LinearLayout.HORIZONTAL
-        val hs1 = HorizontalScrollView(ctx)
-        hs1.isHorizontalScrollBarEnabled = false
-        hs1.addView(catRow)
-        panel.addView(hs1, LinearLayout.LayoutParams(-1, -2))
+    init {
+        // título sobre o palco (esquerda)
+        stageTitle.text = "Meu personagem"
+        stageTitle.textSize = 22f
+        stageTitle.typeface = Ui.BOLD
+        stageTitle.setTextColor(Color.WHITE)
+        stageTitle.setShadowLayer(dpf(6f), 0f, dpf(2f), 0xAA000000.toInt())
+        addView(stageTitle, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(20), dp(14), 0, 0) })
+
+        // botões de girar (esquerda embaixo)
+        stageBtns.orientation = LinearLayout.HORIZONTAL
+        stageBtns.gravity = Gravity.CENTER_VERTICAL
+        stageBtns.addView(roundBtn("\u21BA") { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw - 1.0f }, LinearLayout.LayoutParams(dp(52), dp(52)).also { it.rightMargin = dp(12) })
+        stageBtns.addView(roundBtn("\u21BB") { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw + 1.0f }, LinearLayout.LayoutParams(dp(52), dp(52)))
+        addView(stageBtns, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(20), 0, 0, dp(18)) })
+
+        // painel da direita
+        panel.orientation = LinearLayout.HORIZONTAL
+        val pbg = grad(0xF2232A40.toInt(), 0xF2141926.toInt(), 0f)
+        pbg.cornerRadii = floatArrayOf(dpf(30f), dpf(30f), 0f, 0f, 0f, 0f, dpf(30f), dpf(30f))
+        panel.background = pbg
+        panel.setPadding(dp(8), dp(10), dp(10), dp(10))
+
+        rail.orientation = LinearLayout.VERTICAL
+        rail.gravity = Gravity.CENTER_HORIZONTAL
+        val railScroll = ScrollView(ctx)
+        railScroll.isVerticalScrollBarEnabled = false
+        railScroll.addView(rail)
+        panel.addView(railScroll, LinearLayout.LayoutParams(dp(74), -1))
+
+        val content = LinearLayout(ctx)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(8), dp(4), 0, 0)
+        titleTv.textSize = 22f
+        titleTv.typeface = Ui.BOLD
+        titleTv.setTextColor(Color.WHITE)
+        content.addView(titleTv, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(4) })
         subRow.orientation = LinearLayout.HORIZONTAL
         val hs2 = HorizontalScrollView(ctx)
         hs2.isHorizontalScrollBarEnabled = false
         hs2.addView(subRow)
-        panel.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8) })
+        content.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8) })
         body.orientation = LinearLayout.VERTICAL
         scroll.isVerticalScrollBarEnabled = false
         scroll.addView(body)
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(214)).also { it.topMargin = dp(8) })
-        addView(panel, LayoutParams(-1, -2, Gravity.BOTTOM))
-
-        // mantém o personagem centralizado na parte livre da tela (acima do painel)
-        panel.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ -> updateShift(b - t) }
-        refresh()
+        content.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
+        val ok = TextView(ctx)
+        ok.text = "Pronto  \u2713"
+        ok.textSize = 18f
+        ok.typeface = Ui.BOLD
+        ok.setTextColor(Color.WHITE)
+        ok.gravity = Gravity.CENTER
+        ok.background = grad(0xFF4BE08F.toInt(), 0xFF1FA463.toInt(), dpf(24f))
+        ok.setOnClickListener { st.avatarSet = true; st.save(); onDone() }
+        content.addView(ok, LinearLayout.LayoutParams(-1, dp(50)).also { it.topMargin = dp(8) })
+        panel.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
+        addView(panel, LayoutParams(dp(380), -1, Gravity.END))
+        refresh(false)
     }
 
-    private fun pill(text: String, color: Int): TextView {
+    private fun roundBtn(text: String, click: () -> Unit): TextView {
         val t = TextView(context)
         t.text = text
-        t.textSize = 15f
-        t.typeface = Ui.BOLD
+        t.textSize = 24f
         t.setTextColor(Color.WHITE)
         t.gravity = Gravity.CENTER
-        t.setPadding(dp(18), 0, dp(18), 0)
-        t.background = Ui.bg(color, dpf(20f), 0x33FFFFFF, dpf(1f))
+        t.background = Ui.oval(0xCC1B2030.toInt(), 0x55FFFFFF, dpf(1.5f))
+        t.setOnClickListener { click() }
         return t
     }
 
-    private fun updateShift(panelH: Int) {
-        val h = height
-        if (h <= 0 || panelH <= 0) return
-        game.r.cShift = (panelH.toFloat() / h.toFloat()).coerceIn(0.2f, 0.62f)
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w <= 0) return
+        val pw = (w * 0.46f).toInt().coerceIn(dp(330), dp(480))
+        val lp = panel.layoutParams
+        if (lp.width != pw) { lp.width = pw; panel.layoutParams = lp }
+        // personagem no centro da parte livre à esquerda do painel
+        game.r.cShift = 0f
+        game.r.cShiftX = -(pw.toFloat() / w.toFloat())
     }
 
-    fun setInsets(topPx: Int, bottomPx: Int) {
-        topBar.setPadding(dp(14), topPx + dp(10), dp(14), dp(4))
-        panel.setPadding(dp(12), dp(12), dp(12), dp(10) + bottomPx)
+    fun setInsets(l: Int, t: Int, r: Int, b: Int) {
+        panel.setPadding(dp(8), dp(10) + t, dp(10) + r, dp(10) + b)
+        (stageTitle.layoutParams as LayoutParams).setMargins(dp(20) + l, dp(14) + t, 0, 0)
+        (stageBtns.layoutParams as LayoutParams).setMargins(dp(20) + l, 0, 0, dp(18) + b)
+        stageTitle.requestLayout(); stageBtns.requestLayout()
     }
 
     fun open() {
-        cat = 0; sub = 0; viewBack = false
+        cat = 0; sub = 0
         game.r.autoSpin = false
-        updateShift(panel.height)
-        refresh()
+        refresh(false)
         camera()
     }
 
@@ -177,49 +205,59 @@ class CreatorUi(
         game.r.cTargetDist = if (s.dist.isNaN()) c.dist else s.dist
         game.r.cTargetY = if (s.y.isNaN()) c.y else s.y
         game.r.cTargetYaw = s.yaw
-        viewBack = s.yaw > 3f
-        updateShift(panel.height)
     }
 
-    private fun refresh() {
+    private fun refresh(keepScroll: Boolean) {
         val av = st.avatar
-        catRow.removeAllViews()
+        rail.removeAllViews()
         for (i in cats.indices) {
-            val t = TextView(context)
-            t.text = cats[i].name
-            t.textSize = 15f
-            t.typeface = Ui.BOLD
-            t.gravity = Gravity.CENTER
-            t.setPadding(dp(16), 0, dp(16), 0)
             val on = i == cat
-            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            t.background = Ui.bg(if (on) Pal.CORAL else Pal.CARD, dpf(18f))
-            t.setOnClickListener { cat = i; sub = 0; refresh(); camera() }
-            catRow.addView(t, LinearLayout.LayoutParams(-2, dp(38)).also { it.rightMargin = dp(8) })
+            val b = LinearLayout(context)
+            b.orientation = LinearLayout.VERTICAL
+            b.gravity = Gravity.CENTER
+            b.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(18f)) else grad(0x66343C54, 0x66343C54, dpf(18f))
+            val e = TextView(context)
+            e.text = EMOJI[i]
+            e.textSize = 24f
+            e.gravity = Gravity.CENTER
+            b.addView(e, LinearLayout.LayoutParams(-2, -2))
+            val n = TextView(context)
+            n.text = cats[i].name
+            n.textSize = 10.5f
+            n.typeface = Ui.BOLD
+            n.maxLines = 1
+            n.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            b.addView(n, LinearLayout.LayoutParams(-2, -2))
+            b.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
+            rail.addView(b, LinearLayout.LayoutParams(dp(66), dp(62)).also { it.bottomMargin = dp(8) })
         }
 
         val c = cats[cat]
+        titleTv.text = c.name
         subRow.removeAllViews()
         for (i in c.subs.indices) {
             val t = TextView(context)
             t.text = c.subs[i].name
             t.textSize = 13f
-            t.typeface = Ui.MED
+            t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
-            t.setPadding(dp(14), 0, dp(14), 0)
+            t.setPadding(dp(16), 0, dp(16), 0)
             val on = i == sub
-            t.setTextColor(if (on) Color.WHITE else Pal.TEXT)
-            t.background = Ui.bg(if (on) Pal.CORAL2 else Pal.CARD_HI, dpf(15f))
-            t.setOnClickListener { sub = i; refresh(); camera() }
-            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(30)).also { it.rightMargin = dp(8) })
+            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(16f)) else Ui.bg(0x66343C54, dpf(16f))
+            t.setOnClickListener { sub = i; refresh(false); camera() }
+            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(32)).also { it.rightMargin = dp(8) })
         }
-        subRow.visibility = if (c.subs.size > 1) View.VISIBLE else View.GONE
+        (subRow.parent as View).visibility = if (c.subs.size > 1) View.VISIBLE else View.GONE
 
+        val keep = scroll.scrollY
         body.removeAllViews()
         val s = c.subs[sub]
         val stl = s.style
         if (stl != null) grid(stl, stl.get(av))
         for (slot in s.colors) colorRow(slot)
+        body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
+        scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
     }
 
     private fun icon(key: String): Bitmap? = icons.getOrPut(key) {
@@ -229,7 +267,7 @@ class CreatorUi(
     }
 
     private fun grid(stl: Style, cur: Int) {
-        val cols = 4
+        val cols = 3
         var row: LinearLayout? = null
         for (i in stl.ids.indices) {
             if (i % cols == 0) {
@@ -237,47 +275,56 @@ class CreatorUi(
                 row.orientation = LinearLayout.HORIZONTAL
                 body.addView(row, LinearLayout.LayoutParams(-1, -2))
             }
-            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(100), 1f).also {
-                it.setMargins(dp(3), dp(3), dp(3), dp(3))
+            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(116), 1f).also {
+                it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
-        // completa a última linha para as miniaturas manterem o mesmo tamanho
         val rest = (cols - stl.ids.size % cols) % cols
         for (k in 0 until rest) {
-            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(100), 1f).also {
-                it.setMargins(dp(3), dp(3), dp(3), dp(3))
+            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(116), 1f).also {
+                it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
     }
 
     private fun tile(stl: Style, i: Int, sel: Boolean): View {
         val f = FrameLayout(context)
-        f.background = Ui.bg(Pal.CARD_HI, dpf(14f), if (sel) Color.WHITE else 0, dpf(3f))
+        f.background = if (sel) grad(0xFF4A3A4E.toInt(), 0xFF3A3050.toInt(), dpf(18f), 0xFFFF7A59.toInt(), dpf(3f))
+                       else grad(0xFF343C54.toInt(), 0xFF283048.toInt(), dpf(18f), 0x22FFFFFF, dpf(1f))
         val id = stl.ids[i]
         val bmp = if (id.isEmpty()) null else icon((stl.key + "_" + id).lowercase())
         if (bmp != null) {
             val iv = ImageView(context)
             iv.scaleType = ImageView.ScaleType.FIT_CENTER
             iv.setImageBitmap(bmp)
-            f.addView(iv, LayoutParams(-1, dp(66), Gravity.TOP).also { it.topMargin = dp(6) })
+            f.addView(iv, LayoutParams(-1, dp(78), Gravity.TOP).also { it.topMargin = dp(8) })
         } else {
             val x = TextView(context)
-            x.text = if (id.isEmpty()) "Sem" else "?"
-            x.textSize = 16f
-            x.typeface = Ui.BOLD
+            x.text = if (id.isEmpty()) "\u2205" else "?"
+            x.textSize = 30f
             x.setTextColor(Pal.SUB)
             x.gravity = Gravity.CENTER
-            f.addView(x, LayoutParams(-1, dp(66), Gravity.TOP).also { it.topMargin = dp(6) })
+            f.addView(x, LayoutParams(-1, dp(78), Gravity.TOP).also { it.topMargin = dp(8) })
         }
         val n = TextView(context)
         n.text = stl.names[i]
-        n.textSize = 10f
+        n.textSize = 11f
         n.typeface = Ui.MED
         n.maxLines = 2
         n.gravity = Gravity.CENTER
         n.setTextColor(if (sel) Color.WHITE else Pal.SUB)
-        n.setPadding(dp(3), 0, dp(3), dp(4))
-        f.addView(n, LayoutParams(-1, dp(28), Gravity.BOTTOM))
+        n.setPadding(dp(4), 0, dp(4), dp(5))
+        f.addView(n, LayoutParams(-1, dp(30), Gravity.BOTTOM))
+        if (sel) {
+            val ck = TextView(context)
+            ck.text = "\u2713"
+            ck.textSize = 12f
+            ck.typeface = Ui.BOLD
+            ck.setTextColor(Color.WHITE)
+            ck.gravity = Gravity.CENTER
+            ck.background = Ui.oval(0xFFFF7A59.toInt())
+            f.addView(ck, LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(6), dp(6), 0) })
+        }
         f.setOnClickListener { pickStyle(stl, i) }
         return f
     }
@@ -287,54 +334,58 @@ class CreatorUi(
         stl.set(a, i)
         CuteChar.setWear(a.wearKeys())
         st.save()
-        val keep = scroll.scrollY
-        refresh()
-        scroll.post { scroll.scrollTo(0, keep) }
+        refresh(true)
     }
 
     private fun colorRow(slot: Int) {
         val av = st.avatar
         val cur = av.cc[slot]
+        val head = LinearLayout(context)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
         val lab = TextView(context)
-        lab.text = CuteColor.SLOT_NAMES[slot]
-        lab.textSize = 12f
+        lab.text = "Cor: " + CuteColor.SLOT_NAMES[slot]
+        lab.textSize = 13f
         lab.typeface = Ui.BOLD
-        lab.setTextColor(Pal.SUB)
-        body.addView(lab, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(10); it.bottomMargin = dp(4); it.leftMargin = dp(3) })
-
-        val row = LinearLayout(context)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER_VERTICAL
+        lab.setTextColor(Pal.TEXT)
+        head.addView(lab, LinearLayout.LayoutParams(0, -2, 1f))
         val orig = TextView(context)
         orig.text = "Original"
         orig.textSize = 12f
         orig.typeface = Ui.BOLD
         orig.setTextColor(Color.WHITE)
         orig.gravity = Gravity.CENTER
-        orig.setPadding(dp(12), 0, dp(12), 0)
-        orig.background = Ui.bg(Pal.CARD_HI, dpf(18f), if (cur < 0) Color.WHITE else 0, dpf(3f))
+        orig.setPadding(dp(14), 0, dp(14), 0)
+        orig.background = Ui.bg(0xFF343C54.toInt(), dpf(15f), if (cur < 0) Color.WHITE else 0, dpf(2.5f))
         orig.setOnClickListener { pickColor(slot, -1) }
-        row.addView(orig, LinearLayout.LayoutParams(-2, dp(38)).also { it.rightMargin = dp(10) })
+        head.addView(orig, LinearLayout.LayoutParams(-2, dp(30)))
+        body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(12); it.bottomMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+
         val pal = CuteColor.palette(slot)
+        val cols = 6
+        var row: LinearLayout? = null
         for (i in pal.indices) {
+            if (i % cols == 0) {
+                row = LinearLayout(context)
+                row.orientation = LinearLayout.HORIZONTAL
+                body.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+            val cell = FrameLayout(context)
             val v = View(context)
             val on = i == cur
-            v.background = Ui.oval(pal[i], if (on) Color.WHITE else 0x66FFFFFF, if (on) dpf(3f) else dpf(1f))
+            v.background = Ui.oval(pal[i], if (on) Color.WHITE else 0x66FFFFFF, if (on) dpf(3.5f) else dpf(1f))
             v.setOnClickListener { pickColor(slot, i) }
-            row.addView(v, LinearLayout.LayoutParams(dp(38), dp(38)).also { it.rightMargin = dp(10) })
+            cell.addView(v, LayoutParams(dp(38), dp(38), Gravity.CENTER))
+            row!!.addView(cell, LinearLayout.LayoutParams(0, dp(46), 1f))
         }
-        val hs = HorizontalScrollView(context)
-        hs.isHorizontalScrollBarEnabled = false
-        hs.addView(row)
-        body.addView(hs, LinearLayout.LayoutParams(-1, -2))
+        val rest = (cols - pal.size % cols) % cols
+        for (k in 0 until rest) row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(46), 1f))
     }
 
     private fun pickColor(slot: Int, i: Int) {
         st.avatar.cc[slot] = i
         CuteColor.setColors(st.avatar.cc)
         st.save()
-        val keep = scroll.scrollY
-        refresh()
-        scroll.post { scroll.scrollTo(0, keep) }
+        refresh(true)
     }
 }

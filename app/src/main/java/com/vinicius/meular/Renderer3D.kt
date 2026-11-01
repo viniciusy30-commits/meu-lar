@@ -68,6 +68,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var cTargetYaw = Float.NaN
     /** Etapa 6: deslocamento vertical da imagem (coordenada da tela, 1 = meia altura) para o personagem ficar acima do painel. */
     @Volatile var cShift = 0f
+    /** Etapa 6 (paisagem): deslocamento horizontal da imagem (negativo = personagem para a esquerda, painel na direita). */
+    @Volatile var cShiftX = 0f
+    private var cshXCur = 0f
     private var cshCur = 0f
     private val shM = FloatArray(16)
     private val pjT = FloatArray(16)
@@ -538,6 +541,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             cdist += (cTargetDist - cdist) * k
             cfy += (cTargetY - cfy) * k
             cshCur += (cShift - cshCur) * k
+            cshXCur += (cShiftX - cshXCur) * k
             if (autoSpin) cyaw += dt * 0.45f
             val tyaw = cTargetYaw
             if (!tyaw.isNaN()) {
@@ -553,9 +557,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             ey = cfy + cdist * sin(cp)
             ez = STZ + cdist * cos(cp) * cos(cyaw)
             Matrix.perspectiveM(proj, 0, 34f, aspect, 0.1f, 200f)
-            if (cshCur != 0f) {
+            if (cshCur != 0f || cshXCur != 0f) {
                 Matrix.setIdentityM(shM, 0)
-                Matrix.translateM(shM, 0, 0f, cshCur, 0f)
+                Matrix.translateM(shM, 0, cshXCur, cshCur, 0f)
                 System.arraycopy(proj, 0, pjT, 0, 16)
                 Matrix.multiplyMM(proj, 0, shM, 0, pjT, 0)
             }

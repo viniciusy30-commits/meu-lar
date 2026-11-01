@@ -17,3 +17,8 @@
 3. Miniaturas batem com a peça aplicada; selecionada fica com borda branca; a rolagem não pula ao escolher.
 4. Cores aparecem abaixo de cada grade e mudam a peça certa.
 5. Sem compilador aqui: se o build falhar, corrigir só o erro apontado.
+
+## Revisão 2 (feedback do teste): paisagem, visual e zoom
+- App inteiro agora em paisagem (`sensorLandscape` no AndroidManifest). Outras telas (HUD, menus) podem precisar de ajuste de layout: testar.
+- Criador em paisagem: personagem à esquerda, painel à direita (46% da largura) com trilho de categorias (emoji), sub-abas, grade 3 colunas com miniaturas maiores, marca de selecionado, cores em grade e botão Pronto. Botões redondos giram o personagem; insets de recorte/barras tratados em `setInsets(l,t,r,b)`.
+- Zoom refeito para paisagem (altura visível = 0,61 x distância): sem deslocamento vertical, assim a cabeça não corta; deslocamento horizontal `cShiftX` coloca o personagem no centro da área livre.

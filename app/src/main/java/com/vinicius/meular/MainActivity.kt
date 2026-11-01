@@ -181,7 +181,8 @@ class MainActivity : AppCompatActivity() {
             hud.setPadding(dp(12), b.top + dp(10), dp(12), dp(4))
             bottom.setPadding(dp(14), 0, dp(14), b.bottom + dp(12))
             bottomInset = b.bottom
-            creator.setInsets(b.top, b.bottom)
+            val cb = ins.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            creator.setInsets(cb.left, cb.top, cb.right, cb.bottom)
             (msgTv.layoutParams as FrameLayout.LayoutParams).topMargin = b.top + dp(78)
             ins
         }
