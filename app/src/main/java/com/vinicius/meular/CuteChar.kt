@@ -22,6 +22,8 @@ import java.nio.ShortBuffer
  */
 object CuteChar {
     const val ENABLED = true
+    /** Etapa 21: a pele recua 7 mm na profundidade para a roupa sempre ganhar (acaba o pisca-pisca/pele aparecendo no tecido). */
+    private const val SKIN_PUSH = 0.007f
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
@@ -213,6 +215,7 @@ object CuteChar {
             }
             ib.position(0)
             body = Part(Mt.PLAIN, bs.fb, bs.nv, ib, keep * 3, bp.tex)
+            body.push = SKIN_PUSH
         }
         parts.add(0, body)
         cur = Active(act, Mesh(parts))
@@ -230,7 +233,7 @@ object CuteChar {
                 baseSkin?.let { names.add(it.tex) }
                 for (s in library.values) names.add(s.tex)
                 for (n in names) texIds[n] = uploadTexture(am, n)
-                baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0) }
+                baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
                 for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0

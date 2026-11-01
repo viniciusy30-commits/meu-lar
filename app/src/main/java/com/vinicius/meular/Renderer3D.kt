@@ -134,6 +134,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var uAlpha = 0
     private var uTex = 0
     private var uSpec = 0
+    private var uPush = 0
     private var uEye = 0
     private var uRoom = 0
     private var uLight = 0
@@ -153,10 +154,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private val VS = """
         attribute vec3 aPos; attribute vec3 aNor; attribute vec4 aCol; attribute vec2 aUV;
-        uniform mat4 uMVP; uniform mat4 uModel;
+        uniform mat4 uMVP; uniform mat4 uModel; uniform float uPush;
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
         void main() {
             gl_Position = uMVP * vec4(aPos, 1.0);
+            gl_Position.z += uPush * (gl_Position.z + 0.2) / max(gl_Position.w, 0.05);
             vec4 w = uModel * vec4(aPos, 1.0);
             vW = w.xyz;
             vN = (uModel * vec4(aNor, 0.0)).xyz;
@@ -231,6 +233,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         uAlpha = GLES20.glGetUniformLocation(prog, "uAlpha")
         uTex = GLES20.glGetUniformLocation(prog, "uTex")
         uSpec = GLES20.glGetUniformLocation(prog, "uSpec")
+        uPush = GLES20.glGetUniformLocation(prog, "uPush")
         uEye = GLES20.glGetUniformLocation(prog, "uEye")
         uRoom = GLES20.glGetUniformLocation(prog, "uRoom")
         uLight = GLES20.glGetUniformLocation(prog, "uLight")
@@ -263,6 +266,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (p.tex != 0) p.tex else Tex.ids[p.mat])
             GLES20.glUniform1i(uTex, 0)
             GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
+            GLES20.glUniform1f(uPush, p.push)
             val bytes = STRIDE * 4
             p.buf.position(0)
             GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
