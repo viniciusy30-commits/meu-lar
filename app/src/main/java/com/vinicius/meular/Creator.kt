@@ -52,31 +52,32 @@ class CreatorUi(
 
     private val PI_F = Math.PI.toFloat()
 
+    // Alturas reais: personagem ~1,55 m (com chifres ~1,65); olhos ~1,45; pés em 0. Altura visível = 0,61 x distância.
     private val cats: List<Cat> = listOf(
-        Cat("Corpo", 3.0f, 0.65f, listOf(
+        Cat("Corpo", 3.5f, 0.82f, listOf(
             Sub("Pele", 0.3f, null, intArrayOf(0))
         )),
-        Cat("Cabelo", 1.6f, 1.0f, listOf(
+        Cat("Cabelo", 2.3f, 1.12f, listOf(
             Sub("Atrás", PI_F, Style("hairBack", AvaPal.HB_IDS, AvaPal.HB_N, { a -> a.hb }, { a, i -> a.hb = i }), intArrayOf(2, 3)),
-            Sub("Frente", 0f, Style("hairFront", AvaPal.HF_IDS, AvaPal.HF_N, { a -> a.hf }, { a, i -> a.hf = i }), intArrayOf(2, 3))
+            Sub("Frente", 0f, Style("hairFront", AvaPal.HF_IDS, AvaPal.HF_N, { a -> a.hf }, { a, i -> a.hf = i }), intArrayOf(2, 3), 1.6f, 1.33f)
         )),
-        Cat("Rosto", 1.05f, 1.15f, listOf(
+        Cat("Rosto", 1.3f, 1.43f, listOf(
             Sub("Olhos", 0f, null, intArrayOf(1)),
             Sub("Óculos", 0f, Style("glasses", AvaPal.GS_IDS, AvaPal.GS_N, { a -> a.cgls }, { a, i -> a.cgls = i }), intArrayOf(10, 11)),
             Sub("Barba", 0f, Style("beard", AvaPal.BD_IDS, AvaPal.BD_N, { a -> a.cbrd }, { a, i -> a.cbrd = i }), intArrayOf(2, 3))
         )),
-        Cat("Roupa", 2.0f, 0.85f, listOf(
+        Cat("Roupa", 2.3f, 1.12f, listOf(
             Sub("Blusa", 0.3f, Style("top", AvaPal.CT_IDS, AvaPal.CT_N, { a -> a.ctop }, { a, i -> a.ctop = i }), intArrayOf(4, 5)),
-            Sub("Calça/saia", 0.3f, Style("bottom", AvaPal.CB_IDS, AvaPal.CB_N, { a -> a.cbot }, { a, i -> a.cbot = i }), intArrayOf(6, 9), 2.2f, 0.5f),
-            Sub("Vestido", 0.3f, Style("overall", AvaPal.CO_IDS, AvaPal.CO_N, { a -> a.cov }, { a, i -> a.cov = i }), intArrayOf(4, 5, 6, 9), 2.6f, 0.7f)
+            Sub("Calça/saia", 0.3f, Style("bottom", AvaPal.CB_IDS, AvaPal.CB_N, { a -> a.cbot }, { a, i -> a.cbot = i }), intArrayOf(6, 9), 2.6f, 0.68f),
+            Sub("Vestido", 0.3f, Style("overall", AvaPal.CO_IDS, AvaPal.CO_N, { a -> a.cov }, { a, i -> a.cov = i }), intArrayOf(4, 5, 6, 9), 3.2f, 0.85f)
         )),
-        Cat("Sapatos", 1.5f, 0.25f, listOf(
+        Cat("Sapatos", 1.7f, 0.28f, listOf(
             Sub("Sapatos", 0.3f, Style("feet", AvaPal.FT_IDS, AvaPal.FT_N, { a -> a.cfeet }, { a, i -> a.cfeet = i }), intArrayOf(7, 8))
         )),
-        Cat("Acessórios", 1.35f, 1.12f, listOf(
+        Cat("Acessórios", 1.6f, 1.42f, listOf(
             Sub("Chapéu", 0.3f, Style("hat", AvaPal.HT_IDS, AvaPal.HT_N, { a -> a.chat }, { a, i -> a.chat = i }), intArrayOf(10, 11)),
             Sub("Cabeça", 0.3f, Style("headAcc", AvaPal.HA_IDS, AvaPal.HA_N, { a -> a.chac }, { a, i -> a.chac = i }), intArrayOf(10, 11)),
-            Sub("Luvas", 0.3f, Style("gloves", AvaPal.GV_IDS, AvaPal.GV_N, { a -> a.cglove }, { a, i -> a.cglove = i }), intArrayOf(10, 11), 2.0f, 0.7f)
+            Sub("Luvas", 0.3f, Style("gloves", AvaPal.GV_IDS, AvaPal.GV_N, { a -> a.cglove }, { a, i -> a.cglove = i }), intArrayOf(10, 11), 2.4f, 0.8f)
         ))
     )
 

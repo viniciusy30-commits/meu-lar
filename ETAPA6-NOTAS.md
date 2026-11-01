@@ -22,3 +22,4 @@
 - App inteiro agora em paisagem (`sensorLandscape` no AndroidManifest). Outras telas (HUD, menus) podem precisar de ajuste de layout: testar.
 - Criador em paisagem: personagem à esquerda, painel à direita (46% da largura) com trilho de categorias (emoji), sub-abas, grade 3 colunas com miniaturas maiores, marca de selecionado, cores em grade e botão Pronto. Botões redondos giram o personagem; insets de recorte/barras tratados em `setInsets(l,t,r,b)`.
 - Zoom refeito para paisagem (altura visível = 0,61 x distância): sem deslocamento vertical, assim a cabeça não corta; deslocamento horizontal `cShiftX` coloca o personagem no centro da área livre.
+- Revisão 3: o personagem tem ~1,55 m (olhos ~1,45), não 1,3; câmeras recalculadas com essas alturas (cabeça não corta mais).
