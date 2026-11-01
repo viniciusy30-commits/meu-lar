@@ -196,7 +196,7 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
 
     private fun creatorTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { ax = e.x; amode = 1; r.autoSpin = false }
+            MotionEvent.ACTION_DOWN -> { ax = e.x; amode = 1; r.autoSpin = false; r.cTargetYaw = Float.NaN }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (e.pointerCount >= 2) { amode = 3; pinchD = dist(e) }
             }

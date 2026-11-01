@@ -64,6 +64,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var cyaw = 0.35f
     @Volatile var cTargetDist = 5.0f
     @Volatile var cTargetY = 1.0f
+    /** Etapa 6: ângulo (rad) para onde a câmera do criador gira sozinha (NaN = livre). O toque do jogador cancela. */
+    @Volatile var cTargetYaw = Float.NaN
+    /** Etapa 6: deslocamento vertical da imagem (coordenada da tela, 1 = meia altura) para o personagem ficar acima do painel. */
+    @Volatile var cShift = 0f
+    private var cshCur = 0f
+    private val shM = FloatArray(16)
+    private val pjT = FloatArray(16)
     @Volatile var autoSpin = true
     @Volatile var avDirty = true
     private var cdist = 5.0f
@@ -530,13 +537,29 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val k = min(1f, dt * 6f)
             cdist += (cTargetDist - cdist) * k
             cfy += (cTargetY - cfy) * k
+            cshCur += (cShift - cshCur) * k
             if (autoSpin) cyaw += dt * 0.45f
+            val tyaw = cTargetYaw
+            if (!tyaw.isNaN()) {
+                val twoPi = (2.0 * Math.PI).toFloat()
+                var dy = (tyaw - cyaw) % twoPi
+                if (dy > Math.PI.toFloat()) dy -= twoPi
+                if (dy < -Math.PI.toFloat()) dy += twoPi
+                cyaw += dy * min(1f, dt * 5f)
+                if (abs(dy) < 0.004f) cTargetYaw = Float.NaN
+            }
             val cp = 0.10f
             ex = STX + cdist * cos(cp) * sin(cyaw)
-            ey = cfy + cdist * sin(cp) + 0.1f
+            ey = cfy + cdist * sin(cp)
             ez = STZ + cdist * cos(cp) * cos(cyaw)
             Matrix.perspectiveM(proj, 0, 34f, aspect, 0.1f, 200f)
-            Matrix.setLookAtM(view, 0, ex, ey, ez, STX, cfy - 0.14f * cdist, STZ, 0f, 1f, 0f)
+            if (cshCur != 0f) {
+                Matrix.setIdentityM(shM, 0)
+                Matrix.translateM(shM, 0, 0f, cshCur, 0f)
+                System.arraycopy(proj, 0, pjT, 0, 16)
+                Matrix.multiplyMM(proj, 0, shM, 0, pjT, 0)
+            }
+            Matrix.setLookAtM(view, 0, ex, ey, ez, STX, cfy, STZ, 0f, 1f, 0f)
         } else if (fp) {
             val cp = cos(fpitch)
             val fx = sin(fyaw) * cp

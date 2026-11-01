@@ -1,3 +1,10 @@
+#id 2026-11-01-b
+#titulo Novo criador de personagem estilo The Sims (Etapa 6)
+- Tela do personagem refeita: categorias (Corpo, Cabelo, Rosto, Roupa, Sapatos, Acessórios), sub-abas e grade de miniaturas com os ícones do pack
+- A câmera dá zoom e gira sozinha para a parte que você edita: cabelo de trás mostra as costas, rosto em close, sapatos nos pés
+- O personagem fica centralizado acima do painel; botão "Girar" alterna frente e costas (e dá para girar com o dedo e dar pinça)
+- As cores aparecem logo abaixo das miniaturas de cada peça e tudo salva na hora
+
 #id 2026-11-01-a
 #titulo Sapatos, luvas, chapéus, óculos e barbas (Etapa 5)
 - 11 sapatos e botas novos (além da sandália da Mary), 3 luvas/manguitos, 5 chapéus, 4 óculos, 6 barbas e bigodes, chifres e antenas

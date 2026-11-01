@@ -119,3 +119,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Extra — Biquíni (entregue, aguardando teste)
 - `ferramentas/bikini.py`: malha procedural colada ao corpo-base (pesos interpolados do corpo, mesmas animações). Peças `top/Bikini`, `bottom/Bikini`, `overall/Bikini` (conjunto), listadas em AvaPal.CT_IDS/CB_IDS/CO_IDS e em `cute/pieces.txt`.
 - Atlas `extra.png`: tiles 52 (região 2, top) e 53 (região 3, calcinha) com bolinhas e debrum recoloríveis (tecido = cor 1; debrum/laços = cor 2).
+
+
+## Etapa 6 — Tela do criador estilo The Sims (entregue, aguardando teste)
+- [x] `Creator.kt` novo (categorias, sub-abas, grade de miniaturas, cores, Girar/Pronto), ícones do pack em `assets/cute/icons/`, câmera com zoom/giro por categoria (`cTargetYaw`, `cShift` em Renderer3D; GameView cancela o giro ao tocar). Detalhes em `ETAPA6-NOTAS.md`.
+- [ ] Ainda NÃO compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
+- PRÓXIMO PASSO: esperar o teste da Etapa 6; depois Etapa 7 (corpo e rosto: sliders e formato da cabeça).

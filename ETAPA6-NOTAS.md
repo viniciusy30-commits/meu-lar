@@ -1,0 +1,19 @@
+# Etapa 6 — tela do criador estilo The Sims (aguardando teste no celular)
+
+## O que entrou
+- `Creator.kt` reescrito: categorias (Corpo, Cabelo, Rosto, Roupa, Sapatos, Acessórios) -> sub-abas -> grade 4 colunas de miniaturas -> cores da parte (Original + paleta). Barra de cima com "Girar" (frente/costas) e "Pronto".
+- Miniaturas: 98 ícones do próprio pack (OutfitIcons, 128 px) em `assets/cute/icons/<slot>_<id>.png` (minúsculas); os 3 do biquíni foram desenhados em código. Sem ícone = tile "Sem".
+- Câmera por categoria/sub-aba (distância, altura e ângulo): cabelo "Atrás" gira para as costas; rosto em close; sapatos nos pés; roupa no tronco/quadril.
+- `Renderer3D.kt`: novos `cTargetYaw` (giro suave até um ângulo; o toque do jogador cancela, tratado em `GameView.kt`) e `cShift` (desloca a imagem para cima para o personagem ficar no meio da área livre acima do painel; calculado pela altura do painel). O alvo da câmera agora é o próprio `cTargetY` (antes era 0,14*dist abaixo) e sem o +0,1 na altura do olho.
+- Cores salvam a cada toque (antes só no "Pronto"). Formato do save (`Avatar.encode`) NÃO mudou.
+- Mapa de cores usado: Pele(0); Olhos(1); Cabelo/Pontas(2,3) também na barba; Blusa/Detalhe(4,5); Saia(6) e Detalhe baixo(9); Sandália/Tiras(7,8); Acessório 1/2(10,11) em óculos, chapéu, chifres/antenas e luvas.
+
+## Base usada
+`Avatar.kt`, `CuteChar.kt`, `CuteColor.kt` e `pieces.txt` da Etapa 5 (sem alteração nesta etapa).
+
+## O que testar
+1. Cada categoria dá o zoom certo e o personagem aparece inteiro acima do painel (inclusive em tela pequena).
+2. Cabelo > Atrás mostra as costas; Frente volta para a frente; "Girar" alterna; arrastar/pinçar funciona e cancela o giro automático.
+3. Miniaturas batem com a peça aplicada; selecionada fica com borda branca; a rolagem não pula ao escolher.
+4. Cores aparecem abaixo de cada grade e mudam a peça certa.
+5. Sem compilador aqui: se o build falhar, corrigir só o erro apontado.
