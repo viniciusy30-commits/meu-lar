@@ -29,6 +29,16 @@ object CuteChar {
     private const val WALK_RATE = 0.96f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
     private const val MALE_CLIPS = false
+    /**
+     * Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26° e parece feminina).
+     * Graus que o braço inteiro (ombro p/ baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; ~12 encosta no quadril.
+     */
+    private const val MALE_ARM_IN = 4f
+    /** Graus extras só do antebraço+mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa. */
+    private const val MALE_FOREARM_IN = 6f
+    private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
+    private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
+    private val slotArm = FloatArray(3)   // 0..1: suaviza a entrada/saída do ajuste dos braços (ex.: pulo)
 
     @Volatile var assets: AssetManager? = null
 
@@ -503,6 +513,11 @@ object CuteChar {
         val keep: FloatArray = if (prev != null && prev.size == n12) prev else FloatArray(n12).also { slotLast[sl] = it }
         System.arraycopy(bone, 0, keep, 0, n12)
 
+        // Etapa 17: braços do masculino mais para dentro (depois do keep, para não acumular na mistura entre clipes)
+        val armTarget = if (!mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
+        slotArm[sl] += (armTarget - slotArm[sl]) * (dt * 10f).coerceAtMost(1f)
+        if (slotArm[sl] > 0.01f) armIn(bone, MALE_ARM_IN * slotArm[sl], MALE_FOREARM_IN * slotArm[sl])
+
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
         // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
         val sv = shapeVer
@@ -526,6 +541,43 @@ object CuteChar {
             skinInto(s, bone)
         }
         return cs.mesh
+    }
+
+    /**
+     * Postura masculina dos braços, no plano frente (X/Y): [deg] gira o braço inteiro em torno do ombro e
+     * [deg2] gira só antebraço+mão em torno do cotovelo (cotovelo afastado, mão perto da coxa).
+     * mm = matrizes 3x4 de osso (12 floats por osso). Ombro (13,3; 142,5; -2,9) e cotovelo (32,1; 122,0; 0) de repouso, em cm.
+     */
+    private fun armIn(mm: FloatArray, deg: Float, deg2: Float) {
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val bones = if (side == 0) ARM_L else ARM_R
+            rotArm(mm, bones, 0, 0, sx * 13.3f, 142.5f, -2.9f, -sx * Math.toRadians(deg.toDouble()))
+            // cotovelo: usa a matriz do antebraço já com o giro do ombro
+            rotArm(mm, bones, 1, 1, sx * 32.1f, 122.0f, 0f, -sx * Math.toRadians(deg2.toDouble()))
+        }
+    }
+
+    /** Gira os ossos bones[from..] em torno do ponto de repouso (rx,ry,rz) posado pelo osso bones[pivotIdx]. */
+    private fun rotArm(mm: FloatArray, bones: IntArray, pivotIdx: Int, from: Int, rx: Float, ry: Float, rz: Float, ang: Double) {
+        val u = bones[pivotIdx] * 12
+        val px = mm[u] * rx + mm[u + 1] * ry + mm[u + 2] * rz + mm[u + 3]
+        val py = mm[u + 4] * rx + mm[u + 5] * ry + mm[u + 6] * rz + mm[u + 7]
+        val c = Math.cos(ang).toFloat()
+        val s = Math.sin(ang).toFloat()
+        val tx = px - (c * px - s * py)
+        val ty = py - (s * px + c * py)
+        for (i in from until bones.size) {
+            val o = bones[i] * 12
+            for (k in 0..3) {
+                val r0 = mm[o + k]
+                val r1 = mm[o + 4 + k]
+                mm[o + k] = c * r0 - s * r1
+                mm[o + 4 + k] = s * r0 + c * r1
+            }
+            mm[o + 3] += tx
+            mm[o + 7] += ty
+        }
     }
 
     private fun skinInto(s: Skin, mm: FloatArray) {
