@@ -18,7 +18,7 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
     @Volatile var joyBy = 0f
     @Volatile var joyKx = 0f
     @Volatile var joyKy = 0f
-    val joyR = 58f * ctx.resources.displayMetrics.density
+    val joyR = 46f * ctx.resources.displayMetrics.density
 
     private var joyId = -1
     private var lookId = -1

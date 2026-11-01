@@ -24,6 +24,13 @@ object Pal {
     val GREEN = Color.parseColor("#3CCB7F")
     val GREEN2 = Color.parseColor("#1FA463")
     val GLASS = Color.parseColor("#D91B2030")
+    // HUD estilo The Sims: vidro azul-marinho, borda azul-clara, plumbob verde
+    val SIMS = Color.parseColor("#E0192C4A")
+    val SIMS_HI = Color.parseColor("#E02B4670")
+    val SIMS_LINE = Color.parseColor("#9958B8E8")
+    val SIMS_BLUE = Color.parseColor("#58B8E8")
+    val PLUMB = Color.parseColor("#6BE04A")
+    val PLUMB2 = Color.parseColor("#2FA83A")
 }
 
 object Ui {
@@ -76,6 +83,8 @@ object Ic {
     const val REFRESH = 112
     const val PERSON = 113
     const val DICE = 114
+    const val JUMP = 115
+    const val PLUMB = 116
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -181,6 +190,17 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(a)
                 c.drawCircle(30f, 30f, 8f, p); c.drawCircle(70f, 30f, 8f, p); c.drawCircle(50f, 50f, 8f, p)
                 c.drawCircle(30f, 70f, 8f, p); c.drawCircle(70f, 70f, 8f, p)
+            }
+            Ic.JUMP -> {
+                stroke(w, 13f)
+                path.reset(); path.moveTo(20f, 56f); path.lineTo(50f, 26f); path.lineTo(80f, 56f); c.drawPath(path, p)
+                path.reset(); path.moveTo(20f, 86f); path.lineTo(50f, 56f); path.lineTo(80f, 86f); c.drawPath(path, p)
+            }
+            Ic.PLUMB -> {
+                fill(Pal.PLUMB2); poly(c, 50f, 4f, 82f, 50f, 50f, 96f, 18f, 50f)
+                fill(Pal.PLUMB); poly(c, 50f, 4f, 82f, 50f, 50f, 50f)
+                fill(Color.parseColor("#B8F59A")); poly(c, 50f, 4f, 50f, 50f, 18f, 50f)
+                fill(Pal.PLUMB2); poly(c, 18f, 50f, 50f, 50f, 50f, 96f)
             }
             Ic.REFRESH -> {
                 stroke(w, 10f); rf.set(18f, 18f, 82f, 82f); c.drawArc(rf, -20f, 290f, false, p)
@@ -299,8 +319,8 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
         p.style = Paint.Style.FILL
         p.textSize = size * d
         val tw = p.measureText(txt)
-        val padX = 12f * d
-        val h = size * d + 14f * d
+        val padX = 10f * d
+        val h = size * d + 10f * d
         rf.set(cx - tw / 2 - padX, cy - h / 2, cx + tw / 2 + padX, cy + h / 2)
         p.color = bg
         c.drawRoundRect(rf, h / 2, h / 2, p)
@@ -328,7 +348,7 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
             if (f == null) { p.style = Paint.Style.FILL; c.drawCircle(cx, cy, 1.4f * d, p) }
             if (f != null) {
                 val txt = if (g) "Carregando: ${f.type.nome}" else f.type.nome
-                label(c, txt, cx, cy + 34f * d, 14f, Color.parseColor("#C41B2030"), Color.WHITE)
+                label(c, txt, cx, cy + 28f * d, 11.5f, Color.parseColor("#C41B2030"), Color.WHITE)
             }
 
             val r = game.joyR
@@ -341,15 +361,15 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
                 c.drawCircle(game.joyKx, game.joyKy, r * 0.42f, p)
             } else {
                 p.style = Paint.Style.STROKE; p.strokeWidth = 2f * d; p.color = Color.argb(70, 255, 255, 255)
-                c.drawCircle(w * 0.2f, h * 0.74f, r, p)
+                c.drawCircle(w * 0.15f, h * 0.72f, r, p)
                 p.style = Paint.Style.FILL; p.color = Color.argb(50, 255, 255, 255)
-                c.drawCircle(w * 0.2f, h * 0.74f, r * 0.42f, p)
+                c.drawCircle(w * 0.15f, h * 0.72f, r * 0.42f, p)
             }
 
             val age = SystemClock.uptimeMillis() - t0
             if (age < 9000L) {
                 val al = if (age < 7000L) 1f else (9000L - age) / 2000f
-                label(c, "Esquerda: andar   •   Direita: olhar", cx, h * 0.28f, 13f, Color.argb((190 * al).toInt(), 27, 32, 48), Color.argb((255 * al).toInt(), 255, 255, 255))
+                label(c, "Esquerda: andar   •   Direita: olhar", cx, h * 0.26f, 11f, Color.argb((190 * al).toInt(), 27, 32, 48), Color.argb((255 * al).toInt(), 255, 255, 255))
             }
         }
         postInvalidateOnAnimation()

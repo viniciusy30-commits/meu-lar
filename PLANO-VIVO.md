@@ -135,3 +135,12 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [ ] Ainda NÃO compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
 - PRÓXIMO PASSO: esperar o teste (Etapas 6 e 7); depois Etapa 8 (expressões, piscar, desempenho, licença).
 - Etapa 7, correção: olhos repintados (íris menor, esclera, brilho) — `ferramentas/etapa7_olhos.py`; mexeu em textures.png e recolor*.
+
+## Etapa 8 — piscar e expressões (entregue, aguardando teste)
+- [x] morph.bin com 18 canais (5 dinâmicos), CuteChar piscar/expressão/surpresa no pulo, Creator Rosto > Expressão. Detalhes em `ETAPA8-NOTAS.md`.
+- [ ] Ainda NÃO compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
+- Licença: dispensada pelo usuário. Desempenho/atravessamento: não medidos.
+- PRÓXIMO PASSO: esperar o teste das Etapas 6, 7 e 8.
+
+## HUD estilo The Sims + botão de pular (entregue, aguardando teste)
+- [x] Detalhes em `ETAPA9-HUD-NOTAS.md`. [ ] Não compilado nem testado no celular.
