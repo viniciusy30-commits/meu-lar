@@ -23,3 +23,7 @@ Sem compilador/teste no aparelho aqui: o build é a prova final.
 - Mangas bem mais largas e compridas (camisa larga de verdade), com pequenas dobras.
 - Folga calculada contra todas as calças/bermudas: o corpo da camisa é empurrado para fora do contorno delas (conferido em parado, andar e correr), então o short não atravessa mais.
 - Tecido menos duro: dobras leves no corpo e barra ondulada.
+
+## Ajuste 29
+- Corpo da camisa refeito como um contorno liso (superelipse) que só alarga do peito para a barra, sem calombos nos quadris nem barriga.
+- Folga contra calças/bermudas calculada por altura (e não por ângulo), então não aparecem mais bolhas.

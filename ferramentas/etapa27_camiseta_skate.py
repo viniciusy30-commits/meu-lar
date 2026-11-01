@@ -69,38 +69,54 @@ for v in np.where(ws > 0)[0]:
     w = np.array(w); w /= w.sum(); BI2[v] = ids; BW2[v] = w
 r['bi'] = BI2.astype(np.uint8)
 q = np.round(BW2 * 255).astype(int); q[np.arange(len(q)), q.argmax(1)] += 255 - q.sum(1); r['bw'] = q.astype(np.uint8)
-# ---- folga contra as calças (nenhuma calça/bermuda atravessa a camisa) e dobras do tecido
+# ---- contorno liso do corpo (superelipse) com folga contra as calças: sem calombos
 import glob
 ZC = 2.0
-def polar(Q): return np.arctan2(Q[:, 2] - ZC, Q[:, 0]), np.hypot(Q[:, 0], Q[:, 2] - ZC)
-NA, YB0, YB1 = 48, 70, 124
-env = np.zeros((NA, (YB1 - YB0) // 2 + 1))
-for f in glob.glob(os.path.join(SRC, 'p_bottom_*.bin')) + glob.glob(os.path.join(SRC, 'p_overall_*.bin')):
+YB = np.arange(70, 131, 2.0)
+def smooth1(v, k=4):
+    out = v.copy()
+    for i in range(len(v)):
+        lo, hi = max(0, i - k), min(len(v), i + k + 1); out[i] = v[lo:hi].mean()
+    return out
+def ext(Q, m):
+    ax_, bf_, bb_ = np.zeros(len(YB)), np.zeros(len(YB)), np.zeros(len(YB))
+    for i, y0 in enumerate(YB):
+        mm = m & (np.abs(Q[:, 1] - y0) < 2.0)
+        if mm.any():
+            ax_[i] = np.abs(Q[mm, 0]).max(); bf_[i] = (Q[mm, 2] - ZC).max(); bb_[i] = (ZC - Q[mm, 2]).max()
+    return ax_, bf_, bb_
+torso = (ws < 0.02) & (np.abs(P[:, 0]) < 30)
+sa, sf_, sb = ext(P, torso & (P[:, 1] < 131))
+pa, pf, pb = np.zeros(len(YB)), np.zeros(len(YB)), np.zeros(len(YB))
+for f in glob.glob(os.path.join(SRC, 'p_bottom_*.bin')) :
     nm = os.path.basename(f)[2:-4]
-    if any(k in nm for k in ('skirt', 'bikini', 'underwear', 'dress', 'sundress')): continue
+    if any(k in nm for k in ('skirt', 'bikini', 'underwear', 'dress')): continue
     q, _, _, _ = load(nm); Q = q['pos'].astype(float)
-    m = (Q[:, 1] >= YB0) & (Q[:, 1] < YB1)
-    th, rr = polar(Q[m]); ai = ((th + np.pi) / (2 * np.pi) * NA).astype(int) % NA; yi = ((Q[m][:, 1] - YB0) // 2).astype(int)
-    np.maximum.at(env, (ai, yi), rr)
-e2 = env.copy()
-for d in (-2, -1, 1, 2):
-    e2 = np.maximum(e2, np.roll(env, d, 0) - abs(d) * 0.3)
-for d in (-1, 1):
-    e2 = np.maximum(e2, np.roll(e2, d, 1) - 0.2)
-th, rr = polar(P)
-ai = ((th + np.pi) / (2 * np.pi) * NA).astype(int) % NA; yi = np.clip(((P[:, 1] - YB0) // 2).astype(int), 0, e2.shape[1] - 1)
-need = e2[ai, yi] + 2.2
-tor = (1 - ws) * (1 - sm(116, 128, P[:, 1]))
-push = np.clip(need - rr, 0, 7) * tor
-fold = (0.55 * np.sin(th * 9 + 0.7) + 0.35 * np.sin(th * 14 - 1.3)) * 0.9 * sm(128, 92, P[:, 1]) * (1 - ws)
-foldy = 0.9 * np.sin(th * 7 + 0.4) * (1 - sm(86, 96, P[:, 1])) * (1 - ws)
-dr = push + fold
-P = P.copy(); P[:, 0] += np.cos(th) * dr; P[:, 2] += np.sin(th) * dr; P[:, 1] += foldy
-# dobras da manga (ao longo do braço)
-axs, ts, prs, rs = frame(P)
-ph = np.arctan2(prs[:, 2], prs[:, 1])
-sdr = 0.5 * np.sin(ph * 4 + ts * 0.25) * sm(8, 26, ts) * ws
-P += (prs / np.maximum(rs, 1e-6)[:, None]) * sdr[:, None]
+    ea, ef, eb = ext(Q, (np.abs(Q[:, 0]) < 40) & (Q[:, 1] < 114))
+    pa, pf, pb = np.maximum(pa, ea), np.maximum(pf, ef), np.maximum(pb, eb)
+MG = 2.4
+A = smooth1(np.maximum(sa, np.where(pa > 0, pa + MG, 0)), 3)
+BF = smooth1(np.maximum(sf_, np.where(pf > 0, pf + MG, 0)), 3)
+BB = smooth1(np.maximum(sb, np.where(pb > 0, pb + MG, 0)), 3)
+# caimento reto: do peito para baixo a largura nunca diminui (sem "cintura")
+def down_max(v): return np.maximum.accumulate(v[::-1])[::-1]
+A, BF, BB = [smooth1(down_max(v), 2) for v in (A, BF, BB)]
+# o corpo não encolhe: pelo menos o tamanho da malha alargada; a transição ombro->corpo vem de smooth1
+yy = P[:, 1]
+a_ = np.interp(yy, YB, A); bf_v = np.interp(yy, YB, BF); bb_v = np.interp(yy, YB, BB)
+bz = np.where(P[:, 2] - ZC >= 0, bf_v, bb_v)
+th = np.arctan2(P[:, 2] - ZC, P[:, 0]); rr = np.hypot(P[:, 0], P[:, 2] - ZC)
+NSE = 3.2
+c, sn = np.abs(np.cos(th)) / np.maximum(a_, 1e-3), np.abs(np.sin(th)) / np.maximum(bz, 1e-3)
+rt = (c ** NSE + sn ** NSE) ** (-1.0 / NSE)
+tor = (1 - ws) * (1 - sm(118, 130, yy)) * (1 - sm(0.5, 0.0, a_ * 0 + 1) * 0)
+wb = 0.9 * tor
+rn_ = rr + wb * (rt - rr)
+P = P.copy(); P[:, 0] = np.cos(th) * rn_ ; P[:, 2] = ZC + np.sin(th) * rn_
+P[:, 0] = np.where(np.abs(P[:, 0]) < 1e-6, 0, P[:, 0]) * 1.0
+# dobras suaves e discretas
+fold = 0.35 * np.sin(th * 6 + 0.7) * sm(126, 92, yy) * (1 - ws)
+P[:, 0] += np.cos(th) * fold; P[:, 2] += np.sin(th) * fold
 # normais suaves (soldando vértices de mesma posição)
 key = np.round(P, 3); _, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
 fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
