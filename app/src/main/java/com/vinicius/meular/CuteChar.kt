@@ -53,10 +53,31 @@ object CuteChar {
     ) {
         var part: Part? = null
         var hide: ShortArray? = null   // triângulos do corpo-base cobertos por esta peça (Etapa 4)
+        val pos0: FloatArray = pos.copyOf()   // Etapa 7: posições originais de repouso (pos = pos0 com rosto/proporções aplicados)
+        var warpVer = -1
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
     private class Active(val skins: List<Skin>, val mesh: Mesh)
+
+    // Etapa 7: formato do rosto (morfos do corpo-base, de morph.bin) e proporções do corpo (BodyMorph, em todas as peças)
+    private var morphIdx: Array<IntArray> = emptyArray()
+    private var morphDel: Array<FloatArray> = emptyArray()
+    @Volatile private var bodyP = FloatArray(BodyMorph.NB)
+    @Volatile private var faceP = FloatArray(BodyMorph.NF)
+    @Volatile private var shapeVer = 0
+    @Volatile private var heightS = 1f
+    private var faceTmp = FloatArray(0)
+
+    /** Etapa 7: controles do criador (inteiros -100..100): [body] na ordem de BodyMorph.BODY_NAMES, [face] na de FACE_NAMES. */
+    fun setShape(body: IntArray, face: IntArray) {
+        val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
+        val f = FloatArray(BodyMorph.NF) { i -> if (i < face.size) face[i].coerceIn(-100, 100) / 100f * BodyMorph.FACE_GAIN[i] else 0f }
+        heightS = BodyMorph.heightScale(b[0])
+        bodyP = b
+        faceP = f
+        shapeVer++
+    }
 
     private var nb = 0
     private var clipLen = FloatArray(0)
@@ -182,6 +203,8 @@ object CuteChar {
             baseSkin = null
             library.clear()
             wanted = emptyList()
+            morphIdx = emptyArray()
+            morphDel = emptyArray()
             clipData = arrayOfNulls(0)
             modular = false
             loadLegacy(am)
@@ -191,6 +214,7 @@ object CuteChar {
 
     private fun loadModular(am: AssetManager) {
         baseSkin = readBase(am, "cute/base.bin", "base", "textures.png")
+        loadMorph(am, baseSkin!!.nv)
         library.clear()
         var outfit: List<String> = emptyList()
         val lines = am.open("cute/pieces.txt").bufferedReader(Charsets.UTF_8).use { it.readLines() }
@@ -207,6 +231,67 @@ object CuteChar {
             library[key] = readPiece(am, "cute/" + f[2], key, f[3])
         }
         wanted = outfit
+    }
+
+    /** CMF1: "CMF1", nCanais, e por canal: n, n x (índice do vértice do base.bin, dx, dy, dz). Se faltar, o rosto fica sem controles. */
+    private fun loadMorph(am: AssetManager, nvBase: Int) {
+        morphIdx = emptyArray()
+        morphDel = emptyArray()
+        try {
+            val raw = am.open("cute/morph.bin").use { it.readBytes() }
+            val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
+            require(b.get().toInt() == 'C'.code && b.get().toInt() == 'M'.code && b.get().toInt() == 'F'.code && b.get().toInt() == '1'.code)
+            val nc = b.int
+            val ix = ArrayList<IntArray>()
+            val dl = ArrayList<FloatArray>()
+            for (c in 0 until nc) {
+                val n = b.int
+                val a = IntArray(n)
+                val d = FloatArray(n * 3)
+                for (k in 0 until n) {
+                    a[k] = b.int
+                    d[k * 3] = b.float
+                    d[k * 3 + 1] = b.float
+                    d[k * 3 + 2] = b.float
+                    require(a[k] in 0 until nvBase)
+                }
+                ix.add(a)
+                dl.add(d)
+            }
+            morphIdx = ix.toTypedArray()
+            morphDel = dl.toTypedArray()
+        } catch (e: Throwable) {
+            morphIdx = emptyArray()
+            morphDel = emptyArray()
+        }
+    }
+
+    /** Recalcula as posições de repouso de uma malha: (rosto, só no corpo-base) e depois as proporções do corpo. */
+    private fun refit(s: Skin, isBase: Boolean, ver: Int, bp: FloatArray, fp: FloatArray) {
+        var src = s.pos0
+        if (isBase && morphIdx.isNotEmpty()) {
+            var any = false
+            for (c in fp.indices) if (c < morphIdx.size && fp[c] != 0f) { any = true; break }
+            if (any) {
+                if (faceTmp.size != s.pos0.size) faceTmp = FloatArray(s.pos0.size)
+                System.arraycopy(s.pos0, 0, faceTmp, 0, s.pos0.size)
+                for (c in morphIdx.indices) {
+                    val w = if (c < fp.size) fp[c] else 0f
+                    if (w == 0f) continue
+                    val ix = morphIdx[c]
+                    val dl = morphDel[c]
+                    for (k in ix.indices) {
+                        val v = ix[k] * 3
+                        faceTmp[v] += dl[k * 3] * w
+                        faceTmp[v + 1] += dl[k * 3 + 1] * w
+                        faceTmp[v + 2] += dl[k * 3 + 2] * w
+                    }
+                }
+                src = faceTmp
+            }
+        }
+        BodyMorph.warp(src, s.pos, s.nv, bp)
+        s.warpVer = ver
     }
 
     private fun loadLegacy(am: AssetManager) {
@@ -361,8 +446,16 @@ object CuteChar {
         System.arraycopy(bone, 0, keep, 0, n12)
 
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
+        // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
+        val sv = shapeVer
+        val bp = bodyP
+        val fp = faceP
+        if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
         skinInto(bs, bone)
-        for (s in cs.skins) skinInto(s, bone)
+        for (s in cs.skins) {
+            if (s.warpVer != sv) refit(s, false, sv, bp, fp)
+            skinInto(s, bone)
+        }
         return cs.mesh
     }
 
@@ -372,6 +465,7 @@ object CuteChar {
         val bi = s.bi
         val bw = s.bw
         val out = s.out
+        val hs = heightS
         for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
@@ -389,7 +483,7 @@ object CuteChar {
                 Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
-            out[o] = x; out[o + 1] = y; out[o + 2] = z
+            out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs
             val nl = Math.sqrt((X * X + Y * Y + Z * Z).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv

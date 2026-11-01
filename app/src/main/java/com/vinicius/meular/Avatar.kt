@@ -105,11 +105,14 @@ class Avatar(
     var chat: Int = 0,
     var cgls: Int = 0,
     var cbrd: Int = 0,
-    var chac: Int = 0
+    var chac: Int = 0,
+    /** Etapa 7: proporções do corpo (BodyMorph.BODY_NAMES) e formato do rosto (BodyMorph.FACE_NAMES), -100..100; 0 = original. */
+    var bs: IntArray = IntArray(BodyMorph.NB),
+    var fs: IntArray = IntArray(BodyMorph.NF)
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
@@ -191,6 +194,11 @@ class Avatar(
                         av.cgls = p[33].coerceIn(0, AvaPal.GS_IDS.size - 1)
                         av.cbrd = p[34].coerceIn(0, AvaPal.BD_IDS.size - 1)
                         av.chac = p[35].coerceIn(0, AvaPal.HA_IDS.size - 1)
+                    }
+                    // saves da Etapa 6 e anteriores não têm proporções/rosto: ficam em 0 (original)
+                    if (35 + BodyMorph.NB + BodyMorph.NF < p.size) {
+                        for (k in 0 until BodyMorph.NB) av.bs[k] = p[36 + k].coerceIn(-100, 100)
+                        for (k in 0 until BodyMorph.NF) av.fs[k] = p[36 + BodyMorph.NB + k].coerceIn(-100, 100)
                     }
                 }
             } catch (e: Exception) {

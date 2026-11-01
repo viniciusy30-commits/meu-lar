@@ -1,6 +1,7 @@
 package com.vinicius.meular
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -12,6 +13,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 
 /**
@@ -45,7 +47,8 @@ class CreatorUi(
         val style: Style?,
         val colors: IntArray,
         val dist: Float = Float.NaN,
-        val y: Float = Float.NaN
+        val y: Float = Float.NaN,
+        val sl: Int = 0   // Etapa 7: 1 = controles de proporção do corpo, 2 = controles do formato do rosto
     )
 
     private class Cat(val name: String, val dist: Float, val y: Float, val subs: List<Sub>)
@@ -55,13 +58,15 @@ class CreatorUi(
     // Alturas reais: personagem ~1,55 m (com chifres ~1,65); olhos ~1,45; pés em 0. Altura visível = 0,61 x distância.
     private val cats: List<Cat> = listOf(
         Cat("Corpo", 3.5f, 0.82f, listOf(
-            Sub("Pele", 0.3f, null, intArrayOf(0))
+            Sub("Pele", 0.3f, null, intArrayOf(0)),
+            Sub("Proporções", 0.3f, null, intArrayOf(), sl = 1)
         )),
         Cat("Cabelo", 2.3f, 1.12f, listOf(
             Sub("Atrás", PI_F, Style("hairBack", AvaPal.HB_IDS, AvaPal.HB_N, { a -> a.hb }, { a, i -> a.hb = i }), intArrayOf(2, 3)),
             Sub("Frente", 0f, Style("hairFront", AvaPal.HF_IDS, AvaPal.HF_N, { a -> a.hf }, { a, i -> a.hf = i }), intArrayOf(2, 3), 1.6f, 1.33f)
         )),
         Cat("Rosto", 1.3f, 1.43f, listOf(
+            Sub("Formato", 0f, null, intArrayOf(), sl = 2),
             Sub("Olhos", 0f, null, intArrayOf(1)),
             Sub("Óculos", 0f, Style("glasses", AvaPal.GS_IDS, AvaPal.GS_N, { a -> a.cgls }, { a, i -> a.cgls = i }), intArrayOf(10, 11)),
             Sub("Barba", 0f, Style("beard", AvaPal.BD_IDS, AvaPal.BD_N, { a -> a.cbrd }, { a, i -> a.cbrd = i }), intArrayOf(2, 3))
@@ -256,6 +261,7 @@ class CreatorUi(
         val s = c.subs[sub]
         val stl = s.style
         if (stl != null) grid(stl, stl.get(av))
+        if (s.sl != 0) sliders(s.sl)
         for (slot in s.colors) colorRow(slot)
         body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
         scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
@@ -381,6 +387,66 @@ class CreatorUi(
         }
         val rest = (cols - pal.size % cols) % cols
         for (k in 0 until rest) row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(46), 1f))
+    }
+
+    private fun pct(v: Int): String = if (v > 0) "+$v%" else "$v%"
+
+    /** Etapa 7: controles deslizantes (-100..100) de proporção do corpo (kind 1) ou formato do rosto (kind 2). */
+    private fun sliders(kind: Int) {
+        val av = st.avatar
+        val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
+        val arr = if (kind == 1) av.bs else av.fs
+        val reset = TextView(context)
+        reset.text = "Zerar tudo"
+        reset.textSize = 12f
+        reset.typeface = Ui.BOLD
+        reset.setTextColor(Color.WHITE)
+        reset.gravity = Gravity.CENTER
+        reset.setPadding(dp(14), 0, dp(14), 0)
+        reset.background = Ui.bg(0xFF343C54.toInt(), dpf(15f))
+        reset.setOnClickListener {
+            java.util.Arrays.fill(arr, 0)
+            CuteChar.setShape(av.bs, av.fs)
+            st.save()
+            refresh(true)
+        }
+        body.addView(reset, LinearLayout.LayoutParams(-2, dp(32)).also { it.topMargin = dp(6); it.leftMargin = dp(4) })
+        for (i in names.indices) {
+            val head = LinearLayout(context)
+            head.orientation = LinearLayout.HORIZONTAL
+            head.gravity = Gravity.CENTER_VERTICAL
+            val lab = TextView(context)
+            lab.text = names[i]
+            lab.textSize = 13f
+            lab.typeface = Ui.BOLD
+            lab.setTextColor(Pal.TEXT)
+            head.addView(lab, LinearLayout.LayoutParams(0, -2, 1f))
+            val value = TextView(context)
+            value.text = pct(arr[i])
+            value.textSize = 12f
+            value.typeface = Ui.MED
+            value.setTextColor(Pal.SUB)
+            head.addView(value, LinearLayout.LayoutParams(-2, -2))
+            body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(12); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+            val sb = SeekBar(context)
+            sb.max = 200
+            sb.progress = arr[i] + 100
+            sb.progressTintList = ColorStateList.valueOf(0xFFFF7A59.toInt())
+            sb.thumbTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
+            sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    var v = p - 100
+                    if (v in -4..4) { v = 0; s?.progress = 100 }   // ímã no zero
+                    arr[i] = v
+                    value.text = pct(v)
+                    CuteChar.setShape(av.bs, av.fs)
+                }
+                override fun onStartTrackingTouch(s: SeekBar?) { s?.parent?.requestDisallowInterceptTouchEvent(true) }
+                override fun onStopTrackingTouch(s: SeekBar?) { st.save() }
+            })
+            body.addView(sb, LinearLayout.LayoutParams(-1, dp(36)))
+        }
     }
 
     private fun pickColor(slot: Int, i: Int) {

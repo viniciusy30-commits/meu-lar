@@ -129,3 +129,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## All Star
 - [x] Peça, atlas, ícone, lista de sapatos
 - [ ] Testar no celular
+
+## Etapa 7 — Corpo e rosto (entregue, aguardando teste)
+- [x] `BodyMorph.kt` (proporções por deformação de repouso em todas as peças), `morph.bin` (13 canais de rosto), `CuteChar.setShape/refit`, `Avatar.bs/fs` (+23 números no save), `Creator.kt` (Corpo > Proporções, Rosto > Formato). Detalhes em `ETAPA7-NOTAS.md`.
+- [ ] Ainda NÃO compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
+- PRÓXIMO PASSO: esperar o teste (Etapas 6 e 7); depois Etapa 8 (expressões, piscar, desempenho, licença).
