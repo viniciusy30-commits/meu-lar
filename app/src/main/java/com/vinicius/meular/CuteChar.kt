@@ -360,7 +360,7 @@ object CuteChar {
                 src = faceTmp
             }
         }
-        BodyMorph.warp(src, s.pos, s.nv, bp, mascV)
+        BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
         BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver
     }

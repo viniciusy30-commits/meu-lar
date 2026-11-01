@@ -30,3 +30,8 @@ Sem compilador/teste no aparelho aqui: o build é a prova final.
 
 ## Ajuste 30
 - Manga larga de ponta a ponta (sem formato de sino) e corpo solto no peito, sem ficar colado.
+
+## Ajuste 31 (camiseta inchada)
+- Causa do "inchado": o busto do corpo (feminino já nasce com busto) era aplicado também na camiseta larga e formava uma bola na frente. Agora a camiseta usa uma cúpula bem mais larga e suave (raio x1,8, altura x0,5, sem espalhar o tecido): cai reta, sem apertar o peito. Folga contra o corpo conferida (>=3 cm no busto padrão; encosta só no busto máximo).
+- Mangas menos em balão: abertura mais contida (sk 1,7; sf 0,55), ainda larga e solta.
+- Arquivos: `BodyMorph.kt` (parâmetro loose), `CuteChar.kt`, `p_top_skatetee.bin`, `ferramentas/etapa27_camiseta_skate.py`.

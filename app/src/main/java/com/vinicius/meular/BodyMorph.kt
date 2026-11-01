@@ -50,6 +50,8 @@ object BodyMorph {
     private const val BUST_DROP = 0.10f
     private const val BUST_POS = 8.0f
     private const val BUST_NEG = 3.0f
+    private const val LOOSE_R = 1.8f   // roupa larga: raio da cúpula do busto x1,8
+    private const val LOOSE_A = 0.5f   // roupa larga: altura da cúpula x0,5
     private const val BUST_BASE_F = 2.0f
     private const val BUST_BASE_M = -1.0f
     // Masculino = mesmos controles somados a estes valores (ombros largos, peito/cintura mais cheios, quadril estreito, braços e pescoço grossos)
@@ -80,7 +82,7 @@ object BodyMorph {
      * Copia [src] (xyz por vértice, unidades do FBX: personagem com ~162 de altura, frente +Z, lado +X) para [dst] já deformado.
      * [b] = 10 valores de -1 a 1 (ordem de BODY_NAMES; o índice 0, altura, é ignorado aqui).
      */
-    fun warp(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray, masc: Boolean = false) {
+    fun warp(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray, masc: Boolean = false, loose: Boolean = false) {
         val m = if (masc) 1f else 0f
         val peso = 0.14f * (b[1] + M_PESO * m)
         val ombro = 3.0f * (b[2] + M_OMBRO * m)
@@ -121,16 +123,21 @@ object BodyMorph {
                 dz += z * peito * w * zf
             }
             if (busto != 0f) {
+                // Etapa 31: roupa larga (camiseta skatista) não vira "bola" no busto: cúpula mais larga e bem mais suave, sem espalhar o tecido
+                val bR = if (loose) BUST_R * LOOSE_R else BUST_R
+                val bA = if (loose) busto * LOOSE_A else busto
+                val bSp = if (loose) 0f else BUST_SPREAD
+                val bDr = if (loose) 0f else BUST_DROP
                 val bdx = x - sx * BUST_CX
                 val bdy0 = y - BUST_CY
                 val bdy = if (bdy0 > 0f) bdy0 * BUST_UP else bdy0 * BUST_DN
                 val rho = sqrt(bdx * bdx + bdy * bdy)
-                if (rho < BUST_R) {
-                    val t = 1f - rho / BUST_R
+                if (rho < bR) {
+                    val t = 1f - rho / bR
                     val h = Math.pow((t * t * (3f - 2f * t)).toDouble(), BUST_P.toDouble()).toFloat() * sm(-3f, 3f, z)
-                    dz += busto * h
-                    dx += bdx / BUST_R * BUST_SPREAD * busto * h
-                    dy += bdy / BUST_R * BUST_SPREAD * busto * h - BUST_DROP * busto * h
+                    dz += bA * h
+                    dx += bdx / bR * bSp * bA * h
+                    dy += bdy / bR * bSp * bA * h - bDr * bA * h
                 }
             }
             if (cint != 0f) {

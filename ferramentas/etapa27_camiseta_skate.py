@@ -22,7 +22,7 @@ def sm(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
 S0 = np.array([13.3, 142.5, -2.9]); U = np.array([0.6012, -0.7991, -0.0076])   # início e direção do braço na pose de ligação
-PAR = dict(sk=1.9, sf=0.95, ex0=0.40, ex1=0.50, ez0=0.34, ez1=0.40, hem=22.0, drop=1.2)
+PAR = dict(sk=1.7, sf=0.55, ex0=0.40, ex1=0.50, ez0=0.34, ez1=0.40, hem=22.0, drop=1.2)
 
 def frame(P):
     ax = np.abs(P[:, 0]); v = np.stack([ax - S0[0], P[:, 1] - S0[1], P[:, 2] - S0[2]], 1)
