@@ -108,11 +108,13 @@ class Avatar(
     var chac: Int = 0,
     /** Etapa 7: proporções do corpo (BodyMorph.BODY_NAMES) e formato do rosto (BodyMorph.FACE_NAMES), -100..100; 0 = original. */
     var bs: IntArray = IntArray(BodyMorph.NB),
-    var fs: IntArray = IntArray(BodyMorph.NF)
+    var fs: IntArray = IntArray(BodyMorph.NF),
+    /** Etapa 13: corpo masculino (false = feminino, o corpo original). */
+    var masc: Boolean = false
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
@@ -200,6 +202,8 @@ class Avatar(
                         for (k in 0 until BodyMorph.NB) av.bs[k] = p[36 + k].coerceIn(-100, 100)
                         for (k in 0 until BodyMorph.NF) av.fs[k] = p[36 + BodyMorph.NB + k].coerceIn(-100, 100)
                     }
+                    // saves anteriores à Etapa 13 não têm o sexo do corpo: ficam com o corpo feminino original
+                    if (36 + BodyMorph.NB + BodyMorph.NF < p.size) av.masc = p[36 + BodyMorph.NB + BodyMorph.NF] == 1
                 }
             } catch (e: Exception) {
                 null

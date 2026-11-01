@@ -55,6 +55,7 @@ object CuteChar {
         var part: Part? = null
         var hide: ShortArray? = null   // triângulos do corpo-base cobertos por esta peça (Etapa 4)
         val pos0: FloatArray = pos.copyOf()   // Etapa 7: posições originais de repouso (pos = pos0 com rosto/proporções aplicados)
+        val nor0: FloatArray = nor.copyOf()   // Etapa 13: normais originais (nor = nor0 corrigida pela deformação)
         var warpVer = -1
     }
 
@@ -68,6 +69,7 @@ object CuteChar {
     @Volatile private var faceP = FloatArray(BodyMorph.NF)
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
+    @Volatile private var mascV = false   // Etapa 13: corpo masculino
     private var faceTmp = FloatArray(0)
 
     // Etapa 8: piscar e expressões (canais dinâmicos 13..17 do morph.bin; só rosto, não mexem nas animações)
@@ -116,10 +118,15 @@ object CuteChar {
     }
 
     /** Etapa 7: controles do criador (inteiros -100..100): [body] na ordem de BodyMorph.BODY_NAMES, [face] na de FACE_NAMES. */
-    fun setShape(body: IntArray, face: IntArray) {
+    fun setShape(body: IntArray, face: IntArray, masc: Boolean = false) {
         val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
-        val f = FloatArray(BodyMorph.NF) { i -> if (i < face.size) face[i].coerceIn(-100, 100) / 100f * BodyMorph.FACE_GAIN[i] else 0f }
-        heightS = BodyMorph.heightScale(b[0])
+        val f = FloatArray(BodyMorph.NF) { i ->
+            var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
+            if (i == 0 && masc) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)   // Etapa 13: rosto mais marcado no masculino
+            v * BodyMorph.FACE_GAIN[i]
+        }
+        mascV = masc
+        heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
         bodyP = b
         faceP = f
         shapeVer++
@@ -336,7 +343,8 @@ object CuteChar {
                 src = faceTmp
             }
         }
-        BodyMorph.warp(src, s.pos, s.nv, bp)
+        BodyMorph.warp(src, s.pos, s.nv, bp, mascV)
+        BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver
     }
 

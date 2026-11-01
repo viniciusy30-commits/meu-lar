@@ -148,3 +148,12 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 10 — correr (entregue, aguardando teste)
 - [x] Clipe RUN no base.bin, analógico: arrasto cheio corre, leve anda; botão verde. Detalhes em `ETAPA10-CORRIDA-NOTAS.md`.
 - [ ] Não compilado nem testado no celular.
+
+## Etapa 12 — sobrancelhas e boca com cor (entregue, aguardando teste)
+- [x] Textura do rosto repintada (sobrancelhas seguem o cabelo, lábios seguem a pele). Detalhes em `ETAPA12-ROSTO-NOTAS.md`.
+- [ ] Não testado no celular. Possível próximo ajuste: manchas rosadas da máscara de pele em tons muito claros (já existiam).
+
+## Etapa 13 — corpo masculino/feminino e busto maior (entregue, aguardando teste)
+- [x] Botões Feminino/Masculino em Corpo > Proporções, deformação masculina, busto novo (até +8 cm), normais corrigidas. Detalhes em `ETAPA13-CORPO-NOTAS.md`.
+- [ ] Não compilado nem testado no celular. Possível próximo ajuste: cabelo comprido atravessando busto grande.
+- ATENÇÃO (aprendido na continuação): em `codigo/` do ZIP de continuação, `Avatar.kt`, `Creator.kt` e `novidades.txt` da raiz eram versões ANTIGAS; a versão atual está em `codigo/viniciusy30-commits-meu-lar-75b834b/`.

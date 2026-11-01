@@ -37,29 +37,47 @@ object BodyMorph {
         return exp(-u * u)
     }
 
-    /** true se nenhuma proporção (exceto a altura, que é feita à parte) está ativa. */
-    fun isIdentity(b: FloatArray): Boolean {
-        for (i in 1 until NB) if (abs(b[i]) > 1e-4f) return false
-        return true
-    }
+    // ---- Etapa 13: corpo masculino x feminino e busto maior ----
+    // Busto: duas cúpulas suaves empurradas para frente (altura em função da distância ao mamilo). Feminino já nasce com um busto
+    // visível (BUST_BASE_F); o controle "Busto" vai de -3 cm (-100) a +8 cm (+100) sobre isso. Masculino: peito reto.
+    private const val BUST_CX = 9.0f
+    private const val BUST_CY = 127.0f
+    private const val BUST_R = 11.0f
+    private const val BUST_UP = 0.85f      // acima do mamilo a curva é mais larga (inclinação suave)
+    private const val BUST_DN = 1.1f       // abaixo é mais cheia e mais firme
+    private const val BUST_P = 0.8f
+    private const val BUST_SPREAD = 0.9f
+    private const val BUST_DROP = 0.10f
+    private const val BUST_POS = 8.0f
+    private const val BUST_NEG = 3.0f
+    private const val BUST_BASE_F = 2.0f
+    private const val BUST_BASE_M = -1.5f
+    // Masculino = mesmos controles somados a estes valores (ombros largos, peito/cintura mais cheios, quadril estreito, braços e pescoço grossos)
+    private const val M_OMBRO = 0.75f
+    private const val M_PEITO = 0.6f
+    private const val M_CINT = 0.55f
+    private const val M_QUAD = -0.6f
+    private const val M_BRACO = 0.25f
+    private const val M_PESCOCO = 0.13f
+    /** Altura extra do corpo masculino (multiplica a altura do criador). */
+    const val M_ALTURA = 1.035f
+    /** Rosto: Masculinidade padrão do corpo masculino (somada ao controle, em fração de 1). */
+    const val M_ROSTO = 0.5f
 
     /**
      * Copia [src] (xyz por vértice, unidades do FBX: personagem com ~162 de altura, frente +Z, lado +X) para [dst] já deformado.
      * [b] = 10 valores de -1 a 1 (ordem de BODY_NAMES; o índice 0, altura, é ignorado aqui).
      */
-    fun warp(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray) {
-        if (isIdentity(b)) {
-            System.arraycopy(src, 0, dst, 0, nv * 3)
-            return
-        }
+    fun warp(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray, masc: Boolean = false) {
+        val m = if (masc) 1f else 0f
         val peso = 0.14f * b[1]
-        val ombro = 3.0f * b[2]
-        val peito = 0.10f * b[3]
-        val busto = 2.6f * b[4]
-        val cint = 0.15f * b[5]
-        val quad = 0.12f * b[6]
+        val ombro = 3.0f * (b[2] + M_OMBRO * m)
+        val peito = 0.10f * (b[3] + M_PEITO * m)
+        val busto = (if (b[4] > 0f) BUST_POS * b[4] else BUST_NEG * b[4]) + (if (masc) BUST_BASE_M else BUST_BASE_F)
+        val cint = 0.15f * (b[5] + M_CINT * m)
+        val quad = 0.12f * (b[6] + M_QUAD * m)
         val coxa = 0.25f * b[7]
-        val braco = 0.25f * b[8]
+        val braco = 0.25f * (b[8] + M_BRACO * m)
         val cab = 0.12f * b[9]
         // eixo do braço (pose de repouso em A): do ombro (13,3; 142,5; -2,9) na direção do cotovelo
         val dnx = 0.6012f
@@ -90,8 +108,17 @@ object BodyMorph {
                 dz += z * peito * w
             }
             if (busto != 0f) {
-                val w = gs(y, 121f, 7f) * gs(ax, 8f, 6f) * sm(-1f, 5f, z)
-                dz += busto * w
+                val bdx = x - sx * BUST_CX
+                val bdy0 = y - BUST_CY
+                val bdy = if (bdy0 > 0f) bdy0 * BUST_UP else bdy0 * BUST_DN
+                val rho = sqrt(bdx * bdx + bdy * bdy)
+                if (rho < BUST_R) {
+                    val t = 1f - rho / BUST_R
+                    val h = Math.pow((t * t * (3f - 2f * t)).toDouble(), BUST_P.toDouble()).toFloat() * sm(-3f, 3f, z)
+                    dz += busto * h
+                    dx += bdx / BUST_R * BUST_SPREAD * busto * h
+                    dy += bdy / BUST_R * BUST_SPREAD * busto * h - BUST_DROP * busto * h
+                }
             }
             if (cint != 0f) {
                 val w = sm(92f, 100f, y) * (1f - sm(110f, 118f, y)) * (1f - sm(20f, 30f, ax))
@@ -132,9 +159,63 @@ object BodyMorph {
                 dy += (y - 148f) * cab * w
                 dz += z * cab * w
             }
+            if (masc) {   // pescoço mais grosso
+                val w = gs(y, 149f, 5f)
+                dx += x * M_PESCOCO * w
+                dz += (z + 0.3f) * M_PESCOCO * w
+            }
             dst[v * 3] = x + dx
             dst[v * 3 + 1] = y + dy
             dst[v * 3 + 2] = z + dz
         }
+    }
+
+    /**
+     * Normais depois da deformação: soma à normal original a DIFERENÇA entre as normais suaves calculadas na malha deformada ([p1]) e na
+     * original ([p0]). As emendas de UV (vértices duplicados) aparecem nas duas e se cancelam; só o que a deformação mudou entra.
+     * [out] recebe o resultado; [n0] são as normais originais.
+     */
+    fun fixNormals(p0: FloatArray, p1: FloatArray, n0: FloatArray, out: FloatArray, idx: ShortArray, ni: Int, nv: Int) {
+        val a = FloatArray(nv * 3)
+        val c = FloatArray(nv * 3)
+        var t = 0
+        while (t + 2 < ni) {
+            val i0 = (idx[t].toInt() and 0xFFFF) * 3
+            val i1 = (idx[t + 1].toInt() and 0xFFFF) * 3
+            val i2 = (idx[t + 2].toInt() and 0xFFFF) * 3
+            accTri(p0, i0, i1, i2, a)
+            accTri(p1, i0, i1, i2, c)
+            t += 3
+        }
+        for (v in 0 until nv) {
+            val o = v * 3
+            val la = sqrt(a[o] * a[o] + a[o + 1] * a[o + 1] + a[o + 2] * a[o + 2])
+            val lc = sqrt(c[o] * c[o] + c[o + 1] * c[o + 1] + c[o + 2] * c[o + 2])
+            var nx = n0[o]
+            var ny = n0[o + 1]
+            var nz = n0[o + 2]
+            if (la > 1e-9f && lc > 1e-9f) {
+                nx += c[o] / lc - a[o] / la
+                ny += c[o + 1] / lc - a[o + 1] / la
+                nz += c[o + 2] / lc - a[o + 2] / la
+            }
+            val l = sqrt(nx * nx + ny * ny + nz * nz)
+            if (l > 1e-6f) {
+                out[o] = nx / l; out[o + 1] = ny / l; out[o + 2] = nz / l
+            } else {
+                out[o] = n0[o]; out[o + 1] = n0[o + 1]; out[o + 2] = n0[o + 2]
+            }
+        }
+    }
+
+    private fun accTri(p: FloatArray, i0: Int, i1: Int, i2: Int, acc: FloatArray) {
+        val ux = p[i1] - p[i0]; val uy = p[i1 + 1] - p[i0 + 1]; val uz = p[i1 + 2] - p[i0 + 2]
+        val vx = p[i2] - p[i0]; val vy = p[i2 + 1] - p[i0 + 1]; val vz = p[i2 + 2] - p[i0 + 2]
+        val nx = uy * vz - uz * vy
+        val ny = uz * vx - ux * vz
+        val nz = ux * vy - uy * vx
+        acc[i0] += nx; acc[i0 + 1] += ny; acc[i0 + 2] += nz
+        acc[i1] += nx; acc[i1 + 1] += ny; acc[i1 + 2] += nz
+        acc[i2] += nx; acc[i2 + 1] += ny; acc[i2 + 2] += nz
     }
 }

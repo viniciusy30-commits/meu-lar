@@ -399,6 +399,31 @@ class CreatorUi(
         val av = st.avatar
         val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
         val arr = if (kind == 1) av.bs else av.fs
+        if (kind == 1) {
+            // Etapa 13: sexo do corpo (feminino = corpo original; masculino = ombros largos, peito reto, quadril estreito, mais alto)
+            val sexRow = LinearLayout(context)
+            sexRow.orientation = LinearLayout.HORIZONTAL
+            for ((nome, m) in listOf("Feminino" to false, "Masculino" to true)) {
+                val on = av.masc == m
+                val t = TextView(context)
+                t.text = nome
+                t.textSize = 14f
+                t.typeface = Ui.BOLD
+                t.gravity = Gravity.CENTER
+                t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+                t.background = Ui.bg(if (on) Pal.CORAL else 0xFF343C54.toInt(), dpf(18f))
+                t.setOnClickListener {
+                    if (av.masc != m) {
+                        av.masc = m
+                        CuteChar.setShape(av.bs, av.fs, av.masc)
+                        st.save()
+                        refresh(true)
+                    }
+                }
+                sexRow.addView(t, LinearLayout.LayoutParams(0, dp(40), 1f).also { it.rightMargin = dp(6) })
+            }
+            body.addView(sexRow, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        }
         val reset = TextView(context)
         reset.text = "Zerar tudo"
         reset.textSize = 12f
@@ -409,7 +434,7 @@ class CreatorUi(
         reset.background = Ui.bg(0xFF343C54.toInt(), dpf(15f))
         reset.setOnClickListener {
             java.util.Arrays.fill(arr, 0)
-            CuteChar.setShape(av.bs, av.fs)
+            CuteChar.setShape(av.bs, av.fs, av.masc)
             st.save()
             refresh(true)
         }
@@ -443,7 +468,7 @@ class CreatorUi(
                     if (v in -4..4) { v = 0; s?.progress = 100 }   // ímã no zero
                     arr[i] = v
                     value.text = pct(v)
-                    CuteChar.setShape(av.bs, av.fs)
+                    CuteChar.setShape(av.bs, av.fs, av.masc)
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) { s?.parent?.requestDisallowInterceptTouchEvent(true) }
                 override fun onStopTrackingTouch(s: SeekBar?) { st.save() }

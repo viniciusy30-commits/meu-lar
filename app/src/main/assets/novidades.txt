@@ -1,3 +1,9 @@
+#id 2026-11-01-e
+#titulo Corpo masculino e feminino, busto maior e rosto colorido
+- Agora dá para escolher Feminino ou Masculino em Corpo > Proporções. O masculino tem ombros mais largos, peito reto, cintura mais cheia, quadril mais estreito, pescoço grosso e é um pouco mais alto
+- O busto do corpo feminino ficou bem maior: o controle Busto agora vai até um tamanho bem grande, com formato arredondado e sombreado certo
+- Sobrancelhas e lábios agora têm cor: as sobrancelhas seguem a cor do cabelo e os lábios seguem o tom de pele
+
 #id 2026-11-01-d
 #titulo Novas animações de andar e correr
 - O andar e a corrida agora usam as animações novas (Walking e Slow Run, do Mixamo), adaptadas ao esqueleto do personagem
