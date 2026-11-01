@@ -17,6 +17,7 @@ hairBack|TwinTailLong|p_hairback_twintaillong.bin|extra.png
 hairBack|TwinTailShort|p_hairback_twintailshort.bin|extra.png
 hairBack|Wild|p_hairback_wild.bin|extra.png
 hairBack|WildTail|p_hairback_wildtail.bin|extra.png
+hairBack|MedioVol|p_hairback_mediovol.bin|extra.png
 hairFront|LongSweeps|p_hairfront_longsweeps.bin|textures.png
 hairFront|BangSideFlicks|p_hairfront_bangsideflicks.bin|extra.png
 hairFront|Fohawk|p_hairfront_fohawk.bin|extra.png
@@ -27,6 +28,7 @@ hairFront|QuicklyHair|p_hairfront_quicklyhair.bin|extra.png
 hairFront|SweaptBack|p_hairfront_sweaptback.bin|extra.png
 hairFront|SweaptDreads|p_hairfront_sweaptdreads.bin|extra.png
 hairFront|WolfCut|p_hairfront_wolfcut.bin|extra.png
+hairFront|RepartidoVol|p_hairfront_repartidovol.bin|extra.png
 top|ButtonUp|p_top_buttonup.bin|extra.png
 top|ButtonUpShort|p_top_buttonupshort.bin|extra.png
 top|CasualJacket|p_top_casualjacket.bin|extra.png

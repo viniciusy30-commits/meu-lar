@@ -34,11 +34,11 @@ object AvaPal {
 
     /** Cabelos do personagem modular (Etapa 3): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
     val HB_IDS = listOf("", "Flare", "Buzzed", "Short", "ShortBob", "LongStreight", "LongDreads", "DreadBack", "PonyTailShort",
-        "PonyTailLong", "TwinTailShort", "TwinTailLong", "Wild", "WildTail", "Punk", "Scrappy")
+        "PonyTailLong", "TwinTailShort", "TwinTailLong", "Wild", "WildTail", "Punk", "Scrappy", "MedioVol")
     val HB_N = listOf("Sem", "Ondulado (Mary)", "Raspado", "Curto", "Chanel", "Liso longo", "Dreads longos", "Dreads atrás", "Rabo curto",
-        "Rabo longo", "Maria-chiquinha curta", "Maria-chiquinha longa", "Selvagem", "Rabo selvagem", "Punk", "Bagunçado")
+        "Rabo longo", "Maria-chiquinha curta", "Maria-chiquinha longa", "Selvagem", "Rabo selvagem", "Punk", "Bagunçado", "Médio masculino")
     val HF_IDS = listOf("", "LongSweeps", "BangSideFlicks", "Hime", "Messy", "WolfCut", "SweaptBack", "SweaptDreads", "HangingDreads",
-        "QuicklyHair", "Fohawk")
+        "QuicklyHair", "Fohawk", "RepartidoVol")
     /** Roupas do personagem modular (Etapa 4): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
     val CT_IDS = listOf("", "Sweater", "Shirt", "TankTop", "Henley", "Hoodie", "TurtleNeck", "DressShirt", "ButtonUp", "ButtonUpShort",
         "CasualJacket", "OpenJacket", "SuitJacket", "Seifuku", "SeifukuShort", "OpenShoulder", "OpenShoulderCrop", "OpenShoulderStraps",
@@ -71,7 +71,7 @@ object AvaPal {
     val HA_N = listOf("Sem", "Chifres", "Antenas")
 
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
-        "Dreads caídos", "Rápido", "Moicano")
+        "Dreads caídos", "Rápido", "Moicano", "Repartido volumoso")
 
 }
 
