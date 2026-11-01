@@ -22,7 +22,7 @@ def sm(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
 S0 = np.array([13.3, 142.5, -2.9]); U = np.array([0.6012, -0.7991, -0.0076])   # início e direção do braço na pose de ligação
-PAR = dict(sk=1.9, sf=0.85, ex0=0.24, ex1=0.42, ez0=0.16, ez1=0.30, hem=22.0, drop=1.2)
+PAR = dict(sk=1.9, sf=0.95, ex0=0.40, ex1=0.50, ez0=0.34, ez1=0.40, hem=22.0, drop=1.2)
 
 def frame(P):
     ax = np.abs(P[:, 0]); v = np.stack([ax - S0[0], P[:, 1] - S0[1], P[:, 2] - S0[2]], 1)
@@ -47,7 +47,7 @@ def deform(P, par=PAR):
     Y = Y - par['drop'] * sm(10, 24, ax) * sm(125, 145, y) * wt
     t0 = 8.0
     tn = np.where(t > t0, t0 + (t - t0) * par['sk'], t)
-    rn = r * (1 + par['sf'] * sm(0, 20, t))
+    rn = r * (1 + par['sf'] * sm(-2, 8, t))
     rad = pr / np.maximum(r, 1e-6)[:, None]
     off = ((tn - t) * ws)[:, None] * U[None, :] + ((rn - r) * ws)[:, None] * rad
     X = X + off[:, 0]; Y = Y + off[:, 1]; Z = Z + off[:, 2]
@@ -115,7 +115,7 @@ rn_ = rr + wb * (rt - rr)
 P = P.copy(); P[:, 0] = np.cos(th) * rn_ ; P[:, 2] = ZC + np.sin(th) * rn_
 P[:, 0] = np.where(np.abs(P[:, 0]) < 1e-6, 0, P[:, 0]) * 1.0
 # dobras suaves e discretas
-fold = 0.35 * np.sin(th * 6 + 0.7) * sm(126, 92, yy) * (1 - ws)
+fold = 0.6 * np.sin(th * 6 + 0.7) * sm(126, 92, yy) * (1 - ws)
 P[:, 0] += np.cos(th) * fold; P[:, 2] += np.sin(th) * fold
 # normais suaves (soldando vértices de mesma posição)
 key = np.round(P, 3); _, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()

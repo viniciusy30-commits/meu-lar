@@ -27,3 +27,6 @@ Sem compilador/teste no aparelho aqui: o build é a prova final.
 ## Ajuste 29
 - Corpo da camisa refeito como um contorno liso (superelipse) que só alarga do peito para a barra, sem calombos nos quadris nem barriga.
 - Folga contra calças/bermudas calculada por altura (e não por ângulo), então não aparecem mais bolhas.
+
+## Ajuste 30
+- Manga larga de ponta a ponta (sem formato de sino) e corpo solto no peito, sem ficar colado.
