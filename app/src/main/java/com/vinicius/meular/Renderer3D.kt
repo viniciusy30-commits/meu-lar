@@ -15,8 +15,8 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Etapa 10: velocidade da corrida (m/s); o clipe de corrida foi gerado para esta velocidade (sem o pé deslizar). */
-private const val RUN_SPEED = 2.6f
+/** Etapa 11: velocidade da corrida (m/s); é a velocidade natural do clipe Slow_Run.fbx (medida: pé de apoio recua a 2,44 m/s), sem o pé deslizar. */
+private const val RUN_SPEED = 2.45f
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {

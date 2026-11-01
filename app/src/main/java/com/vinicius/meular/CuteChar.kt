@@ -24,9 +24,9 @@ object CuteChar {
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
-    const val RUN = 3   // Etapa 10: corrida (clipe gerado por ferramentas/etapa10_run.py)
-    /** Velocidade de reprodução do andar: com 1,28 m/s no jogo (1,065 m/s do clip × 1,2) os pés não deslizam no chão. */
-    private const val WALK_RATE = 1.2f
+    const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
+    /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
+    private const val WALK_RATE = 0.96f
 
     @Volatile var assets: AssetManager? = null
 

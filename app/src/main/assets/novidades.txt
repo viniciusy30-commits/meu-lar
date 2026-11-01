@@ -1,3 +1,10 @@
+#id 2026-11-01-d
+#titulo Novas animações de andar e correr
+- O andar e a corrida agora usam as animações novas (Walking e Slow Run, do Mixamo), adaptadas ao esqueleto do personagem
+- Os pés não deslizam no chão: a velocidade do jogo foi casada com o passo de cada animação (andar 1,28 m/s, correr 2,45 m/s)
+- Roupas, cabelo, sapatos, proporções do corpo e expressões funcionam igual (usam os mesmos ossos)
+- Parado e pulo não mudaram
+
 #id 2026-11-01-c
 #titulo Novo sapato: All Star de cano alto
 - Novo sapato All Star (cano alto, biqueira, cadarço, patch com estrela), com cores editáveis, na aba Sapatos
