@@ -51,26 +51,28 @@ object BodyMorph {
     private const val BUST_POS = 8.0f
     private const val BUST_NEG = 3.0f
     private const val BUST_BASE_F = 2.0f
-    private const val BUST_BASE_M = -1.8f
+    private const val BUST_BASE_M = -1.0f
     // Masculino = mesmos controles somados a estes valores (ombros largos, peito/cintura mais cheios, quadril estreito, braços e pescoço grossos)
-    private const val M_OMBRO = 1.6f
-    private const val M_PEITO = 1.5f
-    private const val M_CINT = 1.0f
-    private const val M_QUAD = -1.5f
-    private const val M_BRACO = 0.8f
-    private const val M_PESCOCO = 0.32f
+    private const val M_OMBRO = 0.6f
+    private const val M_PEITO = 0.15f
+    private const val M_CINT = 0.0f
+    private const val M_QUAD = 0.0f
+    private const val M_BRACO = 0.15f
+    private const val M_PESCOCO = 0.12f
+    // Etapa 16: valores do personagem masculino do pack BoZo (John): corpo neutro com clavícula x1,10 e shoulder_twist x1,12 (ombros mais largos);
+    // o resto dos ossos em 1,0; rosto BodyType 100. Antes (etapa 14) eram bem mais fortes e deixavam o corpo torto.
     // Etapa 14: mais peso lateral, peito/cintura quase só para os lados, peitoral, deltoide, trapézio, coxa mais fina, glúteo reto
-    private const val M_PESO = 0.25f
+    private const val M_PESO = 0.0f
     private const val M_ZFAC = 0.25f
-    private const val M_PEC = 1.8f
+    private const val M_PEC = 0.0f
     private const val M_PEC_Y = 121.0f
     private const val M_PEC_R = 14.0f
-    private const val M_DELT = 0.9f
-    private const val M_COXA = -0.30f
-    private const val M_BUTT = -0.10f
-    private const val M_TRAP = 0.8f
+    private const val M_DELT = 0.7f
+    private const val M_COXA = 0.0f
+    private const val M_BUTT = 0.0f
+    private const val M_TRAP = 0.0f
     /** Altura extra do corpo masculino (multiplica a altura do criador). */
-    const val M_ALTURA = 1.035f
+    const val M_ALTURA = 1.0f
     /** Rosto: Masculinidade padrão do corpo masculino (somada ao controle, em fração de 1). */
     const val M_ROSTO = 1.0f
 

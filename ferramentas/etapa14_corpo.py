@@ -8,8 +8,8 @@ def gs(x, c, s): return np.exp(-((x - c) / s) ** 2)
 BUST_C = (9.0, 127.0); BUST_R = 11.0; BUST_UP = 0.85; BUST_DN = 1.1; BUST_P = 0.8; BUST_SPREAD = 0.9; BUST_DROP = 0.10
 BUST_POS = 8.0; BUST_NEG = 3.0; BUST_BASE_F = 2.0
 
-M = dict(OMBRO=1.6, PEITO=1.5, CINT=1.0, QUAD=-1.5, BRACO=0.8, PESCOCO=0.32, BUST_BASE=-1.8, PESO=0.25, ZFAC=0.25,
-         PEC=1.8, PEC_Y=121.0, PEC_R=14.0, DELT=0.9, COXA=-0.30, BUTT=-0.10, TRAP=0.8, ALTURA=1.035)
+M = dict(OMBRO=0.6, PEITO=0.15, CINT=0.0, QUAD=0.0, BRACO=0.15, PESCOCO=0.12, BUST_BASE=-1.0, PESO=0.0, ZFAC=0.25,
+         PEC=0.0, PEC_Y=121.0, PEC_R=14.0, DELT=0.7, COXA=0.0, BUTT=0.0, TRAP=0.0, ALTURA=1.0)
 
 def warp(p, b, masc=False, M=M):
     b = np.array(b, float).copy()

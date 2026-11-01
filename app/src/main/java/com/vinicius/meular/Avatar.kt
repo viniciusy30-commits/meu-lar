@@ -143,9 +143,10 @@ class Avatar(
     fun applyBase(m: Boolean) {
         masc = m
         female = !m
-        hb = if (m) 3 else 4          // Curto | Chanel
-        hf = if (m) 0 else 2          // sem franja | franja de lado
-        ctop = 0; cbot = 0; cov = 0; cfeet = 0; cglove = 0; chat = 0; cgls = 0; cbrd = 0; chac = 0
+        hb = if (m) 2 else 4          // Raspado (John) | Chanel
+        hf = if (m) 9 else 2          // QuicklyHair (John) | franja de lado
+        // Etapa 16: o masculino nasce com o visual do John do pack (Henley, LooseJeans, CoolShoes, barba cheia); feminino segue sem roupa
+        ctop = if (m) 4 else 0; cbot = if (m) 10 else 0; cov = 0; cfeet = if (m) 8 else 0; cglove = 0; chat = 0; cgls = 0; cbrd = if (m) 5 else 0; chac = 0
         java.util.Arrays.fill(bs, 0)
         java.util.Arrays.fill(fs, 0)
         val skinC = cc[0]

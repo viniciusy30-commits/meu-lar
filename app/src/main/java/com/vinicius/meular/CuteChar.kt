@@ -27,6 +27,8 @@ object CuteChar {
     const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 0.96f
+    /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
+    private const val MALE_CLIPS = false
 
     @Volatile var assets: AssetManager? = null
 
@@ -122,13 +124,7 @@ object CuteChar {
         val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
-            if (masc) {   // Etapa 14: rosto masculino completo (mandíbula, pescoço), sobrancelha mais grossa, cílios curtos
-                if (i == 0) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)
-                if (i == 1) v = (v - 0.6f).coerceAtLeast(-1f)
-                if (i == 2) v = (v + 0.7f).coerceAtMost(1f)
-                if (i == 7) v = (v + 0.25f).coerceAtMost(1f)   // boca mais larga
-                if (i == 8) v = (v + 0.35f).coerceAtMost(1f)   // lábios mais finos
-            }
+            if (masc && i == 0) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)   // Etapa 16: como o pack (BodyType 100), só a Masculinidade
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
@@ -463,7 +459,7 @@ object CuteChar {
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
         val c0 = clip.coerceIn(0, clipData.size - 1)
-        val c = if (mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK || c0 == RUN)) (if (c0 == IDLE) 4 else if (c0 == WALK) 5 else 6) else c0
+        val c = if (MALE_CLIPS && mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK || c0 == RUN)) (if (c0 == IDLE) 4 else if (c0 == WALK) 5 else 6) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = clipFrames[c]
         val len = clipLen[c].coerceAtLeast(0.001f)
