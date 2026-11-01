@@ -1,3 +1,11 @@
+#id 2026-11-01-a
+#titulo Sapatos, luvas, chapéus, óculos e barbas (Etapa 5)
+- 11 sapatos e botas novos (além da sandália da Mary), 3 luvas/manguitos, 5 chapéus, 4 óculos, 6 barbas e bigodes, chifres e antenas
+- Na tela do personagem há as partes "Sapatos", "Luvas", "Chapéu", "Óculos", "Barba" e "Cabeça" para escolher o estilo
+- Cores: "Sandália" e "Tiras" mudam os sapatos; "Acessório" e "Acessório 2" mudam luvas, chapéus, óculos, chifres e antenas; a barba usa as cores de "Cabelo" e "Pontas"
+- Com chapéu a franja some, para não atravessar o tecido
+- Animações (parada, andar, pulo) não mudaram
+
 #id 2026-10-31-h
 #titulo Biquíni novo
 - Biquíni de bolinhas com top de triângulo, alça no pescoço, laços nas costas e nos quadris, e calcinha de lacinho

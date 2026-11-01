@@ -31,9 +31,9 @@ class CreatorUi(
     private val chipRow = LinearLayout(ctx)
     private val swatchRow = LinearLayout(ctx)
     private val chips = ArrayList<TextView>()
-    private var slot = 0   // 0..4 = estilos (cabelo atrás, franja, blusa, calça/saia, vestido); 5.. = cor (slot - 5 de CuteColor)
-    private val STYLES = 5
-    private val NAMES = listOf("Cabelo atrás", "Franja", "Blusa", "Calça/saia", "Vestido") + CuteColor.SLOT_NAMES
+    private var slot = 0   // 0..10 = estilos (cabelo atrás, franja, blusa, calça/saia, vestido, sapatos, luvas, chapéu, óculos, barba, cabeça); 11.. = cor (slot - 11 de CuteColor)
+    private val STYLES = 11
+    private val NAMES = listOf("Cabelo atrás", "Franja", "Blusa", "Calça/saia", "Vestido", "Sapatos", "Luvas", "Chapéu", "Óculos", "Barba", "Cabeça") + CuteColor.SLOT_NAMES
 
     init {
         panel.orientation = LinearLayout.VERTICAL
@@ -125,8 +125,8 @@ class CreatorUi(
     /** Fileira de estilos (nomes) para as partes 0..4. */
     private fun styles() {
         val a = st.avatar
-        val names = when (slot) { 0 -> AvaPal.HB_N; 1 -> AvaPal.HF_N; 2 -> AvaPal.CT_N; 3 -> AvaPal.CB_N; else -> AvaPal.CO_N }
-        val cur = when (slot) { 0 -> a.hb; 1 -> a.hf; 2 -> a.ctop; 3 -> a.cbot; else -> a.cov }
+        val names = when (slot) { 0 -> AvaPal.HB_N; 1 -> AvaPal.HF_N; 2 -> AvaPal.CT_N; 3 -> AvaPal.CB_N; 4 -> AvaPal.CO_N; 5 -> AvaPal.FT_N; 6 -> AvaPal.GV_N; 7 -> AvaPal.HT_N; 8 -> AvaPal.GS_N; 9 -> AvaPal.BD_N; else -> AvaPal.HA_N }
+        val cur = when (slot) { 0 -> a.hb; 1 -> a.hf; 2 -> a.ctop; 3 -> a.cbot; 4 -> a.cov; 5 -> a.cfeet; 6 -> a.cglove; 7 -> a.chat; 8 -> a.cgls; 9 -> a.cbrd; else -> a.chac }
         for (i in names.indices) {
             val t = TextView(context)
             t.text = names[i]
@@ -145,7 +145,7 @@ class CreatorUi(
 
     private fun pickStyle(i: Int) {
         val a = st.avatar
-        when (slot) { 0 -> a.hb = i; 1 -> a.hf = i; 2 -> a.ctop = i; 3 -> a.cbot = i; else -> a.cov = i }
+        when (slot) { 0 -> a.hb = i; 1 -> a.hf = i; 2 -> a.ctop = i; 3 -> a.cbot = i; 4 -> a.cov = i; 5 -> a.cfeet = i; 6 -> a.cglove = i; 7 -> a.chat = i; 8 -> a.cgls = i; 9 -> a.cbrd = i; else -> a.chac = i }
         CuteChar.setWear(a.wearKeys())
         st.save()
         refresh()

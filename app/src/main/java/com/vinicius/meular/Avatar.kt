@@ -54,6 +54,22 @@ object AvaPal {
     val CO_IDS = listOf("", "Sundress", "SmartDress", "Overall", "Bikini")
     val CO_N = listOf("Nenhum", "Vestido de verão", "Vestido elegante", "Macacão", "Biquíni (conjunto)")
 
+    /** Etapa 5: sapatos, luvas, chapéus, óculos, barbas e acessórios de cabeça (ids do manifesto cute/pieces.txt). O índice 0 é "Sem". */
+    val FT_IDS = listOf("", "Sandals", "ShowerSandal", "SlipOns", "ComfyShoes", "SchoolShoes", "OfficeShoes", "StreetShoes", "CoolShoes", "SportsShoes",
+        "ShortBoots", "WorkBoots", "BigBoots")
+    val FT_N = listOf("Descalço", "Sandália (Mary)", "Chinelo", "Sapatilha", "Tênis confortável", "Sapato escolar", "Sapato social", "Sapato casual",
+        "Tênis estiloso", "Tênis esportivo", "Bota curta", "Bota de trabalho", "Botão grande")
+    val GV_IDS = listOf("", "ArmWarmers", "FingerlessGloves", "WorkGloves")
+    val GV_N = listOf("Sem", "Manguito", "Luva sem dedos", "Luva de trabalho")
+    val HT_IDS = listOf("", "Ballcap", "Beanie", "Bucket", "Fedora", "Sunhat")
+    val HT_N = listOf("Sem", "Boné", "Gorro", "Chapéu bucket", "Chapéu fedora", "Chapéu de sol")
+    val GS_IDS = listOf("", "SimpleGlasses", "RoundGlasses", "ShadedGlasses", "RoundShaded")
+    val GS_N = listOf("Sem", "Óculos simples", "Óculos redondo", "Óculos escuro", "Óculos redondo escuro")
+    val BD_IDS = listOf("", "Mustashe", "MustasheChin", "Goatee", "ChinGoatee", "FullBeard", "BushyBeard")
+    val BD_N = listOf("Sem", "Bigode", "Bigode e queixo", "Cavanhaque", "Queixo", "Barba cheia", "Barba volumosa")
+    val HA_IDS = listOf("", "Horns", "AlienAntenna")
+    val HA_N = listOf("Sem", "Chifres", "Antenas")
+
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano")
 
@@ -82,24 +98,38 @@ class Avatar(
     /** Etapa 4: índice em [AvaPal.CT_IDS] (blusa), [AvaPal.CB_IDS] (calça/saia) e [AvaPal.CO_IDS] (vestido; se != 0 vale no lugar de blusa e calça). */
     var ctop: Int = 1,
     var cbot: Int = 1,
-    var cov: Int = 0
+    var cov: Int = 0,
+    /** Etapa 5: índices em [AvaPal.FT_IDS] (sapatos; padrão = sandália da Mary), [AvaPal.GV_IDS], [AvaPal.HT_IDS], [AvaPal.GS_IDS], [AvaPal.BD_IDS], [AvaPal.HA_IDS]. */
+    var cfeet: Int = 1,
+    var cglove: Int = 0,
+    var chat: Int = 0,
+    var cgls: Int = 0,
+    var cbrd: Int = 0,
+    var chac: Int = 0
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).joinToString(",")
-    // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4)
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).joinToString(",")
+    // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
     fun wearKeys(): List<String> {
         val k = ArrayList<String>()
         AvaPal.HB_IDS[hb].let { if (it.isNotEmpty()) k.add("hairBack/$it") }
-        AvaPal.HF_IDS[hf].let { if (it.isNotEmpty()) k.add("hairFront/$it") }
+        // chapéu cobre a franja (a franja atravessaria o tecido)
+        if (chat == 0) AvaPal.HF_IDS[hf].let { if (it.isNotEmpty()) k.add("hairFront/$it") }
         if (cov > 0) {
             k.add("overall/" + AvaPal.CO_IDS[cov])
         } else {
             k.add("top/" + AvaPal.CT_IDS[ctop].ifEmpty { "Underwear" })
             k.add("bottom/" + AvaPal.CB_IDS[cbot].ifEmpty { "Underwear" })
         }
+        AvaPal.FT_IDS[cfeet].let { if (it.isNotEmpty()) k.add("feet/$it") }
+        AvaPal.GV_IDS[cglove].let { if (it.isNotEmpty()) k.add("gloves/$it") }
+        AvaPal.HT_IDS[chat].let { if (it.isNotEmpty()) k.add("hat/$it") }
+        AvaPal.GS_IDS[cgls].let { if (it.isNotEmpty()) k.add("glasses/$it") }
+        AvaPal.BD_IDS[cbrd].let { if (it.isNotEmpty()) k.add("beard/$it") }
+        AvaPal.HA_IDS[chac].let { if (it.isNotEmpty()) k.add("headAcc/$it") }
         return k
     }
 
@@ -150,6 +180,17 @@ class Avatar(
                         av.ctop = p[25].coerceIn(0, AvaPal.CT_IDS.size - 1)
                         av.cbot = p[26].coerceIn(0, AvaPal.CB_IDS.size - 1)
                         av.cov = p[27].coerceIn(0, AvaPal.CO_IDS.size - 1)
+                    }
+                    // saves da Etapa 4 não têm sapatos etc.: ficam com a sandália da Mary e sem os outros acessórios
+                    if (35 < p.size) {
+                        av.cc[10] = p[28].coerceIn(-1, CuteColor.palette(10).size - 1)
+                        av.cc[11] = p[29].coerceIn(-1, CuteColor.palette(11).size - 1)
+                        av.cfeet = p[30].coerceIn(0, AvaPal.FT_IDS.size - 1)
+                        av.cglove = p[31].coerceIn(0, AvaPal.GV_IDS.size - 1)
+                        av.chat = p[32].coerceIn(0, AvaPal.HT_IDS.size - 1)
+                        av.cgls = p[33].coerceIn(0, AvaPal.GS_IDS.size - 1)
+                        av.cbrd = p[34].coerceIn(0, AvaPal.BD_IDS.size - 1)
+                        av.chac = p[35].coerceIn(0, AvaPal.HA_IDS.size - 1)
                     }
                 }
             } catch (e: Exception) {

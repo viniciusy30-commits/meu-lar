@@ -71,8 +71,9 @@ object CuteChar {
     private var failed = false
     private var atlasTex = 0
     private var hairTex = 0
+    private var extra2Tex = 0
     @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
-    private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall")
+    private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -148,6 +149,7 @@ object CuteChar {
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
+                extra2Tex = texIds["extra2.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
             }
         } catch (e: Throwable) {
@@ -311,7 +313,7 @@ object CuteChar {
      */
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         val cs = cur ?: return null
-        CuteColor.uploadIfPending(atlasTex, hairTex)
+        CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
         val c = clip.coerceIn(0, clipData.size - 1)

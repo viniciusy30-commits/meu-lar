@@ -20,7 +20,7 @@ import android.opengl.GLUtils
  * no começo de [CuteChar.frame]. Não mexe em malha, ossos nem animações.
  */
 object CuteColor {
-    const val SLOTS = 10
+    const val SLOTS = 12
     const val S_PELE = 0
     const val S_OLHOS = 1
     const val S_CABELO = 2
@@ -31,8 +31,10 @@ object CuteColor {
     const val S_SANDALIA = 7
     const val S_TIRAS = 8
     const val S_DETALHE_BAIXO = 9
+    const val S_ACESSORIO = 10
+    const val S_ACESSORIO2 = 11
 
-    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo")
+    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo", "Acessório", "Acessório 2")
 
     private fun pal(vararg hex: String): IntArray = IntArray(hex.size) { Color.parseColor(hex[it]) }
 
@@ -48,7 +50,7 @@ object CuteColor {
     )
     private val SHOE = pal("#FFFFFF", "#1E2230", "#E5484D", "#3E8EDE", "#7A4E32", "#F2A33A", "#EE6FA6", "#6B6F7A")
 
-    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH)
+    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH, CLOTH, CLOTH)
 
     /** Cores (ARGB) que o jogador pode escolher no slot. */
     fun palette(slot: Int): IntArray = PALS[slot.coerceIn(0, SLOTS - 1)]
@@ -76,7 +78,8 @@ object CuteColor {
 
     private val layers = arrayOf(
         Layer("textures.png", "recolor.png", "recolor_s.png", "recolor.txt"),
-        Layer("extra.png", "extra_recolor.png", "extra_recolor_s.png", "extra_recolor.txt")
+        Layer("extra.png", "extra_recolor.png", "extra_recolor_s.png", "extra_recolor.txt"),
+        Layer("extra2.png", "extra2_recolor.png", "extra2_recolor_s.png", "extra2_recolor.txt")   // Etapa 5: sapatos, luvas, chapéus, óculos, barbas
     )
 
     private val lock = Any()
@@ -178,6 +181,7 @@ object CuteColor {
         if (e[S_DETALHE] == null) e[S_DETALHE] = lighten(e[S_BLUSA], 0.25f)
         if (e[S_TIRAS] == null) e[S_TIRAS] = e[S_SANDALIA]
         if (e[S_DETALHE_BAIXO] == null) e[S_DETALHE_BAIXO] = lighten(e[S_SAIA], 0.25f)
+        if (e[S_ACESSORIO2] == null) e[S_ACESSORIO2] = lighten(e[S_ACESSORIO], 0.25f)
         return e
     }
 
@@ -301,9 +305,10 @@ object CuteColor {
     // ------------------------------------------------------------------ GL
 
     /** Thread GL: se há cores novas prontas, sobe para as texturas: [tex] = atlas da Mary, [hairTex] = atlas dos cabelos. */
-    fun uploadIfPending(tex: Int, hairTex: Int = 0) {
+    fun uploadIfPending(tex: Int, hairTex: Int = 0, tex3: Int = 0) {
         up(layers[0], tex)
         up(layers[1], hairTex)
+        up(layers[2], tex3)
     }
 
     private fun up(l: Layer, tex: Int) {
