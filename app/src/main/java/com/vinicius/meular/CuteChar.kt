@@ -160,6 +160,7 @@ object CuteChar {
     private var atlasTex = 0
     private var hairTex = 0
     private var extra2Tex = 0
+    private var skateTex = 0
     @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
     private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
 
@@ -239,6 +240,7 @@ object CuteChar {
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
                 extra2Tex = texIds["extra2.png"] ?: 0
+                skateTex = texIds["skatetee.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
             }
         } catch (e: Throwable) {
@@ -467,7 +469,7 @@ object CuteChar {
      */
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         val cs = cur ?: return null
-        CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex)
+        CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin

@@ -83,7 +83,8 @@ object CuteColor {
     private val layers = arrayOf(
         Layer("textures.png", "recolor.png", "recolor_s.png", "recolor.txt"),
         Layer("extra.png", "extra_recolor.png", "extra_recolor_s.png", "extra_recolor.txt"),
-        Layer("extra2.png", "extra2_recolor.png", "extra2_recolor_s.png", "extra2_recolor.txt")   // Etapa 5: sapatos, luvas, chapéus, óculos, barbas
+        Layer("extra2.png", "extra2_recolor.png", "extra2_recolor_s.png", "extra2_recolor.txt"),   // Etapa 5: sapatos, luvas, chapéus, óculos, barbas
+        Layer("skatetee.png", "skatetee_recolor.png", "skatetee_recolor_s.png", "skatetee_recolor.txt")   // Etapa 27: camiseta larga (skatista)
     )
 
     private val lock = Any()
@@ -309,10 +310,11 @@ object CuteColor {
     // ------------------------------------------------------------------ GL
 
     /** Thread GL: se há cores novas prontas, sobe para as texturas: [tex] = atlas da Mary, [hairTex] = atlas dos cabelos. */
-    fun uploadIfPending(tex: Int, hairTex: Int = 0, tex3: Int = 0) {
+    fun uploadIfPending(tex: Int, hairTex: Int = 0, tex3: Int = 0, tex4: Int = 0) {
         up(layers[0], tex)
         up(layers[1], hairTex)
         up(layers[2], tex3)
+        up(layers[3], tex4)
     }
 
     private fun up(l: Layer, tex: Int) {

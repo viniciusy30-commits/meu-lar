@@ -1,0 +1,2 @@
+# id|nome|slot0|slot1|ref0 (sRGB 0..255)|ref1
+1|camiseta|4|5|22.0 22.0 24.0|214.0 204.0 160.0
