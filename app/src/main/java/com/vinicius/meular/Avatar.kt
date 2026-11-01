@@ -42,10 +42,10 @@ object AvaPal {
     /** Roupas do personagem modular (Etapa 4): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
     val CT_IDS = listOf("", "Sweater", "Shirt", "TankTop", "Henley", "Hoodie", "TurtleNeck", "DressShirt", "ButtonUp", "ButtonUpShort",
         "CasualJacket", "OpenJacket", "SuitJacket", "Seifuku", "SeifukuShort", "OpenShoulder", "OpenShoulderCrop", "OpenShoulderStraps",
-        "OpenShoulderStrapless", "Suspenders", "Bikini")
+        "OpenShoulderStrapless", "Suspenders", "Bikini", "SkateTee")
     val CT_N = listOf("Sem", "Suéter (Mary)", "Camiseta", "Regata", "Henley", "Moletom", "Gola alta", "Camisa social", "Camisa de botões",
         "Camisa de botões curta", "Jaqueta casual", "Jaqueta aberta", "Blazer", "Uniforme marinheiro", "Uniforme marinheiro curto",
-        "Ombro de fora", "Ombro de fora curta", "Ombro de fora com alças", "Tomara que caia", "Suspensório", "Biquíni (top)")
+        "Ombro de fora", "Ombro de fora curta", "Ombro de fora com alças", "Tomara que caia", "Suspensório", "Biquíni (top)", "Camiseta larga (skatista)")
     val CB_IDS = listOf("", "Skirt", "JeanSkirt", "PleatedSkirt", "ShortShorts", "Shorts", "BigShorts", "CargoPantsShort", "BaggyPantsShort",
         "Jeans", "LooseJeans", "DressPants", "YogaPants", "StripedPants", "CargoPants", "BaggyPantsLong", "BaggyPantsAnkles", "Bikini")
     val CB_N = listOf("Sem", "Saia (Mary)", "Saia jeans", "Saia plissada", "Short curto", "Bermuda", "Bermudão", "Bermuda cargo",

@@ -68,6 +68,7 @@ overall|Overall|p_overall_overall.bin|extra.png
 overall|SmartDress|p_overall_smartdress.bin|extra.png
 overall|Sundress|p_overall_sundress.bin|extra.png
 top|Bikini|p_top_bikini.bin|extra.png
+top|SkateTee|p_top_skatetee.bin|skatetee.png
 bottom|Bikini|p_bottom_bikini.bin|extra.png
 overall|Bikini|p_overall_bikini.bin|extra.png
 feet|BigBoots|p_feet_bigboots.bin|extra2.png
