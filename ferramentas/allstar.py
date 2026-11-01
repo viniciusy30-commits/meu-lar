@@ -2,7 +2,8 @@
 """
 All Star (cano alto, lona + borracha) procedural para o Meu Lar -> peça CUP1 feet/AllStar + tiles no atlas extra2 (região 7, recolorível).
 Uso: python3 allstar.py <assets/cute (entrada e saída)>
-Modelo: lona (SDF + sulco do cadarço), borracha (sola + faixa + biqueira), 12 ilhós, 2 respiros, cadarço cruzado com laço, patch com estrela.
+Modelo (v2, mais parecido com o Chuck Taylor original): lona (SDF + sulco do cadarço), borracha (sola fina + faixa + biqueira arredondada), 14 ilhós, 2 respiros,
+cadarço CHATO cruzado com laço, língua, patch com estrela. Bordas lona/borracha recortadas por interpolação do SDF (sem serrilhado).
 Cores (extra2_recolor.txt, região 7): w0 = lona/faixa/risco da sola (slot 7), w1 = borracha/cadarço (slot 8). Ilhós, patch e sola fixos.
 Esqueleto: pesos copiados do pé/canela do corpo-base (ossos 18/19/20 = pé direito, 22/23/24 = esquerdo).
 """
@@ -22,7 +23,8 @@ def smax(a, b, k): return -smin(-a, -b, k)
 def sstep(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
-BOT = -2.0; ZH, ZT = -6.0, 19.4; CUFF = 17.4; X0 = 11.15
+BOT = -1.35; ZH, ZT = -6.0, 19.4; CUFF = 17.4; X0 = 11.15
+FOX_T = 2.05; FOX_H = 0.75      # topo da faixa de borracha: bico / calcanhar (+FOX_H)
 def foot_cx(z): return np.interp(z, [-7, 0, 10, 20], [0.0, 0.0, 0.05, 0.5])
 def foot_hw(z):
     return np.interp(z, [-6.0, -5.3, -4.0, -1.5, 2.0, 5.0, 8.5, 12, 15, 17, 18.6, 19.4], [0.0, 2.3, 3.9, 4.4, 4.2, 4.35, 4.9, 5.3, 5.1, 4.5, 3.0, 0.0])
@@ -59,16 +61,18 @@ def canvas0(p):
 def rubber0(p):
     x, y, z = p[..., 0], p[..., 1], p[..., 2]
     yy = y - spring(z)
-    sole = smax(plan(x, z, 0.55), np.maximum(BOT - yy, yy - 0.5), 0.5)
-    top_fox = 2.5 + 0.9 * sstep(-1.5, -5.8, z)
-    fox = smax(plan(x, z, 0.30), np.maximum(BOT - yy, yy - top_fox), 0.45)
+    sole = smax(plan(x, z, 0.42), np.maximum(BOT - yy, yy - 0.35), 0.4)
+    top_fox = FOX_T + FOX_H * sstep(-1.5, -5.8, z)
+    fox = smax(plan(x, z, 0.36), np.maximum(BOT - yy, yy - top_fox), 0.5)
     s = smin(sole, fox, 0.3)
     fu = plan(x, z, -0.15); top = top_profile(z)
-    ytop = 1.2 + (top - 1.2) * (0.6 + 0.4 * np.clip(-fu / 3.0, 0, 1) ** 0.7) + 0.45
-    zc = 12.0 + 0.7 * (np.abs(x - foot_cx(z)) / 4.6) ** 2
-    c = smax(plan(x, z, 0.32), np.maximum(zc - z, yy - ytop), 0.8)
+    ytop = 1.2 + (top - 1.2) * (0.6 + 0.4 * np.clip(-fu / 3.0, 0, 1) ** 0.7) + 0.40
+    # biqueira: borda de trás em arco (convexa para o calcanhar) e mais para trás no alto (como no Chuck)
+    dx = np.abs(x - foot_cx(z)) / 4.6
+    zc = 13.0 + 1.5 * dx ** 2 + 0.6 * sstep(1.5, 6.0, yy)
+    c = smax(plan(x, z, 0.30), np.maximum(zc - z, yy - ytop), 1.1)
     c = np.maximum(c, BOT - yy)
-    return smin(s, c, 0.35)
+    return smin(s, c, 0.45)
 
 def grad(p, fn, e=0.04):
     g = np.zeros_like(p)
@@ -130,6 +134,31 @@ def cull(v, f, others, tol):
     c = v[f].mean(1); keep = np.ones(len(f), bool)
     for fn in others: keep &= fn(c) > tol
     return f[keep]
+def clip(v, f, n, gfn, surf):
+    """mantém só a parte da superfície onde gfn(p) > 0, cortando os triângulos exatamente na curva g = 0 (interpolação linear em g,
+    pontos novos reprojetados na superfície 'surf'). Devolve (v, f, n) novos."""
+    g = gfn(v); V = [p for p in v]; Nn = [q for q in n]; cache = {}; out = []
+    def cut(a, b):
+        k = (a, b) if a < b else (b, a)
+        if k not in cache:
+            t = g[a] / (g[a] - g[b]); p = v[a] + (v[b] - v[a]) * t; q = n[a] + (n[b] - n[a]) * t
+            p, q2 = project(p[None], surf, 3); V.append(p[0]); Nn.append(q2[0]); cache[k] = len(V) - 1
+        return cache[k]
+    for tri in f:
+        a, b, c = tri; s_ = [g[a] > 0, g[b] > 0, g[c] > 0]; k = sum(s_)
+        if k == 3: out.append((a, b, c))
+        elif k == 0: continue
+        else:
+            # gira para que o vértice "sozinho" seja o primeiro
+            idx = [a, b, c]
+            if k == 1:
+                i = s_.index(True); p0, p1, p2 = idx[i], idx[(i + 1) % 3], idx[(i + 2) % 3]
+                out.append((p0, cut(p0, p1), cut(p0, p2)))
+            else:
+                i = s_.index(False); p0, p1, p2 = idx[i], idx[(i + 1) % 3], idx[(i + 2) % 3]   # p0 fora; p1,p2 dentro
+                m1 = cut(p0, p1); m2 = cut(p0, p2)
+                out.append((p1, p2, m2)); out.append((p1, m2, m1))
+    return np.array(V), np.array(out, int).reshape(-1, 3), np.array(Nn)
 def compact(v, f, *ex):
     u, inv = np.unique(f.ravel(), return_inverse=True)
     return (v[u], inv.reshape(-1, 3)) + tuple(e[u] for e in ex)
@@ -171,6 +200,26 @@ def tube(path, r, ns=5, closed=False):
     ix = np.array(ix).reshape(-1, 3)
     return pos, nor, ix
 
+def ribbon(path, nrm, w, h, ns=6):
+    """fita achatada: largura w (tangente à superfície), espessura h (ao longo da normal nrm). path/nrm: (n,3)."""
+    path = np.asarray(path, float); nrm = np.asarray(nrm, float); n = len(path)
+    T = np.gradient(path, axis=0); T /= np.maximum(np.linalg.norm(T, axis=1, keepdims=True), 1e-9)
+    pos = []; nor = []
+    for i in range(n):
+        B = nrm[i] - T[i] * np.dot(nrm[i], T[i]); B /= max(np.linalg.norm(B), 1e-9)      # espessura
+        N = np.cross(T[i], B); N /= max(np.linalg.norm(N), 1e-9)                          # largura
+        ww = w if np.isscalar(w) else w[i]
+        for k in range(ns):
+            a = 2 * np.pi * k / ns; d = N * np.cos(a) * ww / 2 + B * np.sin(a) * h / 2
+            nn = N * np.cos(a) * (h / 2) + B * np.sin(a) * (ww / 2); nn /= max(np.linalg.norm(nn), 1e-9)
+            pos.append(path[i] + d); nor.append(nn)
+    ix = []
+    for i in range(n - 1):
+        for k in range(ns):
+            a = i * ns + k; b = i * ns + (k + 1) % ns; c = (i + 1) * ns + k; d = (i + 1) * ns + (k + 1) % ns
+            ix += [a, c, b, b, c, d]
+    return np.array(pos), np.array(nor), np.array(ix).reshape(-1, 3)
+
 def disc(center, normal, up, rad, rings=2, ns=12):
     """disco achatado (ilhós / patch): vértice central + anéis."""
     normal = normal / np.linalg.norm(normal); up = up - normal * np.dot(up, normal); up /= np.linalg.norm(up); rt = np.cross(up, normal)
@@ -191,15 +240,15 @@ def build_right():
     parts = []
     # --- lona
     vc, fc, nc = mc(canvas, 0.8, BOX)
-    vr, fr, nr = mc(rubber, 0.7, BOX)
-    fc = cull(vc, fc, [rubber], -0.25)
-    fr = cull(vr, fr, [canvas0], -0.6)
+    vr, fr, nr = mc(rubber, 0.6, BOX)
+    vc, fc, nc = clip(vc, fc, nc, lambda p: rubber(p) + 0.25, canvas)
+    vr, fr, nr = clip(vr, fr, nr, lambda p: canvas0(p) + 0.6, rubber)
     vc, fc, nc = compact(vc, fc, nc)
     vr, fr, nr = compact(vr, fr, nr)
     parts.append(('canvas', vc, nc, uv_side(vc, CX, CY), fc))
     parts.append(('rubber', vr, nr, uv_side(vr, RX, RY), fr))
-    # --- ilhós do cadarço (6 pares) + pontos de passagem
-    S = np.linspace(0.04, 0.9, 6)
+    # --- ilhós do cadarço (7 pares) + pontos de passagem
+    S = np.linspace(0.03, 0.9, 7)
     EL = []; ER = []
     for s in S:
         p, n, t = cl_at(s)
@@ -231,33 +280,46 @@ def build_right():
     pp, nn = project(pos, canvas0, 4)
     pos = pp + nn * 0.05
     parts.append(('patch', pos, nn, uv, ix))
-    # --- cadarço cruzado
+    # --- cadarço CHATO (fita larga e fina, branca) cruzado
     lace_uv = uv_px(LX + LW / 2, LY + LH / 2)
-    def lace(a, b, na, nb, lift=0.3, r=0.27):
+    LW_, LH_ = 0.92, 0.17
+    def lace(a, b, na, nb, lift=0.0):
         ts = np.linspace(0, 1, 9)
         nm = (na + nb); nm /= np.linalg.norm(nm)
-        path = np.array([a + (b - a) * t + nm * (lift + 0.36 * np.sin(np.pi * t)) for t in ts])
-        pos, nor, ix = tube(path, r, 5)
+        path = np.array([a + (b - a) * t + nm * (0.20 + lift + 0.16 * np.sin(np.pi * t)) for t in ts])
+        pos, nor, ix = ribbon(path, np.tile(nm, (len(ts), 1)), LW_, LH_, 6)
         return ('lace', pos, nor, np.tile(lace_uv, (len(pos), 1)), ix)
-    for i in range(5):
-        parts.append(lace(EL[i][0], ER[i + 1][0], EL[i][1], ER[i + 1][1]))
-        parts.append(lace(ER[i][0], EL[i + 1][0], ER[i][1], EL[i + 1][1]))
+    for i in range(len(EL) - 1):
+        parts.append(lace(EL[i][0], ER[i + 1][0], EL[i][1], ER[i + 1][1], 0.0))
+        parts.append(lace(ER[i][0], EL[i + 1][0], ER[i][1], EL[i + 1][1], 0.17))   # o 2º cadarço passa por cima no cruzamento
     # primeira volta: cadarço reto no ilhós de baixo
-    parts.append(lace(EL[0][0], ER[0][0], EL[0][1], ER[0][1], 0.22))
-    # --- laço
+    parts.append(lace(EL[0][0], ER[0][0], EL[0][1], ER[0][1], 0.0))
+    # --- laço (fitas deitadas sobre a lona)
     pt, nt, tt = cl_at(0.94)
     side = np.cross(tt, nt); side /= np.linalg.norm(side)
     if side[0] < 0: side = -side
-    base = pt + nt * 0.9
+    base = pt + nt * 0.55
     for sg in (-1, 1):
-        ts = np.linspace(0, 2 * np.pi, 15)
+        ts = np.linspace(0, 2 * np.pi, 17)
         ctr = base + side * sg * 1.25 + tt * 0.25
-        path = np.array([ctr + side * sg * 1.25 * np.cos(a) * -1 + tt * 0.85 * np.sin(a) + nt * 0.25 * np.sin(a) ** 2 for a in ts])
-        pos, nor, ix = tube(path, 0.26, 5)
+        path = np.array([ctr + side * sg * 1.25 * np.cos(a) * -1 + tt * 0.85 * np.sin(a) + nt * 0.22 * np.sin(a) ** 2 for a in ts])
+        pos, nor, ix = ribbon(path, np.tile(nt, (len(path), 1)), 0.85, LH_, 6)
         parts.append(('lace', pos, nor, np.tile(lace_uv, (len(pos), 1)), ix))
-        tail = np.array([base + side * sg * (0.2 + 1.5 * t ** 1.3) - tt * (3.0 * t) + nt * (0.15 + 0.35 * np.sin(np.pi * t)) for t in np.linspace(0, 1, 8)])
-        pos, nor, ix = tube(tail, 0.26, 5)
+        tail = np.array([base + side * sg * (0.2 + 1.5 * t ** 1.3) - tt * (3.0 * t) + nt * (0.12 + 0.30 * np.sin(np.pi * t)) for t in np.linspace(0, 1, 8)])
+        pos, nor, ix = ribbon(tail, np.tile(nt, (len(tail), 1)), 0.85, LH_, 6)
         parts.append(('lace', pos, nor, np.tile(lace_uv, (len(pos), 1)), ix))
+    # --- língua: aba acolchoada que aparece acima do último ilhós, caindo levemente para a frente (cor da lona)
+    tpts = []; tn = []
+    for s_ in np.linspace(0.70, 1.0, 7):
+        p, n_, t_ = cl_at(s_); tpts.append(p + n_ * 0.35); tn.append(n_)
+    p, n_, t_ = cl_at(1.0)
+    for k in (1, 2):
+        tpts.append(p + n_ * (0.35 + 0.42 * k) + t_ * 0.52 * k); tn.append(n_ + 0.5 * t_)
+    tpts = np.array(tpts); tn = np.array(tn); tn /= np.linalg.norm(tn, axis=1, keepdims=True)
+    wid = np.interp(np.arange(len(tpts)), [0, 6, 8], [2.6, 3.0, 3.4])
+    pos, nor, ix = ribbon(tpts, tn, wid, 0.55, 8)
+    tuv = uv_side(np.array([[0.0, 9.5, 6.0]]), CX, CY)[0]
+    parts.append(('tongue', pos, nor, np.tile(tuv, (len(pos), 1)), ix))
     return parts
 
 # ------------------------------------------------------------------ pesos de osso a partir do corpo-base
@@ -306,7 +368,7 @@ def paint_atlas():
     # --- lona
     sh = weave.copy(); w0 = np.ones((CH, CW)); w1 = np.zeros((CH, CW))
     # costura tracejada logo acima da faixa e perto da borda do cano
-    for yl, dz in ((3.55, 0.7), (16.55, 0.6)):
+    for yl, dz in ((2.95, 0.7), (16.55, 0.6)):
         line = (np.abs(Yg - yl) < 0.11) & (np.mod(Zg, dz) < dz * 0.62)
         sh = np.where(line, 1.75, sh)
     # faixa fina mais clara na borda do cano
@@ -316,19 +378,19 @@ def paint_atlas():
     # --- borracha: branca; risco preto na faixa (w0 = acompanha a cor da lona); sola com frisos
     sh = 1.0 + 0.02 * rng.randn(CH, CW); w0 = np.zeros((CH, CW)); w1 = np.ones((CH, CW))
     shr = np.full((CH, CW), 1.0)
-    stripe = (Yg > 0.95) & (Yg < 1.45)
+    stripe = (Yg > 0.50) & (Yg < 0.92)
     w0 = np.where(stripe, 1.0, w0); w1 = np.where(stripe, 0.0, w1)
-    stripe2 = (Yg > 1.75) & (Yg < 1.95)
+    stripe2 = (Yg > 1.22) & (Yg < 1.38)
     w0 = np.where(stripe2, 1.0, w0); w1 = np.where(stripe2, 0.0, w1)
     # acima da faixa (so atras da biqueira) a borracha assume a cor da lona: esconde a junção irregular com a lona
-    top = (Yg > 2.1) & (Zg < 11.9)
+    top = (Yg > FOX_T + 0.05) & (Zg < 12.4)
     w0 = np.where(top, 1.0, w0); w1 = np.where(top, 0.0, w1)
     # sola: faixa de baixo cinza com frisos transversais
-    tread = Yg < -1.55
+    tread = Yg < BOT + 0.45
     shr = np.where(tread, 0.62 + 0.18 * (np.mod(Zg, 0.9) < 0.45), shr)
     # borda de baixo mais suja
-    shr = np.where((Yg < -1.2) & ~tread, 0.9, shr)
-    shr = shr + 0.02 * rng.randn(CH, CW)
+    shr = np.where((Yg < BOT + 0.8) & ~tread, 0.9, shr)
+    shr = shr + 0.006 * rng.randn(CH, CW)
     base = np.where(w0[..., None] > 0.5, R0[None, None, :] * shr[..., None], R1[None, None, :] * shr[..., None])
     put(RX, RY, CW, CH, base, w0, w1, 7, shr)
     # --- cadarço (w1): trama diagonal
