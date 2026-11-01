@@ -42,17 +42,17 @@ object AvaPal {
     /** Roupas do personagem modular (Etapa 4): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
     val CT_IDS = listOf("", "Sweater", "Shirt", "TankTop", "Henley", "Hoodie", "TurtleNeck", "DressShirt", "ButtonUp", "ButtonUpShort",
         "CasualJacket", "OpenJacket", "SuitJacket", "Seifuku", "SeifukuShort", "OpenShoulder", "OpenShoulderCrop", "OpenShoulderStraps",
-        "OpenShoulderStrapless", "Suspenders")
+        "OpenShoulderStrapless", "Suspenders", "Bikini")
     val CT_N = listOf("Sem", "Suéter (Mary)", "Camiseta", "Regata", "Henley", "Moletom", "Gola alta", "Camisa social", "Camisa de botões",
         "Camisa de botões curta", "Jaqueta casual", "Jaqueta aberta", "Blazer", "Uniforme marinheiro", "Uniforme marinheiro curto",
-        "Ombro de fora", "Ombro de fora curta", "Ombro de fora com alças", "Tomara que caia", "Suspensório")
+        "Ombro de fora", "Ombro de fora curta", "Ombro de fora com alças", "Tomara que caia", "Suspensório", "Biquíni (top)")
     val CB_IDS = listOf("", "Skirt", "JeanSkirt", "PleatedSkirt", "ShortShorts", "Shorts", "BigShorts", "CargoPantsShort", "BaggyPantsShort",
-        "Jeans", "LooseJeans", "DressPants", "YogaPants", "StripedPants", "CargoPants", "BaggyPantsLong", "BaggyPantsAnkles")
+        "Jeans", "LooseJeans", "DressPants", "YogaPants", "StripedPants", "CargoPants", "BaggyPantsLong", "BaggyPantsAnkles", "Bikini")
     val CB_N = listOf("Sem", "Saia (Mary)", "Saia jeans", "Saia plissada", "Short curto", "Bermuda", "Bermudão", "Bermuda cargo",
         "Calça baggy curta", "Jeans", "Jeans largo", "Calça social", "Legging", "Calça listrada", "Calça cargo", "Calça baggy longa",
-        "Calça baggy tornozelo")
-    val CO_IDS = listOf("", "Sundress", "SmartDress", "Overall")
-    val CO_N = listOf("Nenhum", "Vestido de verão", "Vestido elegante", "Macacão")
+        "Calça baggy tornozelo", "Biquíni (calcinha)")
+    val CO_IDS = listOf("", "Sundress", "SmartDress", "Overall", "Bikini")
+    val CO_N = listOf("Nenhum", "Vestido de verão", "Vestido elegante", "Macacão", "Biquíni (conjunto)")
 
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano")

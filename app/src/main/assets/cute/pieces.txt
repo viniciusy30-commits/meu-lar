@@ -65,5 +65,8 @@ bottom|Underwear|p_bottom_underwear.bin|extra.png
 overall|Overall|p_overall_overall.bin|extra.png
 overall|SmartDress|p_overall_smartdress.bin|extra.png
 overall|Sundress|p_overall_sundress.bin|extra.png
+top|Bikini|p_top_bikini.bin|extra.png
+bottom|Bikini|p_bottom_bikini.bin|extra.png
+overall|Bikini|p_overall_bikini.bin|extra.png
 # roupa padrão (a Mary): chaves slot/id
 outfit=top/Sweater,bottom/Skirt,feet/Sandals,hairBack/Flare,hairFront/LongSweeps

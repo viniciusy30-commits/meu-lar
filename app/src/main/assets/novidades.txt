@@ -1,3 +1,10 @@
+#id 2026-10-31-h
+#titulo Biquíni novo
+- Biquíni de bolinhas com top de triângulo, alça no pescoço, laços nas costas e nos quadris, e calcinha de lacinho
+- Para usar: "Blusa" > Biquíni (top) e "Calça/saia" > Biquíni (calcinha), ou "Vestido" > Biquíni (conjunto)
+- Cores: Blusa/Detalhe (top) e Saia/Detalhe baixo (calcinha) mudam o tecido e os laços; as bolinhas aparecem em qualquer cor
+- Animações (parada, andar, pulo) não mudaram
+
 #id 2026-10-31-g
 #titulo Roupas novas (Etapa 4)
 - 18 blusas, 15 calças e saias e 3 vestidos/macacão do pack BoZo: camiseta, regata, moletom, jaquetas, blazer, uniforme marinheiro, jeans, legging, bermudas, saia jeans, saia plissada, vestido de verão, vestido elegante, macacão e outras

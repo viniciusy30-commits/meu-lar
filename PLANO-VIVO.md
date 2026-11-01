@@ -115,3 +115,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - `Creator.kt`: partes Cabelo atrás, Franja, Blusa, Calça/saia, Vestido (estilos) e depois as cores.
 - Limites conhecidos: roupas largas (moletom, calça baggy) podem atravessar braço/perna em poses extremas do Walk; correção seria nos pesos da peça. Sapatos, luvas, chapéus, óculos e barba ficam para a Etapa 5.
 - PRÓXIMO PASSO: esperar o teste das Etapas 3 e 4; depois Etapa 5.
+
+## Extra — Biquíni (entregue, aguardando teste)
+- `ferramentas/bikini.py`: malha procedural colada ao corpo-base (pesos interpolados do corpo, mesmas animações). Peças `top/Bikini`, `bottom/Bikini`, `overall/Bikini` (conjunto), listadas em AvaPal.CT_IDS/CB_IDS/CO_IDS e em `cute/pieces.txt`.
+- Atlas `extra.png`: tiles 52 (região 2, top) e 53 (região 3, calcinha) com bolinhas e debrum recoloríveis (tecido = cor 1; debrum/laços = cor 2).
