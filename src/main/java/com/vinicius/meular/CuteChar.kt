@@ -1,4 +1,5 @@
 package com.vinicius.meular
+// versao etapa17-fix3 (se esta linha aparece no GitHub, o zip fix3 foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.BitmapFactory
