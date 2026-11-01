@@ -29,12 +29,10 @@ object CuteChar {
     private const val WALK_RATE = 0.96f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
     private const val MALE_CLIPS = false
-    /**
-     * Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26° e parece feminina).
-     * Graus que o braço inteiro (ombro p/ baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; ~12 encosta no quadril.
-     */
+    // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
+    // Graus que o braço inteiro (ombro para baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; 12 encosta no quadril.
     private const val MALE_ARM_IN = 4f
-    /** Graus extras só do antebraço+mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa. */
+    // Graus extras só do antebraço e da mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa.
     private const val MALE_FOREARM_IN = 6f
     private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
     private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
@@ -543,11 +541,9 @@ object CuteChar {
         return cs.mesh
     }
 
-    /**
-     * Postura masculina dos braços, no plano frente (X/Y): [deg] gira o braço inteiro em torno do ombro e
-     * [deg2] gira só antebraço+mão em torno do cotovelo (cotovelo afastado, mão perto da coxa).
-     * mm = matrizes 3x4 de osso (12 floats por osso). Ombro (13,3; 142,5; -2,9) e cotovelo (32,1; 122,0; 0) de repouso, em cm.
-     */
+    // Postura masculina dos braços, no plano frente (X/Y): deg gira o braço inteiro em torno do ombro e
+    // deg2 gira só antebraço e mão em torno do cotovelo (cotovelo afastado, mão perto da coxa).
+    // mm = matrizes 3x4 de osso (12 floats por osso). Ombro (13,3; 142,5; -2,9) e cotovelo (32,1; 122,0; 0) de repouso, em cm.
     private fun armIn(mm: FloatArray, deg: Float, deg2: Float) {
         for (side in 0..1) {
             val sx = if (side == 0) 1f else -1f
