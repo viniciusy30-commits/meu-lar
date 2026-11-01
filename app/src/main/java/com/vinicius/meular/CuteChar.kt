@@ -34,9 +34,9 @@ object CuteChar {
     private const val MALE_CLIPS = true   // Etapa 23: parado e andar masculinos novos (clipes 4 e 5); correr continua o clipe 3
     // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
     // Graus que o braço inteiro (ombro para baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; 12 encosta no quadril.
-    private const val MALE_ARM_IN = 4f
+    private const val MALE_ARM_IN = 0f
     // Graus extras só do antebraço e da mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa.
-    private const val MALE_FOREARM_IN = 6f
+    private const val MALE_FOREARM_IN = 3f
     private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
     private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
     private val slotArm = FloatArray(3)   // 0..1: suaviza a entrada/saída do ajuste dos braços (ex.: pulo)

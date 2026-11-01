@@ -18,7 +18,7 @@ def male_edit(D,pos,par):
         # ombros levemente para trás/baixo
         Poser.rot(D,pos,9+(0 if s>0 else 4),Rz(-s*deg(par['shoulder_drop'])))
         Poser.rot(D,pos,11+o,Rz(-s*deg(par['fore_in'])))
-        curl_fingers(D,pos,s,par['curl'])
+        pass
 IDLE_M=dict(lean=4.0,chest=3.0,chin=0.0,hip_abd=2.2,toe_out=7,shoulder_drop=0.0,fore_in=0,curl=(18,30,18))
 WALK_M=dict(lean=2.0,chest=2.0,chin=0.0,hip_abd=2.0,toe_out=3,shoulder_drop=0.0,fore_in=0,curl=(18,30,18))
 def make(clip,par):

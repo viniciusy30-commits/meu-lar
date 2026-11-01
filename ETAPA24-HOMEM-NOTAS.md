@@ -2,3 +2,7 @@
 Junto vai o cabelo colado na cabeça (etapa 23).
 - Rosto masculino voltou ao que era antes (olhos/boca/sobrancelha sem ajustes extras).
 - Postura pela referência: em pé reto, pés só um pouco afastados (pontas levemente para fora), pelve sob o tronco, peito aberto, cabeça nivelada. Clipes 4 (parado) e 5 (andar) do base.bin; `MALE_CLIPS = true` só para parado/andar. Script: ferramentas/etapa24_postura_masculina.py (`hip_abd`, `toe_out`).
+
+## Ajuste 24c
+- Dedos: removida a curvatura de dedos dos clipes 4 e 5 (deixava as mãos enormes); mãos voltam ao original.
+- Braços mais soltos: `MALE_ARM_IN` 4 -> 0 e `MALE_FOREARM_IN` 6 -> 3 (CuteChar.kt).
