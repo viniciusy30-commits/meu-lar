@@ -1,3 +1,11 @@
+#id 2026-10-31-f
+#titulo Cabelos novos (Etapa 3)
+- 15 cabelos de trás e 10 franjas do pack BoZo: raspado, chanel, liso longo, dreads, rabos, maria-chiquinhas, selvagem, punk, hime, wolf cut, moicano e outros
+- Na tela do personagem, as duas primeiras partes, "Cabelo atrás" e "Franja", escolhem o estilo (dá para combinar qualquer um com qualquer um, ou ficar sem)
+- As cores "Cabelo" e "Pontas" valem para todos os estilos; os estilos novos começam castanhos até você escolher a cor
+- O estilo escolhido fica salvo; o cabelo da Mary continua o padrão
+- Animações (parada, andar, pulo) não mudaram
+
 #id 2026-10-31-e
 #titulo Cores do personagem (Mary)
 - Na tela do personagem agora dá para escolher as cores: Pele, Olhos, Cabelo, Pontas do cabelo, Blusa, Detalhe da blusa, Saia, Sandália e Tiras da sandália

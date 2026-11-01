@@ -49,6 +49,7 @@ class GameState(ctx: Context) {
         sens = prefs.getInt("sens", 1).coerceIn(0, 2)
         Avatar.decode(prefs.getString("avatar", null))?.let { avatar = it; avatarSet = true }
         CuteColor.setColors(avatar.cc)
+        CuteChar.setHair(AvaPal.HB_IDS[avatar.hb].ifEmpty { null }, AvaPal.HF_IDS[avatar.hf].ifEmpty { null })
         val raw = prefs.getString("state", null)
         var ok = false
         if (raw != null) {

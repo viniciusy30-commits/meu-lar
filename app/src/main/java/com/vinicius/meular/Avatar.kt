@@ -32,6 +32,16 @@ object AvaPal {
     val GLASS_N = listOf("Sem óculos", "Redondo", "Quadrado", "Escuro")
     val BEARD_N = listOf("Sem barba", "Bigode", "Cavanhaque", "Barba cheia")
 
+    /** Cabelos do personagem modular (Etapa 3): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
+    val HB_IDS = listOf("", "Flare", "Buzzed", "Short", "ShortBob", "LongStreight", "LongDreads", "DreadBack", "PonyTailShort",
+        "PonyTailLong", "TwinTailShort", "TwinTailLong", "Wild", "WildTail", "Punk", "Scrappy")
+    val HB_N = listOf("Sem", "Ondulado (Mary)", "Raspado", "Curto", "Chanel", "Liso longo", "Dreads longos", "Dreads atrás", "Rabo curto",
+        "Rabo longo", "Maria-chiquinha curta", "Maria-chiquinha longa", "Selvagem", "Rabo selvagem", "Punk", "Bagunçado")
+    val HF_IDS = listOf("", "LongSweeps", "BangSideFlicks", "Hime", "Messy", "WolfCut", "SweaptBack", "SweaptDreads", "HangingDreads",
+        "QuicklyHair", "Fohawk")
+    val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
+        "Dreads caídos", "Rápido", "Moicano")
+
 }
 
 /** Dados do personagem (salvos como texto simples). */
@@ -50,11 +60,14 @@ class Avatar(
     var glasses: Int = 0,
     var beard: Int = 0,
     /** Cores do personagem modular (Etapa 2): índice na paleta de cada slot de [CuteColor]; -1 = cor original da Mary. */
-    var cc: IntArray = CuteColor.defaults()
+    var cc: IntArray = CuteColor.defaults(),
+    /** Etapa 3: índice em [AvaPal.HB_IDS] (cabelo de trás) e [AvaPal.HF_IDS] (franja). Padrão = cabelo da Mary. */
+    var hb: Int = 1,
+    var hf: Int = 1
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.toList()).joinToString(",")
+    ).plus(cc.toList()).plus(listOf(hb, hf)).joinToString(",")
 
     /** Troca de gênero com um visual-base bonito, mantendo pele, olhos e cor do cabelo. */
     fun applyGender(f: Boolean) {
@@ -91,6 +104,12 @@ class Avatar(
                     // saves antigos (13 números) ficam com as cores originais; os novos trazem 9 números a mais
                     for (k in 0 until CuteColor.SLOTS) {
                         if (13 + k < p.size) av.cc[k] = p[13 + k].coerceIn(-1, CuteColor.palette(k).size - 1)
+                    }
+                    // saves da Etapa 2 não têm cabelos: ficam com o da Mary
+                    val o = 13 + CuteColor.SLOTS
+                    if (o + 1 < p.size) {
+                        av.hb = p[o].coerceIn(0, AvaPal.HB_IDS.size - 1)
+                        av.hf = p[o + 1].coerceIn(0, AvaPal.HF_IDS.size - 1)
                     }
                 }
             } catch (e: Exception) {

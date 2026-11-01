@@ -60,7 +60,7 @@ Customização do pack original:
 
 **Etapa 0 — Reconhecimento (FEITA).** Pack aberto, inventário e este plano.
 
-> Status: Etapa 1 entregue (testada pelo usuário). Etapa 2 entregue, aguardando teste. Detalhes em `PLANO-VIVO.md`.
+> Status: Etapas 1 e 2 entregues e testadas. Etapa 3 (cabelos) entregue, aguardando teste. Detalhes em `PLANO-VIVO.md`.
 
 **Etapa 1 — Infraestrutura modular com 1 peça de teste. (FEITA, aguardando teste no celular — ver seção 7)**
 - Definir o formato novo: um arquivo `base` (corpo + cabeça + olhos + animações, 55 ossos) e arquivos `peça` (só malha, pesos, UVs, para o mesmo esqueleto).

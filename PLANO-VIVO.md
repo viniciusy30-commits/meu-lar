@@ -93,3 +93,14 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [ ] Ainda NÃO compilado nem testado no celular (sem Gradle/Kotlin no ambiente). Se o build falhar, corrigir só o erro apontado.
 - Limitações conhecidas: cor da peça é a cor MÉDIA da região (as sombras do pack acompanham); cabelo branco/preto mostra um resto leve das pontas rosa; cores só valem para as 5 peças atuais (as próximas peças das Etapas 3–5 entram no mesmo atlas/mesmo esquema com novas regiões).
 - PRÓXIMO: Etapa 3 (cabelos), só depois do teste.
+
+
+## Etapa 3 — Cabelos (entregue, aguardando teste)
+- [x] 23 cabelos convertidos do pack (FBX -> CUP1) por `ferramentas/etapa3_hair.py` (+ `fbxr.py`, `fbxmesh.py`): 14 traseiros + 9 franjas, somando Flare e LongSweeps da Mary = 15 + 10.
+- Pesos: osso 8 (cabeça) acima de y=150, misturando com o osso 4 (peito) até y=140, para o cabelo longo seguir o peito e não atravessar o corpo.
+- Textura: `cute/hair.png` (1024x1024, 20 texturas do pack assadas em castanho) com máscaras `hair_recolor.png`, `hair_recolor_s.png`, `hair_recolor.txt` (região 1 = cabelo, slots Cabelo/Pontas). Flare e LongSweeps seguem em `textures.png`.
+- `CuteColor.kt`: agora com 2 camadas (Mary e cabelos); `CuteChar.setHair(trás, frente)` e hair.png subida/recolorida igual ao atlas da Mary.
+- `Avatar`: 2 números novos no fim do save (hb, hf = índices em AvaPal.HB_IDS / HF_IDS); saves antigos ficam com o cabelo da Mary.
+- `Creator.kt`: partes "Cabelo atrás" e "Franja" (estilos) antes das cores.
+- Chapéu escondendo cabelo: fica para a Etapa 5 (chapéus). Cabelo atrás/frente são independentes.
+- PRÓXIMO PASSO: esperar o teste da Etapa 3; depois Etapa 4 (roupas).

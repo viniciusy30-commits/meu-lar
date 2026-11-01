@@ -59,23 +59,31 @@ object CuteColor {
 
     private class Region(val id: Int, val s0: Int, val s1: Int, val ref0: FloatArray, val ref1: FloatArray)
 
+    /** Um atlas recolorível: textura base + máscaras (recolor) + resultado. A Mary usa textures.png; os cabelos novos usam hair.png. */
+    private class Layer(val tex: String, val mask: String, val maskS: String, val table: String) {
+        var w = 0
+        var h = 0
+        var base: IntArray = IntArray(0)   // ARGB da textura base
+        var meta: IntArray = IntArray(0)   // id<<24 | w0<<16 | w1<<8 | S
+        var out: IntArray = IntArray(0)
+        var bmp: Bitmap? = null
+        val regions = ArrayList<Region>()
+        @Volatile var pending = false
+        var modified = false               // o bitmap atual tem cores diferentes da base
+        var loaded = false
+    }
+
+    private val layers = arrayOf(
+        Layer("textures.png", "recolor.png", "recolor_s.png", "recolor.txt"),
+        Layer("hair.png", "hair_recolor.png", "hair_recolor_s.png", "hair_recolor.txt")
+    )
+
     private val lock = Any()
     @Volatile private var assets: AssetManager? = null
     @Volatile private var want: IntArray = defaults()
-    private var loaded = false
     @Volatile private var failed = false
     private var working = false
     private var dirty = false
-    @Volatile private var pending = false
-    private var modified = false          // o bitmap atual tem cores diferentes da base
-
-    private var w = 0
-    private var h = 0
-    private var base: IntArray = IntArray(0)   // ARGB do textures.png
-    private var meta: IntArray = IntArray(0)   // id<<24 | w0<<16 | w1<<8 | S
-    private var out: IntArray = IntArray(0)
-    private var bmp: Bitmap? = null
-    private val regions = ArrayList<Region>()
 
     /** Escolhe as cores (índice da paleta por slot, -1 = original). Pode ser chamado de qualquer thread, a qualquer hora. */
     fun setColors(cc: IntArray) {
@@ -92,7 +100,7 @@ object CuteColor {
     fun start(am: AssetManager) {
         assets = am
         synchronized(lock) {
-            if (modified) pending = true   // textura nova no GL: subir de novo as cores escolhidas
+            for (l in layers) if (l.modified) l.pending = true   // textura nova no GL: subir de novo as cores escolhidas
             dirty = true
         }
         kick()
@@ -113,9 +121,15 @@ object CuteColor {
 
     private fun work(am: AssetManager) {
         try {
-            if (!loaded) {
-                load(am)
-                loaded = true
+            for (l in layers) {
+                if (!l.loaded) {
+                    try {
+                        load(am, l)
+                        l.loaded = true
+                    } catch (e: Throwable) {
+                        if (l === layers[0]) throw e   // o atlas da Mary é obrigatório; o dos cabelos novos é opcional
+                    }
+                }
             }
             while (true) {
                 val snap: IntArray
@@ -130,13 +144,16 @@ object CuteColor {
                 val eff = effective(snap)
                 var ident = true
                 for (e in eff) if (e != null) ident = false
-                if (ident && !modified) continue
-                compute(eff)
-                val b = bmp ?: return
-                synchronized(lock) {
-                    b.setPixels(out, 0, w, 0, 0, w, h)
-                    modified = !ident
-                    pending = true
+                for (l in layers) {
+                    if (!l.loaded) continue
+                    if (ident && !l.modified) continue
+                    compute(l, eff)
+                    val b = l.bmp ?: continue
+                    synchronized(lock) {
+                        b.setPixels(l.out, 0, l.w, 0, 0, l.w, l.h)
+                        l.modified = !ident
+                        l.pending = true
+                    }
                 }
             }
         } catch (e: Throwable) {
@@ -175,24 +192,27 @@ object CuteColor {
         return am.open("cute/$name").use { BitmapFactory.decodeStream(it, null, o) } ?: throw IllegalStateException(name)
     }
 
-    private fun load(am: AssetManager) {
-        val tb = decode(am, "textures.png")
-        w = tb.width
-        h = tb.height
-        base = IntArray(w * h)
-        tb.getPixels(base, 0, w, 0, 0, w, h)
+    private fun load(am: AssetManager, l: Layer) {
+        val tb = decode(am, l.tex)
+        l.w = tb.width
+        l.h = tb.height
+        val w = l.w
+        val h = l.h
+        l.base = IntArray(w * h)
+        tb.getPixels(l.base, 0, w, 0, 0, w, h)
         tb.recycle()
 
-        val rb = decode(am, "recolor.png")
+        val rb = decode(am, l.mask)
         require(rb.width == w && rb.height == h)
-        meta = IntArray(w * h)
-        rb.getPixels(meta, 0, w, 0, 0, w, h)
+        l.meta = IntArray(w * h)
+        rb.getPixels(l.meta, 0, w, 0, 0, w, h)
         rb.recycle()
-        val sb = decode(am, "recolor_s.png")
+        val sb = decode(am, l.maskS)
         require(sb.width == w && sb.height == h)
         val tmp = IntArray(w * h)
         sb.getPixels(tmp, 0, w, 0, 0, w, h)
         sb.recycle()
+        val meta = l.meta
         for (i in meta.indices) {
             val m = meta[i]
             val id = m and 0xFF                    // B = id da região
@@ -202,8 +222,8 @@ object CuteColor {
             meta[i] = (id shl 24) or (w0 shl 16) or (w1 shl 8) or s
         }
 
-        regions.clear()
-        val lines = am.open("cute/recolor.txt").bufferedReader(Charsets.UTF_8).use { it.readLines() }
+        l.regions.clear()
+        val lines = am.open("cute/" + l.table).bufferedReader(Charsets.UTF_8).use { it.readLines() }
         for (raw in lines) {
             val ln = raw.trim()
             if (ln.isEmpty() || ln.startsWith("#")) continue
@@ -211,20 +231,20 @@ object CuteColor {
             if (f.size < 6) continue
             val r0 = f[4].trim().split(' ').filter { it.isNotEmpty() }.map { it.toFloat() }.toFloatArray()
             val r1 = f[5].trim().split(' ').filter { it.isNotEmpty() }.map { it.toFloat() }.toFloatArray()
-            regions.add(Region(f[0].trim().toInt(), f[2].trim().toInt(), f[3].trim().toInt(), r0, r1))
+            l.regions.add(Region(f[0].trim().toInt(), f[2].trim().toInt(), f[3].trim().toInt(), r0, r1))
         }
-        out = IntArray(w * h)
-        bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        l.out = IntArray(w * h)
+        l.bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     }
 
     // ------------------------------------------------------------------ cálculo
 
-    private fun compute(e: Array<FloatArray?>) {
+    private fun compute(l: Layer, e: Array<FloatArray?>) {
         val p0 = FloatArray(8 * 3)
         val p1 = FloatArray(8 * 3)
         val n0 = FloatArray(8 * 3)
         val n1 = FloatArray(8 * 3)
-        for (r in regions) {
+        for (r in l.regions) {
             if (r.id < 1 || r.id > 7) continue
             for (c in 0 until 3) {
                 val k = r.id * 3 + c
@@ -242,10 +262,10 @@ object CuteColor {
                 }
             }
         }
-        val b = base
-        val m = meta
-        val o = out
-        val n = w * h
+        val b = l.base
+        val m = l.meta
+        val o = l.out
+        val n = l.w * l.h
         val k255 = 1f / 255f
         val k2 = 2f / 255f
         var i = 0
@@ -278,13 +298,18 @@ object CuteColor {
 
     // ------------------------------------------------------------------ GL
 
-    /** Thread GL: se há cores novas prontas, sobe para a textura [tex] (a do atlas). */
-    fun uploadIfPending(tex: Int) {
-        if (!pending || tex == 0) return
+    /** Thread GL: se há cores novas prontas, sobe para as texturas: [tex] = atlas da Mary, [hairTex] = atlas dos cabelos. */
+    fun uploadIfPending(tex: Int, hairTex: Int = 0) {
+        up(layers[0], tex)
+        up(layers[1], hairTex)
+    }
+
+    private fun up(l: Layer, tex: Int) {
+        if (!l.pending || tex == 0) return
         synchronized(lock) {
-            val b = bmp ?: return
-            if (!pending) return
-            pending = false
+            val b = l.bmp ?: return
+            if (!l.pending) return
+            l.pending = false
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
             GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, b)

@@ -68,6 +68,9 @@ object CuteChar {
     private var loaded = false
     private var failed = false
     private var atlasTex = 0
+    private var hairTex = 0
+    @Volatile private var hairBackKey: String? = "Flare"
+    @Volatile private var hairFrontKey: String? = "LongSweeps"
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -81,6 +84,13 @@ object CuteChar {
         rebuildActive()
     }
 
+    /** Etapa 3: cabelo traseiro e franja (ids do manifesto, ex. "Flare", "LongSweeps"; null = sem). */
+    fun setHair(back: String?, front: String?) {
+        hairBackKey = back
+        hairFrontKey = front
+        rebuildActive()
+    }
+
     private fun rebuildActive() {
         val bs = baseSkin ?: return
         val bp = bs.part ?: return        // GL ainda não pronto: o initGl chama de novo
@@ -88,7 +98,11 @@ object CuteChar {
         val parts = ArrayList<Part>()
         parts.add(bp)
         for ((k, s) in library) {
-            if (k !in wanted) continue
+            if (k.startsWith("hairBack/")) {
+                if (k != "hairBack/" + hairBackKey) continue
+            } else if (k.startsWith("hairFront/")) {
+                if (k != "hairFront/" + hairFrontKey) continue
+            } else if (k !in wanted) continue
             val p = s.part ?: continue
             act.add(s)
             parts.add(p)
@@ -112,6 +126,7 @@ object CuteChar {
                 for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
+                hairTex = texIds["hair.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
             }
         } catch (e: Throwable) {
@@ -268,7 +283,7 @@ object CuteChar {
      */
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         val cs = cur ?: return null
-        CuteColor.uploadIfPending(atlasTex)
+        CuteColor.uploadIfPending(atlasTex, hairTex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
         val c = clip.coerceIn(0, clipData.size - 1)
