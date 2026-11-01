@@ -68,6 +68,7 @@ class CreatorUi(
         Cat("Rosto", 1.3f, 1.43f, listOf(
             Sub("Formato", 0f, null, intArrayOf(), sl = 2),
             Sub("Olhos", 0f, null, intArrayOf(1)),
+            Sub("Expressão", 0f, null, intArrayOf(), sl = 3),
             Sub("Óculos", 0f, Style("glasses", AvaPal.GS_IDS, AvaPal.GS_N, { a -> a.cgls }, { a, i -> a.cgls = i }), intArrayOf(10, 11)),
             Sub("Barba", 0f, Style("beard", AvaPal.BD_IDS, AvaPal.BD_N, { a -> a.cbrd }, { a, i -> a.cbrd = i }), intArrayOf(2, 3))
         )),
@@ -161,7 +162,7 @@ class CreatorUi(
         ok.setTextColor(Color.WHITE)
         ok.gravity = Gravity.CENTER
         ok.background = grad(0xFF4BE08F.toInt(), 0xFF1FA463.toInt(), dpf(24f))
-        ok.setOnClickListener { st.avatarSet = true; st.save(); onDone() }
+        ok.setOnClickListener { CuteChar.setExpression(-1); exprSel = -1; st.avatarSet = true; st.save(); onDone() }
         content.addView(ok, LinearLayout.LayoutParams(-1, dp(50)).also { it.topMargin = dp(8) })
         panel.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
         addView(panel, LayoutParams(dp(380), -1, Gravity.END))
@@ -199,6 +200,8 @@ class CreatorUi(
 
     fun open() {
         cat = 0; sub = 0
+        exprSel = -1
+        CuteChar.setExpression(-1)
         game.r.autoSpin = false
         refresh(false)
         camera()
@@ -261,7 +264,7 @@ class CreatorUi(
         val s = c.subs[sub]
         val stl = s.style
         if (stl != null) grid(stl, stl.get(av))
-        if (s.sl != 0) sliders(s.sl)
+        if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
         for (slot in s.colors) colorRow(slot)
         body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
         scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
@@ -447,6 +450,33 @@ class CreatorUi(
             })
             body.addView(sb, LinearLayout.LayoutParams(-1, dp(36)))
         }
+    }
+
+    private var exprSel = -1
+
+    /** Etapa 8: testar expressões do rosto (só visualização; o jogo continua piscando e fazendo cara de surpresa no pulo). */
+    private fun expressions() {
+        val names = listOf("Automático", "Neutra", "Feliz", "Triste", "Brava", "Surpresa")
+        val code = intArrayOf(-1, 0, 1, 2, 3, 4)
+        val row = LinearLayout(context)
+        row.orientation = LinearLayout.VERTICAL
+        for (i in names.indices) {
+            val on = exprSel == code[i]
+            val t = TextView(context)
+            t.text = names[i]
+            t.textSize = 14f
+            t.typeface = Ui.BOLD
+            t.gravity = Gravity.CENTER
+            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(16f)) else Ui.bg(0x66343C54, dpf(16f))
+            t.setOnClickListener {
+                exprSel = code[i]
+                CuteChar.setExpression(exprSel)
+                refresh(true)
+            }
+            row.addView(t, LinearLayout.LayoutParams(-1, dp(40)).also { it.topMargin = dp(8); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        }
+        body.addView(row, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun pickColor(slot: Int, i: Int) {

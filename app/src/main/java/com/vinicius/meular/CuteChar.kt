@@ -24,6 +24,7 @@ object CuteChar {
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
+    const val RUN = 3   // Etapa 10: corrida (clipe gerado por ferramentas/etapa10_run.py)
     /** Velocidade de reprodução do andar: com 1,28 m/s no jogo (1,065 m/s do clip × 1,2) os pés não deslizam no chão. */
     private const val WALK_RATE = 1.2f
 
@@ -68,6 +69,51 @@ object CuteChar {
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
     private var faceTmp = FloatArray(0)
+
+    // Etapa 8: piscar e expressões (canais dinâmicos 13..17 do morph.bin; só rosto, não mexem nas animações)
+    private val EXPR_N = 5   // 0 piscar, 1 feliz, 2 triste, 3 brava, 4 surpresa
+    private val exprCur = FloatArray(EXPR_N)
+    private val exprApplied = FloatArray(EXPR_N)
+    private var fpAll = FloatArray(BodyMorph.NF + EXPR_N)
+    @Volatile private var exprManual = -1      // -1 = automático; 0..3 = expressão escolhida no criador (0 neutra, 1 feliz, 2 triste, 3 brava, 4 surpresa)
+    @Volatile private var exprAuto = 0         // expressão automática pedida pelo jogo (ex.: surpresa no pulo)
+    private var blinkNext = 0L
+    private var blinkStart = 0L
+    private var exprNs = 0L
+    private var exprForce = false
+
+    /** Etapa 8: fixa uma expressão (0 neutra, 1 feliz, 2 triste, 3 brava, 4 surpresa) ou -1 para voltar ao automático. */
+    fun setExpression(e: Int) {
+        exprManual = if (e < 0) -1 else e.coerceIn(0, EXPR_N - 1)
+    }
+
+    private fun exprWeights(now: Long, wantAuto: Int) {
+        var dt = (now - exprNs) / 1_000_000_000f
+        if (dt < 0f || dt > 0.25f) dt = 0.016f
+        exprNs = now
+        val man = exprManual
+        val tgt = if (man >= 0) man else wantAuto
+        val k = (dt / 0.18f).coerceAtMost(1f)
+        for (i in 1 until EXPR_N) {
+            val goal = if (tgt == i) (if (man >= 0) 1f else 0.7f) else 0f
+            exprCur[i] += (goal - exprCur[i]) * k
+            if (Math.abs(exprCur[i] - goal) < 0.004f) exprCur[i] = goal
+        }
+        // piscar: a cada 2,5 a 5,5 s, fechando e abrindo em ~0,17 s (não pisca com expressão forte de surpresa/brava)
+        if (blinkNext == 0L) blinkNext = now + 2_000_000_000L
+        var bl = 0f
+        if (blinkStart != 0L) {
+            val u = (now - blinkStart) / 1_000_000_000f / 0.17f
+            if (u >= 1f) blinkStart = 0L else bl = if (u < 0.4f) u / 0.4f else (1f - u) / 0.6f
+        } else if (now >= blinkNext) {
+            blinkStart = now
+            blinkNext = now + (2_500_000_000L + (Math.random() * 3_000_000_000.0).toLong())
+        }
+        val blockBlink = exprCur[4] > 0.5f
+        exprCur[0] = if (blockBlink) 0f else (bl * (1f - 0.6f * exprCur[1])).coerceIn(0f, 1f)
+        // quantiza para não recalcular o rosto à toa
+        for (i in 0 until EXPR_N) exprCur[i] = Math.round(exprCur[i] * 64f) / 64f
+    }
 
     /** Etapa 7: controles do criador (inteiros -100..100): [body] na ordem de BodyMorph.BODY_NAMES, [face] na de FACE_NAMES. */
     fun setShape(body: IntArray, face: IntArray) {
@@ -449,8 +495,19 @@ object CuteChar {
         // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
         val sv = shapeVer
         val bp = bodyP
-        val fp = faceP
-        if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
+        val fp0 = faceP
+        if (sl == 0) exprAuto = if (c == JUMP) 4 else 0
+        exprWeights(now, exprAuto)
+        var exprChanged = false
+        for (i in 0 until EXPR_N) if (exprCur[i] != exprApplied[i]) { exprChanged = true; break }
+        if (fpAll.size != fp0.size + EXPR_N) fpAll = FloatArray(fp0.size + EXPR_N)
+        System.arraycopy(fp0, 0, fpAll, 0, fp0.size)
+        System.arraycopy(exprCur, 0, fpAll, fp0.size, EXPR_N)
+        val fp = fpAll
+        if (exprChanged) {
+            System.arraycopy(exprCur, 0, exprApplied, 0, EXPR_N)
+            refit(bs, true, sv, bp, fp)   // só o corpo-base tem o rosto
+        } else if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
         skinInto(bs, bone)
         for (s in cs.skins) {
             if (s.warpVer != sv) refit(s, false, sv, bp, fp)

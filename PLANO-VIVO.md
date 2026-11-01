@@ -144,3 +144,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 
 ## HUD estilo The Sims + botão de pular (entregue, aguardando teste)
 - [x] Detalhes em `ETAPA9-HUD-NOTAS.md`. [ ] Não compilado nem testado no celular.
+
+## Etapa 10 — correr (entregue, aguardando teste)
+- [x] Clipe RUN no base.bin, analógico: arrasto cheio corre, leve anda; botão verde. Detalhes em `ETAPA10-CORRIDA-NOTAS.md`.
+- [ ] Não compilado nem testado no celular.

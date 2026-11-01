@@ -357,7 +357,7 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
                 c.drawCircle(game.joyBx, game.joyBy, r, p)
                 p.style = Paint.Style.STROKE; p.strokeWidth = 2f * d; p.color = Color.argb(150, 255, 255, 255)
                 c.drawCircle(game.joyBx, game.joyBy, r, p)
-                p.style = Paint.Style.FILL; p.color = Color.argb(190, 255, 255, 255)
+                p.style = Paint.Style.FILL; p.color = if (game.r.pRun) Color.argb(235, 107, 224, 74) else Color.argb(190, 255, 255, 255)
                 c.drawCircle(game.joyKx, game.joyKy, r * 0.42f, p)
             } else {
                 p.style = Paint.Style.STROKE; p.strokeWidth = 2f * d; p.color = Color.argb(70, 255, 255, 255)

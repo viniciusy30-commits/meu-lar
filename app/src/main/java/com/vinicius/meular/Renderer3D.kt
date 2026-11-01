@@ -13,6 +13,10 @@ import kotlin.math.atan2
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
+
+/** Etapa 10: velocidade da corrida (m/s); o clipe de corrida foi gerado para esta velocidade (sem o pé deslizar). */
+private const val RUN_SPEED = 2.6f
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
@@ -48,6 +52,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var third = true
     /** pedido de pulo (botão na tela) */
     @Volatile var jumpReq = false
+    /** Etapa 10: true enquanto o analógico está quase todo arrastado (corrida); arrasto leve = andar. */
+    @Volatile var pRun = false
     @Volatile var py = 0f
     private var vy = 0f
     private var pYaw = 0f
@@ -346,10 +352,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (py <= 0f) { py = 0f; vy = 0f }
         }
         pMoving = false
+        if (moveX * moveX + moveY * moveY <= 0.0004f) pRun = false
         val mx = moveX
         val my = moveY
-        if (mx * mx + my * my > 0.0004f) {
-            val sp = 1.28f * dt  // casado com o passo da animação (CuteChar.WALK_RATE)
+        val mag2 = mx * mx + my * my
+        if (mag2 > 0.0004f) {
+            val mag = sqrt(mag2)
+            // histerese: corre com o analógico quase no limite; solta abaixo disso e volta a andar
+            pRun = if (pRun) mag > 0.70f else mag > 0.88f
+            // andar: velocidade proporcional ao arrasto (como antes); correr: velocidade fixa (casada com o clipe)
+            val sp = if (pRun) RUN_SPEED * dt / mag else 1.28f * dt  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
             val fx = sin(fyaw)
             val fz = -cos(fyaw)
             val rx = cos(fyaw)
@@ -372,7 +384,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = py > 0.02f
         val m = (if (air) CuteChar.frame(CuteChar.JUMP, minOf(jumpT, CuteChar.clipSeconds(CuteChar.JUMP) * 0.999f))
-                 else CuteChar.frame(if (pMoving) CuteChar.WALK else CuteChar.IDLE, t)) ?: avMesh ?: return
+                 else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)) ?: avMesh ?: return
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, px, py, pz)
         Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
