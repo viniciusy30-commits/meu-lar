@@ -1,0 +1,2 @@
+# id|nome|slot0|slot1|ref0 (sRGB 0..255)|ref1
+1|cabelo|2|3|112.0 76.0 50.0|160.0 116.0 74.0
