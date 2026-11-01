@@ -8,7 +8,7 @@ Medido nos .bin (poses parado/andar/correr): a maioria dos triângulos de pele a
 Correção (só código, nenhum asset mudou):
 - `Gfx.kt`: `Part.push` (metros), empurrão na profundidade, padrão 0.
 - `Renderer3D.kt`: shader de vértice com `uPush` (recua a peça ao longo da visão); `draw` envia `p.push` por peça.
-- `CuteChar.kt`: o corpo-base (pele) usa `SKIN_PUSH = 0.007` (7 mm). A roupa, cabelo, sapatos etc. ficam em 0, então o tecido sempre ganha da pele.
+- `CuteChar.kt`: o corpo-base (pele) usa `SKIN_PUSH = 0` (DESLIGADO: com 7 mm o rosto ficou atrás da franja e a pele escureceu). A roupa, cabelo, sapatos etc. ficam em 0, então o tecido sempre ganha da pele.
 
 Efeito colateral possível: onde a pele está a menos de 7 mm na frente de uma roupa (ex.: braço colado no tronco) a borda pode ficar escondida.
 Se acontecer, baixar `SKIN_PUSH` (ex.: 0.004); se ainda aparecer pele, subir (0.010).

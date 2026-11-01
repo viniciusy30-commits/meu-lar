@@ -23,7 +23,7 @@ import java.nio.ShortBuffer
 object CuteChar {
     const val ENABLED = true
     /** Etapa 21: a pele recua 7 mm na profundidade para a roupa sempre ganhar (acaba o pisca-pisca/pele aparecendo no tecido). */
-    private const val SKIN_PUSH = 0.007f
+    private const val SKIN_PUSH = 0f
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
