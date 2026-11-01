@@ -39,6 +39,21 @@ object AvaPal {
         "Rabo longo", "Maria-chiquinha curta", "Maria-chiquinha longa", "Selvagem", "Rabo selvagem", "Punk", "Bagunçado")
     val HF_IDS = listOf("", "LongSweeps", "BangSideFlicks", "Hime", "Messy", "WolfCut", "SweaptBack", "SweaptDreads", "HangingDreads",
         "QuicklyHair", "Fohawk")
+    /** Roupas do personagem modular (Etapa 4): ids do manifesto cute/pieces.txt. O índice 0 é "Sem". */
+    val CT_IDS = listOf("", "Sweater", "Shirt", "TankTop", "Henley", "Hoodie", "TurtleNeck", "DressShirt", "ButtonUp", "ButtonUpShort",
+        "CasualJacket", "OpenJacket", "SuitJacket", "Seifuku", "SeifukuShort", "OpenShoulder", "OpenShoulderCrop", "OpenShoulderStraps",
+        "OpenShoulderStrapless", "Suspenders")
+    val CT_N = listOf("Sem", "Suéter (Mary)", "Camiseta", "Regata", "Henley", "Moletom", "Gola alta", "Camisa social", "Camisa de botões",
+        "Camisa de botões curta", "Jaqueta casual", "Jaqueta aberta", "Blazer", "Uniforme marinheiro", "Uniforme marinheiro curto",
+        "Ombro de fora", "Ombro de fora curta", "Ombro de fora com alças", "Tomara que caia", "Suspensório")
+    val CB_IDS = listOf("", "Skirt", "JeanSkirt", "PleatedSkirt", "ShortShorts", "Shorts", "BigShorts", "CargoPantsShort", "BaggyPantsShort",
+        "Jeans", "LooseJeans", "DressPants", "YogaPants", "StripedPants", "CargoPants", "BaggyPantsLong", "BaggyPantsAnkles")
+    val CB_N = listOf("Sem", "Saia (Mary)", "Saia jeans", "Saia plissada", "Short curto", "Bermuda", "Bermudão", "Bermuda cargo",
+        "Calça baggy curta", "Jeans", "Jeans largo", "Calça social", "Legging", "Calça listrada", "Calça cargo", "Calça baggy longa",
+        "Calça baggy tornozelo")
+    val CO_IDS = listOf("", "Sundress", "SmartDress", "Overall")
+    val CO_N = listOf("Nenhum", "Vestido de verão", "Vestido elegante", "Macacão")
+
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano")
 
@@ -63,11 +78,30 @@ class Avatar(
     var cc: IntArray = CuteColor.defaults(),
     /** Etapa 3: índice em [AvaPal.HB_IDS] (cabelo de trás) e [AvaPal.HF_IDS] (franja). Padrão = cabelo da Mary. */
     var hb: Int = 1,
-    var hf: Int = 1
+    var hf: Int = 1,
+    /** Etapa 4: índice em [AvaPal.CT_IDS] (blusa), [AvaPal.CB_IDS] (calça/saia) e [AvaPal.CO_IDS] (vestido; se != 0 vale no lugar de blusa e calça). */
+    var ctop: Int = 1,
+    var cbot: Int = 1,
+    var cov: Int = 0
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.toList()).plus(listOf(hb, hf)).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).joinToString(",")
+    // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4)
+
+    /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
+    fun wearKeys(): List<String> {
+        val k = ArrayList<String>()
+        AvaPal.HB_IDS[hb].let { if (it.isNotEmpty()) k.add("hairBack/$it") }
+        AvaPal.HF_IDS[hf].let { if (it.isNotEmpty()) k.add("hairFront/$it") }
+        if (cov > 0) {
+            k.add("overall/" + AvaPal.CO_IDS[cov])
+        } else {
+            k.add("top/" + AvaPal.CT_IDS[ctop].ifEmpty { "Underwear" })
+            k.add("bottom/" + AvaPal.CB_IDS[cbot].ifEmpty { "Underwear" })
+        }
+        return k
+    }
 
     /** Troca de gênero com um visual-base bonito, mantendo pele, olhos e cor do cabelo. */
     fun applyGender(f: Boolean) {
@@ -102,14 +136,20 @@ class Avatar(
                     p[12].coerceIn(0, AvaPal.BEARD_N.size - 1)
                 ).also { av ->
                     // saves antigos (13 números) ficam com as cores originais; os novos trazem 9 números a mais
-                    for (k in 0 until CuteColor.SLOTS) {
+                    for (k in 0 until 9) {
                         if (13 + k < p.size) av.cc[k] = p[13 + k].coerceIn(-1, CuteColor.palette(k).size - 1)
                     }
                     // saves da Etapa 2 não têm cabelos: ficam com o da Mary
-                    val o = 13 + CuteColor.SLOTS
-                    if (o + 1 < p.size) {
-                        av.hb = p[o].coerceIn(0, AvaPal.HB_IDS.size - 1)
-                        av.hf = p[o + 1].coerceIn(0, AvaPal.HF_IDS.size - 1)
+                    if (23 < p.size) {
+                        av.hb = p[22].coerceIn(0, AvaPal.HB_IDS.size - 1)
+                        av.hf = p[23].coerceIn(0, AvaPal.HF_IDS.size - 1)
+                    }
+                    // saves da Etapa 3 não têm roupas novas: ficam com a blusa e a saia da Mary
+                    if (27 < p.size) {
+                        av.cc[9] = p[24].coerceIn(-1, CuteColor.palette(9).size - 1)
+                        av.ctop = p[25].coerceIn(0, AvaPal.CT_IDS.size - 1)
+                        av.cbot = p[26].coerceIn(0, AvaPal.CB_IDS.size - 1)
+                        av.cov = p[27].coerceIn(0, AvaPal.CO_IDS.size - 1)
                     }
                 }
             } catch (e: Exception) {

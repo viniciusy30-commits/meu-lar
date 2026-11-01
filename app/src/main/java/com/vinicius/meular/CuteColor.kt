@@ -20,7 +20,7 @@ import android.opengl.GLUtils
  * no começo de [CuteChar.frame]. Não mexe em malha, ossos nem animações.
  */
 object CuteColor {
-    const val SLOTS = 9
+    const val SLOTS = 10
     const val S_PELE = 0
     const val S_OLHOS = 1
     const val S_CABELO = 2
@@ -30,8 +30,9 @@ object CuteColor {
     const val S_SAIA = 6
     const val S_SANDALIA = 7
     const val S_TIRAS = 8
+    const val S_DETALHE_BAIXO = 9
 
-    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras")
+    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo")
 
     private fun pal(vararg hex: String): IntArray = IntArray(hex.size) { Color.parseColor(hex[it]) }
 
@@ -47,7 +48,7 @@ object CuteColor {
     )
     private val SHOE = pal("#FFFFFF", "#1E2230", "#E5484D", "#3E8EDE", "#7A4E32", "#F2A33A", "#EE6FA6", "#6B6F7A")
 
-    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE)
+    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH)
 
     /** Cores (ARGB) que o jogador pode escolher no slot. */
     fun palette(slot: Int): IntArray = PALS[slot.coerceIn(0, SLOTS - 1)]
@@ -75,7 +76,7 @@ object CuteColor {
 
     private val layers = arrayOf(
         Layer("textures.png", "recolor.png", "recolor_s.png", "recolor.txt"),
-        Layer("hair.png", "hair_recolor.png", "hair_recolor_s.png", "hair_recolor.txt")
+        Layer("extra.png", "extra_recolor.png", "extra_recolor_s.png", "extra_recolor.txt")
     )
 
     private val lock = Any()
@@ -176,6 +177,7 @@ object CuteColor {
         if (e[S_PONTAS] == null) e[S_PONTAS] = lighten(e[S_CABELO], 0.25f)
         if (e[S_DETALHE] == null) e[S_DETALHE] = lighten(e[S_BLUSA], 0.25f)
         if (e[S_TIRAS] == null) e[S_TIRAS] = e[S_SANDALIA]
+        if (e[S_DETALHE_BAIXO] == null) e[S_DETALHE_BAIXO] = lighten(e[S_SAIA], 0.25f)
         return e
     }
 

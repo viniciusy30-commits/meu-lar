@@ -48,9 +48,11 @@ object CuteChar {
         val bw: FloatArray,       // 4 por vértice
         val out: FloatArray,      // STRIDE por vértice (já com cor e UV; pos/normal são reescritos por quadro)
         val fb: FloatBuffer,
-        val ib: ShortBuffer
+        val ib: ShortBuffer,
+        val idx: ShortArray       // índices (cópia em array, para o corpo-base poder esconder triângulos)
     ) {
         var part: Part? = null
+        var hide: ShortArray? = null   // triângulos do corpo-base cobertos por esta peça (Etapa 4)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -69,8 +71,8 @@ object CuteChar {
     private var failed = false
     private var atlasTex = 0
     private var hairTex = 0
-    @Volatile private var hairBackKey: String? = "Flare"
-    @Volatile private var hairFrontKey: String? = "LongSweeps"
+    @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
+    private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall")
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -84,29 +86,48 @@ object CuteChar {
         rebuildActive()
     }
 
-    /** Etapa 3: cabelo traseiro e franja (ids do manifesto, ex. "Flare", "LongSweeps"; null = sem). */
-    fun setHair(back: String?, front: String?) {
-        hairBackKey = back
-        hairFrontKey = front
+    /** Etapas 3 e 4: peças escolhidas no criador (chaves "slot/id" de cabelo, blusa, calça/saia, vestido e roupa de baixo). */
+    fun setWear(keys: List<String>) {
+        wear = keys.toSet()
         rebuildActive()
     }
 
     private fun rebuildActive() {
         val bs = baseSkin ?: return
         val bp = bs.part ?: return        // GL ainda não pronto: o initGl chama de novo
+        val w = wear
         val act = ArrayList<Skin>()
         val parts = ArrayList<Part>()
-        parts.add(bp)
+        val hide = BooleanArray(bs.ni / 3)
+        var anyHide = false
         for ((k, s) in library) {
-            if (k.startsWith("hairBack/")) {
-                if (k != "hairBack/" + hairBackKey) continue
-            } else if (k.startsWith("hairFront/")) {
-                if (k != "hairFront/" + hairFrontKey) continue
-            } else if (k !in wanted) continue
+            val slot = k.substringBefore('/')
+            val on = if (w != null && slot in MANAGED) k in w else k in wanted
+            if (!on) continue
             val p = s.part ?: continue
             act.add(s)
             parts.add(p)
+            s.hide?.let { h ->
+                for (t in h) {
+                    val ti = t.toInt() and 0xFFFF
+                    if (ti < hide.size) { hide[ti] = true; anyHide = true }
+                }
+            }
         }
+        // corpo-base: sem os triângulos cobertos pelas roupas (a pele não atravessa o tecido)
+        var body = bp
+        if (anyHide) {
+            var keep = 0
+            for (h in hide) if (!h) keep++
+            val ib = ByteBuffer.allocateDirect(keep * 3 * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (t in hide.indices) {
+                if (hide[t]) continue
+                ib.put(bs.idx[t * 3]); ib.put(bs.idx[t * 3 + 1]); ib.put(bs.idx[t * 3 + 2])
+            }
+            ib.position(0)
+            body = Part(Mt.PLAIN, bs.fb, bs.nv, ib, keep * 3, bp.tex)
+        }
+        parts.add(0, body)
         cur = Active(act, Mesh(parts))
     }
 
@@ -126,7 +147,7 @@ object CuteChar {
                 for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
-                hairTex = texIds["hair.png"] ?: 0
+                hairTex = texIds["extra.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
             }
         } catch (e: Throwable) {
@@ -216,15 +237,22 @@ object CuteChar {
         return sk
     }
 
-    /** CUP1: "CUP1", nv, ni, flags (reservado), vértices (44 bytes), índices locais (uint16). */
+    /** CUP1: "CUP1", nv, ni, flags, vértices (44 bytes), índices locais (uint16) e, se flags&1, nHide + nHide ids (uint16) de triângulos do corpo cobertos. */
     private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin {
         val raw = am.open(path).use { it.readBytes() }
         val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
         require(b.get().toInt() == 'C'.code && b.get().toInt() == 'U'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
         val nv = b.int
         val ni = b.int
-        b.int // flags (reservado para esconder partes do corpo, etapa 4)
-        return readSkin(b, key, tex, nv, ni)
+        val flags = b.int  // bit 0: depois dos índices vem a lista de triângulos do corpo que esta peça cobre
+        val sk = readSkin(b, key, tex, nv, ni)
+        if (flags and 1 != 0) {
+            val nh = b.int
+            val h = ShortArray(nh)
+            for (i in 0 until nh) h[i] = b.short
+            sk.hide = h
+        }
+        return sk
     }
 
     /** nv vértices (pos, normal, uv, cor, ossos, pesos) e ni índices, a partir da posição atual do buffer. */
@@ -256,7 +284,7 @@ object CuteChar {
             it.put(idx)
             it.position(0)
         }
-        return Skin(key, tex, nv, ni, pos, nor, bi, bw, out, fb, ib)
+        return Skin(key, tex, nv, ni, pos, nor, bi, bw, out, fb, ib, idx)
     }
 
     /** Duração (s) do clip. */

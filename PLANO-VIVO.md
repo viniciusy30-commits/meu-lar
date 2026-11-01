@@ -103,4 +103,15 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - `Avatar`: 2 números novos no fim do save (hb, hf = índices em AvaPal.HB_IDS / HF_IDS); saves antigos ficam com o cabelo da Mary.
 - `Creator.kt`: partes "Cabelo atrás" e "Franja" (estilos) antes das cores.
 - Chapéu escondendo cabelo: fica para a Etapa 5 (chapéus). Cabelo atrás/frente são independentes.
-- PRÓXIMO PASSO: esperar o teste da Etapa 3; depois Etapa 4 (roupas).
+
+
+## Etapa 4 — Roupas (entregue, aguardando teste)
+- [x] 18 blusas + 15 calças/saias + 3 vestidos convertidos do pack por `ferramentas/etapa4_extra.py` (+ `clothes_lib.py`, `fbxr.py`, `fbxmesh.py`). Pesos de osso vêm dos clusters do FBX: conferido que Sweater e Skirt da Mary saem IDÊNTICOS (diferença 0). Sweater e Skirt continuam em `textures.png`.
+- Mapeamento nome do osso -> índice de 55 ossos em `clothes_lib.bone_index` (twists vão para o osso pai).
+- Atlas único `cute/extra.png` (2016x1344, tiles 224) com cabelos + roupas, máscaras `extra_recolor.png`/`extra_recolor_s.png`/`extra_recolor.txt`. Regiões: 1 cabelo (Cabelo/Pontas), 2 cima e vestidos (Blusa/Detalhe), 3 baixo (Saia/Detalhe baixo = slot novo nº 9). Cores "originais" das peças novas: cinza-claro (cima) e cinza-azulado (baixo), mudam pela paleta. `hair.png`/`hair_recolor*` viraram placeholders de 1 pixel (podem ser apagados do repositório).
+- CUP1 com flags&1: depois dos índices vem `nHide` + ids (uint16) de triângulos do corpo-base cobertos pela peça (distância < 1,5 e mesma orientação). `CuteChar.rebuildActive` monta o corpo sem esses triângulos.
+- Roupa de baixo: `top/Underwear` e `bottom/Underwear` (faixa e shorts curtos gerados do próprio corpo, 0,35 acima da pele), aparecem quando não há blusa/calça/vestido.
+- `Avatar`: salvos ctop, cbot, cov (índices em CT_IDS, CB_IDS, CO_IDS), cor do slot 9; formato: 13 antigos | 9 cores | hb hf | cor 9 | ctop cbot cov. `wearKeys()` decide as peças. `CuteChar.setWear` substitui `setHair`.
+- `Creator.kt`: partes Cabelo atrás, Franja, Blusa, Calça/saia, Vestido (estilos) e depois as cores.
+- Limites conhecidos: roupas largas (moletom, calça baggy) podem atravessar braço/perna em poses extremas do Walk; correção seria nos pesos da peça. Sapatos, luvas, chapéus, óculos e barba ficam para a Etapa 5.
+- PRÓXIMO PASSO: esperar o teste das Etapas 3 e 4; depois Etapa 5.

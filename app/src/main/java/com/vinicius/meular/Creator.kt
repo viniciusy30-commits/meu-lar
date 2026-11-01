@@ -13,8 +13,8 @@ import android.widget.TextView
  * Tela do personagem: mostra a Mary girando e deixa escolher as cores (Etapa 2):
  * uma fileira de partes (Pele, Olhos, Cabelo, Pontas, Blusa, Detalhe, Saia, Sandália, Tiras)
  * e, embaixo, as cores daquela parte (a primeira bolinha, "Original", volta à cor da Mary). Botão "Pronto" salva.
- * Etapa 3: as duas primeiras partes, "Cabelo atrás" e "Franja", escolhem o estilo (15 + 10 cabelos); as cores de
- * Cabelo e Pontas valem para qualquer estilo.
+ * Etapas 3 e 4: as cinco primeiras partes ("Cabelo atrás", "Franja", "Blusa", "Calça/saia", "Vestido") escolhem o estilo
+ * (15 + 10 cabelos, 19 blusas, 16 calças/saias, 3 vestidos); as cores valem para qualquer estilo. Vestido vale no lugar de blusa e calça.
  */
 class CreatorUi(
     ctx: Context,
@@ -31,8 +31,9 @@ class CreatorUi(
     private val chipRow = LinearLayout(ctx)
     private val swatchRow = LinearLayout(ctx)
     private val chips = ArrayList<TextView>()
-    private var slot = 0   // 0 = estilo do cabelo de trás, 1 = estilo da franja, 2.. = cor (slot - 2 de CuteColor)
-    private val NAMES = listOf("Cabelo atrás", "Franja") + CuteColor.SLOT_NAMES
+    private var slot = 0   // 0..4 = estilos (cabelo atrás, franja, blusa, calça/saia, vestido); 5.. = cor (slot - 5 de CuteColor)
+    private val STYLES = 5
+    private val NAMES = listOf("Cabelo atrás", "Franja", "Blusa", "Calça/saia", "Vestido") + CuteColor.SLOT_NAMES
 
     init {
         panel.orientation = LinearLayout.VERTICAL
@@ -90,11 +91,11 @@ class CreatorUi(
             chips[i].background = Ui.bg(if (i == slot) Pal.CORAL else Pal.CARD_HI, dpf(18f))
         }
         swatchRow.removeAllViews()
-        if (slot < 2) {
+        if (slot < STYLES) {
             styles()
             return
         }
-        val cur = st.avatar.cc[slot - 2]
+        val cur = st.avatar.cc[slot - STYLES]
 
         val orig = TextView(context)
         orig.text = "Original"
@@ -109,7 +110,7 @@ class CreatorUi(
         olp.rightMargin = dp(10)
         swatchRow.addView(orig, olp)
 
-        val pal = CuteColor.palette(slot - 2)
+        val pal = CuteColor.palette(slot - STYLES)
         for (i in pal.indices) {
             val v = View(context)
             val sel = i == cur
@@ -121,11 +122,11 @@ class CreatorUi(
         }
     }
 
-    /** Fileira de estilos de cabelo (nomes) para o slot 0 (atrás) ou 1 (franja). */
+    /** Fileira de estilos (nomes) para as partes 0..4. */
     private fun styles() {
-        val back = slot == 0
-        val names = if (back) AvaPal.HB_N else AvaPal.HF_N
-        val cur = if (back) st.avatar.hb else st.avatar.hf
+        val a = st.avatar
+        val names = when (slot) { 0 -> AvaPal.HB_N; 1 -> AvaPal.HF_N; 2 -> AvaPal.CT_N; 3 -> AvaPal.CB_N; else -> AvaPal.CO_N }
+        val cur = when (slot) { 0 -> a.hb; 1 -> a.hf; 2 -> a.ctop; 3 -> a.cbot; else -> a.cov }
         for (i in names.indices) {
             val t = TextView(context)
             t.text = names[i]
@@ -144,14 +145,14 @@ class CreatorUi(
 
     private fun pickStyle(i: Int) {
         val a = st.avatar
-        if (slot == 0) a.hb = i else a.hf = i
-        CuteChar.setHair(AvaPal.HB_IDS[a.hb].ifEmpty { null }, AvaPal.HF_IDS[a.hf].ifEmpty { null })
+        when (slot) { 0 -> a.hb = i; 1 -> a.hf = i; 2 -> a.ctop = i; 3 -> a.cbot = i; else -> a.cov = i }
+        CuteChar.setWear(a.wearKeys())
         st.save()
         refresh()
     }
 
     private fun pick(i: Int) {
-        st.avatar.cc[slot - 2] = i
+        st.avatar.cc[slot - STYLES] = i
         CuteColor.setColors(st.avatar.cc)
         refresh()
     }

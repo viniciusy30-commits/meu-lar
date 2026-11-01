@@ -1,3 +1,13 @@
+#id 2026-10-31-g
+#titulo Roupas novas (Etapa 4)
+- 18 blusas, 15 calças e saias e 3 vestidos/macacão do pack BoZo: camiseta, regata, moletom, jaquetas, blazer, uniforme marinheiro, jeans, legging, bermudas, saia jeans, saia plissada, vestido de verão, vestido elegante, macacão e outras
+- Na tela do personagem há as partes "Blusa", "Calça/saia" e "Vestido" para escolher o estilo. Vestido vale no lugar de blusa e calça
+- Cores: "Blusa" e "Detalhe" para cima; "Saia" e "Detalhe baixo" (cinto, botões, barra) para baixo; os vestidos usam Blusa e Detalhe
+- Quem fica sem blusa ou sem calça aparece com roupa de baixo discreta
+- A pele não atravessa mais o tecido: o corpo some por baixo da roupa
+- Os cabelos agora usam o mesmo atlas de cores das roupas
+- Animações (parada, andar, pulo) não mudaram
+
 #id 2026-10-31-f
 #titulo Cabelos novos (Etapa 3)
 - 15 cabelos de trás e 10 franjas do pack BoZo: raspado, chanel, liso longo, dreads, rabos, maria-chiquinhas, selvagem, punk, hime, wolf cut, moicano e outros
