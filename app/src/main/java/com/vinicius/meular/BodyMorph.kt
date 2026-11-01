@@ -73,6 +73,33 @@ object BodyMorph {
     private const val M_TRAP = 0.0f
     /** Altura extra do corpo masculino (multiplica a altura do criador). */
     const val M_ALTURA = 1.0f
+    /** Etapa 23: somas fixas (fração de 1, antes do ganho) ao rosto masculino, na ordem de FACE_NAMES: sobrancelha grossa, boca fina, cantos dos olhos para baixo. */
+    val M_FACE_ADD = floatArrayOf(0f, 0f, 0.45f, 0f, 0f, 0f, 0f, -0.15f, 0.8f, 0.35f, 0f, 0f, 0f)
+    /** Etapa 23: olhos menores no masculino: escala em X e Y em torno do centro de cada olho (1 = como antes). */
+    private const val EYE_SX = 0.80f
+    private const val EYE_SY = 0.68f
+    private const val EYE_CX = 4.08f
+    private const val EYE_CY = 164.1f
+    private const val EYE_R0 = 2.8f
+    private const val EYE_R1 = 5.6f
+    /** Encolhe a região dos olhos (globo e pálpebras) em [p] (xyz por vértice); só o corpo-base. Z não muda. */
+    fun maleEyes(p: FloatArray, nv: Int) {
+        for (v in 0 until nv) {
+            val x = p[v * 3]
+            val y = p[v * 3 + 1]
+            val z = p[v * 3 + 2]
+            if (z < 3f || y < 156f || y > 172f) continue
+            val sx = if (x < 0f) -1f else 1f
+            val dx = x - sx * EYE_CX
+            val dy = y - EYE_CY
+            val r = sqrt(dx * dx + dy * dy)
+            if (r >= EYE_R1) continue
+            val w = 1f - sm(EYE_R0, EYE_R1, r)
+            p[v * 3] = x - dx * (1f - EYE_SX) * w
+            p[v * 3 + 1] = y - dy * (1f - EYE_SY) * w
+        }
+    }
+
     /** Rosto: Masculinidade padrão do corpo masculino (somada ao controle, em fração de 1). */
     const val M_ROSTO = 1.0f
 

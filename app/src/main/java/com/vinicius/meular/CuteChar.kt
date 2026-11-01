@@ -31,7 +31,7 @@ object CuteChar {
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 0.96f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
-    private const val MALE_CLIPS = false
+    private const val MALE_CLIPS = true   // Etapa 23: parado e andar masculinos novos (clipes 4 e 5); correr continua o clipe 3
     // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
     // Graus que o braço inteiro (ombro para baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; 12 encosta no quadril.
     private const val MALE_ARM_IN = 4f
@@ -137,6 +137,7 @@ object CuteChar {
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
             if (masc && i == 0) v = (v + BodyMorph.M_ROSTO).coerceAtMost(1.5f)   // Etapa 16: como o pack (BodyType 100), só a Masculinidade
+            if (masc && i < BodyMorph.M_FACE_ADD.size) v = (v + BodyMorph.M_FACE_ADD[i]).coerceIn(-1.5f, 1.5f)   // Etapa 23: boca fina, olhar sério
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
@@ -340,7 +341,7 @@ object CuteChar {
         if (isBase && morphIdx.isNotEmpty()) {
             var any = false
             for (c in fp.indices) if (c < morphIdx.size && fp[c] != 0f) { any = true; break }
-            if (any) {
+            if (any || mascV) {
                 if (faceTmp.size != s.pos0.size) faceTmp = FloatArray(s.pos0.size)
                 System.arraycopy(s.pos0, 0, faceTmp, 0, s.pos0.size)
                 for (c in morphIdx.indices) {
@@ -355,6 +356,7 @@ object CuteChar {
                         faceTmp[v + 2] += dl[k * 3 + 2] * w
                     }
                 }
+                if (mascV) BodyMorph.maleEyes(faceTmp, s.nv)   // Etapa 23: olhos menores e mais sérios
                 src = faceTmp
             }
         }
@@ -472,7 +474,7 @@ object CuteChar {
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
         val c0 = clip.coerceIn(0, clipData.size - 1)
-        val c = if (MALE_CLIPS && mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK || c0 == RUN)) (if (c0 == IDLE) 4 else if (c0 == WALK) 5 else 6) else c0
+        val c = if (MALE_CLIPS && mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = clipFrames[c]
         val len = clipLen[c].coerceAtLeast(0.001f)
