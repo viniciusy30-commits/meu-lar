@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.graphics.BlurMaskFilter
 import android.graphics.LinearGradient
 import android.graphics.Shader
 import android.os.SystemClock
@@ -53,6 +54,10 @@ object Tn {
     val GHOST = Tone(c("#3E3262"), c("#352A57"), c("#1C1431"))
     val CARD = Tone(c("#43376A"), c("#372B58"), c("#190F2E"))
     val PANEL = Tone(c("#3A2D5E"), c("#2A2046"), c("#120B22"))
+    val SIMS_BLUE = Tone(c("#4FC3F0"), c("#1B7FB8"), c("#0E5A87"))
+    val SIMS_PURPLE = Tone(c("#A45CE0"), c("#6A2FA8"), c("#46207A"))
+    val SIMS_GREEN = Tone(c("#9BE23A"), c("#5BA81C"), c("#3C7A10"))
+    val GLASS = Tone(c("#7A8794"), c("#4E5A66"), c("#2E363E"))
 }
 
 object Ui {
@@ -115,6 +120,64 @@ object Ui {
         return g
     }
 
+    /** Segmento da barra estilo Sims: degradê vertical + brilho no topo, cantos arredondados só nas pontas. */
+    fun segment(t: Tone, rad: Float, left: Boolean, right: Boolean): Drawable {
+        val r = floatArrayOf(
+            if (left) rad else 0f, if (left) rad else 0f,
+            if (right) rad else 0f, if (right) rad else 0f,
+            if (right) rad else 0f, if (right) rad else 0f,
+            if (left) rad else 0f, if (left) rad else 0f)
+        val body = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(t.top, t.bot))
+        body.cornerRadii = r
+        val shine = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x66FFFFFF, 0x00FFFFFF, 0x00FFFFFF))
+        shine.cornerRadii = r
+        return LayerDrawable(arrayOf(body, shine))
+    }
+
+    /** Moldura branca da barra (com sombra embaixo). */
+    fun barFrame(rad: Float, ledge: Float): Drawable {
+        val sh = GradientDrawable(); sh.setColor(0x55000000); sh.cornerRadius = rad
+        val fr = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFFFFFFFF.toInt(), 0xFFCFE3EE.toInt()))
+        fr.cornerRadius = rad
+        val ld = LayerDrawable(arrayOf(sh, fr))
+        ld.setLayerInset(1, 0, 0, 0, ledge.toInt())
+        return ld
+    }
+
+    /** Botão redondo de vidro (como zoom/câmera do Sims): fundo translúcido + aro branco. */
+    fun glass(strokeW: Float): GradientDrawable {
+        val g = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xAA8E9AA6.toInt(), 0xAA505C68.toInt()))
+        g.shape = GradientDrawable.OVAL
+        g.setStroke(strokeW.toInt().coerceAtLeast(1), 0xFFFFFFFF.toInt())
+        return g
+    }
+
+    private fun mix(a: Int, b: Int, t: Float): Int {
+        fun ch(x: Int, y: Int) = (x + (y - x) * t).toInt().coerceIn(0, 255)
+        return Color.rgb(ch(Color.red(a), Color.red(b)), ch(Color.green(a), Color.green(b)), ch(Color.blue(a), Color.blue(b)))
+    }
+
+    /**
+     * Vidro translúcido (glassmorphism): corpo com degradê transparente, reflexo no topo e
+     * borda fina de luz. tint = cor do vidro; aTop/aBot = opacidade (0..255) em cima/embaixo.
+     */
+    fun frost(rad: Float, tint: Int, aTop: Int, aBot: Int, line: Float, oval: Boolean = false, edge: Int = 0xAAFFFFFF.toInt()): Drawable {
+        val t = tint and 0xFFFFFF
+        val hi = mix(t, Color.WHITE, 0.28f)
+        val body = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf((aTop shl 24) or hi, (aBot shl 24) or t))
+        val shine = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x55FFFFFF, 0x10FFFFFF, 0x00FFFFFF))
+        val ring = GradientDrawable()
+        ring.setColor(0)
+        ring.setStroke(line.toInt().coerceAtLeast(1), edge)
+        for (g in arrayOf(body, shine, ring)) {
+            if (oval) g.shape = GradientDrawable.OVAL else g.cornerRadius = rad
+        }
+        val ld = LayerDrawable(arrayOf(body, shine, ring))
+        val i = line.toInt().coerceAtLeast(1)
+        ld.setLayerInset(1, i, i, i, i)
+        return ld
+    }
+
     val BOLD: Typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
     val MED: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 }
@@ -146,6 +209,10 @@ object Ic {
     const val HAT = 123
     const val CHEV = 124
     const val SPARK = 125
+    const val CART = 126
+    const val DOTS = 127
+    const val PLUS = 128
+    const val CASE = 129
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -153,12 +220,30 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rf = RectF()
     private val path = Path()
+    var soft = false
+    var glow = false
+    var glowColor = 0xAA9AD8FF.toInt()
+    private var glowPass = false
+    private val softShader: Shader = LinearGradient(0f, 8f, 0f, 96f, intArrayOf(0xFFFFFFFF.toInt(), 0xFFDCEEFF.toInt(), 0xFFA9CCF5.toInt()), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+    private var blur: BlurMaskFilter? = null
 
     fun set(k: Int) { kind = k; invalidate() }
 
-    private fun fill(c: Int) { p.style = Paint.Style.FILL; p.color = c }
+    /** Ícone "moderno": degradê claro + brilho suave por trás. */
+    fun fancy(glowTint: Int = 0xAA9AD8FF.toInt()): IconView {
+        soft = true; glow = true; glowColor = glowTint
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+        return this
+    }
+
+    private fun paintColor(c: Int) {
+        if (glowPass) { p.shader = null; p.color = glowColor }
+        else if (soft && c == Color.WHITE) { p.shader = softShader; p.color = Color.WHITE }
+        else { p.shader = null; p.color = c }
+    }
+    private fun fill(c: Int) { p.style = Paint.Style.FILL; paintColor(c) }
     private fun stroke(c: Int, w: Float) {
-        p.style = Paint.Style.STROKE; p.color = c; p.strokeWidth = w
+        p.style = Paint.Style.STROKE; paintColor(c); p.strokeWidth = w
         p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
     }
     private fun rr(c: Canvas, l: Float, t: Float, r: Float, b: Float, rad: Float) {
@@ -174,13 +259,21 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
     override fun onDraw(c: Canvas) {
         val aw = width - paddingLeft - paddingRight
         val ah = height - paddingTop - paddingBottom
-        val s = min(aw, ah) / 100f
+        var s = min(aw, ah) / 100f
         if (s <= 0f) return
+        if (glow) s *= 0.84f
         c.save()
         c.translate(paddingLeft + (aw - 100f * s) / 2f, paddingTop + (ah - 100f * s) / 2f)
         c.scale(s, s)
         p.strokeCap = Paint.Cap.BUTT
+        if (glow) {
+            if (blur == null) blur = BlurMaskFilter(3.2f * resources.displayMetrics.density, BlurMaskFilter.Blur.NORMAL)
+            glowPass = true; p.maskFilter = blur
+            paintIcon(c)
+            glowPass = false; p.maskFilter = null
+        }
         paintIcon(c)
+        p.shader = null
         c.restore()
     }
 
@@ -316,6 +409,29 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(w); path.reset(); path.moveTo(50f, 2f); path.quadTo(54f, 46f, 98f, 50f); path.quadTo(54f, 54f, 50f, 98f)
                 path.quadTo(46f, 54f, 2f, 50f); path.quadTo(46f, 46f, 50f, 2f); path.close(); c.drawPath(path, p)
             }
+            Ic.CART -> {
+                // carrinho detalhado: alça, cesto com grade, rodinhas
+                stroke(w, 8f); path.reset(); path.moveTo(4f, 14f); path.lineTo(20f, 14f); path.lineTo(32f, 64f); path.lineTo(80f, 64f); c.drawPath(path, p)
+                fill(w); poly(c, 24f, 28f, 94f, 28f, 84f, 56f, 32f, 56f)
+                stroke(a, 4f); c.drawLine(44f, 30f, 46f, 54f, p); c.drawLine(60f, 30f, 60f, 54f, p); c.drawLine(76f, 30f, 74f, 54f, p)
+                c.drawLine(28f, 42f, 88f, 42f, p)
+                fill(w); c.drawCircle(40f, 82f, 8f, p); c.drawCircle(72f, 82f, 8f, p)
+                fill(a); c.drawCircle(40f, 82f, 3f, p); c.drawCircle(72f, 82f, 3f, p)
+            }
+            Ic.DOTS -> {
+                fill(w); c.drawCircle(18f, 50f, 10f, p); c.drawCircle(50f, 50f, 10f, p); c.drawCircle(82f, 50f, 10f, p)
+            }
+            Ic.PLUS -> {
+                stroke(w, 16f); c.drawLine(50f, 18f, 50f, 82f, p); c.drawLine(18f, 50f, 82f, 50f, p)
+            }
+            Ic.CASE -> {
+                // maleta detalhada: alça, corpo, faixa e fecho dourado
+                stroke(w, 8f); rr(c, 33f, 12f, 67f, 34f, 9f)
+                fill(w); rr(c, 8f, 28f, 92f, 86f, 13f)
+                fill(a); rr(c, 8f, 52f, 92f, 57f, 0f)
+                fill(Pal.GOLD); rr(c, 40f, 46f, 60f, 68f, 5f)
+                fill(Color.parseColor("#B8770A")); rr(c, 47f, 54f, 53f, 62f, 2f)
+            }
             Ic.REFRESH -> {
                 stroke(w, 10f); rf.set(18f, 18f, 82f, 82f); c.drawArc(rf, -20f, 290f, false, p)
                 fill(w); poly(c, 66f, 6f, 90f, 30f, 60f, 34f)
@@ -407,7 +523,7 @@ class PillBar(ctx: Context) : View(ctx) {
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         super.onSizeChanged(w, h, ow, oh)
-        fillShader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF8CF2C6.toInt(), 0xFF2FBF86.toInt()), null, Shader.TileMode.CLAMP)
+        fillShader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF9BFBE0.toInt(), 0xFF3FC8F0.toInt()), null, Shader.TileMode.CLAMP)
     }
 
     override fun onDraw(c: Canvas) {
@@ -416,7 +532,7 @@ class PillBar(ctx: Context) : View(ctx) {
         shown += (value - shown) * 0.25f
         p.shader = null
         p.style = Paint.Style.FILL
-        p.color = 0xFF120B22.toInt()
+        p.color = 0x66101828
         rf.set(0f, 0f, w, h); c.drawRoundRect(rf, h / 2, h / 2, p)
         val ins = 1.5f * d
         if (shown > 0.01f) {
@@ -428,7 +544,7 @@ class PillBar(ctx: Context) : View(ctx) {
         }
         p.style = Paint.Style.STROKE
         p.strokeWidth = ins
-        p.color = Pal.LINE
+        p.color = 0x88FFFFFF.toInt()
         rf.set(ins / 2, ins / 2, w - ins / 2, h - ins / 2); c.drawRoundRect(rf, h / 2, h / 2, p)
         if (kotlin.math.abs(value - shown) > 0.004f) postInvalidateOnAnimation()
     }
