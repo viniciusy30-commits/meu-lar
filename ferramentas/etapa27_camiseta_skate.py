@@ -117,6 +117,24 @@ P[:, 0] = np.where(np.abs(P[:, 0]) < 1e-6, 0, P[:, 0]) * 1.0
 # dobras suaves e discretas
 fold = 0.6 * np.sin(th * 6 + 0.7) * sm(126, 92, yy) * (1 - ws)
 P[:, 0] += np.cos(th) * fold; P[:, 2] += np.sin(th) * fold
+# Etapa 31: sem dobras no ombro: suavização (Laplaciano) só na junção ombro/manga, preservando gola, barra e boca da manga
+_k = np.round(P, 3); _u, _inv = np.unique(_k, axis=0, return_inverse=True); _inv = _inv.ravel(); _nu = len(_u)
+_nb = [set() for _ in range(_nu)]
+for a_, b_, c_ in T:
+    for u_, v_ in ((a_, b_), (b_, c_), (c_, a_)):
+        _nb[_inv[u_]].add(_inv[v_]); _nb[_inv[v_]].add(_inv[u_])
+_ax, _t, _pr, _r = frame(P0)
+_msk_u = np.zeros(_nu)
+_mv = sm(112, 124, P0[:, 1]) * sm(5, 11, _ax) * (1 - sm(18, 30, _t)) * (1 - sm(146, 152, P0[:, 1]))
+np.maximum.at(_msk_u, _inv, _mv)
+_Pu = np.zeros((_nu, 3)); _Pu[_inv] = P
+for _ in range(10):
+    _new = _Pu.copy()
+    for i_ in range(_nu):
+        if _msk_u[i_] > 0 and _nb[i_]:
+            _new[i_] = _Pu[i_] + 0.6 * _msk_u[i_] * (_Pu[list(_nb[i_])].mean(0) - _Pu[i_])
+    _Pu = _new
+P = _Pu[_inv]
 # normais suaves (soldando vértices de mesma posição)
 key = np.round(P, 3); _, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
 fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
@@ -141,6 +159,13 @@ for f in ('bi', 'bw'): r2[f] = r[f][src]
 r2['pos'] = Pn; r2['nor'] = Nn; r2['uv'] = UVn.astype(np.float32); r2['col'] = 255
 idx2 = Tn.astype('<u2').ravel()
 os.makedirs(OUT, exist_ok=True)
+_bb = open(os.path.join(SRC, 'base.bin'), 'rb').read(); _nvb, _nib = struct.unpack_from('<2i', _bb, 4)
+_bp = np.frombuffer(_bb, REC if False else np.dtype([('pos', '<f4', 3), ('r', 'u1', 32)]), _nvb, 20)['pos'].astype(float)
+_bt = np.frombuffer(_bb, '<u2', _nib, 20 + _nvb * 44).astype(int).reshape(-1, 3)
+_cen = _bp[_bt].mean(1)
+_keep = np.array([not (abs(_cen[h_, 0]) > 13 and _cen[h_, 1] < 131) for h_ in hide.astype(int)])
+print('triangulos do corpo liberados no sovaco/lado:', int((~_keep).sum()))
+hide = hide[_keep]
 open(os.path.join(OUT, 'p_top_skatetee.bin'), 'wb').write(b'CUP1' + struct.pack('<3i', len(r2), len(idx2), 1) + r2.tobytes() + idx2.tobytes() + struct.pack('<i', len(hide)) + hide.tobytes())
 print('verts', len(r2), 'tris', len(Tn), 'finite', bool(np.isfinite(Pn).all()))
 

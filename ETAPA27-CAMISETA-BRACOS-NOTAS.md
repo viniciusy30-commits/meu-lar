@@ -35,3 +35,7 @@ Sem compilador/teste no aparelho aqui: o build é a prova final.
 - Causa do "inchado": o busto do corpo (feminino já nasce com busto) era aplicado também na camiseta larga e formava uma bola na frente. Agora a camiseta usa uma cúpula bem mais larga e suave (raio x1,8, altura x0,5, sem espalhar o tecido): cai reta, sem apertar o peito. Folga contra o corpo conferida (>=3 cm no busto padrão; encosta só no busto máximo).
 - Mangas menos em balão: abertura mais contida (sk 1,7; sf 0,55), ainda larga e solta.
 - Arquivos: `BodyMorph.kt` (parâmetro loose), `CuteChar.kt`, `p_top_skatetee.bin`, `ferramentas/etapa27_camiseta_skate.py`.
+
+## Ajuste 32
+- Pele do pescoço vazando em todas as roupas: a gola das blusas/vestidos seguia os ossos da coluna e o pescoço do corpo seguia os do pescoço/cabeça; ao mexer, a pele aparecia. Agora os pesos da gola (y > 139) são misturados com os do corpo (`ferramentas/etapa31_pescoco.py`, em todos os `p_top_*` e `p_overall_*`).
+- Camiseta larga: ombro suavizado (sem as dobras na junção ombro/manga) e 45 triângulos do corpo no sovaco deixam de ser escondidos (a pele aparece em vez de buraco).
