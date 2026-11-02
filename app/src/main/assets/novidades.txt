@@ -1,3 +1,8 @@
+#id 2026-11-02-b
+#titulo Personagem pronto: Zero YAM
+- Na tela Base do criador, abaixo de Masculino/Feminino, aparece a nova seção "Personagens prontos"
+- Zero YAM: base masculina careca, sem ajustes de corpo e rosto, camiseta e calça social, descalço, olhos vermelho-escuros. Depois de escolher, dá para trocar qualquer coisa
+
 #id 2026-11-02-a
 #titulo Visual novo: menus e HUD com cara de jogo
 - Botões redondinhos e "gordinhos", com brilho e sombra embaixo, em cores alegres (azul, verde, rosa, lilás, amarelo)

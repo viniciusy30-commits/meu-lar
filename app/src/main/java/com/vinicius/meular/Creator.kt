@@ -494,7 +494,7 @@ class CreatorUi(
     private fun baseChoice() {
         val av = st.avatar
         val info = TextView(context)
-        info.text = "Escolha a base e monte seu personagem do zero. Trocar a base apaga roupas, cabelo e ajustes (mantém pele e olhos)."
+        info.text = "Escolha a base e monte seu personagem do zero, ou escolha um personagem pronto abaixo. Trocar a base ou o personagem apaga roupas, cabelo e ajustes (mantém a pele)."
         info.textSize = 12f
         info.setTextColor(Pal.SUB)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
@@ -517,6 +517,39 @@ class CreatorUi(
                 refresh(true)
             }
             body.addView(t, LinearLayout.LayoutParams(-1, dp(64)).also { it.topMargin = dp(12); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        }
+        // Etapa 37: personagens prontos, à parte das bases
+        val head = TextView(context)
+        head.text = "Personagens prontos"
+        head.textSize = 14f
+        head.typeface = Ui.BOLD
+        head.setTextColor(Pal.SUB)
+        body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(20); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        for (i in AvaPal.PRESET_N.indices) {
+            val card = LinearLayout(context)
+            card.orientation = LinearLayout.VERTICAL
+            card.setPadding(dp(14), dp(10), dp(14), dp(14))
+            card.background = Ui.chunky(Tn.GHOST, dpf(22f), dpf(4f), false)
+            val nm = TextView(context)
+            nm.text = "\u2605  " + AvaPal.PRESET_N[i]
+            nm.textSize = 17f
+            nm.typeface = Ui.BOLD
+            nm.setTextColor(Pal.SUB)
+            card.addView(nm, LinearLayout.LayoutParams(-1, -2))
+            val ds = TextView(context)
+            ds.text = AvaPal.PRESET_D[i]
+            ds.textSize = 12f
+            ds.setTextColor(Pal.SUB)
+            card.addView(ds, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(2) })
+            card.setOnClickListener {
+                av.applyPreset(i)
+                CuteColor.setColors(av.cc)
+                CuteChar.setWear(av.wearKeys())
+                CuteChar.setShape(av.bs, av.fs, av.masc)
+                st.save()
+                refresh(true)
+            }
+            body.addView(card, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         }
     }
 

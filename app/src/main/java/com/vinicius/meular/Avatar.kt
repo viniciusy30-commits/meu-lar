@@ -70,6 +70,10 @@ object AvaPal {
     val HA_IDS = listOf("", "Horns", "AlienAntenna")
     val HA_N = listOf("Sem", "Chifres", "Antenas")
 
+    /** Etapa 37: personagens prontos da tela Base (Avatar.applyPreset). */
+    val PRESET_N = listOf("Zero YAM")
+    val PRESET_D = listOf("Base masculina careca, sem ajustes de corpo e rosto, camiseta e calça social, descalço, olhos vermelhos")
+
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano", "Repartido volumoso")
 
@@ -154,6 +158,23 @@ class Avatar(
         for (i in cc.indices) cc[i] = -1
         cc[0] = skinC; cc[1] = eyeC
         if (m) cc[12] = 0   // lábios masculinos: tom natural discreto; feminino fica com o coral original (e pode trocar)
+    }
+
+    /**
+     * Etapa 37: personagem pronto (tela Base > Personagens prontos). Recomeça do zero como a base e aplica o visual do personagem.
+     * 0 = Zero YAM (do .sim do Sims 3 "ZeroSliderBase": homem adulto, sem cabelo, todos os controles em zero, roupa do dia a dia:
+     * camiseta de manga longa + calça social casual, descalço, olhos vermelho-escuros). Mantém a pele que a pessoa já escolheu.
+     */
+    fun applyPreset(id: Int) {
+        when (id) {
+            0 -> {
+                applyBase(true)
+                hb = 0; hf = 0                  // careca (sem cabelo atrás nem franja)
+                ctop = 2; cbot = 11; cov = 0    // Camiseta + Calça social
+                cfeet = 0; cbrd = 0             // descalço, sem barba
+                cc[1] = 6                       // olhos: vermelho-escuro do original (rosa-avermelhado da paleta)
+            }
+        }
     }
 
     /** Troca de gênero com um visual-base bonito, mantendo pele, olhos e cor do cabelo. */
