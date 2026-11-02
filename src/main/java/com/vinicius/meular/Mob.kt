@@ -1,5 +1,5 @@
 package com.vinicius.meular
-// versao etapa38-fix2 (sem comentarios de bloco; se esta linha aparece no GitHub, este zip foi aplicado)
+// versao etapa38-fix3 (sem comentarios de bloco; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
