@@ -38,4 +38,4 @@ Sem compilador/teste no aparelho aqui: o build é a prova final.
 
 ## Ajuste 32
 - Pele do pescoço vazando em todas as roupas: a gola das blusas/vestidos seguia os ossos da coluna e o pescoço do corpo seguia os do pescoço/cabeça; ao mexer, a pele aparecia. Agora os pesos da gola (y > 139) são misturados com os do corpo (`ferramentas/etapa31_pescoco.py`, em todos os `p_top_*` e `p_overall_*`).
-- Camiseta larga: ombro suavizado (sem as dobras na junção ombro/manga) e 45 triângulos do corpo no sovaco deixam de ser escondidos (a pele aparece em vez de buraco).
+- Camiseta larga: ombro suavizado (sem as dobras na junção ombro/manga). Sovaco: a parte de baixo da manga agora segue mais o tronco (variável GUS no script), então o tecido não amassa nem abre embaixo do braço no parado/andar/correr (conferido com os clipes reais do base.bin). Triângulos do corpo escondidos: iguais aos originais.

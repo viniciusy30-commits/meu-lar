@@ -58,14 +58,18 @@ r, idx, fl, hide = load('top_shirt')
 P0 = r['pos'].astype(float)
 P = deform(P0); T = idx.reshape(-1, 3).astype(int)
 # pesos: a manga inteira segue só o osso do braço (10 = upperarm_l, 14 = upperarm_r)
-ws = sleeve_w(P0); BI = r['bi'].astype(int); BW = r['bw'].astype(float) / 255.0
+ws = sleeve_w(P0)
+_ax0, _t0, _pr0, _r0 = frame(P0)
+GUS = float(os.environ.get('GUS', '0.75'))
+wsw = ws * (1 - GUS * sm(0.5, 4.0, -_pr0[:, 1]) * (1 - sm(14, 26, _t0)) * sm(-2, 4, _t0))   # Etapa 32: sovaco acompanha o tronco
+BI = r['bi'].astype(int); BW = r['bw'].astype(float) / 255.0
 BI2 = BI.copy(); BW2 = BW.copy()
-for v in np.where(ws > 0)[0]:
+for v in np.where(wsw > 0)[0]:
     ub = 10 if P0[v, 0] > 0 else 14
-    ids = list(BI[v]); w = list(BW[v] * (1 - ws[v]))
-    if ub in ids: w[ids.index(ub)] += ws[v]
+    ids = list(BI[v]); w = list(BW[v] * (1 - wsw[v]))
+    if ub in ids: w[ids.index(ub)] += wsw[v]
     else:
-        k = int(np.argmin(w)); ids[k] = ub; w[k] = ws[v]
+        k = int(np.argmin(w)); ids[k] = ub; w[k] = wsw[v]
     w = np.array(w); w /= w.sum(); BI2[v] = ids; BW2[v] = w
 r['bi'] = BI2.astype(np.uint8)
 q = np.round(BW2 * 255).astype(int); q[np.arange(len(q)), q.argmax(1)] += 255 - q.sum(1); r['bw'] = q.astype(np.uint8)
@@ -159,13 +163,6 @@ for f in ('bi', 'bw'): r2[f] = r[f][src]
 r2['pos'] = Pn; r2['nor'] = Nn; r2['uv'] = UVn.astype(np.float32); r2['col'] = 255
 idx2 = Tn.astype('<u2').ravel()
 os.makedirs(OUT, exist_ok=True)
-_bb = open(os.path.join(SRC, 'base.bin'), 'rb').read(); _nvb, _nib = struct.unpack_from('<2i', _bb, 4)
-_bp = np.frombuffer(_bb, REC if False else np.dtype([('pos', '<f4', 3), ('r', 'u1', 32)]), _nvb, 20)['pos'].astype(float)
-_bt = np.frombuffer(_bb, '<u2', _nib, 20 + _nvb * 44).astype(int).reshape(-1, 3)
-_cen = _bp[_bt].mean(1)
-_keep = np.array([not (abs(_cen[h_, 0]) > 13 and _cen[h_, 1] < 131) for h_ in hide.astype(int)])
-print('triangulos do corpo liberados no sovaco/lado:', int((~_keep).sum()))
-hide = hide[_keep]
 open(os.path.join(OUT, 'p_top_skatetee.bin'), 'wb').write(b'CUP1' + struct.pack('<3i', len(r2), len(idx2), 1) + r2.tobytes() + idx2.tobytes() + struct.pack('<i', len(hide)) + hide.tobytes())
 print('verts', len(r2), 'tris', len(Tn), 'finite', bool(np.isfinite(Pn).all()))
 
