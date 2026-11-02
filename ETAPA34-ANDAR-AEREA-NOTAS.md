@@ -1,0 +1,11 @@
+# Etapa 34 — andar na vista aérea (estilo The Sims)
+- Antes: a vista aérea desenhava um boneco separado que andava sozinho até uma cadeira, sem relação com o personagem da câmera de perto.
+- Agora: nas duas câmeras o personagem é o mesmo (`px`, `pz`, `pYaw` do `Renderer3D`). Trocar de câmera não muda ele de lugar.
+- Vista aérea: toque no chão (sem arrastar) e o personagem anda até lá, desviando de móveis e paredes (grade de 25 cm, 8 vizinhos, depois alisada em retas). Trecho longo = corre. Aparece um anel verde no destino.
+- Tocar fora do alcance leva ao ponto livre alcançável mais próximo. Se o personagem estiver no quintal, entra pela porta.
+- Arrastar em área vazia continua girando a câmera; tocar num móvel continua selecionando; arrastar móvel selecionado continua movendo ele.
+- Voltar para a câmera de perto: câmera fica atrás do personagem, olhando para onde ele está virado.
+- Mexer no analógico (câmera de perto) cancela a caminhada.
+- Arquivos: `Renderer3D.kt` (caminho, desenho do jogador na aérea, `drawHouseAvatar` removido), `GameView.kt` (toque no chão, troca de câmera), `MainActivity.kt` (texto do aviso).
+- Não compilado aqui (sem Kotlin/Gradle no ambiente): testar no aparelho.
+- Limite conhecido: tocar num tapete seleciona o tapete (como já era), então para andar por cima dele toque ao lado.

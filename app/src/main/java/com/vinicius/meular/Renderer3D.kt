@@ -86,13 +86,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var cfy = 1.0f
     private var avMesh: Mesh? = null
     private var stageM: Mesh? = null
-    private var avX = Float.NaN
-    private var avZ = 0f
-    private var avTX = 0f
-    private var avTZ = 0f
-    private var avYaw = 0f
-    private var avFrame = 0
-    private var avMoving = false
+    // Etapa 34: na vista aérea o jogador é o MESMO personagem da câmera de perto (px, pz, pYaw); toque no chão = andar até lá
+    @Volatile private var walkReq: FloatArray? = null
+    @Volatile private var stopReq = false
+    private var path: ArrayList<FloatArray>? = null
+    private var markX = Float.NaN
+    private var markZ = Float.NaN
     private val STX = -60f
     private val STZ = -60f
 
@@ -336,6 +335,169 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         return true
     }
 
+    /** Vista aérea: manda o personagem andar até o ponto (x, z) do chão (chamado pela thread de toque). */
+    fun walkTo(x: Float, z: Float) { walkReq = floatArrayOf(x, z) }
+
+    /** Cancela a caminhada em andamento. */
+    fun stopWalk() { stopReq = true }
+
+    /** Ao voltar para a câmera de perto, a câmera fica atrás do personagem, olhando para onde ele está virado. */
+    fun faceCameraBehindPlayer() {
+        fyaw = (Math.PI - Math.toRadians(pYaw.toDouble())).toFloat()
+        fpitch = -0.06f
+    }
+
+    /** Ponto bloqueado para o personagem (parede, móvel, fora da casa/porta); sem a exceção "já estava dentro" de [walkable]. */
+    private fun blockedAt(x: Float, z: Float): Boolean {
+        val gw = st.gw.toFloat()
+        val gh = st.gh.toFloat()
+        val inFoot = x > -0.45f && x < gw + 0.45f && z > -0.45f && z < gh + 0.45f
+        if (inFoot) {
+            val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
+            val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
+            if (!ins && !door) return true
+        } else return true
+        for (o in st.items) {
+            if (o.type == Type.RUG) continue
+            if (inside(o, x, z)) return true
+        }
+        return false
+    }
+
+    private fun clearLine(ax: Float, az: Float, bx: Float, bz: Float): Boolean {
+        val d = kotlin.math.hypot(bx - ax, bz - az)
+        val n = maxOf(1, kotlin.math.ceil(d / 0.1f).toInt())
+        for (k in 1..n) {
+            val t = k.toFloat() / n
+            if (blockedAt(ax + (bx - ax) * t, az + (bz - az) * t)) return false
+        }
+        return true
+    }
+
+    /** Acha um caminho até o ponto livre alcançável mais perto de (tx, tz) (grade de 25 cm, 8 vizinhos, depois alisa em linhas retas). */
+    private fun planPath(tx: Float, tz: Float): ArrayList<FloatArray>? {
+        val gw = st.gw.toFloat()
+        val gh = st.gh.toFloat()
+        val res = 0.25f
+        val x0 = -0.5f
+        val z0 = -0.5f
+        val nx = ((gw + 1f) / res).toInt() + 1
+        val nz = ((gh + 1.5f) / res).toInt() + 1
+        val pre = ArrayList<FloatArray>()
+        var sx = px
+        var sz = pz
+        var si = ((sx - x0) / res + 0.5f).toInt()
+        var sj = ((sz - z0) / res + 0.5f).toInt()
+        if (si !in 0 until nx || sj !in 0 until nz) {
+            // está no quintal: entra pela porta e segue de lá
+            pre.add(floatArrayOf(gw / 2f, gh + 0.5f))
+            sx = gw / 2f; sz = gh - 0.6f
+            pre.add(floatArrayOf(sx, sz))
+            si = ((sx - x0) / res + 0.5f).toInt()
+            sj = ((sz - z0) / res + 0.5f).toInt()
+        }
+        val blocked = BooleanArray(nx * nz) { blockedAt(x0 + (it % nx) * res, z0 + (it / nx) * res) }
+        val start = sj * nx + si
+        val parent = IntArray(nx * nz) { -2 }
+        val queue = IntArray(nx * nz)
+        var qh = 0
+        var qt = 0
+        parent[start] = -1
+        queue[qt++] = start
+        var best = start
+        var bd = Float.MAX_VALUE
+        while (qh < qt) {
+            val c = queue[qh++]
+            val ci = c % nx
+            val cj = c / nx
+            val dx = x0 + ci * res - tx
+            val dz = z0 + cj * res - tz
+            val d = dx * dx + dz * dz
+            if (d < bd) { bd = d; best = c }
+            for (oj in -1..1) for (oi in -1..1) {
+                if (oi == 0 && oj == 0) continue
+                val ni = ci + oi
+                val nj = cj + oj
+                if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue
+                val n = nj * nx + ni
+                if (parent[n] != -2 || blocked[n]) continue
+                if (oi != 0 && oj != 0 && (blocked[cj * nx + ni] || blocked[nj * nx + ci])) continue  // não corta quina
+                parent[n] = c
+                queue[qt++] = n
+            }
+        }
+        if (best == start && pre.isEmpty()) return null
+        val pts = ArrayList<FloatArray>()
+        var c = best
+        while (c != -1 && c != start) {
+            pts.add(floatArrayOf(x0 + (c % nx) * res, z0 + (c / nx) * res))
+            c = parent[c]
+        }
+        pts.reverse()
+        if (!blockedAt(tx, tz) && bd < res * res * 2f && pts.isNotEmpty()) pts[pts.size - 1] = floatArrayOf(tx, tz)
+        // alisa: de cada ponto, vai direto ao mais distante que ainda dá para ver em linha reta
+        val out = ArrayList<FloatArray>(pre)
+        var ax = sx
+        var az = sz
+        var i = 0
+        while (i < pts.size) {
+            var j = pts.size - 1
+            while (j > i && !clearLine(ax, az, pts[j][0], pts[j][1])) j--
+            out.add(pts[j])
+            ax = pts[j][0]; az = pts[j][1]
+            i = j + 1
+        }
+        return if (out.isEmpty()) null else out
+    }
+
+    private fun startWalk(tx: Float, tz: Float) {
+        val p = planPath(tx, tz)
+        if (p == null) { path = null; markX = Float.NaN; return }
+        path = p
+        val last = p[p.size - 1]
+        markX = last[0]; markZ = last[1]
+    }
+
+    /** Segue o caminho em vista aérea (anda; corre se o trecho for longo). */
+    private fun followPath(dt: Float) {
+        val p = path
+        if (p == null || p.isEmpty()) {
+            pMoving = false; pRun = false
+            if (p != null) { path = null; markX = Float.NaN }
+            return
+        }
+        var rem = 0f
+        var lx = px
+        var lz = pz
+        for (w in p) { rem += kotlin.math.hypot(w[0] - lx, w[1] - lz); lx = w[0]; lz = w[1] }
+        pRun = if (pRun) rem > 2.0f else rem > 3.8f
+        var budget = (if (pRun) RUN_SPEED else 1.28f) * dt
+        pMoving = false
+        while (budget > 0f && p.isNotEmpty()) {
+            val w = p[0]
+            val dx = w[0] - px
+            val dz = w[1] - pz
+            val d = kotlin.math.hypot(dx, dz)
+            if (d < 0.03f) { p.removeAt(0); continue }
+            val s = min(d, budget)
+            val mx = dx / d * s
+            val mz = dz / d * s
+            var moved = false
+            if (abs(mx) > 1e-5f && walkable(px + mx, pz, px, pz)) { px += mx; moved = true }
+            if (abs(mz) > 1e-5f && walkable(px, pz + mz, px, pz)) { pz += mz; moved = true }
+            if (!moved) { p.clear(); break }   // preso (móvel novo no caminho): para
+            pMoving = true
+            val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+            var dl = dir - pYaw
+            while (dl > 180f) dl -= 360f
+            while (dl < -180f) dl += 360f
+            pYaw += dl * min(1f, dt * 12f)
+            budget -= s
+            if (s < d) break
+        }
+        if (p.isEmpty()) { path = null; pMoving = false; pRun = false; markX = Float.NaN }
+    }
+
     private fun updateFP(dt: Float) {
         if (!posInit) {
             px = st.gw / 2f
@@ -343,18 +505,23 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             posInit = true
             pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
         }
-        if (mode != 0) { jumpReq = false; return }
+        if (stopReq) { stopReq = false; path = null; markX = Float.NaN }
+        val req = walkReq
+        if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
+        if (mode != 0 && mode != 1) { jumpReq = false; return }
         // pulo
-        if (jumpReq) {
+        if (jumpReq && mode == 0) {
             jumpReq = false
             if (py <= 0.001f && vy <= 0f) { vy = 3.9f; jumpT = 0f }
-        }
+        } else jumpReq = false
         if (py > 0f || vy > 0f) {
             vy -= 11f * dt
             jumpT += dt
             py += vy * dt
             if (py <= 0f) { py = 0f; vy = 0f }
         }
+        if (mode == 1) { followPath(dt); return }
+        if (path != null) { path = null; markX = Float.NaN }   // câmera de perto: o analógico manda
         pMoving = false
         if (moveX * moveX + moveY * moveY <= 0.0004f) pRun = false
         val mx = moveX
@@ -419,37 +586,6 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.scaleM(mdl, 0, 1f, br, 1f)
             avMesh?.let { draw(it, mdl, 1f) }
         }
-    }
-
-    private fun drawHouseAvatar(now: Long, dt: Float) {
-        val cute = CuteChar.frame(if (avMoving) CuteChar.WALK else CuteChar.IDLE, (now / 1_000_000L % 100000L) / 1000f, 1)
-        val m = cute ?: avMesh ?: return
-        if (avX.isNaN() || avFrame++ % 30 == 0) {
-            val sp = st.findSpotNear(Type.CHAIR, st.gw / 2f, st.gh - 0.6f)
-            if (sp != null) { avTX = sp.first + 0.5f; avTZ = sp.second + 0.5f }
-            if (avX.isNaN()) { avX = avTX; avZ = avTZ }
-        }
-        val dx = avTX - avX
-        val dz = avTZ - avZ
-        val dist = kotlin.math.sqrt(dx * dx + dz * dz)
-        var bob = 0f
-        avMoving = dist > 0.04f
-        if (dist > 0.04f) {
-            val stp = min(dist, 1.28f * dt)
-            avX += dx / dist * stp
-            avZ += dz / dist * stp
-            avYaw = Math.toDegrees(atan2(dx, dz).toDouble()).toFloat()
-            if (cute == null) bob = abs(sin((now / 1_000_000L % 100000L) / 1000f * 11f)) * 0.035f
-        } else {
-            avYaw += (0f - avYaw) * min(1f, dt * 3f)
-        }
-        val t = (now / 1_000_000L % 100000L) / 1000f
-        val br = 1f + 0.006f * sin(t * 2.2f)
-        Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, avX, bob + (if (cute != null) CuteChar.lift(1) else 0f), avZ)
-        Matrix.rotateM(mdl, 0, avYaw, 0f, 1f, 0f)
-        if (cute == null) Matrix.scaleM(mdl, 0, 1f, br, 1f)
-        draw(m, mdl, 1f)
     }
 
     // ------------------------------------------------------------ picking
@@ -685,8 +821,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(mesh, mdl, 1f)
         }
 
-        if (mode == 1) drawHouseAvatar(now, dt)
-        if (fp && third) drawPlayer(now)
+        if (mode == 1 || (fp && third)) drawPlayer(now)
 
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f
@@ -698,17 +833,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.translateM(mdl, 0, item.x.toFloat(), 0f, item.y.toFloat())
             draw(shm, mdl, 1f)
         }
-        if (mode == 1 && !avX.isNaN()) {
-            val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
-            Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, avX - 0.5f, 0f, avZ - 0.5f)
-            draw(shm, mdl, 1f)
-        }
-        if (fp && third) {
+        if (mode == 1 || (fp && third)) {
             val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, px - 0.5f, 0f, pz - 0.5f)
             draw(shm, mdl, 1f)
+        }
+        if (mode == 1 && path != null && !markX.isNaN()) {
+            val rg = rm.getOrPut("walk") { Models.ring(1, 1, C("#5CE08A")) }
+            Matrix.setIdentityM(mdl, 0)
+            Matrix.translateM(mdl, 0, floor(markX), 0f, floor(markZ))
+            draw(rg, mdl, 0.6f + 0.4f * sin(tt * 6f))
         }
         val sel = focus
         if (sel != null) {

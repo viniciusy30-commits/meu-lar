@@ -38,6 +38,8 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
         get() = r.mode
         set(v) {
             if (v == r.mode) return
+            if (v == 0 && r.mode == 1) r.faceCameraBehindPlayer()   // Etapa 34: volta com a câmera atrás do personagem
+            if (v == 1) r.stopWalk()
             if (v != 0) {
                 r.grabbed = null
                 r.aimed = null
@@ -184,7 +186,15 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (amode == 1 && !amoved) selected = null
+                if (amode == 1 && !amoved) {
+                    selected = null
+                    // Etapa 34: toque no chão = o personagem anda até lá (como no The Sims)
+                    if (e.actionMasked == MotionEvent.ACTION_UP) {
+                        val ry = r.ray(e.x, e.y, width, height)
+                        val fp = if (ry != null) r.floorPoint(ry) else null
+                        if (fp != null) r.walkTo(fp[0], fp[1])
+                    }
+                }
                 if (amode == 2) onChanged?.invoke()
                 amode = 0
             }

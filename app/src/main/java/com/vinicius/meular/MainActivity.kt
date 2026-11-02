@@ -282,7 +282,7 @@ class MainActivity : AppCompatActivity() {
         jumpBtn.visibility = if (novo == 0) View.VISIBLE else View.GONE
         editBar.visibility = View.GONE
         if (novo == 1) st.save()
-        msg(if (novo == 0) "Primeira pessoa" else "Vista aérea: arraste os móveis")
+        msg(if (novo == 0) "Primeira pessoa" else "Vista aérea: toque no chão para andar, arraste os móveis")
     }
 
     private fun trabalhar() {
