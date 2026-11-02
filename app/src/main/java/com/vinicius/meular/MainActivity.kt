@@ -57,45 +57,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Botão quadrado pequeno de vidro (estilo painel do The Sims). */
-    private fun roundBtn(icon: Int, size: Int, acao: () -> Unit): Pair<FrameLayout, IconView> {
+    private fun tvShadow(t: TextView): TextView {
+        t.setShadowLayer(dpf(1.5f), 0f, dpf(1f), 0x99000000.toInt())
+        return t
+    }
+
+    /** Botão redondo "gostosinho" (degrau escuro embaixo + brilho) com ícone. */
+    private fun roundBtn(icon: Int, size: Int, tone: Tone, acao: () -> Unit): Pair<FrameLayout, IconView> {
         val f = FrameLayout(this)
-        f.background = Ui.bg(Pal.SIMS, dpf(10f), Pal.SIMS_LINE, dpf(1f))
-        val ic = IconView(this, icon)
-        val pad = dp(size / 4)
-        f.addView(ic, FrameLayout.LayoutParams(dp(size) - pad * 2, dp(size) - pad * 2, Gravity.CENTER))
-        f.layoutParams = LinearLayout.LayoutParams(dp(size), dp(size)).also { it.leftMargin = dp(6) }
+        f.background = Ui.chunky(tone, dpf(size.toFloat()), dpf(3f))
+        f.setPadding(0, 0, 0, dp(3))
+        val ic = IconView(this, icon, Color.WHITE, tone.edge)
+        val isz = (size * 0.54f).toInt()
+        f.addView(ic, FrameLayout.LayoutParams(dp(isz), dp(isz), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(size), dp(size)).also { it.leftMargin = dp(8) }
         press(f, acao)
         return Pair(f, ic)
     }
 
-    /** Botão do painel inferior: ícone pequeno + rótulo curto. */
-    private fun dockBtn(icon: Int, label: String, c1: Int, c2: Int, acao: () -> Unit): LinearLayout {
+    /** Botão grande do painel inferior: ícone + rótulo. */
+    private fun dockBtn(icon: Int, label: String, tone: Tone, acao: () -> Unit): LinearLayout {
         val l = LinearLayout(this)
         l.orientation = LinearLayout.HORIZONTAL
         l.gravity = Gravity.CENTER
-        l.setPadding(dp(12), 0, dp(14), 0)
-        l.background = Ui.grad(c1, c2, dpf(12f))
-        l.addView(IconView(this, icon), LinearLayout.LayoutParams(dp(18), dp(18)).also { it.rightMargin = dp(6) })
-        l.addView(tv(label, 12f, Color.WHITE, true))
-        l.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)).also { it.setMargins(dp(3), 0, dp(3), 0) }
+        l.setPadding(dp(16), 0, dp(20), dp(3))
+        l.background = Ui.chunky(tone, dpf(24f), dpf(3f))
+        l.addView(IconView(this, icon, Color.WHITE, tone.edge), LinearLayout.LayoutParams(dp(24), dp(24)).also { it.rightMargin = dp(7) })
+        l.addView(tvShadow(tv(label, 15f, Color.WHITE, true)))
+        l.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)).also { it.setMargins(dp(4), 0, dp(4), 0) }
         press(l, acao)
         return l
     }
 
-    private fun editBtn(icon: Int, label: String, cor: Int, acao: () -> Unit): Triple<LinearLayout, IconView, TextView> {
+    private fun editBtn(icon: Int, label: String, tone: Tone, acao: () -> Unit): Triple<LinearLayout, IconView, TextView> {
         val l = LinearLayout(this)
         l.orientation = LinearLayout.VERTICAL
         l.gravity = Gravity.CENTER_HORIZONTAL
         val circ = FrameLayout(this)
-        circ.background = Ui.oval(cor, Pal.SIMS_LINE, dpf(1f))
-        val ic = IconView(this, icon)
-        circ.addView(ic, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
-        l.addView(circ, LinearLayout.LayoutParams(dp(38), dp(38)))
-        val t = tv(label, 10f, Color.WHITE, true)
-        t.setShadowLayer(4f, 0f, 1f, Color.BLACK)
+        circ.background = Ui.chunky(tone, dpf(46f), dpf(3f))
+        circ.setPadding(0, 0, 0, dp(3))
+        val ic = IconView(this, icon, Color.WHITE, tone.edge)
+        circ.addView(ic, FrameLayout.LayoutParams(dp(25), dp(25), Gravity.CENTER))
+        l.addView(circ, LinearLayout.LayoutParams(dp(46), dp(46)))
+        val t = tvShadow(tv(label, 11f, Pal.TEXT, true))
         t.gravity = Gravity.CENTER
-        l.addView(t, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(2) })
+        l.addView(t, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.topMargin = dp(4) })
         l.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.setMargins(dp(8), 0, dp(8), 0) }
         press(l, acao)
         return Triple(l, ic, t)
@@ -121,29 +127,30 @@ class MainActivity : AppCompatActivity() {
         hud = LinearLayout(this)
         hud.orientation = LinearLayout.HORIZONTAL
         hud.gravity = Gravity.CENTER_VERTICAL
-        hud.setPadding(dp(10), dp(8), dp(10), dp(4))
+        hud.setPadding(dp(12), dp(8), dp(12), dp(4))
         val chip = LinearLayout(this)
         chip.orientation = LinearLayout.HORIZONTAL
         chip.gravity = Gravity.CENTER_VERTICAL
-        chip.setPadding(dp(8), dp(4), dp(12), dp(4))
-        chip.background = Ui.bg(Pal.SIMS, dpf(12f), Pal.SIMS_LINE, dpf(1f))
-        chip.addView(IconView(this, Ic.PLUMB), LinearLayout.LayoutParams(dp(16), dp(18)).also { it.rightMargin = dp(7) })
-        moneyTv = tv("", 13f, Color.WHITE, true)
+        chip.setPadding(dp(7), dp(4), dp(16), dp(7))
+        chip.background = Ui.panel(dpf(22f), dpf(3f), dpf(1.3f))
+        chip.addView(IconView(this, Ic.COIN), LinearLayout.LayoutParams(dp(26), dp(26)).also { it.rightMargin = dp(8) })
+        moneyTv = tvShadow(tv("", 16f, Pal.TEXT, true))
         chip.addView(moneyTv)
         hud.addView(chip)
         hud.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        val vb = roundBtn(Ic.HOME, 34) { alternarVista() }
+        val vb = roundBtn(Ic.HOME, 44, Tn.SKY) { alternarVista() }
         viewIcon = vb.second
         hud.addView(vb.first)
-        hud.addView(roundBtn(Ic.PERSON, 34) { abrirCriador() }.first)
-        hud.addView(roundBtn(Ic.GEAR, 34) { config() }.first)
+        hud.addView(roundBtn(Ic.PERSON, 44, Tn.ROSE) { abrirCriador() }.first)
+        hud.addView(roundBtn(Ic.GEAR, 44, Tn.LAV) { config() }.first)
         root.addView(hud, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
-        msgTv = tv("", 12f, Color.WHITE, true)
-        msgTv.setPadding(dp(14), dp(7), dp(14), dp(7))
-        msgTv.background = Ui.bg(Pal.SIMS, dpf(14f), Pal.SIMS_LINE, dpf(1f))
+        msgTv = tvShadow(tv("", 13f, Pal.TEXT, true))
+        msgTv.gravity = Gravity.CENTER
+        msgTv.setPadding(dp(18), dp(9), dp(18), dp(12))
+        msgTv.background = Ui.panel(dpf(22f), dpf(3f), dpf(1.3f))
         msgTv.visibility = View.GONE
-        root.addView(msgTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(52) })
+        root.addView(msgTv, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(60) })
 
         // base: painel de controle compacto no centro + botão de pular à direita
         bottom = LinearLayout(this)
@@ -154,35 +161,36 @@ class MainActivity : AppCompatActivity() {
         editBar.orientation = LinearLayout.HORIZONTAL
         editBar.gravity = Gravity.CENTER
         editBar.visibility = View.GONE
-        val mv = editBtn(Ic.MOVE, "Pegar", Pal.CORAL2) { pegarSoltar() }
+        val mv = editBtn(Ic.MOVE, "Pegar", Tn.CORAL) { pegarSoltar() }
         moveBox = mv.first; moveIcon = mv.second; moveLbl = mv.third
         editBar.addView(moveBox)
-        editBar.addView(editBtn(Ic.ROTATE, "Girar", Color.parseColor("#5C6BC0")) { girar() }.first)
-        editBar.addView(editBtn(Ic.TRASH, "Vender", Color.parseColor("#C0392B")) { vender() }.first)
+        editBar.addView(editBtn(Ic.ROTATE, "Girar", Tn.LAV) { girar() }.first)
+        editBar.addView(editBtn(Ic.TRASH, "Vender", Tn.ROSE) { vender() }.first)
         bottom.addView(editBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(6) })
 
         val dock = LinearLayout(this)
         dock.orientation = LinearLayout.VERTICAL
         dock.gravity = Gravity.CENTER_HORIZONTAL
-        dock.setPadding(dp(8), dp(6), dp(8), dp(6))
-        dock.background = Ui.bg(Pal.SIMS, dpf(16f), Pal.SIMS_LINE, dpf(1f))
+        dock.setPadding(dp(10), dp(9), dp(10), dp(14))
+        dock.background = Ui.panel(dpf(30f), dpf(4f), dpf(1.3f))
         val btns = LinearLayout(this)
         btns.orientation = LinearLayout.HORIZONTAL
         btns.gravity = Gravity.CENTER
-        btns.addView(dockBtn(Ic.WORK, "Trabalhar", Pal.GREEN, Pal.GREEN2) { trabalhar() })
-        btns.addView(dockBtn(Ic.SHOP, "Loja", Pal.SIMS_BLUE, Color.parseColor("#2F86C0")) { loja(0) })
+        btns.addView(dockBtn(Ic.WORK, "Trabalhar", Tn.MINT) { trabalhar() })
+        btns.addView(dockBtn(Ic.SHOP, "Loja", Tn.SKY) { loja(0) })
         dock.addView(btns, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         workBar = PillBar(this)
-        dock.addView(workBar, LinearLayout.LayoutParams(-1, dp(4)).also { it.topMargin = dp(6) })
+        dock.addView(workBar, LinearLayout.LayoutParams(-1, dp(11)).also { it.topMargin = dp(8) })
         bottom.addView(dock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(bottom, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
 
         // botão de pular (só na primeira pessoa)
         jumpBtn = FrameLayout(this)
-        jumpBtn.background = Ui.grad(Pal.SIMS_BLUE, Color.parseColor("#2F86C0"), dpf(28f)).also { it.setStroke(dp(1), Pal.SIMS_LINE) }
-        jumpBtn.addView(IconView(this, Ic.JUMP), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        jumpBtn.background = Ui.chunky(Tn.SKY, dpf(64f), dpf(4f))
+        jumpBtn.setPadding(0, 0, 0, dp(4))
+        jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, Tn.SKY.edge), FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
         press(jumpBtn) { if (game.mode == 0) game.r.jumpReq = true }
-        root.addView(jumpBtn, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(22), dp(22)) })
+        root.addView(jumpBtn, FrameLayout.LayoutParams(dp(66), dp(66), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(22), dp(22)) })
 
         creator = CreatorUi(this, st, game) { fecharCriador() }
         creator.visibility = View.GONE
@@ -192,14 +200,14 @@ class MainActivity : AppCompatActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, ins ->
             val b = ins.getInsets(WindowInsetsCompat.Type.systemBars())
-            hud.setPadding(dp(10) + b.left, b.top + dp(6), dp(10) + b.right, dp(4))
+            hud.setPadding(dp(12) + b.left, b.top + dp(6), dp(12) + b.right, dp(4))
             bottom.setPadding(0, 0, 0, b.bottom + dp(8))
             (jumpBtn.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(22) + b.right, dp(22) + b.bottom)
             jumpBtn.requestLayout()
             bottomInset = b.bottom
             val cb = ins.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             creator.setInsets(cb.left, cb.top, cb.right, cb.bottom)
-            (msgTv.layoutParams as FrameLayout.LayoutParams).topMargin = b.top + dp(48)
+            (msgTv.layoutParams as FrameLayout.LayoutParams).topMargin = b.top + dp(56)
             ins
         }
 
@@ -342,14 +350,16 @@ class MainActivity : AppCompatActivity() {
             val l = LinearLayout(this@MainActivity)
             l.orientation = LinearLayout.VERTICAL
             l.gravity = Gravity.CENTER
-            l.setPadding(dp(6), dp(10), dp(6), dp(10))
-            l.layoutParams = RecyclerView.LayoutParams(-1, dp(132)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
-            l.background = Ui.bg(Pal.CARD, dpf(18f), Color.parseColor("#22FFFFFF"), dpf(1f))
-            val ic = IconView(this@MainActivity, 0)
-            l.addView(ic, LinearLayout.LayoutParams(dp(54), dp(54)))
+            l.setPadding(dp(6), dp(10), dp(6), dp(13))
+            l.layoutParams = RecyclerView.LayoutParams(-1, dp(138)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+            l.background = Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, Pal.LINE, dpf(1f))
+            val ic = IconView(this@MainActivity, 0, Color.parseColor("#8EB8FF"), Pal.CARD)
+            ic.background = Ui.bg(0x406CA0FF, dpf(14f))
+            ic.setPadding(dp(9), dp(9), dp(9), dp(9))
+            l.addView(ic, LinearLayout.LayoutParams(dp(58), dp(58)))
             val sw = View(this@MainActivity)
-            l.addView(sw, LinearLayout.LayoutParams(dp(48), dp(48)))
-            val n = tv("", 13f, Pal.TEXT, true)
+            l.addView(sw, LinearLayout.LayoutParams(dp(52), dp(52)))
+            val n = tv("", 12f, Pal.TEXT, true)
             n.gravity = Gravity.CENTER
             n.maxLines = 2
             l.addView(n, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(6) })
@@ -364,7 +374,7 @@ class MainActivity : AppCompatActivity() {
             if (e.swatch != 0) {
                 h.icon.visibility = View.GONE
                 h.sw.visibility = View.VISIBLE
-                h.sw.background = Ui.oval(e.swatch, Color.parseColor("#66FFFFFF"), dpf(2f))
+                h.sw.background = Ui.oval(e.swatch, Color.parseColor("#99FFF4E6"), dpf(2.5f))
             } else {
                 h.sw.visibility = View.GONE
                 h.icon.visibility = View.VISIBLE
@@ -418,27 +428,39 @@ class MainActivity : AppCompatActivity() {
         shopMoney?.text = "R$ ${st.money}"
         for ((i, t) in tabViews.withIndex()) {
             val sel = i == shopTab
-            t.background = Ui.bg(if (sel) Pal.CORAL else Pal.CARD, dpf(20f))
+            t.background = Ui.chunky(if (sel) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), sel)
             t.setTextColor(if (sel) Color.WHITE else Pal.SUB)
         }
     }
 
-    private fun sheet(titulo: String, build: (LinearLayout) -> Unit): Dialog {
+    private fun sheet(titulo: String, ic: Int = -1, tone: Tone = Tn.LAV, build: (LinearLayout) -> Unit): Dialog {
         val d = Dialog(this)
         d.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val panel = LinearLayout(this)
         panel.orientation = LinearLayout.VERTICAL
-        panel.background = Ui.topSheet(Pal.BG, dpf(28f))
-        panel.setPadding(dp(16), dp(16), dp(16), dp(16) + bottomInset)
+        panel.background = Ui.sheetBg(dpf(30f), dpf(2f))
+        panel.setPadding(dp(16), dp(14), dp(16), dp(16) + bottomInset)
+        // alça no topo
+        val grip = View(this)
+        grip.background = Ui.bg(0x556A5A9C, dpf(3f))
+        panel.addView(grip, LinearLayout.LayoutParams(dp(44), dp(5)).also { it.gravity = Gravity.CENTER_HORIZONTAL; it.bottomMargin = dp(10) })
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
         head.gravity = Gravity.CENTER_VERTICAL
-        head.addView(tv(titulo, 22f, Pal.TEXT, true), LinearLayout.LayoutParams(0, -2, 1f))
+        if (ic >= 0) {
+            val badge = FrameLayout(this)
+            badge.background = Ui.chunky(tone, dpf(42f), dpf(3f))
+            badge.setPadding(0, 0, 0, dp(3))
+            badge.addView(IconView(this, ic, Color.WHITE, tone.edge), FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER))
+            head.addView(badge, LinearLayout.LayoutParams(dp(42), dp(42)).also { it.rightMargin = dp(12) })
+        }
+        head.addView(tvShadow(tv(titulo, 23f, Pal.TEXT, true)), LinearLayout.LayoutParams(0, -2, 1f))
         val x = FrameLayout(this)
-        x.background = Ui.oval(Pal.CARD)
-        x.addView(IconView(this, Ic.CLOSE, Pal.SUB), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+        x.background = Ui.chunky(Tn.CORAL, dpf(40f), dpf(3f))
+        x.setPadding(0, 0, 0, dp(3))
+        x.addView(IconView(this, Ic.CLOSE, Color.WHITE, Tn.CORAL.edge), FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER))
         press(x) { d.dismiss() }
-        head.addView(x, LinearLayout.LayoutParams(dp(38), dp(38)))
+        head.addView(x, LinearLayout.LayoutParams(dp(40), dp(40)))
         panel.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(12) })
         build(panel)
         d.setContentView(panel)
@@ -446,7 +468,7 @@ class MainActivity : AppCompatActivity() {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setGravity(Gravity.BOTTOM)
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            setDimAmount(0.45f)
+            setDimAmount(0.55f)
         }
         return d
     }
@@ -456,9 +478,16 @@ class MainActivity : AppCompatActivity() {
         tabViews = ArrayList()
         val adapter = ShopAdapter()
         shopAdapter = adapter
-        val d = sheet("Loja") { panel ->
-            val money = tv("R$ ${st.money}", 16f, Pal.GOLD, true)
+        val d = sheet("Loja", Ic.SHOP, Tn.MINT) { panel ->
+            val money = tvShadow(tv("R$ ${st.money}", 16f, Pal.GOLD, true))
             shopMoney = money
+            val moneyChip = LinearLayout(this)
+            moneyChip.orientation = LinearLayout.HORIZONTAL
+            moneyChip.gravity = Gravity.CENTER_VERTICAL
+            moneyChip.setPadding(dp(6), dp(3), dp(14), dp(6))
+            moneyChip.background = Ui.panel(dpf(20f), dpf(3f), dpf(1.2f))
+            moneyChip.addView(IconView(this, Ic.COIN), LinearLayout.LayoutParams(dp(22), dp(22)).also { it.rightMargin = dp(7) })
+            moneyChip.addView(money)
             val sc = HorizontalScrollView(this)
             sc.isHorizontalScrollBarEnabled = false
             val row = LinearLayout(this)
@@ -466,19 +495,19 @@ class MainActivity : AppCompatActivity() {
             val nomes = listOf("Sala", "Quarto", "Cozinha", "Decoração", "Piso e parede", "Casa")
             nomes.forEachIndexed { i, n ->
                 val t = tv(n, 14f, Pal.SUB, true)
-                t.setPadding(dp(16), dp(8), dp(16), dp(8))
+                t.setPadding(dp(16), dp(8), dp(16), dp(11))
                 t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
                 t.setOnClickListener { shopTab = i; refreshShop() }
                 tabViews.add(t)
                 row.addView(t)
             }
             sc.addView(row)
-            panel.addView(money, LinearLayout.LayoutParams(-2, -2).also { it.bottomMargin = dp(8) })
+            panel.addView(moneyChip, LinearLayout.LayoutParams(-2, -2).also { it.bottomMargin = dp(10) })
             panel.addView(sc, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
             val rv = RecyclerView(this)
             rv.layoutManager = GridLayoutManager(this, 3)
             rv.adapter = adapter
-            panel.addView(rv, LinearLayout.LayoutParams(-1, dp(300)))
+            panel.addView(rv, LinearLayout.LayoutParams(-1, dp(310)))
         }
         shopDialog = d
         refreshShop()
@@ -536,16 +565,21 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ configurações e novidades
 
-    private fun linha(panel: LinearLayout, icon: Int, txt: String, acao: () -> Unit): TextView {
+    private fun linha(panel: LinearLayout, icon: Int, txt: String, tone: Tone, acao: () -> Unit): TextView {
         val l = LinearLayout(this)
         l.orientation = LinearLayout.HORIZONTAL
         l.gravity = Gravity.CENTER_VERTICAL
-        l.setPadding(dp(14), dp(14), dp(14), dp(14))
-        l.background = Ui.bg(Pal.CARD, dpf(16f))
-        l.addView(IconView(this, icon, Pal.SUB), LinearLayout.LayoutParams(dp(24), dp(24)).also { it.rightMargin = dp(14) })
+        l.setPadding(dp(12), dp(10), dp(16), dp(13))
+        l.background = Ui.chunky(Tn.CARD, dpf(22f), dpf(3f), false, Pal.LINE, dpf(1f))
+        val badge = FrameLayout(this)
+        badge.background = Ui.chunky(tone, dpf(44f), dpf(3f))
+        badge.setPadding(0, 0, 0, dp(3))
+        badge.addView(IconView(this, icon, Color.WHITE, tone.edge), FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        l.addView(badge, LinearLayout.LayoutParams(dp(44), dp(44)).also { it.rightMargin = dp(14) })
         val t = tv(txt, 16f, Pal.TEXT, true)
-        l.addView(t)
-        panel.addView(l, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(8) })
+        l.addView(t, LinearLayout.LayoutParams(0, -2, 1f))
+        l.addView(IconView(this, Ic.CHEV, Pal.SUB), LinearLayout.LayoutParams(dp(16), dp(16)))
+        panel.addView(l, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
         press(l, acao)
         return t
     }
@@ -553,12 +587,12 @@ class MainActivity : AppCompatActivity() {
     private fun config() {
         val nomes = arrayOf("Baixa", "Média", "Alta")
         var dlg: Dialog? = null
-        dlg = sheet("Configurações") { panel ->
-            linha(panel, Ic.REFRESH, "Verificar atualização") { dlg?.dismiss(); Updater.check(this, true) }
-            linha(panel, Ic.PERSON, "Meu personagem") { dlg?.dismiss(); abrirCriador() }
-            linha(panel, Ic.INFO, "O que mudou") { dlg?.dismiss(); mostrarNovidades(true) }
+        dlg = sheet("Configurações", Ic.GEAR, Tn.LAV) { panel ->
+            linha(panel, Ic.REFRESH, "Verificar atualização", Tn.MINT) { dlg?.dismiss(); Updater.check(this, true) }
+            linha(panel, Ic.PERSON, "Meu personagem", Tn.ROSE) { dlg?.dismiss(); abrirCriador() }
+            linha(panel, Ic.INFO, "O que mudou", Tn.SKY) { dlg?.dismiss(); mostrarNovidades(true) }
             var sens: TextView? = null
-            sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}") {
+            sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}", Tn.SUN) {
                 st.sens = (st.sens + 1) % 3
                 st.save()
                 sens?.text = "Sensibilidade do olhar: ${nomes[st.sens]}"
@@ -584,14 +618,14 @@ class MainActivity : AppCompatActivity() {
             p.edit().putString("id", id).apply()
             if (forcar || (visto != null && visto != id)) {
                 var dlg: Dialog? = null
-                dlg = sheet(titulo) { panel ->
+                dlg = sheet(titulo, Ic.SPARK, Tn.SUN) { panel ->
                     val t = tv(itens.toString().trim(), 15f, Pal.TEXT)
                     t.setLineSpacing(0f, 1.1f)
                     panel.addView(t, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(16) })
-                    val b = tv("Legal!", 17f, Color.WHITE, true)
+                    val b = tvShadow(tv("Legal!", 18f, Color.WHITE, true))
                     b.gravity = Gravity.CENTER
-                    b.background = Ui.grad(Pal.CORAL, Pal.CORAL2, dpf(18f))
-                    b.setPadding(0, dp(14), 0, dp(14))
+                    b.background = Ui.chunky(Tn.CORAL, dpf(26f), dpf(4f))
+                    b.setPadding(0, dp(14), 0, dp(18))
                     press(b) { dlg?.dismiss() }
                     panel.addView(b, LinearLayout.LayoutParams(-1, -2))
                 }

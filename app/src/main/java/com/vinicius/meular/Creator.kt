@@ -91,7 +91,7 @@ class CreatorUi(
         ))
     )
 
-    private val EMOJI = listOf("\uD83E\uDDEC", "\uD83E\uDDCD", "\uD83D\uDC87", "\uD83D\uDE42", "\uD83D\uDC55", "\uD83D\uDC5F", "\uD83C\uDFA9")
+    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT)
 
     private var cat = 0
     private var sub = 0
@@ -116,10 +116,12 @@ class CreatorUi(
     init {
         // título sobre o palco (esquerda)
         stageTitle.text = "Meu personagem"
-        stageTitle.textSize = 22f
+        stageTitle.textSize = 18f
         stageTitle.typeface = Ui.BOLD
-        stageTitle.setTextColor(Color.WHITE)
-        stageTitle.setShadowLayer(dpf(6f), 0f, dpf(2f), 0xAA000000.toInt())
+        stageTitle.setTextColor(Pal.TEXT)
+        stageTitle.setShadowLayer(dpf(2f), 0f, dpf(1f), 0x99000000.toInt())
+        stageTitle.setPadding(dp(18), dp(9), dp(20), dp(13))
+        stageTitle.background = Ui.panel(dpf(22f), dpf(3f), dpf(1.3f))
         addView(stageTitle, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(20), dp(14), 0, 0) })
 
         // botões de girar (esquerda embaixo)
@@ -131,8 +133,9 @@ class CreatorUi(
 
         // painel da direita
         panel.orientation = LinearLayout.HORIZONTAL
-        val pbg = grad(0xF2232A40.toInt(), 0xF2141926.toInt(), 0f)
+        val pbg = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xF533275A.toInt(), 0xF5231A38.toInt()))
         pbg.cornerRadii = floatArrayOf(dpf(30f), dpf(30f), 0f, 0f, 0f, 0f, dpf(30f), dpf(30f))
+        pbg.setStroke(dpf(2f).toInt(), Pal.LINE)
         panel.background = pbg
         panel.setPadding(dp(8), dp(10), dp(10), dp(10))
 
@@ -146,9 +149,10 @@ class CreatorUi(
         val content = LinearLayout(ctx)
         content.orientation = LinearLayout.VERTICAL
         content.setPadding(dp(8), dp(4), 0, 0)
-        titleTv.textSize = 22f
+        titleTv.textSize = 24f
         titleTv.typeface = Ui.BOLD
-        titleTv.setTextColor(Color.WHITE)
+        titleTv.setTextColor(Pal.TEXT)
+        titleTv.setShadowLayer(dpf(2f), 0f, dpf(1f), 0x99000000.toInt())
         content.addView(titleTv, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(4) })
         subRow.orientation = LinearLayout.HORIZONTAL
         val hs2 = HorizontalScrollView(ctx)
@@ -161,13 +165,15 @@ class CreatorUi(
         content.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
         val ok = TextView(ctx)
         ok.text = "Pronto  \u2713"
-        ok.textSize = 18f
+        ok.textSize = 19f
         ok.typeface = Ui.BOLD
         ok.setTextColor(Color.WHITE)
+        ok.setShadowLayer(dpf(1.5f), 0f, dpf(1f), 0x99000000.toInt())
         ok.gravity = Gravity.CENTER
-        ok.background = grad(0xFF4BE08F.toInt(), 0xFF1FA463.toInt(), dpf(24f))
+        ok.setPadding(0, 0, 0, dp(4))
+        ok.background = Ui.chunky(Tn.MINT, dpf(26f), dpf(4f))
         ok.setOnClickListener { CuteChar.setExpression(-1); exprSel = -1; st.avatarSet = true; st.save(); onDone() }
-        content.addView(ok, LinearLayout.LayoutParams(-1, dp(50)).also { it.topMargin = dp(8) })
+        content.addView(ok, LinearLayout.LayoutParams(-1, dp(56)).also { it.topMargin = dp(8) })
         panel.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
         addView(panel, LayoutParams(dp(380), -1, Gravity.END))
         refresh(false)
@@ -177,9 +183,10 @@ class CreatorUi(
         val t = TextView(context)
         t.text = text
         t.textSize = 24f
-        t.setTextColor(Color.WHITE)
+        t.setTextColor(Pal.TEXT)
         t.gravity = Gravity.CENTER
-        t.background = Ui.oval(0xCC1B2030.toInt(), 0x55FFFFFF, dpf(1.5f))
+        t.setPadding(0, 0, 0, dp(3))
+        t.background = Ui.panel(dpf(52f), dpf(3f), dpf(1.3f))
         t.setOnClickListener { click() }
         return t
     }
@@ -228,21 +235,18 @@ class CreatorUi(
             val b = LinearLayout(context)
             b.orientation = LinearLayout.VERTICAL
             b.gravity = Gravity.CENTER
-            b.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(18f)) else grad(0x66343C54, 0x66343C54, dpf(18f))
-            val e = TextView(context)
-            e.text = EMOJI[i]
-            e.textSize = 24f
-            e.gravity = Gravity.CENTER
-            b.addView(e, LinearLayout.LayoutParams(-2, -2))
+            b.setPadding(0, 0, 0, dp(3))
+            b.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
+            b.addView(IconView(context, CAT_ICONS[i], if (on) Color.WHITE else Pal.SUB, if (on) Tn.CORAL.edge else Tn.GHOST.edge), LinearLayout.LayoutParams(dp(28), dp(28)))
             val n = TextView(context)
             n.text = cats[i].name
             n.textSize = 10.5f
             n.typeface = Ui.BOLD
             n.maxLines = 1
             n.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            b.addView(n, LinearLayout.LayoutParams(-2, -2))
+            b.addView(n, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2) })
             b.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
-            rail.addView(b, LinearLayout.LayoutParams(dp(66), dp(62)).also { it.bottomMargin = dp(8) })
+            rail.addView(b, LinearLayout.LayoutParams(dp(66), dp(66)).also { it.bottomMargin = dp(8) })
         }
 
         val c = cats[cat]
@@ -254,12 +258,12 @@ class CreatorUi(
             t.textSize = 13f
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
-            t.setPadding(dp(16), 0, dp(16), 0)
+            t.setPadding(dp(16), 0, dp(16), dp(3))
             val on = i == sub
             t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(16f)) else Ui.bg(0x66343C54, dpf(16f))
+            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(18f), dpf(3f), on)
             t.setOnClickListener { sub = i; refresh(false); camera() }
-            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(32)).also { it.rightMargin = dp(8) })
+            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(36)).also { it.rightMargin = dp(8) })
         }
         (subRow.parent as View).visibility = if (c.subs.size > 1) View.VISIBLE else View.GONE
 
@@ -289,13 +293,13 @@ class CreatorUi(
                 row.orientation = LinearLayout.HORIZONTAL
                 body.addView(row, LinearLayout.LayoutParams(-1, -2))
             }
-            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(116), 1f).also {
+            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(120), 1f).also {
                 it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
         val rest = (cols - stl.ids.size % cols) % cols
         for (k in 0 until rest) {
-            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(116), 1f).also {
+            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(120), 1f).also {
                 it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
@@ -303,8 +307,8 @@ class CreatorUi(
 
     private fun tile(stl: Style, i: Int, sel: Boolean): View {
         val f = FrameLayout(context)
-        f.background = if (sel) grad(0xFF4A3A4E.toInt(), 0xFF3A3050.toInt(), dpf(18f), 0xFFFF7A59.toInt(), dpf(3f))
-                       else grad(0xFF343C54.toInt(), 0xFF283048.toInt(), dpf(18f), 0x22FFFFFF, dpf(1f))
+        f.background = if (sel) Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, 0xFF55DDA3.toInt(), dpf(2.5f))
+                       else Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, 0x33FFFFFF, dpf(1f))
         val id = stl.ids[i]
         val bmp = if (id.isEmpty()) null else icon((stl.key + "_" + id).lowercase())
         if (bmp != null) {
@@ -328,7 +332,8 @@ class CreatorUi(
         n.gravity = Gravity.CENTER
         n.setTextColor(if (sel) Color.WHITE else Pal.SUB)
         n.setPadding(dp(4), 0, dp(4), dp(5))
-        f.addView(n, LayoutParams(-1, dp(30), Gravity.BOTTOM))
+        n.setPadding(dp(4), 0, dp(4), dp(8))
+        f.addView(n, LayoutParams(-1, dp(32), Gravity.BOTTOM))
         if (sel) {
             val ck = TextView(context)
             ck.text = "\u2713"
@@ -336,7 +341,7 @@ class CreatorUi(
             ck.typeface = Ui.BOLD
             ck.setTextColor(Color.WHITE)
             ck.gravity = Gravity.CENTER
-            ck.background = Ui.oval(0xFFFF7A59.toInt())
+            ck.background = Ui.oval(0xFF25AD7B.toInt())
             f.addView(ck, LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(6), dp(6), 0) })
         }
         f.setOnClickListener { pickStyle(stl, i) }
@@ -370,9 +375,10 @@ class CreatorUi(
         orig.setTextColor(Color.WHITE)
         orig.gravity = Gravity.CENTER
         orig.setPadding(dp(14), 0, dp(14), 0)
-        orig.background = Ui.bg(0xFF343C54.toInt(), dpf(15f), if (cur < 0) Color.WHITE else 0, dpf(2.5f))
+        orig.setPadding(dp(14), 0, dp(14), dp(2))
+        orig.background = Ui.chunky(Tn.GHOST, dpf(15f), dpf(2f), false, if (cur < 0) Color.WHITE else 0, dpf(2.5f))
         orig.setOnClickListener { pickColor(slot, -1) }
-        head.addView(orig, LinearLayout.LayoutParams(-2, dp(30)))
+        head.addView(orig, LinearLayout.LayoutParams(-2, dp(32)))
         body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(12); it.bottomMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
 
         val pal = CuteColor.palette(slot)
@@ -387,7 +393,7 @@ class CreatorUi(
             val cell = FrameLayout(context)
             val v = View(context)
             val on = i == cur
-            v.background = Ui.oval(pal[i], if (on) Color.WHITE else 0x66FFFFFF, if (on) dpf(3.5f) else dpf(1f))
+            v.background = Ui.oval(pal[i], if (on) Pal.TEXT else 0x66FFFFFF, if (on) dpf(3.5f) else dpf(1f))
             v.setOnClickListener { pickColor(slot, i) }
             cell.addView(v, LayoutParams(dp(38), dp(38), Gravity.CENTER))
             row!!.addView(cell, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -415,7 +421,8 @@ class CreatorUi(
                 t.typeface = Ui.BOLD
                 t.gravity = Gravity.CENTER
                 t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-                t.background = Ui.bg(if (on) Pal.CORAL else 0xFF343C54.toInt(), dpf(18f))
+                t.setPadding(0, 0, 0, dp(3))
+                t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
                 t.setOnClickListener {
                     if (av.masc != m) {
                         av.masc = m
@@ -424,7 +431,7 @@ class CreatorUi(
                         refresh(true)
                     }
                 }
-                sexRow.addView(t, LinearLayout.LayoutParams(0, dp(40), 1f).also { it.rightMargin = dp(6) })
+                sexRow.addView(t, LinearLayout.LayoutParams(0, dp(44), 1f).also { it.rightMargin = dp(6) })
             }
             body.addView(sexRow, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         }
@@ -434,15 +441,15 @@ class CreatorUi(
         reset.typeface = Ui.BOLD
         reset.setTextColor(Color.WHITE)
         reset.gravity = Gravity.CENTER
-        reset.setPadding(dp(14), 0, dp(14), 0)
-        reset.background = Ui.bg(0xFF343C54.toInt(), dpf(15f))
+        reset.setPadding(dp(14), 0, dp(14), dp(2))
+        reset.background = Ui.chunky(Tn.GHOST, dpf(15f), dpf(2f), false)
         reset.setOnClickListener {
             java.util.Arrays.fill(arr, 0)
             CuteChar.setShape(av.bs, av.fs, av.masc)
             st.save()
             refresh(true)
         }
-        body.addView(reset, LinearLayout.LayoutParams(-2, dp(32)).also { it.topMargin = dp(6); it.leftMargin = dp(4) })
+        body.addView(reset, LinearLayout.LayoutParams(-2, dp(34)).also { it.topMargin = dp(6); it.leftMargin = dp(4) })
         for (i in names.indices) {
             val head = LinearLayout(context)
             head.orientation = LinearLayout.HORIZONTAL
@@ -463,8 +470,8 @@ class CreatorUi(
             val sb = SeekBar(context)
             sb.max = 200
             sb.progress = arr[i] + 100
-            sb.progressTintList = ColorStateList.valueOf(0xFFFF7A59.toInt())
-            sb.thumbTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
+            sb.progressTintList = ColorStateList.valueOf(0xFF6DE8B4.toInt())
+            sb.thumbTintList = ColorStateList.valueOf(0xFFFFF4E6.toInt())
             sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                     if (!fromUser) return
@@ -499,7 +506,8 @@ class CreatorUi(
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
             t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(22f)) else Ui.bg(0xFF343C54.toInt(), dpf(22f))
+            t.setPadding(0, 0, 0, dp(4))
+            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(26f), dpf(4f), on)
             t.setOnClickListener {
                 av.applyBase(m)
                 CuteColor.setColors(av.cc)
@@ -526,7 +534,8 @@ class CreatorUi(
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
             t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            t.background = if (on) grad(0xFFFF8A68.toInt(), 0xFFF2563A.toInt(), dpf(16f)) else Ui.bg(0x66343C54, dpf(16f))
+            t.setPadding(0, 0, 0, dp(3))
+            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
             t.setOnClickListener {
                 exprSel = code[i]
                 CuteChar.setExpression(exprSel)

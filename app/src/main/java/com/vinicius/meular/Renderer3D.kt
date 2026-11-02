@@ -356,7 +356,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
             val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
             if (!ins && !door) return true
-        } else return true
+        } else if (!(x > -6.6f && x < gw + 6.6f && z > -6.6f && z < gh + 8.6f)) return true   // fora do quintal
         for (o in st.items) {
             if (o.type == Type.RUG) continue
             if (inside(o, x, z)) return true
@@ -379,10 +379,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val gw = st.gw.toFloat()
         val gh = st.gh.toFloat()
         val res = 0.25f
-        val x0 = -0.5f
-        val z0 = -0.5f
-        val nx = ((gw + 1f) / res).toInt() + 1
-        val nz = ((gh + 1.5f) / res).toInt() + 1
+        val x0 = -6.6f   // a grade cobre a casa e o quintal
+        val z0 = -6.6f
+        val nx = ((gw + 13.2f) / res).toInt() + 1
+        val nz = ((gh + 15.2f) / res).toInt() + 1
         val pre = ArrayList<FloatArray>()
         var sx = px
         var sz = pz

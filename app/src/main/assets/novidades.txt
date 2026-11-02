@@ -1,3 +1,12 @@
+#id 2026-11-02-a
+#titulo Visual novo: menus e HUD com cara de jogo
+- Botões redondinhos e "gordinhos", com brilho e sombra embaixo, em cores alegres (azul, verde, rosa, lilás, amarelo)
+- Topo com a moedinha e o dinheiro, botões de vista, personagem e ajustes maiores e mais fáceis de tocar
+- Painel de baixo novo, com Trabalhar e Loja grandes e uma barra de trabalho mais visível
+- Loja, Configurações e Novidades redesenhadas: cartões, abas e ícones novos
+- Criador de personagem com ícones desenhados no lugar dos emojis, abas em relevo e botão Pronto verde
+- Joystick e mira com as cores novas
+
 #id 2026-11-01-g
 #titulo Boca e rosto masculinos diferentes + cores de boca
 - Nova aba Rosto > Lábios com 9 cores de boca (rosa, vermelho, vinho, coral, malva, ameixa, pink, nude...). "Original" volta ao coral

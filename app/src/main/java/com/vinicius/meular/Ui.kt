@@ -7,30 +7,52 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.os.SystemClock
 import android.view.View
 import kotlin.math.min
 
 object Pal {
-    val BG = Color.parseColor("#1B2030")
-    val CARD = Color.parseColor("#2A3144")
-    val CARD_HI = Color.parseColor("#343C54")
-    val TEXT = Color.parseColor("#F2F4FA")
-    val SUB = Color.parseColor("#9AA5C0")
-    val GOLD = Color.parseColor("#FFC94A")
+    val BG = Color.parseColor("#231A38")
+    val BG2 = Color.parseColor("#33275A")
+    val CARD = Color.parseColor("#372B58")
+    val CARD_HI = Color.parseColor("#43376A")
+    val TEXT = Color.parseColor("#FFF4E6")
+    val SUB = Color.parseColor("#BBAEDB")
+    val GOLD = Color.parseColor("#FFCB4D")
+    val LINE = Color.parseColor("#6A5A9C")
+    val INK = Color.parseColor("#1A1229")
     val CORAL = Color.parseColor("#FF7A59")
-    val CORAL2 = Color.parseColor("#F2563A")
+    val CORAL2 = Color.parseColor("#F0583F")
     val GREEN = Color.parseColor("#3CCB7F")
     val GREEN2 = Color.parseColor("#1FA463")
-    val GLASS = Color.parseColor("#D91B2030")
-    // HUD estilo The Sims: vidro azul-marinho, borda azul-clara, plumbob verde
-    val SIMS = Color.parseColor("#E0192C4A")
-    val SIMS_HI = Color.parseColor("#E02B4670")
-    val SIMS_LINE = Color.parseColor("#9958B8E8")
+    val GLASS = Color.parseColor("#E6231A38")
+    val SIMS = Color.parseColor("#EB2A2046")
+    val SIMS_HI = Color.parseColor("#EB3A2D5E")
+    val SIMS_LINE = Color.parseColor("#996A5A9C")
     val SIMS_BLUE = Color.parseColor("#58B8E8")
     val PLUMB = Color.parseColor("#6BE04A")
     val PLUMB2 = Color.parseColor("#2FA83A")
+}
+
+/** Cor de botão "gostosinho": topo claro, base mais escura e a borda de baixo (o "degrau"). */
+class Tone(val top: Int, val bot: Int, val edge: Int)
+
+object Tn {
+    private fun c(s: String) = Color.parseColor(s)
+    val SKY = Tone(c("#7FD0FF"), c("#3F9BE8"), c("#245FA8"))
+    val MINT = Tone(c("#6DE8B4"), c("#2FBF86"), c("#17805B"))
+    val SUN = Tone(c("#FFDB75"), c("#FFB52E"), c("#BC7708"))
+    val CORAL = Tone(c("#FF9A7A"), c("#F0583F"), c("#A83423"))
+    val LAV = Tone(c("#C3A8FF"), c("#7F60EA"), c("#4C36AE"))
+    val ROSE = Tone(c("#FF9DBF"), c("#EC5C8D"), c("#A93560"))
+    val GHOST = Tone(c("#3E3262"), c("#352A57"), c("#1C1431"))
+    val CARD = Tone(c("#43376A"), c("#372B58"), c("#190F2E"))
+    val PANEL = Tone(c("#3A2D5E"), c("#2A2046"), c("#120B22"))
 }
 
 object Ui {
@@ -63,6 +85,36 @@ object Ui {
         return g
     }
 
+    /** Botão/painel "chunky": degrau escuro embaixo + degradê + brilho no topo. Tudo em px. */
+    fun chunky(t: Tone, radius: Float, ledge: Float, gloss: Boolean = true, stroke: Int = 0, strokeW: Float = 0f): Drawable {
+        val edge = GradientDrawable()
+        edge.setColor(t.edge)
+        edge.cornerRadius = radius
+        val body = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(t.top, t.bot))
+        body.cornerRadius = radius
+        if (stroke != 0) body.setStroke(strokeW.toInt().coerceAtLeast(1), stroke)
+        val layers: Array<Drawable> = if (gloss) {
+            val shine = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x4DFFFFFF, 0x00FFFFFF, 0x00FFFFFF))
+            shine.cornerRadius = radius
+            arrayOf(edge, body, shine)
+        } else arrayOf(edge, body)
+        val ld = LayerDrawable(layers)
+        val l = ledge.toInt()
+        for (i in 1 until layers.size) ld.setLayerInset(i, 0, 0, 0, l)
+        return ld
+    }
+
+    /** Painel escuro com contorno lilás e degrau embaixo (barras, cartões, dock). */
+    fun panel(radius: Float, ledge: Float, line: Float): Drawable = chunky(Tn.PANEL, radius, ledge, false, Pal.LINE, line)
+
+    /** Folha que sobe de baixo (menus): degradê roxo com contorno. */
+    fun sheetBg(radius: Float, line: Float): GradientDrawable {
+        val g = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Pal.BG2, Pal.BG))
+        g.cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+        g.setStroke(line.toInt().coerceAtLeast(1), Pal.LINE)
+        return g
+    }
+
     val BOLD: Typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
     val MED: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 }
@@ -85,6 +137,15 @@ object Ic {
     const val DICE = 114
     const val JUMP = 115
     const val PLUMB = 116
+    const val BASE = 117
+    const val BODY = 118
+    const val HAIR = 119
+    const val FACE = 120
+    const val SHIRT = 121
+    const val SHOE = 122
+    const val HAT = 123
+    const val CHEV = 124
+    const val SPARK = 125
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -111,10 +172,12 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
     }
 
     override fun onDraw(c: Canvas) {
-        val s = min(width, height) / 100f
+        val aw = width - paddingLeft - paddingRight
+        val ah = height - paddingTop - paddingBottom
+        val s = min(aw, ah) / 100f
         if (s <= 0f) return
         c.save()
-        c.translate((width - 100f * s) / 2f, (height - 100f * s) / 2f)
+        c.translate(paddingLeft + (aw - 100f * s) / 2f, paddingTop + (ah - 100f * s) / 2f)
         c.scale(s, s)
         p.strokeCap = Paint.Cap.BUTT
         paintIcon(c)
@@ -202,6 +265,57 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(Color.parseColor("#B8F59A")); poly(c, 50f, 4f, 50f, 50f, 18f, 50f)
                 fill(Pal.PLUMB2); poly(c, 18f, 50f, 50f, 50f, 50f, 96f)
             }
+            Ic.BASE -> {
+                fill(w); c.drawCircle(50f, 26f, 17f, p)
+                path.reset(); path.moveTo(16f, 92f); path.cubicTo(16f, 46f, 84f, 46f, 84f, 92f); path.close(); c.drawPath(path, p)
+            }
+            Ic.BODY -> {
+                fill(w); c.drawCircle(50f, 16f, 12f, p)
+                rr(c, 30f, 33f, 70f, 72f, 13f); rr(c, 12f, 35f, 26f, 68f, 7f); rr(c, 74f, 35f, 88f, 68f, 7f)
+                rr(c, 32f, 64f, 48f, 94f, 7f); rr(c, 52f, 64f, 68f, 94f, 7f)
+            }
+            Ic.HAIR -> {
+                fill(w)
+                path.reset(); path.fillType = Path.FillType.EVEN_ODD
+                rf.set(14f, 8f, 86f, 92f); path.addOval(rf, Path.Direction.CW)
+                rf.set(31f, 34f, 69f, 82f); path.addOval(rf, Path.Direction.CW)
+                c.drawPath(path, p)
+                path.fillType = Path.FillType.WINDING
+            }
+            Ic.FACE -> {
+                fill(w)
+                path.reset(); path.fillType = Path.FillType.EVEN_ODD
+                path.addCircle(50f, 50f, 44f, Path.Direction.CW)
+                path.addCircle(34f, 34f, 6.5f, Path.Direction.CW)
+                path.addCircle(66f, 34f, 6.5f, Path.Direction.CW)
+                path.moveTo(26f, 58f); path.quadTo(50f, 90f, 74f, 58f); path.quadTo(50f, 71f, 26f, 58f); path.close()
+                c.drawPath(path, p)
+                path.fillType = Path.FillType.WINDING
+            }
+            Ic.SHIRT -> {
+                fill(w)
+                path.reset(); path.moveTo(32f, 12f); path.lineTo(8f, 30f); path.lineTo(20f, 49f); path.lineTo(30f, 42f)
+                path.lineTo(30f, 88f); path.lineTo(70f, 88f); path.lineTo(70f, 42f); path.lineTo(80f, 49f); path.lineTo(92f, 30f)
+                path.lineTo(68f, 12f); path.quadTo(50f, 32f, 32f, 12f); path.close(); c.drawPath(path, p)
+            }
+            Ic.SHOE -> {
+                fill(w)
+                path.reset(); path.moveTo(10f, 22f); path.lineTo(40f, 22f); path.lineTo(42f, 46f); path.quadTo(48f, 58f, 66f, 60f)
+                path.quadTo(92f, 62f, 92f, 76f); path.lineTo(10f, 76f); path.close(); c.drawPath(path, p)
+                rr(c, 8f, 72f, 94f, 90f, 8f)
+                fill(a); rr(c, 18f, 34f, 34f, 39f, 2f); rr(c, 18f, 46f, 34f, 51f, 2f)
+            }
+            Ic.HAT -> {
+                fill(w); rf.set(16f, 22f, 84f, 94f); c.drawArc(rf, 180f, 180f, true, p)
+                rr(c, 8f, 57f, 94f, 71f, 7f)
+            }
+            Ic.CHEV -> {
+                stroke(w, 12f); path.reset(); path.moveTo(34f, 16f); path.lineTo(68f, 50f); path.lineTo(34f, 84f); c.drawPath(path, p)
+            }
+            Ic.SPARK -> {
+                fill(w); path.reset(); path.moveTo(50f, 2f); path.quadTo(54f, 46f, 98f, 50f); path.quadTo(54f, 54f, 50f, 98f)
+                path.quadTo(46f, 54f, 2f, 50f); path.quadTo(46f, 46f, 50f, 2f); path.close(); c.drawPath(path, p)
+            }
             Ic.REFRESH -> {
                 stroke(w, 10f); rf.set(18f, 18f, 82f, 82f); c.drawArc(rf, -20f, 290f, false, p)
                 fill(w); poly(c, 66f, 6f, 90f, 30f, 60f, 34f)
@@ -281,23 +395,41 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
     }
 }
 
-/** Barra de progresso fina e arredondada. */
+/** Barra de progresso gordinha: trilho escuro com contorno lilás e enchimento verde com brilho. */
 class PillBar(ctx: Context) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rf = RectF()
+    private val d = ctx.resources.displayMetrics.density
     private var shown = 0f
+    private var fillShader: Shader? = null
     var value = 0f
         set(v) { field = v; invalidate() }
 
+    override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+        super.onSizeChanged(w, h, ow, oh)
+        fillShader = LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF8CF2C6.toInt(), 0xFF2FBF86.toInt()), null, Shader.TileMode.CLAMP)
+    }
+
     override fun onDraw(c: Canvas) {
         val h = height.toFloat()
+        val w = width.toFloat()
         shown += (value - shown) * 0.25f
-        p.color = Color.parseColor("#66000000")
-        rf.set(0f, 0f, width.toFloat(), h); c.drawRoundRect(rf, h / 2, h / 2, p)
+        p.shader = null
+        p.style = Paint.Style.FILL
+        p.color = 0xFF120B22.toInt()
+        rf.set(0f, 0f, w, h); c.drawRoundRect(rf, h / 2, h / 2, p)
+        val ins = 1.5f * d
         if (shown > 0.01f) {
-            p.color = Pal.GREEN
-            rf.set(0f, 0f, maxOf(h, width * shown), h); c.drawRoundRect(rf, h / 2, h / 2, p)
+            val fh = h - ins * 2
+            p.shader = fillShader
+            rf.set(ins, ins, ins + maxOf(fh, (w - ins * 2) * shown), h - ins)
+            c.drawRoundRect(rf, fh / 2, fh / 2, p)
+            p.shader = null
         }
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = ins
+        p.color = Pal.LINE
+        rf.set(ins / 2, ins / 2, w - ins / 2, h - ins / 2); c.drawRoundRect(rf, h / 2, h / 2, p)
         if (kotlin.math.abs(value - shown) > 0.004f) postInvalidateOnAnimation()
     }
 }
@@ -348,28 +480,28 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
             if (f == null) { p.style = Paint.Style.FILL; c.drawCircle(cx, cy, 1.4f * d, p) }
             if (f != null) {
                 val txt = if (g) "Carregando: ${f.type.nome}" else f.type.nome
-                label(c, txt, cx, cy + 28f * d, 11.5f, Color.parseColor("#C41B2030"), Color.WHITE)
+                label(c, txt, cx, cy + 28f * d, 12f, Color.parseColor("#E62A2046"), Pal.TEXT)
             }
 
             val r = game.joyR
             if (game.joyActive) {
-                p.style = Paint.Style.FILL; p.color = Color.argb(40, 255, 255, 255)
+                p.style = Paint.Style.FILL; p.color = Color.argb(70, 58, 45, 94)
                 c.drawCircle(game.joyBx, game.joyBy, r, p)
-                p.style = Paint.Style.STROKE; p.strokeWidth = 2f * d; p.color = Color.argb(150, 255, 255, 255)
+                p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(190, 187, 174, 219)
                 c.drawCircle(game.joyBx, game.joyBy, r, p)
-                p.style = Paint.Style.FILL; p.color = if (game.r.pRun) Color.argb(235, 107, 224, 74) else Color.argb(190, 255, 255, 255)
+                p.style = Paint.Style.FILL; p.color = if (game.r.pRun) Color.argb(240, 109, 232, 180) else Color.argb(215, 255, 244, 230)
                 c.drawCircle(game.joyKx, game.joyKy, r * 0.42f, p)
             } else {
-                p.style = Paint.Style.STROKE; p.strokeWidth = 2f * d; p.color = Color.argb(70, 255, 255, 255)
+                p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(110, 187, 174, 219)
                 c.drawCircle(w * 0.15f, h * 0.72f, r, p)
-                p.style = Paint.Style.FILL; p.color = Color.argb(50, 255, 255, 255)
+                p.style = Paint.Style.FILL; p.color = Color.argb(90, 255, 244, 230)
                 c.drawCircle(w * 0.15f, h * 0.72f, r * 0.42f, p)
             }
 
             val age = SystemClock.uptimeMillis() - t0
             if (age < 9000L) {
                 val al = if (age < 7000L) 1f else (9000L - age) / 2000f
-                label(c, "Esquerda: andar   •   Direita: olhar", cx, h * 0.26f, 11f, Color.argb((190 * al).toInt(), 27, 32, 48), Color.argb((255 * al).toInt(), 255, 255, 255))
+                label(c, "Esquerda: andar   •   Direita: olhar", cx, h * 0.26f, 11f, Color.argb((225 * al).toInt(), 42, 32, 70), Color.argb((255 * al).toInt(), 255, 244, 230))
             }
         }
         postInvalidateOnAnimation()
