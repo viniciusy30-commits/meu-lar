@@ -22,6 +22,7 @@ def sm(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
 
 S0 = np.array([13.3, 142.5, -2.9]); U = np.array([0.6012, -0.7991, -0.0076])   # início e direção do braço na pose de ligação
+CUFF_T = float(os.environ.get('CUFF_T', '16.5'))
 PAR = dict(sk=1.7, sf=0.55, ex0=0.40, ex1=0.50, ez0=0.34, ez1=0.40, hem=22.0, drop=1.2)
 
 def frame(P):
@@ -56,6 +57,25 @@ def deform(P, par=PAR):
 # ---------------------------------------------------------------- malha
 r, idx, fl, hide = load('top_shirt')
 P0 = r['pos'].astype(float)
+# Etapa 33: boca da manga reta. Os vértices da barra da manga ficavam espalhados (t 14..17,5) e a deformação virava dente de serra: alinha todos num plano.
+_ax_, _t_, _pr_, _r_ = frame(P0)
+_cuff = (_ax_ > 15) & (P0[:, 1] < 135) & (_t_ > 11.9) & (_t_ < 19.0)
+P0[_cuff] += ((CUFF_T - _t_[_cuff])[:, None]) * U[None, :] * np.array([[1.0, 1.0, 1.0]]) * np.where(P0[_cuff, 0:1] < 0, np.array([[-1.0, 1.0, 1.0]]), 1.0)
+# raio: a dobra interna do friso (raio 1,6..3) entrava no braço e recortava a boca da manga: leva tudo ao raio externo daquele ângulo
+_ax_, _t_, _pr_, _r_ = frame(P0)
+_e1 = np.cross(U, [0, 0, 1.0]); _e1 /= np.linalg.norm(_e1); _e2 = np.cross(U, _e1)
+_ang = np.arctan2(_pr_ @ _e2, _pr_ @ _e1)
+_ci = np.where(_cuff)[0]
+for _s in (1.0, -1.0):
+    _sel = _ci[(np.sign(P0[_ci, 0]) == _s)]
+    for _i in _sel:
+        _d = np.abs(np.angle(np.exp(1j * (_ang[_sel] - _ang[_i]))))
+        _R = _r_[_sel][_d < np.radians(14)].max()
+        if _r_[_i] < _R and _r_[_i] > 1e-6:
+            _k = _R / _r_[_i]
+            _a = _pr_[_i] * (_k - 1.0)
+            P0[_i, 0] += _s * _a[0]; P0[_i, 1] += _a[1]; P0[_i, 2] += _a[2]
+
 P = deform(P0); T = idx.reshape(-1, 3).astype(int)
 # pesos: a manga inteira segue só o osso do braço (10 = upperarm_l, 14 = upperarm_r)
 ws = sleeve_w(P0)
