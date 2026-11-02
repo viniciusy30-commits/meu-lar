@@ -157,3 +157,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Botões Feminino/Masculino em Corpo > Proporções, deformação masculina, busto novo (até +8 cm), normais corrigidas. Detalhes em `ETAPA13-CORPO-NOTAS.md`.
 - [ ] Não compilado nem testado no celular. Possível próximo ajuste: cabelo comprido atravessando busto grande.
 - ATENÇÃO (aprendido na continuação): em `codigo/` do ZIP de continuação, `Avatar.kt`, `Creator.kt` e `novidades.txt` da raiz eram versões ANTIGAS; a versão atual está em `codigo/viniciusy30-commits-meu-lar-75b834b/`.
+
+## Etapa 38 — Móveis do pack home-set-2020s (entregue, aguardando teste)
+- [x] 49 móveis convertidos dos FBX (tamanho/forma/texturas originais) para `assets/mob`; `MobLoader` (Mob.kt); `Type.mob/rug`; loja com miniaturas. Detalhes em `ETAPA38-MOVEIS-NOTAS.md`.
+- [ ] Não compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.

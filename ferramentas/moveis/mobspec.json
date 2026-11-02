@@ -1,0 +1,296 @@
+{
+ "sofa01": {
+  "nome": "Sofá de canto",
+  "cat": 0,
+  "preco": 260,
+  "rug": 0
+ },
+ "sofa02": {
+  "nome": "Sofá baixo",
+  "cat": 0,
+  "preco": 220,
+  "rug": 0
+ },
+ "casual-chair01": {
+  "nome": "Poltrona",
+  "cat": 0,
+  "preco": 110,
+  "rug": 0
+ },
+ "coffee-table01": {
+  "nome": "Mesa de centro redonda",
+  "cat": 0,
+  "preco": 80,
+  "rug": 0
+ },
+ "coffee-table02": {
+  "nome": "Mesa de centro baixa",
+  "cat": 0,
+  "preco": 70,
+  "rug": 0
+ },
+ "cabinet01": {
+  "nome": "Aparador",
+  "cat": 0,
+  "preco": 160,
+  "rug": 0
+ },
+ "shelf01": {
+  "nome": "Estante aberta",
+  "cat": 0,
+  "preco": 120,
+  "rug": 0
+ },
+ "stool01": {
+  "nome": "Pufe azul",
+  "cat": 0,
+  "preco": 35,
+  "rug": 0
+ },
+ "stool02": {
+  "nome": "Banqueta",
+  "cat": 0,
+  "preco": 40,
+  "rug": 0
+ },
+ "small-cushion01": {
+  "nome": "Almofada grande",
+  "cat": 0,
+  "preco": 15,
+  "rug": 0
+ },
+ "small-cushion02": {
+  "nome": "Almofada comprida",
+  "cat": 0,
+  "preco": 15,
+  "rug": 0
+ },
+ "speaker01": {
+  "nome": "Caixa de som",
+  "cat": 0,
+  "preco": 45,
+  "rug": 0
+ },
+ "office-desk01": {
+  "nome": "Escrivaninha",
+  "cat": 1,
+  "preco": 130,
+  "rug": 0
+ },
+ "office-chair01": {
+  "nome": "Cadeira de escritório",
+  "cat": 1,
+  "preco": 140,
+  "rug": 0
+ },
+ "computer-case": {
+  "nome": "Gabinete de PC",
+  "cat": 1,
+  "preco": 90,
+  "rug": 0
+ },
+ "monitor01": {
+  "nome": "Monitor curvo",
+  "cat": 1,
+  "preco": 180,
+  "rug": 0
+ },
+ "keyboard01": {
+  "nome": "Teclado",
+  "cat": 1,
+  "preco": 30,
+  "rug": 0
+ },
+ "computer-mouse": {
+  "nome": "Mouse",
+  "cat": 1,
+  "preco": 15,
+  "rug": 0
+ },
+ "mouse_pad01": {
+  "nome": "Mousepad grande",
+  "cat": 1,
+  "preco": 15,
+  "rug": 1
+ },
+ "desk-lamp01": {
+  "nome": "Luminária articulada",
+  "cat": 1,
+  "preco": 40,
+  "rug": 0
+ },
+ "desk-lamp02": {
+  "nome": "Luminária de mesa",
+  "cat": 1,
+  "preco": 30,
+  "rug": 0
+ },
+ "clock01": {
+  "nome": "Relógio de mesa",
+  "cat": 1,
+  "preco": 20,
+  "rug": 0
+ },
+ "basket01": {
+  "nome": "Cesto de vime",
+  "cat": 2,
+  "preco": 25,
+  "rug": 0
+ },
+ "bin": {
+  "nome": "Lixeira",
+  "cat": 2,
+  "preco": 20,
+  "rug": 0
+ },
+ "storage-box01": {
+  "nome": "Caixa organizadora",
+  "cat": 2,
+  "preco": 18,
+  "rug": 0
+ },
+ "tray01": {
+  "nome": "Bandeja de madeira",
+  "cat": 2,
+  "preco": 15,
+  "rug": 0
+ },
+ "tissue-box": {
+  "nome": "Caixa de lenços",
+  "cat": 2,
+  "preco": 8,
+  "rug": 0
+ },
+ "carpet01": {
+  "nome": "Tapete longo 1",
+  "cat": 3,
+  "preco": 60,
+  "rug": 1
+ },
+ "carpet02": {
+  "nome": "Tapete longo 2",
+  "cat": 3,
+  "preco": 60,
+  "rug": 1
+ },
+ "carpet03": {
+  "nome": "Tapete redondo 1",
+  "cat": 3,
+  "preco": 45,
+  "rug": 1
+ },
+ "carpet04": {
+  "nome": "Tapete redondo 2",
+  "cat": 3,
+  "preco": 45,
+  "rug": 1
+ },
+ "indoor-plant01": {
+  "nome": "Planta grande",
+  "cat": 3,
+  "preco": 70,
+  "rug": 0
+ },
+ "pot-cactus": {
+  "nome": "Cacto",
+  "cat": 3,
+  "preco": 15,
+  "rug": 0
+ },
+ "vase01": {
+  "nome": "Vaso de vime",
+  "cat": 3,
+  "preco": 18,
+  "rug": 0
+ },
+ "vase02": {
+  "nome": "Vaso de argila",
+  "cat": 3,
+  "preco": 18,
+  "rug": 0
+ },
+ "vase03": {
+  "nome": "Vaso com folhas",
+  "cat": 3,
+  "preco": 30,
+  "rug": 0
+ },
+ "vase04": {
+  "nome": "Vaso baixo",
+  "cat": 3,
+  "preco": 12,
+  "rug": 0
+ },
+ "vase05": {
+  "nome": "Vaso fino",
+  "cat": 3,
+  "preco": 14,
+  "rug": 0
+ },
+ "book01": {
+  "nome": "Livro",
+  "cat": 3,
+  "preco": 8,
+  "rug": 0
+ },
+ "book02": {
+  "nome": "Livro pequeno",
+  "cat": 3,
+  "preco": 8,
+  "rug": 0
+ },
+ "books01": {
+  "nome": "Pilha de livros",
+  "cat": 3,
+  "preco": 14,
+  "rug": 0
+ },
+ "books02": {
+  "nome": "Livros deitados",
+  "cat": 3,
+  "preco": 14,
+  "rug": 0
+ },
+ "books03": {
+  "nome": "Livros em pé",
+  "cat": 3,
+  "preco": 16,
+  "rug": 0
+ },
+ "sculpture01": {
+  "nome": "Escultura",
+  "cat": 3,
+  "preco": 55,
+  "rug": 0
+ },
+ "trinket-abs": {
+  "nome": "Letreiro ABS",
+  "cat": 3,
+  "preco": 25,
+  "rug": 0
+ },
+ "trinket-duck": {
+  "nome": "Patinho amarelo",
+  "cat": 3,
+  "preco": 12,
+  "rug": 0
+ },
+ "trinket_wooden_ball": {
+  "nome": "Bola de madeira",
+  "cat": 3,
+  "preco": 10,
+  "rug": 0
+ },
+ "photo-frame01": {
+  "nome": "Porta-retrato largo",
+  "cat": 3,
+  "preco": 12,
+  "rug": 0
+ },
+ "photo-frame02": {
+  "nome": "Porta-retrato alto",
+  "cat": 3,
+  "preco": 12,
+  "rug": 0
+ }
+}

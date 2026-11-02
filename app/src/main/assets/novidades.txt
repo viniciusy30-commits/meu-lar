@@ -1,3 +1,10 @@
+#id 2026-11-02-c
+#titulo Móveis novos do pack home-set-2020s
+- 49 móveis e objetos 3D do pack, do jeito que eles são lá (tamanho, forma e texturas originais): sofás, poltrona, mesas de centro, aparador, estante, pufe, escrivaninha, cadeira de escritório, monitor, luminárias, tapetes, plantas, vasos, livros e mais
+- Aparecem na loja nas abas Sala, Quarto, Cozinha e Decoração, com miniatura
+- Os móveis grandes ocupam mais casas (o sofá de canto ocupa 5x3), então amplie a casa se precisar
+- Tapetes e o mousepad dá para pisar em cima, como o tapete antigo
+
 #id 2026-11-02-b
 #titulo Personagem pronto: Zero YAM
 - Na tela Base do criador, abaixo de Masculino/Feminino, aparece a nova seção "Personagens prontos"

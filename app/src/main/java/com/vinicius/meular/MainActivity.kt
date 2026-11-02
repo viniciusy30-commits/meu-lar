@@ -2,6 +2,7 @@ package com.vinicius.meular
 
 import android.app.Dialog
 import android.graphics.Color
+import android.widget.ImageView
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -123,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CuteChar.assets = assets
+        MobLoader.assets = assets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -361,9 +363,9 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ loja
 
-    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val acao: () -> Unit)
+    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val thumb: String? = null, val acao: () -> Unit)
 
-    private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
+    private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val img: ImageView, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
 
     private inner class ShopAdapter : RecyclerView.Adapter<VH>() {
         var data: List<Entry> = emptyList()
@@ -381,6 +383,11 @@ class MainActivity : AppCompatActivity() {
             l.addView(ic, LinearLayout.LayoutParams(dp(58), dp(58)))
             val sw = View(this@MainActivity)
             l.addView(sw, LinearLayout.LayoutParams(dp(52), dp(52)))
+            val img = ImageView(this@MainActivity)
+            img.scaleType = ImageView.ScaleType.FIT_CENTER
+            img.background = Ui.bg(0x406CA0FF, dpf(14f))
+            img.setPadding(dp(4), dp(4), dp(4), dp(4))
+            l.addView(img, LinearLayout.LayoutParams(dp(62), dp(62)))
             val n = tv("", 12f, Pal.TEXT, true)
             n.gravity = Gravity.CENTER
             n.maxLines = 2
@@ -388,16 +395,24 @@ class MainActivity : AppCompatActivity() {
             val pr = tv("", 12f, Pal.GOLD, true)
             pr.gravity = Gravity.CENTER
             l.addView(pr, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2) })
-            return VH(l, ic, sw, n, pr)
+            return VH(l, ic, sw, img, n, pr)
         }
 
         override fun onBindViewHolder(h: VH, i: Int) {
             val e = data[i]
-            if (e.swatch != 0) {
+            val tb = e.thumb?.let { MobLoader.thumb(it) }
+            if (tb != null) {
+                h.icon.visibility = View.GONE
+                h.sw.visibility = View.GONE
+                h.img.visibility = View.VISIBLE
+                h.img.setImageBitmap(tb)
+            } else if (e.swatch != 0) {
+                h.img.visibility = View.GONE
                 h.icon.visibility = View.GONE
                 h.sw.visibility = View.VISIBLE
                 h.sw.background = Ui.oval(e.swatch, Color.parseColor("#99FFF4E6"), dpf(2.5f))
             } else {
+                h.img.visibility = View.GONE
                 h.sw.visibility = View.GONE
                 h.icon.visibility = View.VISIBLE
                 h.icon.set(e.icon)
@@ -421,7 +436,7 @@ class MainActivity : AppCompatActivity() {
     private fun entries(tab: Int): List<Entry> {
         val out = ArrayList<Entry>()
         if (tab in 0..3) {
-            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "R$ ${t.preco}", t.ordinal, 0, st.money >= t.preco) { comprar(t) })
+            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "R$ ${t.preco}", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
         } else if (tab == 4) {
             Finish.floors.forEachIndexed { i, f ->
                 val own = (st.ownFloors shr i) and 1 == 1

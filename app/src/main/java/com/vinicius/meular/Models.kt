@@ -55,6 +55,7 @@ object Models {
     // ------------------------------------------------------------ móveis
 
     fun furniture(t: Type): Mesh {
+        t.mob?.let { return MobLoader.load(it) }
         val b = MB()
         when (t) {
             Type.CHAIR -> {
@@ -285,6 +286,7 @@ object Models {
                 b.rbox(0.9, 1.05, 0.78, 0.03, 0.42, 0.03, 0.015, C("#B8C0C8"), true, 1)
                 b.rbox(1.1, 1.05, 0.78, 0.03, 0.42, 0.03, 0.015, C("#B8C0C8"), true, 1)
             }
+            else -> {}
         }
         return b.toMesh()
     }

@@ -132,6 +132,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var uModel = 0
     private var uAlpha = 0
     private var uTex = 0
+    private var uCut = 0
     private var uSpec = 0
     private var uPush = 0
     private var uEye = 0
@@ -173,10 +174,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         precision mediump float;
         #endif
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
-        uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec;
+        uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec; uniform float uCut;
         uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight;
         void main() {
             vec4 t = texture2D(uTex, vUV);
+            if (t.a < uCut) discard;
             vec3 base = t.rgb * vCol.rgb;
             float a = t.a * vCol.a * uAlpha;
             if (length(vN) < 0.1) { gl_FragColor = vec4(base, a); return; }
@@ -231,6 +233,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         uModel = GLES20.glGetUniformLocation(prog, "uModel")
         uAlpha = GLES20.glGetUniformLocation(prog, "uAlpha")
         uTex = GLES20.glGetUniformLocation(prog, "uTex")
+        uCut = GLES20.glGetUniformLocation(prog, "uCut")
         uSpec = GLES20.glGetUniformLocation(prog, "uSpec")
         uPush = GLES20.glGetUniformLocation(prog, "uPush")
         uEye = GLES20.glGetUniformLocation(prog, "uEye")
@@ -242,6 +245,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(aCol)
         GLES20.glEnableVertexAttribArray(aUV)
         Tex.init()
+        fm.clear()          // móveis do pack: as texturas do contexto antigo não valem mais
+        MobLoader.reset()
         CuteChar.initGl()
         skyM = Models.sky()
         stageM = AvatarModel.stage()
@@ -266,6 +271,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glUniform1i(uTex, 0)
             GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
             GLES20.glUniform1f(uPush, p.push)
+            GLES20.glUniform1f(uCut, p.cut)
             val bytes = STRIDE * 4
             p.buf.position(0)
             GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
@@ -329,7 +335,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         val g = grabbed
         for (o in st.items) {
-            if (o.type == Type.RUG || o === g) continue
+            if (o.type.rug || o === g) continue
             if (inside(o, nx, nz) && !inside(o, ox, oz)) return false
         }
         return true
@@ -358,7 +364,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (!ins && !door) return true
         } else if (!(x > -6.6f && x < gw + 6.6f && z > -6.6f && z < gh + 8.6f)) return true   // fora do quintal
         for (o in st.items) {
-            if (o.type == Type.RUG) continue
+            if (o.type.rug) continue
             if (inside(o, x, z)) return true
         }
         return false
@@ -617,7 +623,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var best: Item? = null
         var bt = maxT
         for (o in st.items) {
-            if (o.type == Type.RUG) continue
+            if (o.type.rug) continue
             val t = hitBox(ry, o.x.toFloat(), 0f, o.y.toFloat(), (o.x + o.w).toFloat(), o.type.alt, (o.y + o.h).toFloat())
             if (t >= 0f && t < bt) { bt = t; best = o }
         }
@@ -628,7 +634,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val cx = floor(ry[0] + t * ry[3]).toInt()
         val cz = floor(ry[2] + t * ry[5]).toInt()
         return st.items.lastOrNull { o ->
-            o.type == Type.RUG && cx >= o.x && cx < o.x + o.w && cz >= o.y && cz < o.y + o.h
+            o.type.rug && cx >= o.x && cx < o.x + o.w && cz >= o.y && cz < o.y + o.h
         }
     }
 
@@ -826,7 +832,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f
         for (item in items) {
-            if (item.type == Type.RUG) continue
+            if (item.type.rug) continue
             val key = item.w * 10 + item.h
             val shm = sm.getOrPut(key) { Models.shadow(item.w, item.h) }
             Matrix.setIdentityM(mdl, 0)
