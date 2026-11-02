@@ -139,6 +139,10 @@ for _ in range(10):
             _new[i_] = _Pu[i_] + 0.6 * _msk_u[i_] * (_Pu[list(_nb[i_])].mean(0) - _Pu[i_])
     _Pu = _new
 P = _Pu[_inv]
+# Etapa 32b: o topo do ombro da camisa ficava colado no corpo (mesma superfície): a pele furava o tecido. Sobe ~1 cm só no ombro (não na gola)
+_w = sm(134, 141, P[:, 1]) * sm(7, 11, np.abs(P[:, 0])) * (1 - sm(26, 34, np.abs(P[:, 0])))
+_rx = P[:, 0]; _rz = P[:, 2] - 2.0; _rl = np.maximum(np.hypot(_rx, _rz), 1e-6)
+P[:, 1] += 1.0 * _w; P[:, 0] += 0.6 * _w * _rx / _rl; P[:, 2] += 0.6 * _w * _rz / _rl
 # normais suaves (soldando vértices de mesma posição)
 key = np.round(P, 3); _, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
 fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
@@ -163,6 +167,13 @@ for f in ('bi', 'bw'): r2[f] = r[f][src]
 r2['pos'] = Pn; r2['nor'] = Nn; r2['uv'] = UVn.astype(np.float32); r2['col'] = 255
 idx2 = Tn.astype('<u2').ravel()
 os.makedirs(OUT, exist_ok=True)
+_bb = open(os.path.join(SRC, 'base.bin'), 'rb').read(); _nvb, _nib = struct.unpack_from('<2i', _bb, 4)
+_bp = np.frombuffer(_bb, np.dtype([('pos', '<f4', 3), ('r', 'u1', 32)]), _nvb, 20)['pos'].astype(float)
+_bt = np.frombuffer(_bb, '<u2', _nib, 20 + _nvb * 44).astype(int).reshape(-1, 3)
+_cen = _bp[_bt].mean(1)
+_extra = np.where((np.abs(_cen[:, 0]) > 9) & (np.abs(_cen[:, 0]) < 30) & (_cen[:, 1] > 137) & (_cen[:, 1] < 151))[0]
+hide = np.unique(np.concatenate([hide.astype(int), _extra])).astype('<u2')
+print('triangulos do corpo escondidos a mais no topo do ombro:', len(_extra))
 open(os.path.join(OUT, 'p_top_skatetee.bin'), 'wb').write(b'CUP1' + struct.pack('<3i', len(r2), len(idx2), 1) + r2.tobytes() + idx2.tobytes() + struct.pack('<i', len(hide)) + hide.tobytes())
 print('verts', len(r2), 'tris', len(Tn), 'finite', bool(np.isfinite(Pn).all()))
 
