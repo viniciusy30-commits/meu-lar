@@ -1,4 +1,5 @@
 package com.vinicius.meular
+// versao etapa38-fix2 (sem comentarios de bloco; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
@@ -8,21 +9,19 @@ import android.opengl.GLUtils
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/**
- * Móveis do pack "home-set-2020s" (Unity), convertidos por ferramentas/moveis/buildmob.py para assets/mob.
- *  - mob/<id>.bin (MOB1): tamanho em casas (largura, profundidade), texturas usadas e as peças (uma por material):
- *    material do app, índice da textura, recorte por alfa (folhas), cor do material, vértices (pos, normal, uv) e índices;
- *  - a pasta mob/tex: texturas do pack (potência de 2, ladrilhadas);
- *  - mob/icons/<id>.png: miniatura da loja.
- * A malha vem do pack sem alteração de tamanho nem de forma: x em [0,largura], z em [0,profundidade], y para cima, frente em +z.
- * Deve ser chamado na thread do GL (sobe as texturas).
- */
+// Móveis do pack "home-set-2020s" (Unity), convertidos por ferramentas/moveis/buildmob.py para assets/mob.
+//  - mob/<id>.bin (MOB1): tamanho em casas (largura, profundidade), texturas usadas e as peças (uma por material):
+//    material do app, índice da textura, recorte por alfa (folhas), cor do material, vértices (pos, normal, uv) e índices;
+//  - a pasta mob/tex: texturas do pack (potência de 2, ladrilhadas);
+//  - mob/icons/<id>.png: miniatura da loja.
+// A malha vem do pack sem alteração de tamanho nem de forma: x em [0,largura], z em [0,profundidade], y para cima, frente em +z.
+// Deve ser chamado na thread do GL (sobe as texturas).
 object MobLoader {
     @Volatile var assets: AssetManager? = null
     private val texIds = HashMap<String, Int>()
     private val thumbs = HashMap<String, Bitmap?>()
 
-    /** O contexto do GL foi recriado: as texturas antigas não valem mais. */
+    // O contexto do GL foi recriado: as texturas antigas não valem mais.
     fun reset() { texIds.clear() }
 
     private fun texture(am: AssetManager, name: String): Int {
@@ -50,7 +49,7 @@ object MobLoader {
         return id
     }
 
-    /** Miniatura da loja (ou null se não existir). */
+    // Miniatura da loja (ou null se não existir).
     fun thumb(id: String): Bitmap? {
         if (thumbs.containsKey(id)) return thumbs[id]
         val am = assets
