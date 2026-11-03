@@ -18,7 +18,8 @@ def do_tee(B,g):
     Image.fromarray(paint_tee2(F,B,ART)).save(OUT+'%s_tee.png'%g,optimize=True)
     bi,bw=transfer_weights2(B,Pn,An); write_cup(OUT+'%s_tee.cup'%g,Pn,Nn,UV,T,bi,bw)
 def do_cargo(B,g):
-    P,N,tri,info=build_cargo(B)
+    from sk_cargo2 import build_cargo2
+    P,N,tri,info=build_cargo2(B,OUT+'%s_shoes.cup'%g)
     bt=lambda p: 3 if p[1]>info['waist']-6 else 0
     Pn,Nn,UV,T,F,An=bake(P,N,tri,bt,(info['leg'],np.zeros(len(P)),np.zeros(len(P))))
     Image.fromarray(paint_cargo(F,B,info)).save(OUT+'%s_cargo.png'%g,optimize=True)

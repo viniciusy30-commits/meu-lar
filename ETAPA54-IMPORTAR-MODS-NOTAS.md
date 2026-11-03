@@ -71,3 +71,21 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - CuteChar.runModJobs: peças de cabelo (chave "hairBack/") agora são desenhadas sem backface culling (cartões dupla-face).
 - Ao vestir, o cabelo padrão (hairBack/H_xx) é ocultado automaticamente (Avatar.wearKeys).
 - Onde: Customização > Roupas > Importar mods > Cabelo ondulado preto > Vestir.
+
+## Etapa 57 — Calça contínua + cabelo wolf cut
+- Calça cargo refeita (ferramentas/skate/sk_cargo2.py): a perna é uma peça única até a barra (sem o tubo duro separado). A barra assenta sobre o tênis (altura calculada pela superfície do tênis), cai quase até o chão atrás e nos lados, com dobras leves; suavizada para não ter degrau.
+- Removidas as listras claras das costuras laterais/internas da textura (sk_paint2.py).
+- Cabelo trocado: "Cabelo wolf cut preto" (sk_hair2.py): médio, repartido ao meio, franja em cortina, camadas (curtas em cima, compridas na nuca). Substitui o cabelo ondulado da etapa 56 (mesmos nomes de arquivo hair_<g>).
+
+## Etapa 58 — Customização refeita (estilo The Sims) + correção do T-pose
+**T-pose ao abrir o jogo (corrigido):** o corpo salvo era aplicado (CuteChar.setWear) antes do initGl carregar os clipes/alturas; os clipes falhavam, `simFail` ficava ligado e frame() nunca tentava de novo, então o boneco ficava parado na pose original até escolher um corpo no criador. Agora:
+- `applySimState()` (novo) aplica altura/clipes/tabela do esqueleto; é chamado em setWear e de novo no fim do initGl.
+- `useSimClips` não conta "ainda não carregou" como falha; frame() tenta de novo a cada 1,5 s se falhou.
+
+**Tela de customização (Creator.kt) refeita:**
+- Categorias (arco): Base, Corpo, Cabelo, Rosto, Roupas (Blusas / Calças / Inteiras), Sapatos, Acessórios.
+- Roupas, cabelos, sapatos e acessórios aparecem numa grade de fotos de prévia (miniaturas) com nome, "Nenhum"/"Careca" e o botão tracejado "Importar .package" no fim da grade. Peças importadas ganham miniatura gerada na hora (Thumb.kt) e botão ✕ para excluir; sem textura mostra "sem textura +".
+- Base só tem Idade/Sexo/Corpo; cabelo agora é a categoria Cabelo (Careca / Liso longo / Wolf cut preto / importados). Sumiram "Personagens prontos" e o seletor repetido nas Proporções.
+- Itens antigos do Bozo removidos do manifesto (assets/cute/pieces.txt) e os .bin deles apagados (~8 MB). Ficam só os corpos do Sims 3, o cabelo padrão (Heartbeat) e as peças novas.
+- Miniaturas embutidas: assets/cute/thumbs/<id>.png (tee_/cargo_/shoe_/hair_/hairdef_ + grupo), geradas por ferramentas/thumbs/GeraMiniaturas.kt usando o mesmo Thumb.kt do jogo.
+- Camera: cada categoria enquadra a parte (cabelo/rosto de perto, calças nas pernas, sapatos nos pés).

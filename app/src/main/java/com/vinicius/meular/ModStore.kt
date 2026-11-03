@@ -23,7 +23,7 @@ object ModStore {
     @Volatile private var busy = false
     val isBusy: Boolean get() = busy
 
-    val SLOT_NAMES = mapOf("top" to "Blusa", "bottom" to "Calça/saia", "overall" to "Roupa inteira", "feet" to "Sapatos", "hairBack" to "Cabelo", "hat" to "Chapéu")
+    val SLOT_NAMES = mapOf("top" to "Blusa", "bottom" to "Calça/saia", "overall" to "Roupa inteira", "feet" to "Sapatos", "hairBack" to "Cabelo", "hat" to "Chapéu", "gloves" to "Luvas", "glasses" to "Óculos", "beard" to "Barba", "headAcc" to "Acessório")
 
     @Synchronized
     fun init(ctx: Context) {
@@ -43,12 +43,76 @@ object ModStore {
         }
         // roupas que já vêm no jogo (assets/cute/skate): camiseta oversized CHAOS, calça cargo baggy e tênis preto e branco
         for (g in listOf("af", "am", "tf", "tm", "ef", "em")) {
-            items.add(Item("tee_$g", "Camiseta oversized CHAOS", "top", g, 0, true, false, true))
-            items.add(Item("cargo_$g", "Calça cargo baggy preta", "bottom", g, 0, true, false, true))
-            items.add(Item("shoe_$g", "Tênis preto e branco", "feet", g, 0, true, false, true))
-            items.add(Item("hair_$g", "Cabelo ondulado preto", "hairBack", g, 0, true, true, true))
+            items.add(Item("tee_$g", "Camiseta CHAOS", "top", g, 0, true, false, true))
+            items.add(Item("cargo_$g", "Cargo baggy preta", "bottom", g, 0, true, false, true))
+            items.add(Item("shoe_$g", "Tênis panda", "feet", g, 0, true, false, true))
+            items.add(Item("hair_$g", "Wolf cut preto", "hairBack", g, 0, true, true, true))
         }
         worn.retainAll(items.map { it.key }.toSet())
+    }
+
+    /** Veste a peça (troca a do mesmo tipo). Já vestida: não faz nada. */
+    @Synchronized
+    fun select(it: Item) { if (it.key !in worn) toggle(it) }
+
+    /** Tira tudo o que está vestido nesses tipos (ex.: "top") para o corpo [grp]. */
+    @Synchronized
+    fun clear(grp: String, slots: Collection<String>) {
+        for (o in items.filter { x -> x.grp == grp && x.slot in slots && x.key in worn }) toggle(o)
+    }
+
+    // ---- miniaturas (a "foto de prévia" de cada peça) ----
+    /** Miniatura embutida (assets/cute/thumbs/<nome>.png). Chamar fora da thread da tela. */
+    fun assetThumb(name: String): Bitmap? = try {
+        CuteChar.assets?.open("cute/thumbs/$name.png")?.use { BitmapFactory.decodeStream(it) }
+    } catch (e: Throwable) { null }
+
+    /** Miniatura da peça: embutida, ou gerada na primeira vez (peças importadas) e guardada em disco. Chamar fora da thread da tela. */
+    fun thumb(it: Item): Bitmap? {
+        if (it.builtin) return assetThumb(it.id)
+        val d = dir ?: return null
+        val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".thumb.png")
+        if (f.exists()) BitmapFactory.decodeFile(f.path)?.let { b -> return b }
+        val b = try { renderThumb(it) } catch (e: Throwable) { android.util.Log.e("ModStore", "miniatura " + it.id, e); null } ?: return null
+        try { f.outputStream().use { o -> b.compress(Bitmap.CompressFormat.PNG, 100, o) } } catch (e: Throwable) { }
+        return b
+    }
+
+    private fun renderThumb(it: Item): Bitmap? {
+        val d = dir ?: return null
+        var cup = File(d, it.id + ".cup").readBytes()
+        var pixels: IntArray? = null
+        var tw = 0
+        var th = 0
+        if (it.hasTex) {
+            val o = BitmapFactory.Options()
+            o.inPremultiplied = false
+            var bmp = BitmapFactory.decodeFile(File(d, it.id + ".png").path, o)
+            if (bmp != null) {
+                if (bmp.width > 1024 || bmp.height > 1024) {
+                    val k = 1024f / maxOf(bmp.width, bmp.height)
+                    bmp = Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true)
+                }
+                tw = bmp.width
+                th = bmp.height
+                pixels = IntArray(tw * th)
+                bmp.getPixels(pixels, 0, tw, 0, 0, tw, th)
+                if (it.game == 2) cup = Importer.cullBlack(cup, pixels, tw, th)
+            }
+        }
+        val parts = ArrayList<Thumb.Piece>()
+        if (it.slot == "hairBack" || it.slot == "hat") {
+            try {
+                val am = CuteChar.assets
+                if (am != null) {
+                    val bm = Thumb.parse(am.open("cute/p_body_" + it.grp + "1.bin").use { s -> s.readBytes() })
+                    parts.add(Thumb.Piece(Thumb.headOf(bm), null, 0, 0, 0xFFE3BFA2.toInt(), false, true))
+                }
+            } catch (e: Throwable) { }
+        }
+        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFF9AA3AD.toInt(), it.alpha))
+        val px = Thumb.render(parts, it.slot, 256)
+        return Bitmap.createBitmap(px, 256, 256, Bitmap.Config.ARGB_8888)
     }
 
     private fun saveIndex() {
@@ -97,7 +161,7 @@ object ModStore {
         worn.remove(it.key)
         items.remove(it)
         val d = dir
-        if (d != null) { File(d, it.id + ".cup").delete(); File(d, it.id + ".png").delete() }
+        if (d != null) { File(d, it.id + ".cup").delete(); File(d, it.id + ".png").delete(); File(d, it.id + ".t0.thumb.png").delete(); File(d, it.id + ".t1.thumb.png").delete() }
         saveIndex()
         CuteChar.enqueueMod(it.key, null, null, false)
     }

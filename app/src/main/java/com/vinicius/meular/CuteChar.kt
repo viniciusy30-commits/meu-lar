@@ -196,23 +196,37 @@ object CuteChar {
     }
 
     /** Etapas 3 e 4: peças escolhidas no criador (chaves "slot/id" de cabelo, blusa, calça/saia, vestido e roupa de baixo). */
+    @Volatile private var wearBodyKey: String? = null
     fun setWear(keys: List<String>) {
         wear = keys.toSet()
-        // Etapa 44: corpo do Sims 3 ("body/S_..."): altura relativa ao adulto feminino e sem ajustes do corpo-base
-        val bk = keys.firstOrNull { it.startsWith("body/S_") }
+        wearBodyKey = keys.firstOrNull { it.startsWith("body/S_") }
+        applySimState()
+        rebuildActive()
+    }
+
+    /**
+     * Etapa 44/45/50: estado do corpo do Sims 3 (altura, clipes de animação, tabela do esqueleto).
+     * Corrige o T-pose ao abrir o jogo: o setWear do save rodava ANTES do initGl (sem clipes/alturas carregados),
+     * então os clipes falhavam e o boneco ficava parado na pose original até o jogador escolher um corpo no criador.
+     * Agora o initGl chama isto de novo, quando tudo já está carregado.
+     */
+    private fun applySimState() {
+        val bk = wearBodyKey
         simOn = bk != null
         simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
         simWant = if (bk != null && bk.length >= 9) bk.substring(7, 9) else ""
         simFail = false
+        simTryNs = 0L
         useSimClips(simWant)   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
         simKey = if (bk != null && bk.length >= 10) bk.substring(7) else ""   // Etapa 50: "body/S_af1" -> "af1"
         if (simOn) { heightS = simH * BodyMorph.heightScale(bodyP[0]); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
-        rebuildActive()
     }
+    @Volatile private var simTryNs = 0L
 
     /** Etapa 45: carrega clips_<grupo>.bin (CLP1: nb, nc, clipes) do esqueleto do Sims 3; "" volta aos clipes do base.bin. Falhando, mantém os atuais. */
     private fun useSimClips(grp: String) {
         if (grp == simGrp) return
+        if (grp.isNotEmpty() && (assets == null || nb == 0 || !loaded)) return   // ainda não carregou: frame()/initGl tentam de novo
         try {
             if (grp.isEmpty()) {
                 bozoClips?.let { clipSet = it }
@@ -407,6 +421,7 @@ object CuteChar {
                 for (n in names) if (!n.startsWith("sk_")) texIds[n] = uploadTexture(am, n)   // Etapa 44: atlas de pele do Sims 3 sobem só quando usados
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
                 for (s in library.values) if (!s.tex.startsWith("sk_")) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
+                applySimState()
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
@@ -697,7 +712,10 @@ object CuteChar {
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         if (texPending) loadPendingTex()
         if (!modJobs.isEmpty()) runModJobs()
-        if (simWant != simGrp && !simFail && assets != null) useSimClips(simWant)
+        if (simWant != simGrp && assets != null) {
+            val nowT = System.nanoTime()
+            if (!simFail || nowT - simTryNs > 1_500_000_000L) { simTryNs = nowT; useSimClips(simWant) }
+        }
         val cs = cur ?: return null
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
         val bs = baseSkin ?: return null

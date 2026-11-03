@@ -59,7 +59,7 @@ def paint_cargo(F,B,info):
     img=base*(1-fade[...,None])+np.array([88,88,94],np.float32)*fade[...,None]
     # rugas horizontais (empilhado) e verticais baked como sombra
     wr=np.sin(Y*1.35+noise((H,W),6,15)*2.0)*smooth(46,16,Y)
-    img=img*(1+0.14*wr[...,None])
+    img=img*(1+0.08*wr[...,None])
     wr2=np.sin(np.arctan2(X-sgn*B.kn[0],Z)*6+Y*0.12)*smooth(98,60,Y)
     img=img*(1+0.03*wr2[...,None])
     # cós
@@ -117,7 +117,6 @@ def paint_cargo(F,B,info):
     ys=np.array(sorted(outx)); ox=np.interp(Y,ys,gaussian_filter1d(np.array([outx[k] for k in ys]),2.0)); ix_=np.interp(Y,ys,gaussian_filter1d(np.array([inx[k] for k in ys]),2.0))
     so=ox-ax
     outer=(nx*sgn>0.35)&(Y<wy-1); inner_s=(nx*sgn<-0.35)&(Y<wy-22)&(Y>hem+5)
-    img=stitch_line(img,np.abs(so-0.8)+(~outer)*9,Y*1.6,0.12,GREY,0.6,0.62)
     pass
     # barra
     uu=np.arctan2(X,Z)*10

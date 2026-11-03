@@ -36,22 +36,15 @@ class CreatorUi(
     private fun dp(v: Int) = (v * d).toInt()
     private fun dpf(v: Float) = v * d
 
-    private class Style(
-        val key: String,
-        val ids: List<String>,
-        val names: List<String>,
-        val get: (Avatar) -> Int,
-        val set: (Avatar, Int) -> Unit
-    )
-
     private class Sub(
         val name: String,
         val yaw: Float,
-        val style: Style?,
+        val style: Any?,
         val colors: IntArray,
         val dist: Float = Float.NaN,
         val y: Float = Float.NaN,
-        val sl: Int = 0   // Etapa 7: 1 = controles de proporção do corpo, 2 = controles do formato do rosto, 3 = expressões, 4 = escolha da base
+        val sl: Int = 0,   // 1 = proporções do corpo, 3 = expressões, 4 = escolha da base, 6 = grade de peças (ver [slots])
+        val slots: List<String> = emptyList()   // sl = 6: tipos de peça mostrados (top, bottom, overall, feet, hairBack, hat...)
     )
 
     private class Cat(val name: String, val dist: Float, val y: Float, val subs: List<Sub>)
@@ -61,24 +54,34 @@ class CreatorUi(
     // Alturas reais: personagem ~1,55 m (com chifres ~1,65); olhos ~1,45; pés em 0. Altura visível = 0,61 x distância.
     private val cats: List<Cat> = listOf(
         Cat("Base", 3.5f, 0.82f, listOf(
-            Sub("Masculino / Feminino", 0.3f, null, intArrayOf(0), sl = 4)
+            Sub("Idade e sexo", 0.3f, null, intArrayOf(), sl = 4)
         )),
         Cat("Corpo", 3.5f, 0.82f, listOf(
             Sub("Pele", 0.3f, null, intArrayOf(0)),
             Sub("Proporções", 0.3f, null, intArrayOf(), sl = 1)
         )),
+        Cat("Cabelo", 1.6f, 1.36f, listOf(
+            Sub("Cabelos", 0.35f, null, intArrayOf(), sl = 6, slots = listOf("hairBack"))
+        )),
         Cat("Rosto", 1.3f, 1.43f, listOf(
-            Sub("Formato", 0f, null, intArrayOf(), sl = 2),
             Sub("Olhos", 0f, null, intArrayOf(1)),
             Sub("Lábios", 0f, null, intArrayOf(12)),
             Sub("Expressão", 0f, null, intArrayOf(), sl = 3)
         )),
-        Cat("Roupas", 3.0f, 0.85f, listOf(
-            Sub("Importar mods", 0.3f, null, intArrayOf(), sl = 5)
+        Cat("Roupas", 2.6f, 0.95f, listOf(
+            Sub("Blusas", 0.3f, null, intArrayOf(), dist = 2.0f, y = 1.1f, sl = 6, slots = listOf("top")),
+            Sub("Calças", 0.3f, null, intArrayOf(), dist = 2.4f, y = 0.55f, sl = 6, slots = listOf("bottom")),
+            Sub("Inteiras", 0.3f, null, intArrayOf(), sl = 6, slots = listOf("overall"))
+        )),
+        Cat("Sapatos", 1.7f, 0.22f, listOf(
+            Sub("Sapatos", 0.55f, null, intArrayOf(), sl = 6, slots = listOf("feet"))
+        )),
+        Cat("Acessórios", 1.5f, 1.4f, listOf(
+            Sub("Acessórios", 0.3f, null, intArrayOf(), sl = 6, slots = listOf("hat", "glasses", "headAcc", "gloves", "beard"))
         ))
     )
 
-    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.FACE, Ic.SHIRT)
+    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT)
 
     private var cat = 0
     private var sub = 0
@@ -263,22 +266,23 @@ class CreatorUi(
         }
     }
 
-    /** Dado: sorteia estilo e cores da aba atual. */
+    /** Dado: sorteia uma peça (aba de peças), as cores ou as proporções da aba atual. */
     private fun randomize() {
         val s = cats[cat].subs[sub]
         val av = st.avatar
         val rnd = java.util.Random()
-        s.style?.let { stl ->
-            if (stl.ids.isNotEmpty()) { stl.set(av, rnd.nextInt(stl.ids.size)); CuteChar.setWear(av.wearKeys()) }
+        if (s.sl == 6) {
+            val grp = CuteChar.bodyGroup()
+            val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in s.slots }
+            if (list.isNotEmpty()) { ModStore.select(list[rnd.nextInt(list.size)]); itemsChanged(); return }
         }
         for (slot in s.colors) {
             val n = CuteColor.palette(slot).size
             if (n > 0) av.cc[slot] = rnd.nextInt(n)
         }
         CuteColor.setColors(av.cc)
-        if (s.sl == 1 || s.sl == 2) {
-            val arr = if (s.sl == 1) av.bs else av.fs
-            for (i in arr.indices) arr[i] = rnd.nextInt(81) - 40
+        if (s.sl == 1) {
+            for (i in av.bs.indices) av.bs[i] = rnd.nextInt(81) - 40
             CuteChar.setShape(av.bs, av.fs, av.masc)
         }
         st.save()
@@ -331,15 +335,13 @@ class CreatorUi(
         val keep = scroll.scrollY
         body.removeAllViews()
         val s = c.subs[sub]
-        val stl = s.style
-        if (stl != null) grid(stl, stl.get(av))
-        if (s.sl == 5) modsPanel() else if (s.sl == 4) baseChoice() else if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
+        if (s.sl == 6) itemsPanel(s.slots) else if (s.sl == 4) baseChoice() else if (s.sl == 3) expressions() else if (s.sl == 1) sliders(1)
         for (slot in s.colors) colorRow(slot)
         body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
         scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
     }
 
-    // ---- Mods: importar .package do The Sims 2/3/4 direto pelo jogo ----
+    // ---- Peças (roupas, cabelos, sapatos, acessórios): grade de fotos de prévia, como no The Sims ----
     private var modMsg = ""
 
     /** Chamado pela MainActivity quando a importação termina (já na thread da tela). */
@@ -349,153 +351,183 @@ class CreatorUi(
         refresh(true)
     }
 
-    private fun modBtn(text: String, on: Boolean, click: () -> Unit): TextView {
+    private fun itemsChanged() {
+        CuteChar.setWear(st.avatar.wearKeys())
+        st.save()
+        refresh(true)
+    }
+
+    private class Entry(
+        val key: String,
+        val label: String,
+        val sel: Boolean,
+        val none: Boolean,
+        val loader: (() -> Bitmap?)?,
+        val onClick: () -> Unit,
+        val onDelete: (() -> Unit)? = null,
+        val onTex: (() -> Unit)? = null
+    )
+
+    private val thumbCache = HashMap<String, Bitmap?>()
+
+    private fun loadThumb(iv: ImageView, e: Entry) {
+        val loader = e.loader ?: return
+        val hit = thumbCache[e.key]
+        if (hit != null) { iv.setImageBitmap(hit); return }
+        if (thumbCache.containsKey(e.key)) return
+        Thread {
+            val b = try { loader() } catch (x: Throwable) { null }
+            post {
+                thumbCache[e.key] = b
+                if (b != null && iv.tag == e.key) iv.setImageBitmap(b)
+            }
+        }.start()
+    }
+
+    private fun smallBadge(text: String, click: () -> Unit): TextView {
         val t = TextView(context)
         t.text = text
-        t.textSize = 12f
+        t.textSize = 11f
         t.typeface = Ui.BOLD
+        t.setTextColor(Color.WHITE)
         t.gravity = Gravity.CENTER
-        t.setPadding(dp(12), 0, dp(12), 0)
-        t.setTextColor(if (on) Color.WHITE else SUB2)
-        t.background = pillBg(on, dpf(16f))
+        t.background = Ui.oval(0xCC6F93A6.toInt())
         t.setOnClickListener { click() }
         return t
     }
 
-    private fun modsPanel() {
-        val act = context as? MainActivity
-        val info = TextView(context)
-        info.text = "Escolha arquivos .package de roupas, sapatos ou cabelos (The Sims 2, 3 ou 4). Eles são encaixados no corpo atual. " +
-            "Se a roupa vier sem cor, importe depois o package de textura (recolor)."
-        info.textSize = 12f
-        info.setTextColor(SUB2)
-        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(4), dp(4), dp(8)) })
-        body.addView(modBtn(if (ModStore.isBusy) "Importando..." else "+  Importar .package", true) { act?.pickMods(null) },
-            LinearLayout.LayoutParams(-1, dp(44)).also { it.setMargins(dp(4), 0, dp(4), dp(8)) })
-        if (modMsg.isNotEmpty()) {
-            val m = TextView(context)
-            m.text = modMsg
-            m.textSize = 12f
-            m.setTextColor(TXT)
-            body.addView(m, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), 0, dp(4), dp(8)) })
-        }
-        val grp = CuteChar.bodyGroup()
-        val list = ModStore.items.filter { it.grp == grp }
-        if (grp == null) {
-            val m = TextView(context)
-            m.text = "Escolha um corpo na aba Base primeiro."
-            m.textSize = 12f
-            m.setTextColor(SUB2)
-            body.addView(m)
-        }
-        for (it in list) {
-            val card = LinearLayout(context)
-            card.orientation = LinearLayout.VERTICAL
-            card.background = cardBg(dpf(14f))
-            card.setPadding(dp(10), dp(8), dp(10), dp(8))
-            val nm = TextView(context)
-            nm.text = it.name + "  \u00B7  " + (ModStore.SLOT_NAMES[it.slot] ?: it.slot) + if (it.hasTex) "" else "  (sem textura)"
-            nm.textSize = 13f
-            nm.typeface = Ui.BOLD
-            nm.setTextColor(TXT)
-            card.addView(nm, LinearLayout.LayoutParams(-1, -2))
-            val row = LinearLayout(context)
-            row.orientation = LinearLayout.HORIZONTAL
-            val worn = ModStore.isWorn(it)
-            row.addView(modBtn(if (worn) "Tirar" else "Vestir", !worn) {
-                ModStore.toggle(it)
-                CuteChar.setWear(st.avatar.wearKeys())
-                st.save()
-                refresh(true)
-            }, LinearLayout.LayoutParams(0, dp(34), 1f))
-            if (!it.builtin) {
-                row.addView(modBtn("Textura", false) { act?.pickMods(it.id) }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
-                row.addView(modBtn("Excluir", false) {
-                    ModStore.remove(it)
-                    CuteChar.setWear(st.avatar.wearKeys())
-                    refresh(true)
-                }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
-            }
-            card.addView(row, LinearLayout.LayoutParams(-1, -2).also { p -> p.topMargin = dp(6) })
-            body.addView(card, LinearLayout.LayoutParams(-1, -2).also { p -> p.setMargins(dp(4), dp(4), dp(4), dp(4)) })
-        }
-    }
-
-    private fun icon(key: String): Bitmap? = icons.getOrPut(key) {
-        try {
-            context.assets.open("cute/icons/$key.png").use { BitmapFactory.decodeStream(it) }
-        } catch (e: Exception) { null }
-    }
-
-    private fun grid(stl: Style, cur: Int) {
-        val cols = 3
-        var row: LinearLayout? = null
-        for (i in stl.ids.indices) {
-            if (i % cols == 0) {
-                row = LinearLayout(context)
-                row.orientation = LinearLayout.HORIZONTAL
-                body.addView(row, LinearLayout.LayoutParams(-1, -2))
-            }
-            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(104), 1f).also {
-                it.setMargins(dp(4), dp(4), dp(4), dp(4))
-            })
-        }
-        val rest = (cols - stl.ids.size % cols) % cols
-        for (k in 0 until rest) {
-            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(104), 1f).also {
-                it.setMargins(dp(4), dp(4), dp(4), dp(4))
-            })
-        }
-    }
-
-    private fun tile(stl: Style, i: Int, sel: Boolean): View {
+    private fun entryTile(e: Entry): View {
         val f = FrameLayout(context)
-        f.background = if (sel) Ui.frost(dpf(14f), 0xFFFFFF, 0xFF, 0xF2, dpf(2.6f), edge = GREEN) else cardBg(dpf(14f))
-        val id = stl.ids[i]
-        val bmp = if (id.isEmpty()) null else icon((stl.key + "_" + id).lowercase())
-        if (bmp != null) {
-            val iv = ImageView(context)
-            iv.scaleType = ImageView.ScaleType.FIT_CENTER
-            iv.setImageBitmap(bmp)
-            f.addView(iv, LayoutParams(-1, dp(64), Gravity.TOP).also { it.topMargin = dp(8) })
-        } else {
+        f.background = if (e.sel) Ui.frost(dpf(14f), 0xFFFFFF, 0xFF, 0xF2, dpf(2.6f), edge = GREEN) else cardBg(dpf(14f))
+        if (e.none) {
             val x = TextView(context)
-            x.text = if (id.isEmpty()) "\u2205" else "?"
-            x.textSize = 30f
+            x.text = "∅"
+            x.textSize = 34f
             x.setTextColor(SUB2)
             x.gravity = Gravity.CENTER
-            f.addView(x, LayoutParams(-1, dp(64), Gravity.TOP).also { it.topMargin = dp(8) })
+            f.addView(x, LayoutParams(-1, dp(84), Gravity.TOP).also { it.topMargin = dp(6) })
+        } else {
+            // fundo claro atrás da foto (peças brancas/pretas aparecem bem)
+            val back = View(context)
+            back.background = GradientDrawable().also { g -> g.cornerRadius = dpf(10f); g.setColor(0xFFE9F3F9.toInt()) }
+            f.addView(back, LayoutParams(-1, dp(80), Gravity.TOP).also { it.setMargins(dp(6), dp(6), dp(6), 0) })
+            val iv = ImageView(context)
+            iv.scaleType = ImageView.ScaleType.FIT_CENTER
+            iv.tag = e.key
+            f.addView(iv, LayoutParams(-1, dp(80), Gravity.TOP).also { it.setMargins(dp(6), dp(6), dp(6), 0) })
+            loadThumb(iv, e)
         }
         val n = TextView(context)
-        n.text = stl.names[i]
+        n.text = e.label
         n.textSize = 11f
         n.typeface = Ui.MED
         n.maxLines = 2
         n.gravity = Gravity.CENTER
-        n.setTextColor(if (sel) TXT else SUB2)
-        n.setPadding(dp(4), 0, dp(4), dp(5))
-        n.setPadding(dp(4), 0, dp(4), dp(8))
-        f.addView(n, LayoutParams(-1, dp(32), Gravity.BOTTOM))
-        if (sel) {
+        n.setTextColor(if (e.sel) TXT else SUB2)
+        n.setPadding(dp(4), 0, dp(4), dp(6))
+        f.addView(n, LayoutParams(-1, dp(34), Gravity.BOTTOM))
+        if (e.sel) {
             val ck = TextView(context)
-            ck.text = "\u2713"
+            ck.text = "✓"
             ck.textSize = 12f
             ck.typeface = Ui.BOLD
             ck.setTextColor(Color.WHITE)
             ck.gravity = Gravity.CENTER
             ck.background = Ui.oval(0xFF4CBF6B.toInt())
-            f.addView(ck, LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(6), dp(6), 0) })
+            f.addView(ck, LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(8), dp(8), 0) })
         }
-        f.setOnClickListener { pickStyle(stl, i) }
+        e.onDelete?.let { del -> f.addView(smallBadge("✕", del), LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.START).also { it.setMargins(dp(8), dp(8), 0, 0) }) }
+        e.onTex?.let { tx ->
+            val b = smallBadge("sem textura  +", tx)
+            b.background = pillBg(true, dpf(10f))
+            b.textSize = 9.5f
+            f.addView(b, LayoutParams(-2, dp(20), Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(60) })
+        }
+        f.setOnClickListener { e.onClick() }
         return f
     }
 
-    private fun pickStyle(stl: Style, i: Int) {
-        val a = st.avatar
-        stl.set(a, i)
-        CuteChar.setWear(a.wearKeys())
-        st.save()
-        refresh(true)
+    private fun importTile(): View {
+        val act = context as? MainActivity
+        val f = FrameLayout(context)
+        f.background = GradientDrawable().also { g ->
+            g.cornerRadius = dpf(14f)
+            g.setColor(0x55FFFFFF)
+            g.setStroke(dp(2), 0xFF9BC3D6.toInt(), dpf(6f), dpf(4f))
+        }
+        f.addView(IconView(context, Ic.PLUS, 0xFF4B9CC4.toInt(), Color.WHITE), LayoutParams(dp(34), dp(34), Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(26) })
+        val n = TextView(context)
+        n.text = if (ModStore.isBusy) "Importando..." else "Importar\n.package"
+        n.textSize = 11f
+        n.typeface = Ui.MED
+        n.maxLines = 2
+        n.gravity = Gravity.CENTER
+        n.setTextColor(SUB2)
+        n.setPadding(dp(4), 0, dp(4), dp(6))
+        f.addView(n, LayoutParams(-1, dp(40), Gravity.BOTTOM))
+        f.setOnClickListener { if (!ModStore.isBusy) act?.pickMods(null) }
+        return f
+    }
+
+    private fun itemsPanel(slots: List<String>) {
+        val av = st.avatar
+        val act = context as? MainActivity
+        val grp = CuteChar.bodyGroup()
+        val hair = "hairBack" in slots
+        val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in slots }
+        val anyWorn = list.any { ModStore.isWorn(it) }
+        val entries = ArrayList<Entry>()
+        if (hair) {
+            entries.add(Entry("none", "Careca", !av.simHair && !anyWorn, true, null, {
+                av.simHair = false
+                if (grp != null) ModStore.clear(grp, slots)
+                itemsChanged()
+            }))
+            if (grp != null && av.simAge >= 2) {
+                entries.add(Entry("hairdef_$grp", "Liso longo", av.simHair && !anyWorn, false, { ModStore.assetThumb("hairdef_$grp") }, {
+                    av.simHair = true
+                    ModStore.clear(grp, slots)
+                    itemsChanged()
+                }))
+            }
+        } else {
+            entries.add(Entry("none", "Nenhum", !anyWorn, true, null, {
+                if (grp != null) ModStore.clear(grp, slots)
+                itemsChanged()
+            }))
+        }
+        for (m in list) {
+            entries.add(Entry("m_" + m.id + (if (m.hasTex) "1" else "0"), m.name, ModStore.isWorn(m), false, { ModStore.thumb(m) },
+                { ModStore.select(m); itemsChanged() },
+                if (!m.builtin) ({ ModStore.remove(m); itemsChanged() }) else null,
+                if (!m.builtin && !m.hasTex) ({ act?.pickMods(m.id) }) else null))
+        }
+        val cols = 3
+        val total = entries.size + 1
+        var row: LinearLayout? = null
+        for (i in 0 until total) {
+            if (i % cols == 0) {
+                row = LinearLayout(context)
+                row.orientation = LinearLayout.HORIZONTAL
+                body.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+            val v = if (i < entries.size) entryTile(entries[i]) else importTile()
+            row!!.addView(v, LinearLayout.LayoutParams(0, dp(128), 1f).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
+        }
+        val rest = (cols - total % cols) % cols
+        for (k in 0 until rest) row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(128), 1f).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
+        if (modMsg.isNotEmpty()) {
+            val m = TextView(context)
+            m.text = modMsg
+            m.textSize = 12f
+            m.setTextColor(TXT)
+            body.addView(m, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(6), dp(4), dp(4)) })
+        }
+        val info = TextView(context)
+        info.text = "Importe roupas, sapatos e cabelos de arquivos .package do The Sims 2, 3 ou 4 (também .zip e .rar). Se a peça vier sem cor, toque em \"sem textura\" e escolha o package de textura."
+        info.textSize = 11f
+        info.setTextColor(SUB2)
+        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(10), dp(4), dp(4)) })
     }
 
     private fun colorRow(slot: Int) {
@@ -548,8 +580,7 @@ class CreatorUi(
 
     /** Etapa 7: controles deslizantes (-100..100) de proporção do corpo (kind 1) ou formato do rosto (kind 2). */
     private fun sliders(kind: Int) {
-        simSelector()
-        if (kind != 1) return   // Etapa 44: o rosto vem do Sims 3 (sem sliders). Etapa 50: os sliders de corpo voltaram, para o corpo do Sims 3
+        if (kind != 1) return   // o rosto vem do Sims 3 (sem sliders); os sliders de corpo valem para o corpo do Sims 3
         val av = st.avatar
         val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
         val arr = if (kind == 1) av.bs else av.fs
@@ -686,7 +717,7 @@ class CreatorUi(
     private fun simSelector() {
         val av = st.avatar
         val info = TextView(context)
-        info.text = "Corpo e rosto do The Sims 3. As roupas novas entram quando você mandar as peças."
+        info.text = "Corpo e rosto do The Sims 3."
         info.textSize = 12f
         info.setTextColor(SUB2)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
@@ -698,51 +729,17 @@ class CreatorUi(
         chipRow("Corpo", listOf("Magro", "Normal", "Gordo"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
             av.simType = tipos[it]; simApply()
         }
-        chipRow("Cabelo", listOf("Com cabelo", "Careca"), if (av.simHair) 0 else 1, { av.simAge >= 2 }) { av.simHair = it == 0; simApply() }
     }
 
     /** Etapa 14: escolha da base. Recomeça o personagem do zero (roupa de baixo, cabelo simples, proporções zeradas). */
     private fun baseChoice() {
         val av = st.avatar
         val info = TextView(context)
-        info.text = "Escolha a base e monte seu personagem do zero, ou escolha um personagem pronto abaixo. Trocar a base ou o personagem apaga roupas, cabelo e ajustes (mantém a pele)."
+        info.text = "Escolha a idade, o sexo e o tipo de corpo. Roupas, cabelo e sapatos ficam nas outras categorias."
         info.textSize = 12f
         info.setTextColor(SUB2)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         simSelector()
-        // Etapa 37: personagens prontos, à parte das bases
-        val head = TextView(context)
-        head.text = "Personagens prontos"
-        head.textSize = 14f
-        head.typeface = Ui.BOLD
-        head.setTextColor(TXT)
-        body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(20); it.leftMargin = dp(4); it.rightMargin = dp(4) })
-        for (i in AvaPal.PRESET_N.indices) {
-            val card = LinearLayout(context)
-            card.orientation = LinearLayout.VERTICAL
-            card.setPadding(dp(14), dp(10), dp(14), dp(14))
-            card.background = cardBg(dpf(18f))
-            val nm = TextView(context)
-            nm.text = "\u2605  " + AvaPal.PRESET_N[i]
-            nm.textSize = 17f
-            nm.typeface = Ui.BOLD
-            nm.setTextColor(TXT)
-            card.addView(nm, LinearLayout.LayoutParams(-1, -2))
-            val ds = TextView(context)
-            ds.text = AvaPal.PRESET_D[i]
-            ds.textSize = 12f
-            ds.setTextColor(SUB2)
-            card.addView(ds, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(2) })
-            card.setOnClickListener {
-                av.applyPreset(i)
-                CuteColor.setColors(av.cc)
-                CuteChar.setWear(av.wearKeys())
-                CuteChar.setShape(av.bs, av.fs, av.masc)
-                st.save()
-                refresh(true)
-            }
-            body.addView(card, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8); it.leftMargin = dp(4); it.rightMargin = dp(4) })
-        }
     }
 
     /** Etapa 8: testar expressões do rosto (só visualização; o jogo continua piscando e fazendo cara de surpresa no pulo). */
