@@ -18,8 +18,19 @@ Referência: a anatomia do **Jovem** (coluna, ombros, braços), sem mexer na apa
 - Verificado: 0 NaN, soma dos pesos = 255, ossos ≤ 54, inclinação do tronco igual entre idades (parado ≈ 0°, andar ≈ 0–1°, correr ≈ 12°).
 - Roupas (`p_top_*` etc.) não foram alteradas: as mangas terminam no punho, e o que fica da mão para baixo é pele.
 
+## Revisão 2 — braços "enormes" e axila estranha (principalmente correndo)
+- **Axila:** a difusão de pesos da Etapa 45 prendia a lateral inteira do tronco (até 14 cm abaixo do ombro) na clavícula (~50% do peso).
+  Ao mexer o ombro, a costela lateral virava uma "aba" esticada. Agora (`fix_clavicle`) a clavícula só influencia o topo do ombro;
+  abaixo dele o peso vai para a coluna (tronco) ou para o braço, e `smooth_armpit` suaviza a transição numa esfera de ~13 cm em cada axila.
+- **Braço "longo" correndo:** o balanço vinha do clipe antigo, exagerado para trás (−58° a +14°) com cotovelo muito fechado (103–117°).
+  Agora (`natural_arms`, `SWING`, `ABD`, `ELBOW2`): correr −38° a +12°, cotovelo 93–105°; andar com balanço lateral mais contido.
+  Comprimento dos ossos não mudou (braço 31 cm + antebraço 25 cm no adulto): era o balanço.
+- Verificado em tf, af, ef, am, em, cu, pu (renderização sombreada de frente/lado/3-4, andar e correr): sem "aba" na axila, 0 NaN, soma dos pesos = 255.
+
 ## Ajustes finos (topo de `etapa49_maos_idades.py`)
 - `CURL_RELAX` / `CURL_RUN`: graus por falange (proximal, média, distal) de indicador, médio, anelar, mínimo e polegar. Mais aberto = números menores.
+- `SWING` / `ABD` / `ELBOW2`: (centro atual, escala, novo centro) em graus do balanço; escala maior = braço balança mais (1.0 = como o clipe original).
+- `rad` em `smooth_armpit` e `fix_clavicle`: tamanho da zona suave da axila / altura onde a clavícula deixa de agir.
 - Posição do nó dos dedos: `u_mcp = 0.50 * L` em `hand_model` (fração do comprimento da mão).
 
 ## Gerar de novo

@@ -186,6 +186,92 @@ def curl_hands(clips, hm):
         out.append((ln, res))
     return out
 
+
+# ------------------------------------------------------------------ clavicula so no topo do ombro
+def fix_clavicle(Pv, clsv, J, bi, bw):
+    """A difusao do Etapa 45 prende a lateral inteira do tronco (ate 14 cm abaixo do ombro) na clavicula (~50% do peso);
+    quando o ombro se mexe a costela lateral vira uma "aba" esticada na axila. Aqui a clavicula so influencia o topo do ombro:
+    abaixo dele o peso vai para a coluna (tronco) ou para o braco (ilha do braco)."""
+    n = len(Pv); uu = J['_H'] / 1.675
+    full = np.zeros((n, 55)); idx = np.arange(n)
+    for k in range(4): np.add.at(full, (idx, bi[:, k].astype(int)), bw[:, k] / 255.0)
+    ycut = J['upperarm_l'][1] - 0.02 * uu
+    fac = smooth((Pv[:, 1] - (ycut - 0.05 * uu)) / (0.05 * uu))        # 1 acima de ycut, 0 abaixo de ycut-5cm
+    for side in ('l', 'r'):
+        cb = R.BI['clavicle_' + side]; ub = R.BI['upperarm_' + side]
+        wc = full[:, cb] * (1 - fac); full[:, cb] -= wc
+        arm = clsv == ('armL' if side == 'l' else 'armR')
+        full[arm, ub] += wc[arm]
+        t = ~arm; sp = full[:, 1:6]
+        has = sp.sum(1) > 1e-6
+        tgt = np.where(has, 1 + sp.argmax(1), 4)
+        full[np.nonzero(t)[0], tgt[t]] += wc[t]
+    ii = np.argsort(-full, 1)[:, :4]; vv = np.take_along_axis(full, ii, 1)
+    vv = np.where(vv < 0.02, 0, vv); vv /= vv.sum(1, keepdims=True)
+    q = np.round(vv * 255).astype(int); q[:, 0] += 255 - q.sum(1)
+    return ii.astype(np.uint8), q.astype(np.uint8)
+
+# ------------------------------------------------------------------ axila: pesos suavizados (sem "prateleira" entre braco e tronco)
+from scipy.sparse import coo_matrix, diags as _diags
+def smooth_armpit(Pv, Tv, J, bi, bw, iters=28, lam=0.6, rad=0.135):
+    """Os pesos do Sims mudam de repente na costura braco/tronco (axila): ao girar o braco, a pele do tronco vira uma aba esticada.
+    Aqui os pesos (25 ossos) sao suavizados por difusao na malha soldada, so numa esfera em volta de cada axila."""
+    n = len(Pv); uu = J['_H'] / 1.675
+    key = np.round(Pv * 1e5).astype(np.int64); uq, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True); inv = inv.reshape(-1)
+    m = len(uq); Q = Pv[first]
+    full = np.zeros((n, 55)); idx = np.arange(n)
+    for k in range(4): np.add.at(full, (idx, bi[:, k].astype(int)), bw[:, k] / 255.0)
+    Wu = np.zeros((m, 55)); Wu[inv] = full
+    a = inv[np.r_[Tv[:, 0], Tv[:, 1], Tv[:, 2]]]; b = inv[np.r_[Tv[:, 1], Tv[:, 2], Tv[:, 0]]]; ok = a != b
+    Adj = coo_matrix((np.ones(ok.sum() * 2), (np.r_[a[ok], b[ok]], np.r_[b[ok], a[ok]])), shape=(m, m)).tocsr(); Adj.data[:] = 1.0
+    deg = np.asarray(Adj.sum(1)).ravel() + 1e-9
+    mask = np.zeros(m)
+    for sg in (1.0, -1.0):
+        S = J['upperarm_l'] * np.array([sg, 1, 1]); C = S + np.array([-0.04 * sg, -0.11, 0.0]) * uu
+        d = np.linalg.norm(Q - C, axis=1) / (rad * uu); mask = np.maximum(mask, smooth(1.0 - d))
+    mask[Q[:, 1] > J['upperarm_l'][1] + 0.05 * uu] = 0       # nada acima do ombro (pescoco/cabeca)
+    lm = (lam * mask)[:, None]
+    for _ in range(iters): Wu = Wu + lm * ((Adj @ Wu) / deg[:, None] - Wu)
+    full = Wu[inv]
+    ii = np.argsort(-full, 1)[:, :4]; vv = np.take_along_axis(full, ii, 1)
+    vv = np.where(vv < 0.02, 0, vv); vv /= vv.sum(1, keepdims=True)
+    q = np.round(vv * 255).astype(int); q[:, 0] += 255 - q.sum(1)
+    return ii.astype(np.uint8), q.astype(np.uint8)
+
+# ------------------------------------------------------------------ bracos "The Sims": balanco e abertura mais contidos
+# (centro_atual, escala, novo_centro) em graus. Frente/tras: 0 = braco na vertical, negativo = para tras.
+SWING = {1: (-16.0, 0.85, -14.0), 5: (-16.0, 0.85, -14.0), 3: (-12.0, 0.70, -6.0), 6: (-12.0, 0.70, -6.0)}
+ABD = {1: (6.0, 0.55, 6.0), 5: (6.0, 0.55, 6.0)}              # abertura lateral: balanco do andar mais contido
+ELBOW2 = dict(E.ELBOW); ELBOW2.update({3: (20.0, 0.88), 6: (20.0, 0.88)})   # correr: cotovelo ~92-105 graus (antes 103-117)
+
+def natural_arms(clips, Q25):
+    out = []
+    for ci, (ln, res) in enumerate(clips):
+        res = res.copy()
+        if ci in SWING or ci in ABD:
+            for f in range(res.shape[0]):
+                M = res[f].reshape(-1, 3, 4).astype(np.float64) / KK
+                for side in ('l', 'r'):
+                    ua, la = R.BI['upperarm_' + side], R.BI['lowerarm_' + side]; hd = R.BI['hand_' + side]
+                    bones = [ua, la, hd] + (list(range(25, 40)) if side == 'l' else list(range(40, 55)))
+                    sx = 1.0 if side == 'l' else -1.0
+                    def rot(Rm, p):
+                        for b in bones:
+                            M[b, :, :3] = Rm @ M[b, :, :3]; M[b, :, 3] = Rm @ (M[b, :, 3] - p) + p
+                    def arm():
+                        s_ = M[ua, :, :3] @ Q25[ua] + M[ua, :, 3]; e_ = M[la, :, :3] @ Q25[la] + M[la, :, 3]; return s_, e_ - s_
+                    if ci in SWING:
+                        c, k, c2 = SWING[ci]; p, v = arm(); sag = np.degrees(np.arctan2(v[2], -v[1])); d = (c2 + k * (sag - c)) - sag
+                        th = -np.radians(d); cs, sn = np.cos(th), np.sin(th)
+                        rot(np.array([[1, 0, 0], [0, cs, -sn], [0, sn, cs]]), p)
+                    if ci in ABD:
+                        c, k, c2 = ABD[ci]; p, v = arm(); ab = np.degrees(np.arctan2(sx * v[0], -v[1])); d = (c2 + k * (ab - c)) - ab
+                        th = sx * np.radians(d); cs, sn = np.cos(th), np.sin(th)
+                        rot(np.array([[cs, -sn, 0], [sn, cs, 0], [0, 0, 1]]), p)
+                res[f] = (M * KK).reshape(-1, 12).astype(np.float32)
+        out.append((ln, res))
+    return out
+
 # ------------------------------------------------------------------ pipeline por grupo (etapa48 + dedos)
 def run(grp, ratios, outdir):
     v1, i1, fl1, tail1 = E.read_piece(CU + 'p_body_%s1.bin' % grp)
@@ -203,6 +289,8 @@ def run(grp, ratios, outdir):
         Pv = v['pos'][:nbv].astype(np.float64) / sc
         clsv = R.classify(Pv, Tv)
         bi, bw = R.skin_weights(Pv, Tv, J, clsv, face_ymin - 0.003)
+        bi, bw = fix_clavicle(Pv, clsv, J, bi, bw)
+        bi, bw = smooth_armpit(Pv, Tv, J, bi, bw)
         bi, bw = apply_finger_weights(Pv, clsv, hm, bi, bw)
         v['bi'][:nbv] = bi; v['bw'][:nbv] = bw
         E.write_piece(outdir + os.path.basename(fn), v, idx, fl, tail)
@@ -213,7 +301,8 @@ def run(grp, ratios, outdir):
     ab = E.abduction(cl, Qnew)
     degs = {ci: ab[ci] - E.TARGET_DEG[ci] for ci in E.TARGET_DEG if ci < len(cl)}
     cl = E.adduct(cl, Qnew, degs)
-    cl = E.relax_elbows(cl, Qnew, E.ELBOW)
+    cl = natural_arms(cl, Qnew)
+    cl = E.relax_elbows(cl, Qnew, ELBOW2)
     cl = curl_hands(cl, hm)
     E.write_clips(outdir + 'clips_%s.bin' % grp, cl)
     print(grp, 'ok | mao L=%.1f cm, dedos(w)=%s' % (hm['L'] * 100, np.round(hm['wc'] * 100, 1)))
