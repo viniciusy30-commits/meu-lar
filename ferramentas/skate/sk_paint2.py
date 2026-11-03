@@ -49,7 +49,7 @@ def paint_cargo(F,B,info):
     base=base*(1+0.11*(twill[...,None]-0.5))+(noise((H,W),0.8,11)*1.4)[...,None]
     # lavado: cinza desbotado em coxas, joelhos e dobras
     n3=noise((H,W),8.0,13)*0.5+0.5; n4=noise((H,W),3.0,14)*0.5+0.5
-    fade=0.16*n3+0.10*n4
+    fade=0.10*n3+0.06*n4
     fade+=0.22*smooth(60,92,Y)*smooth(0.0,0.8,nz)
     fade+=0.26*np.exp(-((Y-B.kn[1])/6.5)**2)*smooth(-0.2,0.6,nz)
     fade+=0.16*np.exp(-((Y-(B.an[1]+8))/6.0)**2)
@@ -61,7 +61,7 @@ def paint_cargo(F,B,info):
     wr=np.sin(Y*1.35+noise((H,W),6,15)*2.0)*smooth(46,16,Y)
     img=img*(1+0.14*wr[...,None])
     wr2=np.sin(np.arctan2(X-sgn*B.kn[0],Z)*6+Y*0.12)*smooth(98,60,Y)
-    img=img*(1+0.07*wr2[...,None])
+    img=img*(1+0.03*wr2[...,None])
     # cós
     wb=(Y>wy-4.8)
     img=img*(1-0.1*wb[...,None])
@@ -117,20 +117,10 @@ def paint_cargo(F,B,info):
     ys=np.array(sorted(outx)); ox=np.interp(Y,ys,gaussian_filter1d(np.array([outx[k] for k in ys]),2.0)); ix_=np.interp(Y,ys,gaussian_filter1d(np.array([inx[k] for k in ys]),2.0))
     so=ox-ax
     outer=(nx*sgn>0.35)&(Y<wy-1); inner_s=(nx*sgn<-0.35)&(Y<wy-22)&(Y>hem+5)
-    for off in (0.5,1.2): img=stitch_line(img,np.abs(so-off)+(~outer)*9,Y*1.6,0.14,GREY,0.6,0.62)
-    img=stitch_line(img,np.abs(ax-ix_-0.6)+(~inner_s)*9,Y*1.6,0.14,GREY,0.6,0.62)
-    # alça com fivela na lateral da perna (parte de baixo)
-    for s in (-1,1):
-        side=(sgn==s)&(nx*s>0.1)
-        sz0=0.8; strap=side&(np.abs(Z-sz0)<1.0)&(Y>hem+3)&(Y<py0-0.5)
-        img=blend(img,strap,np.array([18,18,20])); 
-        for e in (-1.0,1.0): img=blend(img,side&(np.abs(Z-sz0-e*0.85)<0.1)&(Y>hem+3)&(Y<py0-0.5),GREY,0.8)
-        bk=side&(np.abs(Z-sz0)<1.25)&(np.abs(Y-(hem+14))<1.4); img=blend(img,bk,np.array([150,150,156])); img=blend(img,side&(np.abs(Z-sz0)<0.7)&(np.abs(Y-(hem+14))<0.7),np.array([30,30,34]))
+    img=stitch_line(img,np.abs(so-0.8)+(~outer)*9,Y*1.6,0.12,GREY,0.6,0.62)
+    pass
     # barra
-    img=img*(1-0.2*((np.abs(bd-3.0)<0.2)&(bt==0))[...,None])
     uu=np.arctan2(X,Z)*10
-    img=stitch_line(img,np.abs(bd-2.6),uu+Y,0.14,GREY,0.6,0.62)
-    img=stitch_line(img,np.abs(bd-0.7),uu+Y,0.14,GREY,0.6,0.62)
-    thr=noise((H,W),0.6,30)>0.25
-    img=blend(img,(bt==0)&(bd<0.4)&thr,np.array([90,90,96]),0.7)
+    img=stitch_line(img,np.abs(bd-1.2),uu+Y,0.13,GREY,0.6,0.62)
+    img=img*(1-0.25*((bd<0.5)&(bt==0))[...,None])
     return np.clip(img,0,255).astype(np.uint8)

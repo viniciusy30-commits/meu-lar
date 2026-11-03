@@ -299,7 +299,9 @@ object CuteChar {
                 val cv = coverCache.getOrPut(ck) {
                     val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
                     val r = BooleanArray(sims.ni / 3)
-                    com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r)
+                    val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
+                    val lim = if (sl == "top" || sl == "overall") nk - 7f else 9999f
+                    com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lim)
                     r
                 }
                 for (i in cv.indices) if (cv[i]) { mk[i] = true; any = true }
@@ -361,7 +363,7 @@ object CuteChar {
                     GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
                 }
                 texIds[tname] = ids[0]
-                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = true; p.solid = true } }
+                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = !j.key.startsWith("hairBack/"); p.solid = true } }
                 library[j.key] = sk
                 j.bmp.recycle()
                 changed = true

@@ -46,6 +46,7 @@ object ModStore {
             items.add(Item("tee_$g", "Camiseta oversized CHAOS", "top", g, 0, true, false, true))
             items.add(Item("cargo_$g", "Calça cargo baggy preta", "bottom", g, 0, true, false, true))
             items.add(Item("shoe_$g", "Tênis preto e branco", "feet", g, 0, true, false, true))
+            items.add(Item("hair_$g", "Cabelo ondulado preto", "hairBack", g, 0, true, true, true))
         }
         worn.retainAll(items.map { it.key }.toSet())
     }

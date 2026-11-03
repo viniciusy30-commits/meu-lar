@@ -59,3 +59,15 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Camiseta "cortada em duas partes" na cintura: a barra longa (parte de baixo) copiava pesos das pernas e abria uma fresta ao andar; agora segue o tronco/quadril (só 50% perna na ponta da barra).
 - Teste: ferramentas/skate/skin_test.py aplica um quadro das animações do jogo nas peças (andar/correr) e desenha.
 - Não é bug da roupa: o anel branco que aparece no peito nos vídeos é o marcador de destino do toque na tela (Renderer3D "walk" ring).
+
+## Etapa 55, ajuste 3
+- Pescoço sumia (via o fundo azul entre o pescoço e a gola): a pele escondida sob a roupa (Cover) pegava também a base do pescoço. Agora, sob blusa/roupa inteira, nada acima de (altura do pescoço - 7 cm) é escondido (Cover.mark com ymax).
+- Divisão na cintura da camiseta: a barra era uma peça separada com borda própria (costura tracejada + beirada). Agora a barra continua os MESMOS vértices da borda de baixo do tronco (sem emenda, sem beirada); camiseta é uma peça contínua.
+- Calça: barra longa, desce quase até o chão atrás e nos lados e sobe na frente (o tênis aparece e nada atravessa); acabamento sem babados; bolsos cargo mais marcados; tirei a alça/fivela e as listras que deixavam os lados feios; textura lavada mais uniforme.
+
+## Etapa 56 — Cabelo preto ondulado (da referência)
+- Novo item embutido "Cabelo ondulado preto" (slot hairBack) para os 6 grupos: assets/cute/skate/hair_<g>.cup/.png.
+- Gerado por ferramentas/skate/sk_hair.py: capacete de cabelo (casca sobre a cabeça, ondulada) + ~65 mechas em cartões com alfa (franja na testa, laterais cobrindo as orelhas, nuca, cachos no topo). Pesos: osso 8 (cabeça), misturando com o osso 4 perto do pescoço.
+- CuteChar.runModJobs: peças de cabelo (chave "hairBack/") agora são desenhadas sem backface culling (cartões dupla-face).
+- Ao vestir, o cabelo padrão (hairBack/H_xx) é ocultado automaticamente (Avatar.wearKeys).
+- Onde: Customização > Roupas > Importar mods > Cabelo ondulado preto > Vestir.

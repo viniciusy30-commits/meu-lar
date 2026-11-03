@@ -71,43 +71,39 @@ def build_tee(B,st=None):
     keep=np.zeros(nv,bool); keep[np.unique(tri)]=True
     fixed=np.zeros(nv,bool)
     Q=laplace(Q,tri,fixed|~keep,it=2,lam=0.45)
-    # ---- barra longa: anéis paramétricos descendo de y0 (raio medido nos vértices do tronco, por ângulo)
-    bev=[e for e in boundary_edges(tri) if Q[e[0],1]<yc+9 and Q[e[1],1]<yc+9 and B.armw[e[0]]<0.35 and B.armw[e[1]]<0.35]
-    yb=np.array([Q[v,1] for e in bev for v in e])
-    y0=float(np.percentile(yb,85))-2.4
-    sel=np.where(keep&(B.armw<0.35)&(Q[:,1]>y0-0.8)&(Q[:,1]<y0+4.5))[0]
-    c=np.array([np.mean(Q[sel,0]),0,np.mean(Q[sel,2])])
-    NA=96
-    ang=np.arctan2(Q[sel,0]-c[0],Q[sel,2]-c[2]); rad=np.hypot(Q[sel,0]-c[0],Q[sel,2]-c[2])
-    bins=((ang+np.pi)/(2*np.pi)*NA).astype(int)%NA
-    R=np.full(NA,np.nan)
-    for k in range(NA):
-        m=bins==k
-        if m.any(): R[k]=rad[m].max()
-    ok=~np.isnan(R); xs=np.arange(NA)
-    R=np.interp(xs,np.concatenate([xs[ok]-NA,xs[ok],xs[ok]+NA]),np.concatenate([R[ok]]*3))
-    R=np.convolve(np.concatenate([R[-3:],R,R[:3]]),np.ones(7)/7,mode='valid')[:NA] if False else R
-    th=(xs+0.5)/NA*2*np.pi-np.pi
+    # ---- barra longa: continua a partir da borda de baixo do tronco (os MESMOS vértices; sem emenda)
+    be=[e for e in boundary_edges(tri) if Q[e[0],1]<yc+9 and Q[e[1],1]<yc+9 and B.armw[e[0]]<0.35 and B.armw[e[1]]<0.35]
+    adj={}
+    for a_,b_ in be: adj.setdefault(a_,[]).append(b_); adj.setdefault(b_,[]).append(a_)
+    start=be[0][0]; ring=[start]; prev=-1; cur=start
+    while True:
+        nx=[x for x in adj[cur] if x!=prev]
+        if not nx or nx[0]==start: break
+        prev,cur=cur,nx[0]; ring.append(cur)
+        if len(ring)>len(adj)+2: break
+    ring=[int(v) for v in ring]
+    c=np.array([np.mean(Q[ring,0]),0,np.mean(Q[ring,2])])
     P_all=[Q]; N_all=[n]; tri_all=[tri]; base=nv
     RF=[np.zeros(nv)]; RY=[np.zeros(nv)]
-    K=9; rings=[]
-    for j in range(0,K+1):
+    K=9; rings=[ring]
+    y0=float(np.mean(Q[ring,1]))
+    for j in range(1,K+1):
         f=j/K; ids=[]
-        for k in range(NA):
-            d=np.array([np.sin(th[k]),0,np.cos(th[k])])
+        for v in ring:
+            p0=Q[v]; d=np.array([p0[0]-c[0],0,p0[2]-c[2]]); dl=max(np.linalg.norm(d),1e-6); d=d/dl
             front=abs(d[2]); hem=HEM-st['curve']*front**2.2
-            yv=y0+(hem-y0)*f
-            flare=st['fl']*f**1.05+0.8*np.sin(f*np.pi)+0.6
-            rr=R[k]+flare+0.35*np.sin(11*th[k]+f*2)*f
-            p=c+d*rr; p[1]=yv
+            p=p0.copy(); p[1]=p0[1]+(hem-p0[1])*f
+            p=p+d*(st['fl']*f**1.15)
+            p=p+d*0.3*np.sin(7*np.arctan2(d[0],d[2])+f*2)*f
             P_all.append(p[None]); N_all.append(d[None]); ids.append(base); base+=1
-            RF.append(np.array([0.5*f])); RY.append(np.array([y0]))
+            RF.append(np.array([0.5*f])); RY.append(np.array([p0[1]]))
         rings.append(ids)
     T=[]
+    nr=len(ring)
     for j in range(K):
         a_=rings[j]; b_=rings[j+1]
-        for k in range(NA):
-            k2=(k+1)%NA
+        for k in range(nr):
+            k2=(k+1)%nr
             T+=[(a_[k],b_[k],a_[k2]),(a_[k2],b_[k],b_[k2])]
     tri_all.append(np.array(T,np.int64))
     PP=np.vstack(P_all); NN=np.vstack(N_all); TT=np.vstack(tri_all)
@@ -204,14 +200,14 @@ def build_cargo(B):
     # bolsos cargo: volume nas coxas, lado de fora
     for s in (-1,1):
         side=(Q[:,0]*s>0)
-        px=smooth(-8.5,-3.0,(Q[:,2]-0.5))*smooth(8.5,3.0,(Q[:,2]-0.5))   # largura em z
-        py=smooth(61,66,Q[:,1])*smooth(92,86,Q[:,1])
+        px=smooth(-8.2,-6.0,(Q[:,2]-0.5))*smooth(8.2,6.0,(Q[:,2]-0.5))   # largura em z
+        py=smooth(62,65,Q[:,1])*smooth(90,87,Q[:,1])
         outer=smooth(0.0,1.0,(np.abs(Q[:,0])-(np.abs(axis_x)+2.0))/6.0)
-        bump=3.4*px*py*outer*side
+        bump=4.2*px*py*outer*side
         dirx=np.stack([np.full(nv,s),np.zeros(nv),np.zeros(nv)],1)
         Q=Q+dirx*bump[:,None]*0.9+(r/rn)*bump[:,None]*0.3
     Q=laplace(Q,tri,~keep,it=2,lam=0.35)
-    # tubo extra descendo até perto do chão (barra empilhada sobre o tênis)
+    # tubo extra descendo até o chão: barra mais comprida atrás, sobe na frente (deixa o tênis aparecer)
     NA=48; P_all=[Q]; N_all=[n]; tri_all=[tri]; base=nv; LEG=[np.sign(legf)]
     for s in (-1,1):
         legv=np.where(keep&(np.sign(Q[:,0])==s)&(Q[:,1]<40))[0]
@@ -227,13 +223,14 @@ def build_cargo(B):
         ok=~np.isnan(R); xs=np.arange(NA)
         R=np.interp(xs,np.concatenate([xs[ok]-NA,xs[ok],xs[ok]+NA]),np.concatenate([R[ok]]*3))
         th2=(xs+0.5)/NA*2*np.pi-np.pi
-        K=5; rings=[]
+        K=6; rings=[]
         for j in range(K+1):
             f=j/K; ids=[]
             for k in range(NA):
                 d=np.array([np.sin(th2[k]),0,np.cos(th2[k])])
-                yv=y0+(9.0-y0)*f
-                rr=R[k]+0.7+1.6*f+0.5*np.sin(9*th2[k]+f*3)*f+0.45*np.sin(f*9)*f
+                fr=max(0.0,d[2]); yh=2.6+8.4*fr**1.3+1.2*abs(d[0])        # atrás ~2.6, frente ~11
+                yv=y0+(yh-y0)*f
+                rr=R[k]+0.5+1.1*f+0.28*np.sin(8*th2[k]+f*3)*f
                 p=c+d*rr; p[1]=yv
                 P_all.append(p[None]); N_all.append(d[None]); ids.append(base); base+=1; LEG.append(np.array([float(s)]))
             rings.append(ids)
@@ -247,4 +244,4 @@ def build_cargo(B):
     ax2=np.where(PP[:,0]>=0,1,-1)*B.kn[0]
     chk=((PP[:,[0]]-ax2[:,None])*NN[:,[0]]).sum(1)
     if np.mean(chk[np.abs(PP[:,1]-60)<15]>0)<0.5: NN=-NN
-    return PP,NN,TT,dict(waist=waist,hem=hem,low=9.0,leg=np.concatenate(LEG))
+    return PP,NN,TT,dict(waist=waist,hem=hem,low=2.6,leg=np.concatenate(LEG))

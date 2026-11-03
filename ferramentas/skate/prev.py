@@ -30,7 +30,8 @@ def raster(P,N,tri,view,size=(520,760),ymax=190,color=(200,200,200),tex=None,UV=
         sh=np.clip(np.abs((nn*L).sum(-1)),0,1)*0.75+0.25
         if tex is not None:
             u=a*UV[t[0],0]+b*UV[t[1],0]+c*UV[t[2],0]; v=a*UV[t[0],1]+b*UV[t[1],1]+c*UV[t[2],1]
-            th,tw=tex.shape[:2]; col=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)][...,:3].astype(float)
+            th,tw=tex.shape[:2]; tv=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)]; col=tv[...,:3].astype(float)
+            if tex.shape[2]==4: m=m&(tv[...,3]>115)
         else: col=np.zeros(m.shape+(3,))+np.array(color,float)
         col=col*sh[...,None]
         sub=img[y0:y1+1,x0:x1+1]; sub[m]=col[m].astype(np.uint8); zb[y0:y1+1,x0:x1+1][m]=z[m]
