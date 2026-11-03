@@ -125,7 +125,7 @@ class Avatar(
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.take(BodyMorph.NB_OLD)).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).plus(bs.drop(BodyMorph.NB_OLD)).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
@@ -269,21 +269,27 @@ class Avatar(
                         av.chac = p[35].coerceIn(0, AvaPal.HA_IDS.size - 1)
                     }
                     // saves da Etapa 6 e anteriores não têm proporções/rosto: ficam em 0 (original)
-                    if (35 + BodyMorph.NB + BodyMorph.NF < p.size) {
-                        for (k in 0 until BodyMorph.NB) av.bs[k] = p[36 + k].coerceIn(-100, 100)
-                        for (k in 0 until BodyMorph.NF) av.fs[k] = p[36 + BodyMorph.NB + k].coerceIn(-100, 100)
+                    if (35 + BodyMorph.NB_OLD + BodyMorph.NF < p.size) {
+                        for (k in 0 until BodyMorph.NB_OLD) av.bs[k] = p[36 + k].coerceIn(-100, 100)
+                        for (k in 0 until BodyMorph.NF) av.fs[k] = p[36 + BodyMorph.NB_OLD + k].coerceIn(-100, 100)
                     }
                     // saves anteriores à Etapa 13 não têm o sexo do corpo: ficam com o corpo feminino original
-                    if (36 + BodyMorph.NB + BodyMorph.NF < p.size) av.masc = p[36 + BodyMorph.NB + BodyMorph.NF] == 1
+                    if (36 + BodyMorph.NB_OLD + BodyMorph.NF < p.size) av.masc = p[36 + BodyMorph.NB_OLD + BodyMorph.NF] == 1
                     // Etapa 15: cor dos lábios (último número)
-                    if (37 + BodyMorph.NB + BodyMorph.NF < p.size) av.cc[12] = p[37 + BodyMorph.NB + BodyMorph.NF].coerceIn(-1, CuteColor.palette(12).size - 1)
+                    if (37 + BodyMorph.NB_OLD + BodyMorph.NF < p.size) av.cc[12] = p[37 + BodyMorph.NB_OLD + BodyMorph.NF].coerceIn(-1, CuteColor.palette(12).size - 1)
                     // Etapa 43: Julie (último número; saves antigos não têm)
-                    if (38 + BodyMorph.NB + BodyMorph.NF < p.size) av.julie = p[38 + BodyMorph.NB + BodyMorph.NF] == 1
+                    if (38 + BodyMorph.NB_OLD + BodyMorph.NF < p.size) av.julie = p[38 + BodyMorph.NB_OLD + BodyMorph.NF] == 1
                     // Etapa 44: idade, tipo de corpo e cabelo do Sims 3 (saves antigos ficam adulto normal com cabelo)
-                    if (41 + BodyMorph.NB + BodyMorph.NF < p.size) {
-                        av.simAge = p[39 + BodyMorph.NB + BodyMorph.NF].coerceIn(0, 4)
-                        av.simType = av.simTypeFor(av.simAge, p[40 + BodyMorph.NB + BodyMorph.NF])
-                        av.simHair = p[41 + BodyMorph.NB + BodyMorph.NF] == 1
+                    if (41 + BodyMorph.NB_OLD + BodyMorph.NF < p.size) {
+                        av.simAge = p[39 + BodyMorph.NB_OLD + BodyMorph.NF].coerceIn(0, 4)
+                        av.simType = av.simTypeFor(av.simAge, p[40 + BodyMorph.NB_OLD + BodyMorph.NF])
+                        av.simHair = p[41 + BodyMorph.NB_OLD + BodyMorph.NF] == 1
+                    }
+                    // Etapa 50: sliders de corpo novos (17 valores no fim; saves antigos ficam em 0)
+                    val ex0 = 42 + BodyMorph.NB_OLD + BodyMorph.NF
+                    for (k in BodyMorph.NB_OLD until BodyMorph.NB) {
+                        val ix = ex0 + (k - BodyMorph.NB_OLD)
+                        if (ix < p.size) av.bs[k] = p[ix].coerceIn(-100, 100)
                     }
                 }
             } catch (e: Exception) {

@@ -88,6 +88,9 @@ object CuteChar {
     private val simRatio = HashMap<String, Float>()
     @Volatile private var texPending = false
     @Volatile private var mascV = false   // Etapa 13: corpo masculino
+    // Etapa 50: tabela de pontos do esqueleto de cada corpo do Sims 3 (bodyrig.txt) e a tabela do corpo em uso
+    private val rigs = HashMap<String, FloatArray>()
+    @Volatile private var simKey = ""
     private var faceTmp = FloatArray(0)
 
     // Etapa 8: piscar e expressões (canais dinâmicos 13..17 do morph.bin; só rosto, não mexem nas animações)
@@ -144,9 +147,9 @@ object CuteChar {
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
-        if (simOn) {   // Etapa 44: corpo do Sims 3 (sem ajustes do corpo-base); a altura vem da idade/sexo
-            heightS = simH
-            bodyP = FloatArray(BodyMorph.NB)
+        if (simOn) {   // Etapa 44: corpo do Sims 3; a altura vem da idade/sexo. Etapa 50: os 27 sliders de corpo valem aqui
+            heightS = simH * BodyMorph.heightScale(b[0])
+            bodyP = b
             faceP = FloatArray(BodyMorph.NF)
         } else {
             heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
@@ -196,7 +199,8 @@ object CuteChar {
         simOn = bk != null
         simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
         useSimClips(if (bk != null && bk.length >= 9) bk.substring(7, 9) else "")   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
-        if (simOn) { heightS = simH; bodyP = FloatArray(BodyMorph.NB); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
+        simKey = if (bk != null && bk.length >= 10) bk.substring(7) else ""   // Etapa 50: "body/S_af1" -> "af1"
+        if (simOn) { heightS = simH * BodyMorph.heightScale(bodyP[0]); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
         rebuildActive()
     }
 
@@ -348,6 +352,7 @@ object CuteChar {
     private fun loadModular(am: AssetManager) {
         baseSkin = readBase(am, "cute/base.bin", "base", "textures.png")
         loadMorph(am, baseSkin!!.nv)
+        loadRigs(am)
         library.clear()
         var outfit: List<String> = emptyList()
         val lines = am.open("cute/pieces.txt").bufferedReader(Charsets.UTF_8).use { it.readLines() }
@@ -365,6 +370,25 @@ object CuteChar {
             if (f.size >= 5) f[4].toFloatOrNull()?.let { simRatio[key] = it }
         }
         wanted = outfit
+    }
+
+    /** Etapa 50: bodyrig.txt, uma linha por corpo: chave|23 valores (cm). Se faltar, os sliders novos não deformam nada. */
+    private fun loadRigs(am: AssetManager) {
+        rigs.clear()
+        try {
+            am.open("cute/bodyrig.txt").bufferedReader(Charsets.UTF_8).use { rd ->
+                for (raw in rd.readLines()) {
+                    val ln = raw.trim()
+                    if (ln.isEmpty()) continue
+                    val f = ln.split('|')
+                    if (f.size < 2) continue
+                    val v = f[1].split(',').map { it.trim().toFloat() }
+                    if (v.size >= BodyMorph.RIG_N) rigs[f[0].trim()] = v.toFloatArray()
+                }
+            }
+        } catch (e: Throwable) {
+            rigs.clear()
+        }
     }
 
     /** CMF1: "CMF1", nCanais, e por canal: n, n x (índice do vértice do base.bin, dx, dy, dz). Se faltar, o rosto fica sem controles. */
@@ -424,7 +448,9 @@ object CuteChar {
                 src = faceTmp
             }
         }
-        BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
+        val rg = if (simOn) rigs[simKey] else null
+        if (simOn && rg != null) BodyMorph.warpSim(src, s.pos, s.nv, bp, rg)   // Etapa 50: sliders do corpo do Sims 3
+        else BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
         BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver
     }

@@ -185,3 +185,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 48 — Anatomia do Jovem (entregue, aguardando teste)
 - [x] Coluna reta, ombros/clavículas certos, braços junto do corpo (tf/tm × magro/normal/gordo). Causa: juntas da coluna/clavícula na frente do peito + retarget copiando a curvatura do Bozo. Detalhes em `ETAPA48-JOVEM-NOTAS.md`.
 - [ ] Não compilado nem testado no celular. Adulto/idoso/criança/bebê têm o mesmo defeito de origem: rodar `etapa48_jovem.py` nesses grupos se o Jovem ficar aprovado.
+
+
+## Etapa 50 - Sliders de corpo (27) para o corpo do Sims 3
+- [x] bodyrig.txt + ferramentas etapa50_*.py
+- [x] BodyMorph.warpSim (Kotlin), CuteChar (carga do rig e uso), Avatar (save compativel), Creator (aba Corpo com grupos)
+- [ ] Testar no celular (ver ETAPA50-SLIDERS-CORPO-NOTAS.md)

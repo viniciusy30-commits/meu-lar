@@ -13,12 +13,30 @@ import kotlin.math.sqrt
  * Valores dos controles: inteiros de -100 a 100 (0 = como o personagem original).
  */
 object BodyMorph {
-    val BODY_NAMES = listOf("Altura", "Peso", "Ombros", "Peito", "Busto", "Cintura", "Quadril", "Coxas", "Braços", "Cabeça")
+    /** Etapa 50: 27 controles de corpo (os 10 primeiros são os antigos, na mesma ordem; o save guarda os 10 antigos no lugar de sempre e os 17 novos no fim). */
+    val BODY_NAMES = listOf(
+        "Altura", "Peso", "Ombros (largura)", "Peito", "Busto (tamanho)", "Cintura", "Quadril", "Coxas", "Braços (espessura)", "Cabeça",
+        "Busto (altura)", "Busto (distância)", "Bumbum", "Barriga", "Postura", "Pescoço (espessura)", "Pescoço (comprimento)",
+        "Ombros (altura)", "Antebraços", "Braços (comprimento)", "Mãos", "Panturrilhas", "Pernas (comprimento)", "Vão das coxas",
+        "Tornozelos", "Pés", "Torso (comprimento)"
+    )
+    /** Grupos da tela do criador (índices de BODY_NAMES). */
+    val BODY_GROUPS: List<Pair<String, IntArray>> = listOf(
+        "Geral" to intArrayOf(0, 1, 9),
+        "Tronco" to intArrayOf(2, 17, 3, 5, 13, 14, 26),
+        "Busto" to intArrayOf(4, 10, 11),
+        "Quadril e pernas" to intArrayOf(6, 12, 7, 23, 21, 24, 22),
+        "Braços e mãos" to intArrayOf(8, 18, 19, 20),
+        "Pescoço e pés" to intArrayOf(15, 16, 25)
+    )
     val FACE_NAMES = listOf(
         "Masculinidade", "Cílios", "Sobrancelha grossa", "Ponte do nariz", "Nariz largo", "Nariz para baixo", "Nariz para cima",
         "Boca larga", "Boca fina", "Cantos dos olhos para baixo", "Cantos dos olhos para cima", "Olhos quadrados", "Orelha élfica"
     )
-    const val NB = 10
+    const val NB = 27
+    /** Quantidade de controles de corpo que o save guarda no lugar original (formato antigo). */
+    const val NB_OLD = 10
+    const val RIG_N = 23
     const val NF = 13
 
     /** Ganho de cada canal do rosto (100% do controle = ganho x o deslocamento do pack). Mesma ordem de FACE_NAMES / morph.bin. */
@@ -198,6 +216,206 @@ object BodyMorph {
                 // glúteo mais reto
                 if (z < 3.8f) dz += M_BUTT * (z - 3.8f) * sm(66f, 78f, y) * (1f - sm(94f, 104f, y))
             }
+            dst[v * 3] = x + dx
+            dst[v * 3 + 1] = y + dy
+            dst[v * 3 + 2] = z + dz
+        }
+    }
+
+    // ---- Etapa 50: sliders de corpo do esqueleto do Sims 3 ----
+    // r = 23 valores de bodyrig.txt (ver ferramentas/etapa50_rig_sliders.py). Portado linha a linha de ferramentas/etapa50_sliders_ref.py.
+    private fun segCalc(px: Float, py: Float, pz: Float, ax: Float, ay: Float, az: Float, bx: Float, by: Float, bz: Float, o: FloatArray) {
+        val abx = bx - ax; val aby = by - ay; val abz = bz - az
+        val l2 = abx * abx + aby * aby + abz * abz
+        val t = ((px - ax) * abx + (py - ay) * aby + (pz - az) * abz) / l2
+        val tc = t.coerceIn(0f, 1f)
+        val qx = px - (ax + tc * abx); val qy = py - (ay + tc * aby); val qz = pz - (az + tc * abz)
+        o[0] = t; o[1] = tc; o[2] = sqrt(qx * qx + qy * qy + qz * qz); o[3] = qx; o[4] = qy; o[5] = qz
+    }
+
+    fun warpSim(src: FloatArray, dst: FloatArray, nv: Int, b: FloatArray, r: FloatArray) {
+        val sX = r[0]; val sY = r[1]; val sZ = r[2]
+        val eX = r[3]; val eY = r[4]; val eZ = r[5]
+        val wX = r[6]; val wY = r[7]; val wZ = r[8]
+        val hX = r[9]; val hY = r[10]; val hZ = r[11]
+        val kX = r[12]; val kY = r[13]; val kZ = r[14]
+        val aX = r[15]; val aY = r[16]; val aZ = r[17]
+        val topY = r[18]; val neckY = r[19]; val zc = r[21]
+        val hipY = hY; val kneeY = kY; val ankY = aY
+        val tt = topY - hipY
+        val waistY = hipY + 0.58f * tt
+        val chestY = hipY + 0.78f * tt
+        val bustY = hipY + 0.80f * tt
+        val bustX = 0.52f * sX
+        val crotchY = hipY - 0.26f * (hipY - kneeY)
+        val fLeg = 1f + 0.07f * b[22]; val fTor = 1f + 0.08f * b[26]; val fNeck = 1f + 0.35f * b[16]
+        fun extra(yy: Float): Float =
+            (fLeg - 1f) * (yy.coerceIn(ankY, hipY) - ankY) +
+            (fTor - 1f) * (yy.coerceIn(hipY, topY) - hipY) +
+            (fNeck - 1f) * (yy.coerceIn(topY + 3f, neckY + 2f) - (topY + 3f))
+        val exS = extra(sY)
+        val oS = FloatArray(6); val oU = FloatArray(6); val oF = FloatArray(6); val oL = FloatArray(6); val oC = FloatArray(6)
+        val ulx = wX - sX; val uly = wY - sY; val ulz = wZ - sZ
+        val uln = sqrt(ulx * ulx + uly * uly + ulz * ulz)
+        for (v in 0 until nv) {
+            val x = src[v * 3]; val y = src[v * 3 + 1]; val z = src[v * 3 + 2]
+            val ax = abs(x)
+            val sx = if (x < 0f) -1f else 1f
+            var dx = 0f; var dy = 0f; var dz = 0f
+            val zr = z - zc
+            val low = 1f - sm(neckY - 8f, neckY + 2f, y)
+            segCalc(ax, y, z, sX, sY, sZ, wX, wY, wZ, oS)
+            val tS = oS[0]; val dS = oS[2]
+            val armAll = sm(-0.18f, 0.04f, tS) * (1f - sm(13f, 19f, dS))
+            segCalc(ax, y, z, sX, sY, sZ, eX, eY, eZ, oU)
+            segCalc(ax, y, z, eX, eY, eZ, wX, wY, wZ, oF)
+            val useF = oF[2] < oU[2]
+            val armD = if (useF) oF[2] else oU[2]
+            val armT = if (useF) 0.5f + 0.5f * oF[1] else 0.5f * oU[1]
+            val armX = if (useF) oF[3] else oU[3]
+            val armY = if (useF) oF[4] else oU[4]
+            val armZ = if (useF) oF[5] else oU[5]
+            val armIn = 1f - sm(9f, 14f, armD)
+            val notArm = 1f - armAll
+            // Peso
+            if (b[1] != 0f) {
+                val xc = if (ax < sX + 6f) ax else sX + 6f
+                dx += sx * xc * 0.14f * b[1] * low
+                dz += zr * 0.14f * b[1] * low * (1f - armAll * 0.5f)
+            }
+            // Ombros: largura e altura
+            val capW = sm(4f, sX, ax) * sm(topY - 12f, topY, y) * (1f - sm(neckY - 2f, neckY + 6f, y))
+            val shW = if (armAll > capW) armAll else capW
+            if (b[2] != 0f) dx += sx * 3f * b[2] * shW
+            if (b[17] != 0f) dy += 2.5f * b[17] * shW
+            // Peito
+            if (b[3] != 0f) {
+                val w = sm(waistY + 4f, chestY - 2f, y) * (1f - sm(topY - 2f, topY + 6f, y)) * (1f - sm(sX - 4f, sX + 2f, ax)) * notArm
+                dx += x * 0.10f * b[3] * w
+                dz += zr * 0.10f * b[3] * w * 0.6f
+            }
+            // Busto: tamanho, altura, distância
+            if (b[4] != 0f || b[10] != 0f || b[11] != 0f) {
+                val bdx = ax - bustX
+                val bdy0 = y - bustY
+                val bdy = if (bdy0 > 0f) bdy0 * 0.85f else bdy0 * 1.1f
+                val rr = 0.24f * tt
+                val rho = sqrt(bdx * bdx + bdy * bdy)
+                val t = (1f - rho / rr).coerceIn(0f, 1f)
+                val hw = Math.pow((t * t * (3f - 2f * t)).toDouble(), 0.8).toFloat() * sm(-3f, 3f, zr) * notArm
+                val amp = if (b[4] > 0f) 5.5f * b[4] else 2.5f * b[4]
+                dz += amp * hw
+                dx += sx * 0.5f * amp * hw * (bdx / rr)
+                dy += (bdy / rr) * 0.9f * amp * hw * 0.4f - 0.1f * amp * hw
+                dy += 3.2f * b[10] * hw
+                dx += sx * 3f * b[11] * hw * sm(0f, 5f, ax)
+            }
+            // Cintura
+            if (b[5] != 0f) {
+                val w = sm(waistY - 9f, waistY - 2f, y) * (1f - sm(waistY + 2f, waistY + 9f, y)) * (1f - sm(13f, 19f, ax)) * notArm
+                dx += x * 0.15f * b[5] * w
+                dz += zr * 0.15f * b[5] * w * 0.6f
+            }
+            // Quadril
+            if (b[6] != 0f) {
+                val w = sm(crotchY - 8f, crotchY + 4f, y) * (1f - sm(waistY - 8f, waistY, y)) * (1f - sm(21f, 29f, ax)) * notArm
+                dx += x * 0.12f * b[6] * w
+                dz += zr * 0.06f * b[6] * w
+            }
+            // Barriga
+            if (b[13] != 0f) {
+                val ex = ax / 13f; val ey = (y - (waistY - 6f)) / 11f
+                val t = (1f - sqrt(ex * ex + ey * ey)).coerceIn(0f, 1f)
+                dz += 4.5f * b[13] * (t * t * (3f - 2f * t)) * sm(-2f, 4f, zr) * notArm
+            }
+            // Bumbum
+            if (b[12] != 0f) {
+                val cx = ax - 0.5f * hX * 0.9f
+                val cy = y - (hipY + 3f)
+                val t = (1f - sqrt(cx * cx + cy * cy) / 14f).coerceIn(0f, 1f)
+                val hb = (t * t * (3f - 2f * t)) * sm(0f, 6f, -zr) * notArm
+                dz -= 4f * b[12] * hb
+                dx += sx * 0.8f * b[12] * hb * sm(0f, 5f, ax)
+                dy += 0.6f * b[12] * hb
+            }
+            // Coxas e vão das coxas
+            segCalc(ax, y, z, hX, hY, hZ, kX, kY, kZ, oL)
+            val tL = oL[0]
+            val thighW = (1f - sm(11f, 17f, oL[2])) * sm(0.04f, 0.2f, tL) * (1f - sm(0.82f, 1f, tL)) * sm(0f, 5f, ax)
+            if (b[7] != 0f) {
+                dx += sx * oL[3] * 0.25f * b[7] * thighW
+                dz += oL[5] * 0.25f * b[7] * thighW
+            }
+            if (b[23] != 0f) dx += sx * 1.2f * b[23] * thighW
+            // Panturrilhas e tornozelos
+            segCalc(ax, y, z, kX, kY, kZ, aX, aY, aZ, oC)
+            val tC = oC[0]; val dC = oC[2]
+            if (b[21] != 0f) {
+                val w = (1f - sm(10f, 15f, dC)) * sm(0.05f, 0.25f, tC) * (1f - sm(0.55f, 0.85f, tC)) * sm(0f, 4f, ax)
+                dx += sx * oC[3] * 0.22f * b[21] * w
+                dz += oC[5] * 0.22f * b[21] * w
+            }
+            if (b[24] != 0f) {
+                val w = (1f - sm(8f, 12f, dC)) * gs(y, ankY + 5f, 4.5f) * sm(0f, 4f, ax)
+                dx += sx * oC[3] * 0.30f * b[24] * w
+                dz += oC[5] * 0.30f * b[24] * w
+            }
+            // Pés
+            if (b[25] != 0f) {
+                val w = 1f - sm(ankY + 1f, ankY + 8f, y)
+                dx += (ax - aX) * sx * 0.25f * b[25] * w * 0.7f
+                dz += (z - aZ) * 0.25f * b[25] * w
+            }
+            // Braços: espessura, antebraços, comprimento, mãos
+            if (b[8] != 0f) {
+                val w = sm(0.06f, 0.28f, armT) * (1f - sm(0.86f, 1f, armT)) * armIn
+                dx += sx * armX * 0.25f * b[8] * w
+                dy += armY * 0.25f * b[8] * w
+                dz += armZ * 0.25f * b[8] * w
+            }
+            if (b[18] != 0f) {
+                val w = sm(0.42f, 0.58f, armT) * (1f - sm(0.88f, 1f, armT)) * armIn
+                dx += sx * armX * 0.28f * b[18] * w
+                dy += armY * 0.28f * b[18] * w
+                dz += armZ * 0.28f * b[18] * w
+            }
+            if (b[19] != 0f) {
+                val k = 0.12f * b[19] * uln * sm(0.05f, 0.9f, tS) * (1f - sm(13f, 19f, dS))
+                dx += sx * ulx / uln * k
+                dy += uly / uln * k
+                dz += ulz / uln * k
+            }
+            if (b[20] != 0f) {
+                val w = sm(0.92f, 1.06f, tS) * (1f - sm(13f, 19f, dS))
+                dx += sx * (ax - wX) * 0.35f * b[20] * w
+                dy += (y - wY) * 0.35f * b[20] * w
+                dz += (z - wZ) * 0.35f * b[20] * w
+            }
+            // Pescoço e cabeça
+            if (b[15] != 0f) {
+                val w = gs(y, 0.5f * (topY + neckY) + 2f, 6f) * (1f - sm(7f, 12f, ax))
+                dx += x * 0.25f * b[15] * w
+                dz += zr * 0.25f * b[15] * w
+            }
+            if (b[9] != 0f) {
+                val w = sm(neckY - 2f, neckY + 8f, y)
+                val c = 0.12f * b[9]
+                dx += x * c * w
+                dy += (y - neckY) * c * w
+                dz += zr * c * w
+            }
+            // Postura
+            if (b[14] != 0f) {
+                val th = -0.10f * b[14] * sm(waistY, chestY, y)
+                val yr = y - waistY
+                val sn = kotlin.math.sin(th); val cs = kotlin.math.cos(th)
+                dz += -yr * sn + zr * (cs - 1f)
+                dy += zr * sn + yr * (cs - 1f)
+            }
+            // Comprimentos (pernas, torso, pescoço); o braço acompanha o ombro
+            var exY = extra(y)
+            exY += (exS - exY) * armAll
+            dy += exY
             dst[v * 3] = x + dx
             dst[v * 3 + 1] = y + dy
             dst[v * 3 + 2] = z + dz

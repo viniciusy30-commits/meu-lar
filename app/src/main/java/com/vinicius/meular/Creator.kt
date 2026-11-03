@@ -483,11 +483,11 @@ class CreatorUi(
     /** Etapa 7: controles deslizantes (-100..100) de proporção do corpo (kind 1) ou formato do rosto (kind 2). */
     private fun sliders(kind: Int) {
         simSelector()
-        if (true) return   // Etapa 44: corpo e rosto vêm do Sims 3; os controles deslizantes antigos não se aplicam
+        if (kind != 1) return   // Etapa 44: o rosto vem do Sims 3 (sem sliders). Etapa 50: os sliders de corpo voltaram, para o corpo do Sims 3
         val av = st.avatar
         val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
         val arr = if (kind == 1) av.bs else av.fs
-        if (kind == 1) {
+        if (false) {
             // Etapa 13: sexo do corpo (feminino = corpo original; masculino = ombros largos, peito reto, quadril estreito, mais alto)
             val sexRow = LinearLayout(context)
             sexRow.orientation = LinearLayout.HORIZONTAL
@@ -529,7 +529,17 @@ class CreatorUi(
             refresh(true)
         }
         body.addView(reset, LinearLayout.LayoutParams(-2, dp(34)).also { it.topMargin = dp(6); it.leftMargin = dp(4) })
-        for (i in names.indices) {
+        val order = ArrayList<Pair<String?, Int>>()
+        for ((gn, ids) in BodyMorph.BODY_GROUPS) for ((k, id) in ids.withIndex()) order.add((if (k == 0) gn else null) to id)
+        for ((grupo, i) in order) {
+            if (grupo != null) {
+                val gh = TextView(context)
+                gh.text = grupo
+                gh.textSize = 15f
+                gh.typeface = Ui.BOLD
+                gh.setTextColor(TXT)
+                body.addView(gh, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(20); it.leftMargin = dp(4) })
+            }
             val head = LinearLayout(context)
             head.orientation = LinearLayout.HORIZONTAL
             head.gravity = Gravity.CENTER_VERTICAL
