@@ -181,3 +181,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] `ferramentas/etapa44_sims.py` gera 21 corpos (bebê, criança, jovem, adulto, idoso × feminino/masculino × magro/normal/gordo; criança e bebê unissex), 8 atlas de pele `sk_*.png`, 6 cabelos Heartbeat ajustados e `simbodies.txt`. Criador: Base e abas Corpo/Rosto mostram Idade, Sexo, Corpo e Cabelo. Postura do Sims: braços para baixo ao lado do corpo (`ARM_EXTRA` no script). Altura relativa por idade em `pieces.txt` (5º campo) aplicada em `CuteChar.setWear`.
 - [x] Roupas antigas (feitas para o Bozo) não aparecem nos corpos novos; roupa de baixo pintada na pele. PRÓXIMO PASSO: o usuário manda as roupas do Sims 3 → converter peça a peça (top/bottom/overall/feet) para cada tipo de corpo.
 - [ ] Não compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
+
+## Etapa 48 — Anatomia do Jovem (entregue, aguardando teste)
+- [x] Coluna reta, ombros/clavículas certos, braços junto do corpo (tf/tm × magro/normal/gordo). Causa: juntas da coluna/clavícula na frente do peito + retarget copiando a curvatura do Bozo. Detalhes em `ETAPA48-JOVEM-NOTAS.md`.
+- [ ] Não compilado nem testado no celular. Adulto/idoso/criança/bebê têm o mesmo defeito de origem: rodar `etapa48_jovem.py` nesses grupos se o Jovem ficar aprovado.

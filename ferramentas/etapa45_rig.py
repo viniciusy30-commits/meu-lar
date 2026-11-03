@@ -80,11 +80,15 @@ def fit_joints(P, T, face_ymin=None, face_ymax=None):
         return (s_[:, 2].min() + 0.55 * (s_[:, 2].max() - s_[:, 2].min())) if len(s_) else 0.0
     sn_ = Tt[(np.abs(Tt[:, 1] - y2) < 0.012 * u) & (np.abs(Tt[:, 0]) < 0.05 * u)]; zn = sn_[:, 2].mean() if len(sn_) else 0.0
     J['head'] = np.array([0, yh_, zn - 0.004 * u]); J['neck_02'] = np.array([0, y2, zn]); J['neck_01'] = np.array([0, y1, zn])
-    z5 = zmid(y5); J['spine_05'] = np.array([0, y5, z5])
-    pz = J['thigh_l'][2]; J['pelvis'] = np.array([0, yh, pz])
+    # Etapa 48: eixo da coluna = reta do quadril ao pescoco. Antes z5 = zmid(y5) pegava fatias esparsas da malha
+    # (so a frente do peito, z ~ +11 cm) e entortava coluna, clavicula e ombro (corcunda + ombros estranhos).
+    pz = J['thigh_l'][2]
+    zline = lambda y: pz + (zn - pz) * (y - yh) / max(y1 - yh, 1e-6)
+    z5 = zline(y5); J['spine_05'] = np.array([0, y5, z5])
+    J['pelvis'] = np.array([0, yh, pz])
     for i, f in enumerate(BOZO_Y[1:-1], 1):
-        y = yh + f * (y5 - yh); J['spine_0%d' % i] = np.array([0, y, pz + f * (z5 - pz)])
-    J['clavicle_l'] = np.array([0.02 * u, y5 + 0.042 * u, z5 - 0.008 * u])
+        y = yh + f * (y5 - yh); J['spine_0%d' % i] = np.array([0, y, zline(y)])
+    J['clavicle_l'] = np.array([0.02 * u, y5 + 0.042 * u, zline(y5 + 0.042 * u) + 0.012 * u])
     J['_ytop'] = ytop; J['_H'] = H
     # espelha direita
     for k in list(J):
@@ -171,6 +175,7 @@ def _arc(a, b):
     if c < -0.9999:
         ax = np.cross(a, [1, 0, 0]); ax /= np.linalg.norm(ax); return 2 * np.outer(ax, ax) - np.eye(3)
     v = np.cross(a, b); vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]]); return np.eye(3) + vx + vx @ vx / (1 + c)
+KEEP_REST = set([0, 1, 2, 3, 4, 5, 6, 7])   # Etapa 48: pelve, coluna, pescoco: so a rotacao do clipe (nao alinha ao repouso do Bozo)
 def retarget_clips(Q25, bi, bw, rest, sole_ids):
     """Q25: (25,3) juntas do Sims em unidades de armazenamento; rest: vertices (n,3) em repouso (mesmas unidades); devolve lista [(len, (nf,55,12))]"""
     bs, Pb = bozo(); out = []
@@ -183,7 +188,7 @@ def retarget_clips(Q25, bi, bw, rest, sole_ids):
             Dn = np.zeros((25, 3, 3)); pn = np.zeros((25, 3))
             for i in range(25):
                 Dn[i] = R[i]
-                if i in CMAP:
+                if i in CMAP and i not in KEEP_REST:
                     c = CMAP[i]; a = p[c] - p[i]; dn = Q[c] - Q[i]
                     Dn[i] = _arc(R[i] @ dn, a) @ R[i]
                 if i == 0: pn[0] = Q[0] + (p[0] - Pb[0])
