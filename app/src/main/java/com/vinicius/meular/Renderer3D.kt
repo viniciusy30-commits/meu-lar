@@ -16,7 +16,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Etapa 11: velocidade da corrida (m/s); é a velocidade natural do clipe Slow_Run.fbx (medida: pé de apoio recua a 2,44 m/s), sem o pé deslizar. */
-private const val RUN_SPEED = 2.05f
+private const val RUN_SPEED = 2.45f
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
@@ -497,7 +497,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var lz = pz
         for (w in p) { rem += kotlin.math.hypot(w[0] - lx, w[1] - lz); lx = w[0]; lz = w[1] }
         pRun = if (pRun) rem > 2.0f else rem > 3.8f
-        var budget = (if (pRun) RUN_SPEED else 1.28f) * dt
+        var budget = (if (pRun) RUN_SPEED else 1.0f) * dt
         pMoving = false
         while (budget > 0f && p.isNotEmpty()) {
             val w = p[0]
@@ -558,7 +558,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // histerese: corre com o analógico quase no limite; solta abaixo disso e volta a andar
             pRun = if (pRun) mag > 0.70f else mag > 0.88f
             // andar: velocidade proporcional ao arrasto (como antes); correr: velocidade fixa (casada com o clipe)
-            val sp = if (pRun) RUN_SPEED * dt / mag else 1.28f * dt  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
+            val sp = if (pRun) RUN_SPEED * dt / mag else 1.0f * dt  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
             val fx = sin(fyaw)
             val fz = -cos(fyaw)
             val rx = cos(fyaw)

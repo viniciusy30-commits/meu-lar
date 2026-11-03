@@ -29,7 +29,7 @@ object CuteChar {
     const val JUMP = 2
     const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
-    private const val WALK_RATE = 0.96f
+    private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
     private const val MALE_CLIPS = true   // Etapa 23: parado e andar masculinos novos (clipes 4 e 5); correr continua o clipe 3
     // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
