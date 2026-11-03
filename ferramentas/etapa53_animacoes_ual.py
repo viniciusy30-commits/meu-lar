@@ -32,7 +32,7 @@ from etapa11_base import GP, K
 BONES = R.BONES; BI = R.BI
 GROUPS_ALL = ['tf', 'tm', 'af', 'am', 'ef', 'em', 'cu', 'pu']
 # clipe -> (animacao da UAL, quadros por segundo gravados)
-CLIPS = [('Idle_Loop', 30), ('Walk_Loop', 60), None, ('Jog_Fwd_Loop', 60)]
+CLIPS = [('Idle_Loop', 30), ('Walk_Loop', 60), ('Jump_Combo', 60), ('Jog_Fwd_Loop', 60)]
 IDLE, WALK, JUMP, RUN = 0, 1, 2, 3
 
 # --- ajustes finos ---------------------------------------------------------------------------------------------
@@ -49,7 +49,8 @@ THUMB_GAIN = 0.8
 PARAMS = {
     0: dict(sx=0.45, sz=0.30, sb=1.0, pgain=0.35, trunk=8.0, head=3.0, abd=(9.0, 0.6), sag=(-4.0, 1.0), rate=1.0),
     1: dict(sx=1.0, sz=1.0, sb=1.0, pgain=1.0, trunk=11.0, head=3.0, abd=(10.0, 0.7), sag=(-8.0, 1.15), rate=1.2),
-    3: dict(sx=1.0, sz=0.5, sb=0.45, pgain=0.8, trunk=10.0, head=3.0, abd=(14.0, 0.5), sag=(-14.0, 0.5), rate=1.1, elb=0.55),
+    3: dict(sx=1.0, sz=0.5, sb=0.45, pgain=0.8, trunk=10.0, head=3.0, abd=(14.0, 0.5), sag=(-14.0, 0.5), rate=0.9, elb=0.55),
+    2: dict(sx=1.0, sz=1.0, sb=0.55, pgain=0.6, trunk=0.0, head=0.0, abd=(18.0, 0.45), sag=(None, 0.8), rate=1.0),
 }
 
 # ------------------------------------------------------------------------------------------------ utilidades 3D
@@ -126,6 +127,30 @@ class Source:
             p[n] = W[i][:3, 3].copy()
             Rw = W[i][:3, :3]; Rw = Rw / np.linalg.norm(Rw[:, 0])
             D[n] = Rw @ self.Rr[n].T
+        return p, D
+
+# Pulo: decolagem (Jump_Start) -> no ar (Jump_Loop) -> descida (Jump_Land) em JUMP_DUR s (= tempo no ar do app: 2*3.9/11), com mistura entre trechos
+JUMP_DUR = 0.71
+JUMP_SEGS = [('Jump_Start', 0.08, 0.40, 0.0, 0.28), ('Jump_Loop', 0.0, 0.22, 0.28, 0.50), ('Jump_Land', 0.0, 0.05, 0.50, JUMP_DUR)]   # anim, t0, t1 (origem), s0, s1 (destino)
+class JumpRig:
+    def duration(self, anim): return JUMP_DUR
+class JumpSource:
+    def __init__(self, src):
+        self.s = src; self.rig = JumpRig(); self.pr = src.pr; self.Rr = src.Rr; self.nm = src.nm
+    def _seg(self, i, t):
+        a, t0, t1, s0, s1 = JUMP_SEGS[i]; u = (t - s0) / (s1 - s0); return self.s.pose(a, t0 + (t1 - t0) * min(max(u, 0.0), 1.0))
+    def pose(self, anim, t):
+        i = 0
+        for k, sg in enumerate(JUMP_SEGS):
+            if t >= sg[3]: i = k
+        p, D = self._seg(i, t)
+        ov = 0.07                                    # mistura com o proximo trecho perto do fim do atual
+        if i + 1 < len(JUMP_SEGS) and t > JUMP_SEGS[i + 1][3] - ov:
+            w = (t - (JUMP_SEGS[i + 1][3] - ov)) / ov; w = w * w * (3 - 2 * min(w, 1.0))
+            p2, D2 = self._seg(i + 1, t)
+            for n in p:
+                p[n] = p[n] * (1 - w) + p2[n] * w
+                D[n] = interp_rot(D[n], D2[n], w)
         return p, D
 
 # ------------------------------------------------------------------------------------------------ um quadro
@@ -299,7 +324,9 @@ def run_group(src, grp, ratios, outdir):
     for ci, c in enumerate(CLIPS):
         if c is None: continue
         anim, fps = c
-        sx_ = globals().get('RUN_SRC') if (ci == RUN and globals().get('RUN_SRC') is not None) else src   # correr pode vir de um FBX Mixamo (RUN_FBX)
+        if ci == JUMP: sx_ = JumpSource(src)
+        else: sx_ = None
+        sx_ = sx_ if sx_ is not None else globals().get('RUN_SRC') if (ci == RUN and globals().get('RUN_SRC') is not None) else src   # correr pode vir de um FBX Mixamo (RUN_FBX)
         rt = Retarget(sx_, body, PARAMS[ci], anim, fps)
         cl = build_clip(sx_, rt, body, anim, fps, sole_ids, bi, bw, rest_m)
         clips[ci] = (cl, rt)
@@ -309,12 +336,12 @@ def run_group(src, grp, ratios, outdir):
     # altura do chao: sola mais baixa de cada clipe = y 0 (o app so sobe, nunca desce)
     final = []
     for ci in range(len(CLIPS)):
-        if ci == JUMP: M = jump_M.copy(); low = idle_cl['sole_y'][0]; dur = 1.0
+        if False: pass
         else: cl = clips[ci][0]; M = cl['M'].copy(); low = cl['sole_y'].min(); dur = cl['dur'] / PARAMS[ci]['rate']
         M[:, :, 1, 3] -= low                  # translacao y de todos os ossos (espaco OBJ em metros)
         Mo = M.copy(); Mo[:, :, :, :3] *= K; Mo[:, :, :, 3] *= sc * K
         final.append((dur, Mo.reshape(len(M), 55, 12).astype(np.float32)))
-        if ci != JUMP:
+        if True:
             report[ci] = dict(dur=dur, frames=len(M), gap=loop_gap(clips[ci][0]), lift_range=(clips[ci][0]['sole_y'].max() - low))
     E.write_clips(outdir + 'clips_%s.bin' % grp, final)
     return dict(body=body, clips=clips, report=report, final=final, sole_ids=sole_ids, K_sc=K * sc)

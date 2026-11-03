@@ -25,3 +25,6 @@ Correr mais calmo (cotovelo menos dobrado, tronco mais ereto, passada menor, bra
 
 ## v4
 Correr agora vem do Treadmill_Running.fbx (Mixamo): ferramentas/mixamo_src.py acha um ciclo e fecha o laco com mistura. Uso: RUN_FBX=<arquivo.fbx> python3 etapa53_animacoes_ual.py ... RUN_SPEED 1,7 m/s.
+
+## v5
+Correr volta ao da v3 (Jog calmo da UAL, RUN_SPEED 2,1). Pulo novo: decolagem (Jump_Start) -> no ar (Jump_Loop) -> descida (Jump_Land) em 0,71 s (= tempo no ar do app), JumpSource em etapa53_animacoes_ual.py.
