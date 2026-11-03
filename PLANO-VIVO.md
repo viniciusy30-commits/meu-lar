@@ -161,3 +161,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 38 — Móveis do pack home-set-2020s (entregue, aguardando teste)
 - [x] 49 móveis convertidos dos FBX (tamanho/forma/texturas originais) para `assets/mob`; `MobLoader` (Mob.kt); `Type.mob/rug`; loja com miniaturas. Detalhes em `ETAPA38-MOVEIS-NOTAS.md`.
 - [ ] Não compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
+
+## Etapa 41 — Cabelo Faye (mod Sims 4) (entregue, aguardando teste)
+- [x] `ferramentas/etapa41_faye.py` converte o .package: franja/topo (GEOM 805EC934) + trança (8037F206), LOD0, escala uniforme 1,3, textura original (degradê loiro/rosa) em `faye.png`. Peça `hairBack/Faye` (Cabelo > Atrás > "Faye"); em Frente escolha "Sem". Detalhes em `ETAPA41-FAYE-NOTAS.md`.
+- [ ] Não compilado nem testado no celular. Se pesar (21,9 mil vértices) usar LOD1 (GEOM 8035B4BE).

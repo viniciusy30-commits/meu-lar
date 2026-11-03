@@ -103,5 +103,6 @@ beard|Mustashe|p_beard_mustashe.bin|extra2.png
 beard|MustasheChin|p_beard_mustashechin.bin|extra2.png
 headAcc|AlienAntenna|p_headacc_alienantenna.bin|extra2.png
 headAcc|Horns|p_headacc_horns.bin|extra2.png
+hairBack|Faye|p_hairback_faye.bin|faye.png
 # roupa padrão (a Mary): chaves slot/id
 outfit=top/Sweater,bottom/Skirt,feet/Sandals,hairBack/Flare,hairFront/LongSweeps
