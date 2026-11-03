@@ -32,3 +32,6 @@ Arquivos: mods/*.java (novos), ModStore.kt (novo), CuteChar.kt, Creator.kt, Main
 ## Ajuste 2
 - Criador: saíram as abas antigas (Cabelo, Roupa, Sapatos, Acessórios e Óculos/Barba do Rosto), que não faziam nada nos corpos do Sims. Agora: Base, Corpo, Rosto e **Roupas** (importar, vestir, tirar, excluir).
 - Textura preta: texturas quase todas pretas são ignoradas (a peça entra cinza); toda textura importada vira potência de 2 e carrega com CLAMP (no OpenGL ES 2 textura de tamanho "quebrado" com repetição aparece preta).
+
+## Ajuste 3 (boneco todo preto e careca depois de importar)
+Causa: o seletor de arquivos pausa o app; ao voltar o OpenGL recria o contexto e as texturas de pele do Sims (sk_*.png) ficavam com o número antigo (morto) -> corpo preto. `CuteChar.initGl` agora zera essas peças e sobem de novo no próximo quadro. (Bug antigo: acontecia também ao sair e voltar ao app no criador.)

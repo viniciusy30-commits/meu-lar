@@ -399,6 +399,9 @@ object CuteChar {
                 val names = LinkedHashSet<String>()
                 baseSkin?.let { names.add(it.tex) }
                 for (s in library.values) names.add(s.tex)
+                // contexto GL novo (ex.: voltou do seletor de arquivos): as texturas de pele antigas morreram, sobem de novo sob demanda
+                for (s in library.values) if (s.tex.startsWith("sk_")) s.part = null
+                texPending = true
                 for (n in names) if (!n.startsWith("sk_")) texIds[n] = uploadTexture(am, n)   // Etapa 44: atlas de pele do Sims 3 sobem só quando usados
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
                 for (s in library.values) if (!s.tex.startsWith("sk_")) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
