@@ -319,8 +319,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     // ------------------------------------------------------------ movimento em 1ª pessoa
 
-    private fun inside(o: Item, x: Float, z: Float): Boolean =
-        x > o.x - 0.3f && x < o.x + o.w + 0.3f && z > o.y - 0.3f && z < o.y + o.h + 0.3f
+    // O personagem bate no corpo real do móvel (mais uma folga de 24 cm), e não na casa inteira.
+    private fun inside(o: Item, x: Float, z: Float): Boolean {
+        val r = o.rect()
+        return x > r[0] - 0.24f && x < r[2] + 0.24f && z > r[1] - 0.24f && z < r[3] + 0.24f
+    }
 
     private fun walkable(nx: Float, nz: Float, ox: Float, oz: Float): Boolean {
         val gw = st.gw.toFloat()
@@ -335,7 +338,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         val g = grabbed
         for (o in st.items) {
-            if (o.type.rug || o === g) continue
+            if (o.type.rug || o === g || Foot.height(o.type) < 0.12f) continue   // coisa baixinha dá para pisar por cima
             if (inside(o, nx, nz) && !inside(o, ox, oz)) return false
         }
         return true
@@ -364,7 +367,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (!ins && !door) return true
         } else if (!(x > -6.6f && x < gw + 6.6f && z > -6.6f && z < gh + 8.6f)) return true   // fora do quintal
         for (o in st.items) {
-            if (o.type.rug) continue
+            if (o.type.rug || Foot.height(o.type) < 0.12f) continue
             if (inside(o, x, z)) return true
         }
         return false
@@ -624,17 +627,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var bt = maxT
         for (o in st.items) {
             if (o.type.rug) continue
-            val t = hitBox(ry, o.x.toFloat(), 0f, o.y.toFloat(), (o.x + o.w).toFloat(), o.type.alt, (o.y + o.h).toFloat())
+            val rc = o.rect()
+            val t = hitBox(ry, rc[0] - 0.06f, 0f, rc[1] - 0.06f, rc[2] + 0.06f, maxOf(Foot.height(o.type), 0.12f) + 0.06f, rc[3] + 0.06f)
             if (t >= 0f && t < bt) { bt = t; best = o }
         }
         if (best != null) return best
         if (abs(ry[4]) < 1e-6f) return null
         val t = -ry[1] / ry[4]
         if (t < 0f || t > maxT) return null
-        val cx = floor(ry[0] + t * ry[3]).toInt()
-        val cz = floor(ry[2] + t * ry[5]).toInt()
+        val wx = ry[0] + t * ry[3]
+        val wz = ry[2] + t * ry[5]
         return st.items.lastOrNull { o ->
-            o.type.rug && cx >= o.x && cx < o.x + o.w && cz >= o.y && cz < o.y + o.h
+            val rc = o.rect()
+            o.type.rug && wx >= rc[0] && wx <= rc[2] && wz >= rc[1] && wz <= rc[3]
         }
     }
 
@@ -657,9 +662,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (g != null) {
             val fp = floorPoint(centerRay())
             if (fp != null && fp[2] < 7f) {
-                val nx = floor(fp[0] - g.w / 2f + 0.5f).toInt().coerceIn(0, maxOf(0, st.gw - g.w))
-                val nz = floor(fp[1] - g.h / 2f + 0.5f).toInt().coerceIn(0, maxOf(0, st.gh - g.h))
-                if ((nx != g.x || nz != g.y) && st.canPlace(g, nx, nz, g.rot)) { g.x = nx; g.y = nz }
+                val p = st.placeAt(g, g.rot, snapQ(fp[0] - g.w / 2f), snapQ(fp[1] - g.h / 2f))
+                if (p != null) { g.x = p[0].toInt(); g.y = p[1].toInt(); g.ox = p[2]; g.oz = p[3] }
             }
             aimed = null
         } else {
@@ -820,9 +824,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             }
             val lift = if (item === grabbed) 0.08f else 0f
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, item.x + item.w / 2f, lift, item.y + item.h / 2f)
+            val es = Foot.scale(t)
+            Matrix.translateM(mdl, 0, item.x + item.ox + item.w / 2f, lift, item.y + item.oz + item.h / 2f)
             Matrix.rotateM(mdl, 0, item.rot * 90f, 0f, 1f, 0f)
-            Matrix.scaleM(mdl, 0, s, s, s)
+            Matrix.scaleM(mdl, 0, s * es, s * es, s * es)
             Matrix.translateM(mdl, 0, -t.w / 2f, 0f, -t.h / 2f)
             draw(mesh, mdl, 1f)
         }
@@ -833,10 +838,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val tt = (now / 1_000_000L % 100000L) / 1000f
         for (item in items) {
             if (item.type.rug) continue
-            val key = item.w * 10 + item.h
-            val shm = sm.getOrPut(key) { Models.shadow(item.w, item.h) }
+            val rc = item.rect()
+            val sa = Math.round((rc[2] - rc[0]) * 20f)
+            val sb = Math.round((rc[3] - rc[1]) * 20f)
+            val shm = sm.getOrPut(1000000 + sa * 10000 + sb) { Models.shadowF(sa / 20.0, sb / 20.0) }
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, item.x.toFloat(), 0f, item.y.toFloat())
+            Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f, 0f, (rc[1] + rc[3]) / 2f)
             draw(shm, mdl, 1f)
         }
         if (mode == 1 || (fp && third)) {
@@ -854,10 +861,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val sel = focus
         if (sel != null) {
             val green = grabbed != null
-            val key = "${sel.w}x${sel.h}${if (green) "g" else "y"}"
-            val rg = rm.getOrPut(key) { Models.ring(sel.w, sel.h, if (green) C("#5CE08A") else C("#FFE066")) }
+            val rc = sel.rect()
+            val ra = Math.round(maxOf(rc[2] - rc[0], 0.35f) * 20f)
+            val rb = Math.round(maxOf(rc[3] - rc[1], 0.35f) * 20f)
+            val key = "${ra}x${rb}${if (green) "g" else "y"}"
+            val rg = rm.getOrPut(key) { Models.ringF(ra / 20.0, rb / 20.0, if (green) C("#5CE08A") else C("#FFE066")) }
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, sel.x.toFloat(), 0f, sel.y.toFloat())
+            Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f - ra / 40f, 0f, (rc[1] + rc[3]) / 2f - rb / 40f)
             draw(rg, mdl, 0.7f + 0.3f * sin(tt * 5f))
         }
         // vidros por último

@@ -2,6 +2,10 @@ package com.vinicius.meular
 
 import android.content.Context
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.floor
+
+// Posição fina: os móveis andam de 25 em 25 cm, e não de metro em metro.
+fun snapQ(v: Float): Float = Math.round(v * 4f) / 4f
 
 /** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração */
 enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val mob: String? = null, val rug: Boolean = false) {
@@ -73,8 +77,14 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
     var born = 0L
+    // Deslocamento fino (metros) somado à casa (x, y).
+    var ox = 0f
+    var oz = 0f
     val w: Int get() = if (rot % 2 == 1) type.h else type.w
     val h: Int get() = if (rot % 2 == 1) type.w else type.h
+
+    // Retângulo que o móvel ocupa de verdade no mundo: [x0, z0, x1, z1].
+    fun rect(): FloatArray = Foot.rect(type, rot, x, y, ox, oz)
 }
 
 class GameState(ctx: Context) {
@@ -110,7 +120,9 @@ class GameState(ctx: Context) {
                 if (parts.size > 3 && parts[3].isNotEmpty()) {
                     for (s in parts[3].split(";")) {
                         val f = s.split(",")
-                        items.add(Item(Type.valueOf(f[0]), f[1].toInt(), f[2].toInt(), f[3].toInt() % 4))
+                        val novo = Item(Type.valueOf(f[0]), f[1].toInt(), f[2].toInt(), f[3].toInt() % 4)
+                        if (f.size > 5) { novo.ox = f[4].toInt() / 100f; novo.oz = f[5].toInt() / 100f }
+                        items.add(novo)
                     }
                 }
                 ok = true
@@ -132,26 +144,69 @@ class GameState(ctx: Context) {
 
     fun podeAmpliar(): Boolean = gw < 10
 
-    fun canPlace(item: Item, nx: Int, ny: Int, rot: Int): Boolean {
-        val w = if (rot % 2 == 1) item.type.h else item.type.w
-        val h = if (rot % 2 == 1) item.type.w else item.type.h
-        if (nx < 0 || ny < 0 || nx + w > gw || ny + h > gh) return false
+    // Cabe aqui? Usa o tamanho real do móvel (não a casa inteira): dois móveis só colidem se os corpos se encostam.
+    fun canPlace(item: Item, nx: Int, ny: Int, rot: Int, ox: Float = item.ox, oz: Float = item.oz): Boolean {
+        val r = Foot.rect(item.type, rot, nx, ny, ox, oz)
+        if (r[0] < -0.001f || r[1] < -0.001f || r[2] > gw + 0.001f || r[3] > gh + 0.001f) return false
         if (item.type.rug) return true
         return items.none { o ->
-            o !== item && !o.type.rug &&
-                nx < o.x + o.w && nx + w > o.x && ny < o.y + o.h && ny + h > o.y
+            if (o === item || o.type.rug) return@none false
+            val b = o.rect()
+            r[0] < b[2] - 0.01f && r[2] > b[0] + 0.01f && r[1] < b[3] - 0.01f && r[3] > b[1] + 0.01f
         }
+    }
+
+    // Tenta pôr o móvel com o canto (tx, tz) em metros, empurrando-o para dentro da casa se passar da parede.
+    // Devolve [x, y, ox, oz] ou null se bater em outro móvel.
+    fun placeAt(item: Item, rot: Int, tx0: Float, tz0: Float): FloatArray? {
+        var tx = tx0
+        var tz = tz0
+        val r = Foot.rect(item.type, rot, floor(tx).toInt(), floor(tz).toInt(), tx - floor(tx), tz - floor(tz))
+        if (r[0] < 0f) tx -= r[0]
+        if (r[2] > gw) tx -= r[2] - gw
+        if (r[1] < 0f) tz -= r[1]
+        if (r[3] > gh) tz -= r[3] - gh
+        val nx = floor(tx).toInt()
+        val nz = floor(tz).toInt()
+        val ox = tx - nx
+        val oz = tz - nz
+        if (!canPlace(item, nx, nz, rot, ox, oz)) return null
+        return floatArrayOf(nx.toFloat(), nz.toFloat(), ox, oz)
     }
 
     fun rotate(item: Item): Boolean {
         val nr = (item.rot + 1) % 4
-        val w = if (nr % 2 == 1) item.type.h else item.type.w
-        val h = if (nr % 2 == 1) item.type.w else item.type.h
-        val nx = item.x.coerceIn(0, maxOf(0, gw - w))
-        val ny = item.y.coerceIn(0, maxOf(0, gh - h))
-        if (!canPlace(item, nx, ny, nr)) return false
-        item.x = nx; item.y = ny; item.rot = nr
+        val nw = if (nr % 2 == 1) item.type.h else item.type.w
+        val nh = if (nr % 2 == 1) item.type.w else item.type.h
+        // gira em volta do centro, sem o móvel andar
+        val cx = item.x + item.ox + item.w / 2f
+        val cz = item.y + item.oz + item.h / 2f
+        val p = placeAt(item, nr, cx - nw / 2f, cz - nh / 2f) ?: return false
+        item.x = p[0].toInt(); item.y = p[1].toInt(); item.ox = p[2]; item.oz = p[3]; item.rot = nr
         return true
+    }
+
+    // Primeiro lugar livre mais perto de (fx, fz), de 25 em 25 cm. Devolve [x, y, ox, oz] ou null.
+    fun findPlaceNear(t: Type, fx: Float, fz: Float): FloatArray? {
+        val probe = Item(t, 0, 0)
+        var best: FloatArray? = null
+        var bd = Float.MAX_VALUE
+        var tz = -t.h.toFloat()
+        while (tz <= gh) {
+            var tx = -t.w.toFloat()
+            while (tx <= gw) {
+                val p = placeAt(probe, 0, tx, tz)
+                if (p != null) {
+                    val dx = p[0] + p[2] + t.w / 2f - fx
+                    val dz = p[1] + p[3] + t.h / 2f - fz
+                    val d = dx * dx + dz * dz
+                    if (d < bd) { bd = d; best = p }
+                }
+                tx += 0.25f
+            }
+            tz += 0.25f
+        }
+        return best
     }
 
     fun findSpot(t: Type): Pair<Int, Int>? = findSpotNear(t, 0f, 0f)
@@ -172,7 +227,7 @@ class GameState(ctx: Context) {
     }
 
     fun save() {
-        val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot}" }
+        val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot},${Math.round(it.ox * 100f)},${Math.round(it.oz * 100f)}" }
         prefs.edit()
             .putString("state", "$money|$gw|$gh|$s")
             .putInt("floor", floorIdx).putInt("wall", wallIdx)

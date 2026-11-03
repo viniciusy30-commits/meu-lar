@@ -31,8 +31,8 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
     private var ay = 0f
     private var amoved = false
     private var pinchD = 0f
-    private var dragDx = 0
-    private var dragDz = 0
+    private var dragDx = 0f
+    private var dragDz = 0f
 
     var mode: Int
         get() = r.mode
@@ -132,6 +132,11 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
         return Pair(floor(fp[0]).toInt(), floor(fp[1]).toInt())
     }
 
+    private fun floorXZ(px: Float, py: Float): FloatArray? {
+        val ry = r.ray(px, py, width, height) ?: return null
+        return r.floorPoint(ry)
+    }
+
     private fun pick(px: Float, py: Float): Item? {
         val ry = r.ray(px, py, width, height) ?: return null
         return r.pickRay(ry)
@@ -147,9 +152,9 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                 if (h != null) {
                     selected = h
                     amode = 2
-                    val c = floorCell(e.x, e.y)
-                    dragDx = (c?.first ?: h.x) - h.x
-                    dragDz = (c?.second ?: h.y) - h.y
+                    val c = floorXZ(e.x, e.y)
+                    dragDx = if (c != null) c[0] - (h.x + h.ox) else 0f
+                    dragDz = if (c != null) c[1] - (h.y + h.oz) else 0f
                 } else amode = 1
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -165,11 +170,10 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                     ax = e.x; ay = e.y
                 } else if (amode == 2) {
                     val s = selected
-                    val c = floorCell(e.x, e.y)
+                    val c = floorXZ(e.x, e.y)
                     if (s != null && c != null) {
-                        val nx = (c.first - dragDx).coerceIn(0, maxOf(0, st.gw - s.w))
-                        val nz = (c.second - dragDz).coerceIn(0, maxOf(0, st.gh - s.h))
-                        if ((nx != s.x || nz != s.y) && st.canPlace(s, nx, nz, s.rot)) { s.x = nx; s.y = nz }
+                        val p = st.placeAt(s, s.rot, snapQ(c[0] - dragDx), snapQ(c[1] - dragDz))
+                        if (p != null) { s.x = p[0].toInt(); s.y = p[1].toInt(); s.ox = p[2]; s.oz = p[3] }
                     }
                 } else if (amode == 3 && e.pointerCount >= 2) {
                     val d = dist(e)

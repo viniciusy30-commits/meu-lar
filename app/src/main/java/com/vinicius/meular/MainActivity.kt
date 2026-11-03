@@ -554,10 +554,12 @@ class MainActivity : AppCompatActivity() {
     private fun comprar(t: Type) {
         if (st.money < t.preco) { msg("Dinheiro insuficiente. Vá trabalhar!"); return }
         val alvo = game.frontTarget()
-        val spot = st.findSpotNear(t, alvo[0], alvo[1])
+        val spot = st.findPlaceNear(t, alvo[0], alvo[1])
         if (spot == null) { msg("Sem espaço na casa. Venda algo ou amplie."); return }
         st.money -= t.preco
-        val novo = Item(t, spot.first, spot.second)
+        val novo = Item(t, spot[0].toInt(), spot[1].toInt())
+        novo.ox = spot[2]
+        novo.oz = spot[3]
         novo.born = System.nanoTime()
         st.items.add(novo)
         st.save()

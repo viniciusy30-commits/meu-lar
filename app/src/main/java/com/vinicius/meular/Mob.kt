@@ -1,5 +1,5 @@
 package com.vinicius.meular
-// versao etapa38-fix5 (sem comentarios de bloco; se esta linha aparece no GitHub, este zip foi aplicado)
+// versao etapa39-tamanhos (sem comentarios de bloco; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.Bitmap
@@ -8,6 +8,7 @@ import android.opengl.GLES20
 import android.opengl.GLUtils
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 
 // Móveis do pack "home-set-2020s" (Unity), convertidos por ferramentas/moveis/buildmob.py para assets/mob.
 //  - mob/<id>.bin (MOB1): tamanho em casas (largura, profundidade), texturas usadas e as peças (uma por material):
@@ -20,6 +21,7 @@ object MobLoader {
     @Volatile var assets: AssetManager? = null
     private val texIds = HashMap<String, Int>()
     private val thumbs = HashMap<String, Bitmap?>()
+    private val boundsCache = ConcurrentHashMap<String, FloatArray>()
 
     // O contexto do GL foi recriado: as texturas antigas não valem mais.
     fun reset() { texIds.clear() }
@@ -56,6 +58,51 @@ object MobLoader {
         val b = try { am?.open("mob/icons/$id.png")?.use { BitmapFactory.decodeStream(it) } } catch (e: Throwable) { null }
         thumbs[id] = b
         return b
+    }
+
+    // Limites da malha do móvel, sem mexer no GL: [x0, z0, x1, z1, altura] (ou null se não achar o arquivo).
+    fun bounds(id: String): FloatArray? {
+        boundsCache[id]?.let { return it }
+        val am = assets ?: return null
+        try {
+            val raw = am.open("mob/$id.bin").use { it.readBytes() }
+            val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
+            b.position(4)
+            val nt = b.int
+            val np = b.int
+            b.int; b.int
+            for (i in 0 until nt) {
+                val n = b.get().toInt() and 255
+                b.position(b.position() + n)
+            }
+            var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE
+            var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+            var y1 = 0f
+            for (pi in 0 until np) {
+                b.get(); b.short; b.get()
+                b.float; b.float; b.float; b.float
+                val nv = b.int
+                val ni = b.int
+                for (v in 0 until nv) {
+                    val x = b.float
+                    val y = b.float
+                    val z = b.float
+                    b.position(b.position() + 20)
+                    if (x < x0) x0 = x
+                    if (x > x1) x1 = x
+                    if (z < z0) z0 = z
+                    if (z > z1) z1 = z
+                    if (y > y1) y1 = y
+                }
+                b.position(b.position() + ni * 2)
+            }
+            if (x1 < x0) return null
+            val r = floatArrayOf(x0, z0, x1, z1, y1)
+            boundsCache[id] = r
+            return r
+        } catch (e: Throwable) {
+            return null
+        }
     }
 
     fun load(id: String): Mesh {

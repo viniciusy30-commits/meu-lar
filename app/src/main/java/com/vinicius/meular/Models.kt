@@ -49,6 +49,23 @@ object Models {
         return b.toMesh()
     }
 
+    // Sombra e anel de seleção do tamanho real do móvel (metros). A sombra fica centrada na origem.
+    fun shadowF(w: Double, h: Double): Mesh {
+        val b = MB()
+        b.blob(0.0, 0.07, 0.0, w / 2.0 + 0.18, h / 2.0 + 0.18, 0.42f)
+        return b.toMesh()
+    }
+
+    fun ringF(w: Double, h: Double, c: Int): Mesh {
+        val b = MB()
+        val t = 0.07
+        b.box(w / 2.0, 0.09, -0.03, w + 0.14, 0.02, t, c, false)
+        b.box(w / 2.0, 0.09, h + 0.03, w + 0.14, 0.02, t, c, false)
+        b.box(-0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
+        b.box(w + 0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
+        return b.toMesh()
+    }
+
     private fun leg(b: MB, x: Double, z: Double, h: Double, rb: Double, rt: Double, c: Int) =
         b.cyl(x, 0.0, z, rb, rt, h, c, true, 12)
 
