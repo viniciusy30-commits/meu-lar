@@ -113,6 +113,35 @@ object ModStore {
         }
     }
 
+    /** .package vira ele mesmo; .zip e .rar viram os .package de dentro. */
+    private fun expand(ctx: Context, name: String, raw: ByteArray): List<Pair<String, ByteArray>> {
+        val res = ArrayList<Pair<String, ByteArray>>()
+        if (raw.size >= 4 && raw[0] == 'D'.code.toByte() && raw[1] == 'B'.code.toByte() && raw[2] == 'P'.code.toByte() && raw[3] == 'F'.code.toByte()) {
+            res.add(name to raw)
+        } else if (raw.size >= 4 && raw[0] == 'P'.code.toByte() && raw[1] == 'K'.code.toByte()) {
+            java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(raw)).use { z ->
+                while (true) {
+                    val e = z.nextEntry ?: break
+                    if (!e.isDirectory && e.name.endsWith(".package", true)) res.add(e.name to z.readBytes())
+                }
+            }
+        } else if (raw.size >= 4 && raw[0] == 'R'.code.toByte() && raw[1] == 'a'.code.toByte() && raw[2] == 'r'.code.toByte()) {
+            val tmp = File(ctx.cacheDir, "rar_" + System.nanoTime())
+            tmp.mkdirs()
+            try {
+                com.github.junrar.Junrar.extract(java.io.ByteArrayInputStream(raw), tmp)
+                tmp.walkTopDown().filter { it.isFile && it.name.endsWith(".package", true) }.forEach { res.add(it.name to it.readBytes()) }
+            } catch (e: Throwable) {
+                throw Exception("Não consegui abrir o RAR (formato novo?). Extraia no celular e escolha o .package.")
+            } finally {
+                tmp.deleteRecursively()
+            }
+        } else {
+            throw Exception("Arquivo não reconhecido (esperava .package, .zip ou .rar).")
+        }
+        return res
+    }
+
     private fun displayName(ctx: Context, u: Uri): String {
         try {
             ctx.contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
@@ -139,15 +168,27 @@ object ModStore {
                     msgs.add("Escolha primeiro um corpo na aba Base (o importador encaixa a roupa no corpo atual).")
                 } else {
                     val grp = CuteChar.bodyGroup() ?: "af"
+                    // expande .zip e .rar em arquivos .package
+                    val entries = ArrayList<Pair<String, ByteArray>>()
                     for (u in uris) {
-                        val nm = displayName(app, u)
+                        val un = displayName(app, u)
                         try {
-                            val data = app.contentResolver.openInputStream(u)!!.use { it.readBytes() }
+                            val raw = app.contentResolver.openInputStream(u)!!.use { it.readBytes() }
+                            val got = expand(app, un, raw)
+                            if (got.isEmpty()) msgs.add("$un: não achei nenhum .package dentro.")
+                            entries.addAll(got)
+                        } catch (e: Throwable) {
+                            android.util.Log.e("ModStore", "abrir $un", e)
+                            msgs.add("$un: ${e.message ?: e.toString()}")
+                        }
+                    }
+                    for ((nm, data) in entries) {
+                        try {
                             val out = Importer.convert(data, nm, body)
                             val tx = out.texOnly
                             if (tx != null) {
                                 val tgt = synchronized(this) { items.firstOrNull { x -> x.id == target } ?: items.lastOrNull { x -> !x.hasTex && x.grp == grp } ?: items.lastOrNull { x -> x.grp == grp } }
-                                if (tgt == null) msgs.add("$nm: é só textura e ainda não há roupa importada para aplicar.")
+                                if (tgt == null) msgs.add("$nm: é só textura e ainda não há roupa importada para aplicar. " + out.notes.joinToString(" "))
                                 else {
                                     setTexture(tgt, (if (tgt.alpha) tx else tx.opaque()).png())
                                     msgs.add("$nm: textura aplicada em ${tgt.name}.")

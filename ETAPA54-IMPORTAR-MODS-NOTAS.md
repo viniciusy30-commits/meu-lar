@@ -35,3 +35,9 @@ Arquivos: mods/*.java (novos), ModStore.kt (novo), CuteChar.kt, Creator.kt, Main
 
 ## Ajuste 3 (boneco todo preto e careca depois de importar)
 Causa: o seletor de arquivos pausa o app; ao voltar o OpenGL recria o contexto e as texturas de pele do Sims (sk_*.png) ficavam com o número antigo (morto) -> corpo preto. `CuteChar.initGl` agora zera essas peças e sobem de novo no próximo quadro. (Bug antigo: acontecia também ao sair e voltar ao app no criador.)
+
+## Ajuste 4: .zip e .rar
+Importar mods aceita .package, .zip e .rar (extrai os .package de dentro). RAR usa a biblioteca junrar (app/build.gradle.kts); só RAR4 (o RAR5 mais novo mostra aviso para extrair no celular). Zip é nativo.
+
+## Ajuste 5
+Quando o package não tem malha legível, a mensagem mostra a causa (GEOM achados/erros e tipos de recurso do arquivo).

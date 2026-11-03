@@ -47,11 +47,23 @@ public final class Importer {
         } else {
             List<Pkg.Ent> ge = pkg.ofType(Geom.T_GEOM);
             List<RawMesh> cand = new ArrayList<>();
+            int bad = 0, small = 0;
+            String firstErr = "";
             for (Pkg.Ent e : ge) {
                 try {
                     RawMesh m = Geom.parse(pkg.read(e), game);
                     if (m.nv() >= 100 && m.nv() <= 60000 && m.nt() > 20) cand.add(m);
-                } catch (Exception ex) { /* GEOM que não dá para ler: ignora */ }
+                    else small++;
+                } catch (Exception ex) {
+                    bad++;
+                    if (firstErr.isEmpty()) firstErr = String.valueOf(ex.getMessage());
+                }
+            }
+            if (cand.isEmpty()) {
+                java.util.TreeMap<String, Integer> hist = new java.util.TreeMap<>();
+                for (Pkg.Ent e : pkg.ents) hist.merge(Integer.toHexString(e.type), 1, Integer::sum);
+                out.notes.add("Sims " + game + " (DBPF " + pkg.major + "." + pkg.minor + "): " + ge.size() + " malha(s) GEOM, " + bad + " com erro"
+                        + (firstErr.isEmpty() ? "" : " (" + firstErr + ")") + ", " + small + " fora do tamanho. Tipos no arquivo: " + hist);
             }
             if (cand.size() > 14) {
                 cand.sort((a, c) -> c.nv() - a.nv());
