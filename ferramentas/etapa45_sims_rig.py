@@ -85,7 +85,7 @@ def main():
             if grp not in clips_done and typ == 1:
                 b = parts[0]; rest = b['pos']; sole = np.nonzero(rest[:, 1] < 0.05 * rest[:, 1].max())[0]
                 Q25 = np.array([J[nm] for nm in R.BONES]) * sc
-                write_clips(CU + 'clips_%s.bin' % grp, R.retarget_clips(Q25, b['bi'], b['bw'], rest, sole)); clips_done.add(grp)
+                write_clips(CU + 'clips_%s.bin' % grp, R.adduct_arms(R.retarget_clips(Q25, b['bi'], b['bw'], rest, sole), Q25)); clips_done.add(grp)
             if sd['st'] in 'ate' and grp not in hair_done and typ == 1:
                 omin, omax = old_scalp_box(scalp, ratio); nmin, nmax = scalp['pos'].min(0) * sc, scalp['pos'].max(0) * sc
                 e.CJ = CJ0 + ((nmin + nmax) / 2 - (omin + omax) / 2); e.SC = SC0 * (nmax - nmin) / np.maximum(omax - omin, 1e-6)

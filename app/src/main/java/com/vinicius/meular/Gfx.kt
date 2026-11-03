@@ -50,6 +50,8 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var cull: Boolean = false
     /** Etapa 41: desenha opaco (sem mistura de alfa): so recorte, evita mechas semitransparentes tapando as de tras. */
     var solid: Boolean = false
+    /** Etapa 47: pele do Sims; o shader limita a soma de luz (a luz pontual do criador estourava ombros/peito/testa para branco). */
+    var soft: Boolean = false
 }
 class Mesh(val parts: List<Part>)
 

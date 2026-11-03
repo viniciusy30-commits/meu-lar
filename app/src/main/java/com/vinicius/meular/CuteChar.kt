@@ -544,7 +544,7 @@ object CuteChar {
             for ((k, s) in library) {
                 if (s.part != null || !s.tex.startsWith("sk_") || k !in w) continue
                 val id = texIds.getOrPut(s.tex) { uploadTexture(am, s.tex) }
-                s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, id)
+                s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, id).also { p -> p.soft = true }   // Etapa 47: pele sem estourar
                 any = true
             }
         } catch (e: Throwable) {

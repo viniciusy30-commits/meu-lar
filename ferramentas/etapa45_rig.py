@@ -207,3 +207,28 @@ def pose_mesh(rest, bi, bw, M55):
     for k in range(4):
         Mb = M[bi[:, k]]; out += (bw[:, k] / 255.0)[:, None] * (np.einsum('vij,vj->vi', Mb[:, :, :3], rest) + Mb[:, :, 3])
     return out
+
+# ---- Etapa 47: bracos mais junto do corpo (a pose de repouso do Sims 3 e' um A bem aberto) ----
+ADD_DEG = {0: 9.0, 1: 8.0, 3: 5.0, 4: 9.0, 5: 8.0, 6: 5.0}   # por indice de clipe (pulo = 2 nao muda)
+def adduct_arms(clips, Q25):
+    """Gira o braco inteiro (ombro->dedos) no plano frontal, em torno do ombro ja posado, em direcao ao corpo."""
+    from etapa11_base import K as KK
+    out = []
+    for ci, (ln, res) in enumerate(clips):
+        deg = ADD_DEG.get(ci, 0.0)
+        if deg:
+            a = np.radians(deg)
+            for f in range(res.shape[0]):
+                M = res[f].reshape(-1, 3, 4).astype(np.float64) / KK
+                for side, sg in (('l', -1.0), ('r', 1.0)):
+                    ua = BI['upperarm_' + side]; hd = BI['hand_' + side]
+                    p = M[ua, :, :3] @ Q25[ua] + M[ua, :, 3]
+                    th = sg * a; c, s = np.cos(th), np.sin(th)
+                    Rz = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+                    bones = [ua, ua + 1, hd] + (list(range(25, 40)) if side == 'l' else list(range(40, 55)))
+                    for b in bones:
+                        Rn = Rz @ M[b, :, :3]; tn = Rz @ (M[b, :, 3] - p) + p
+                        M[b, :, :3] = Rn; M[b, :, 3] = tn
+                res[f] = (M * KK).reshape(-1, 12).astype(np.float32)
+        out.append((ln, res))
+    return out

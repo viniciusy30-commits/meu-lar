@@ -144,6 +144,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var uEye = 0
     private var uRoom = 0
     private var uLight = 0
+    private var uSoft = 0
 
     private val fm = HashMap<Type, Mesh>()
     private val sm = HashMap<Int, Mesh>()
@@ -181,7 +182,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         #endif
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
         uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec; uniform float uCut;
-        uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight;
+        uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight; uniform float uSoft;
         void main() {
             vec4 t = texture2D(uTex, vUV);
             if (t.a < uCut) discard;
@@ -205,6 +206,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 ao *= 0.78 + 0.22 * smoothstep(0.0, 0.8, e);
             }
             vec3 light = amb + vec3(1.0, 0.96, 0.88) * 0.55 * diff + vec3(1.0, 0.80, 0.52) * 0.85 * pd;
+            if (uSoft > 0.5) {
+                float m = max(light.r, max(light.g, light.b));
+                if (m > 1.05) light *= (1.05 + (m - 1.05) * 0.25) / m;
+            }
             vec3 col = base * light * ao;
             vec3 V = normalize(uEye - vW);
             vec3 H = normalize(L + V);
@@ -245,6 +250,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         uEye = GLES20.glGetUniformLocation(prog, "uEye")
         uRoom = GLES20.glGetUniformLocation(prog, "uRoom")
         uLight = GLES20.glGetUniformLocation(prog, "uLight")
+        uSoft = GLES20.glGetUniformLocation(prog, "uSoft")
         GLES20.glUseProgram(prog)
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glEnableVertexAttribArray(aNor)
@@ -276,6 +282,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (p.tex != 0) p.tex else Tex.ids[p.mat])
             GLES20.glUniform1i(uTex, 0)
             GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
+            GLES20.glUniform1f(uSoft, if (p.soft) 1f else 0f)
             GLES20.glUniform1f(uPush, p.push)
             GLES20.glUniform1f(uCut, p.cut)
             if (p.cull) GLES20.glEnable(GLES20.GL_CULL_FACE)
