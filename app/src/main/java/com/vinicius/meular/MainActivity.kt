@@ -124,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CuteChar.assets = assets
+        ModStore.init(this)
         MobLoader.assets = assets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
@@ -239,6 +240,31 @@ class MainActivity : AppCompatActivity() {
         mostrarNovidades()
         Updater.autoCheck(this)
         if (!st.avatarSet) root.post { abrirCriador() }
+    }
+
+    private var modTarget: String? = null
+
+    /** Abre o seletor de arquivos para importar .package (target = id da peça que recebe a textura, ou null). */
+    fun pickMods(target: String?) {
+        modTarget = target
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)
+        i.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+        i.type = "*/*"
+        i.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+        startActivityForResult(i, 4711)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 4711 || resultCode != RESULT_OK || data == null) return
+        val uris = ArrayList<android.net.Uri>()
+        data.data?.let { uris.add(it) }
+        val cd = data.clipData
+        if (cd != null) for (k in 0 until cd.itemCount) uris.add(cd.getItemAt(k).uri)
+        if (uris.isEmpty()) return
+        creator.modsChanged("Importando ${uris.size} arquivo(s)...")
+        ModStore.importAsync(this, uris, modTarget) { msg -> runOnUiThread { creator.modsChanged(msg) } }
     }
 
     override fun onResume() { super.onResume(); game.onResume() }

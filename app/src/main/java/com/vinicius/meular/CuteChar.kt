@@ -71,6 +71,8 @@ object CuteChar {
         val nor0: FloatArray = nor.copyOf()   // Etapa 13: normais originais (nor = nor0 corrigida pela deformação)
         var warpVer = -1
         var foot: IntArray? = null   // Etapa 20: vértices da região do pé/sola (para apoiar a sola no chão)
+        var mod = false              // peça importada de .package (Sims 2/3/4)
+        var modAlpha = false         // textura com recorte (cabelo)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -282,8 +284,107 @@ object CuteChar {
             body.push = SKIN_PUSH
         }
         parts.add(0, body)
+        // peças importadas: esconde os triângulos do corpo do Sims que ficam por baixo do tecido
+        val sims = act.firstOrNull { it.key.startsWith("body/S_") }
+        val simsPart = sims?.part
+        if (sims != null && simsPart != null) {
+            val mk = BooleanArray(sims.ni / 3)
+            var any = false
+            var bidx: IntArray? = null
+            for (m in act) {
+                if (!m.mod || m.modAlpha) continue
+                val sl = m.key.substringBefore('/')
+                if (sl != "top" && sl != "bottom" && sl != "overall" && sl != "feet") continue
+                val ck = m.key + "@" + sims.key
+                val cv = coverCache.getOrPut(ck) {
+                    val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
+                    val r = BooleanArray(sims.ni / 3)
+                    com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r)
+                    r
+                }
+                for (i in cv.indices) if (cv[i]) { mk[i] = true; any = true }
+            }
+            val at = parts.indexOf(simsPart)
+            if (any && at >= 0) {
+                var keep = 0
+                for (h in mk) if (!h) keep++
+                val ib = ByteBuffer.allocateDirect(keep * 3 * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+                for (t in mk.indices) {
+                    if (mk[t]) continue
+                    ib.put(sims.idx[t * 3]); ib.put(sims.idx[t * 3 + 1]); ib.put(sims.idx[t * 3 + 2])
+                }
+                ib.position(0)
+                parts[at] = Part(Mt.PLAIN, sims.fb, sims.nv, ib, keep * 3, simsPart.tex).also { it.soft = simsPart.soft; it.push = simsPart.push }
+            }
+        }
         cur = Active(act, Mesh(parts))
     }
+
+    // ---- peças importadas de .package (ModStore) ----
+    private class ModJob(val key: String, val cup: ByteArray?, val bmp: android.graphics.Bitmap?, val alpha: Boolean)
+    private val modJobs = java.util.concurrent.ConcurrentLinkedQueue<ModJob>()
+    private val coverCache = HashMap<String, BooleanArray>()
+
+    /** Chamar de qualquer thread: coloca (ou troca) a peça importada [key]; cup == null remove. A GL cuida do resto no próximo quadro. */
+    fun enqueueMod(key: String, cup: ByteArray?, bmp: android.graphics.Bitmap?, alpha: Boolean) {
+        modJobs.add(ModJob(key, cup, bmp, alpha))
+    }
+
+    private fun runModJobs() {
+        if (!loaded || baseSkin == null) return
+        var changed = false
+        while (true) {
+            val j = modJobs.poll() ?: break
+            try {
+                val old = library.remove(j.key)
+                if (old != null) {
+                    val tid = texIds.remove(old.tex)
+                    if (tid != null) GLES20.glDeleteTextures(1, intArrayOf(tid), 0)
+                    coverCache.keys.removeAll { it.startsWith(j.key + "@") }
+                    changed = true
+                }
+                if (j.cup == null || j.bmp == null) continue
+                val tname = "mod:" + j.key
+                val sk = readPieceBytes(j.cup, j.key, tname)
+                sk.mod = true
+                sk.modAlpha = j.alpha
+                val ids = IntArray(1)
+                GLES20.glGenTextures(1, ids, 0)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, j.bmp, 0)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
+                if (j.alpha) {
+                    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+                }
+                texIds[tname] = ids[0]
+                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = true; p.solid = true } }
+                library[j.key] = sk
+                j.bmp.recycle()
+                changed = true
+            } catch (e: Throwable) {
+                android.util.Log.e("CuteChar", "peça importada falhou: " + j.key, e)
+            }
+        }
+        if (changed) rebuildActive()
+    }
+
+    /** Corpo do Sims em uso (tipo "normal" do grupo idade+sexo) como molde para encaixar peças importadas; null se não houver corpo do Sims. */
+    fun bodyRef(): com.vinicius.meular.mods.BodyRef? {
+        val grp = bodyGroup() ?: return null
+        val key = "body/S_" + grp + "1"
+        val sk = library[key] ?: return null
+        val idx = IntArray(sk.ni) { sk.idx[it].toInt() and 0xFFFF }
+        val rg = rigs[grp + "1"]
+        val ratio = simRatio[key] ?: 1f
+        return com.vinicius.meular.mods.BodyRef(sk.pos0.copyOf(), sk.nor0.copyOf(), sk.bi.copyOf(), sk.bw.copyOf(), idx, rg, 96.8f / ratio)
+    }
+
+    /** "af", "am", "tf", "cu", "pu"... do corpo atual (idade+sexo) ou null. */
+    fun bodyGroup(): String? = if (simOn && simKey.length >= 2) simKey.substring(0, 2) else null
 
     /** Chamar na thread GL (onSurfaceCreated): carrega o modelo e cria as texturas. */
     fun initGl() {
@@ -292,6 +393,8 @@ object CuteChar {
         try {
             if (!loaded && !failed) load(am)
             if (loaded) {
+                library.entries.removeAll { it.value.mod }   // peças importadas sobem de novo (ModStore.requeue) depois
+                coverCache.clear()
                 texIds.clear()
                 val names = LinkedHashSet<String>()
                 baseSkin?.let { names.add(it.tex) }
@@ -305,6 +408,7 @@ object CuteChar {
                 extra2Tex = texIds["extra2.png"] ?: 0
                 skateTex = texIds["skatetee.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
+                ModStore.requeue()
             }
         } catch (e: Throwable) {
             failed = true
@@ -494,8 +598,10 @@ object CuteChar {
     }
 
     /** CUP1: "CUP1", nv, ni, flags, vértices (44 bytes), índices locais (uint16) e, se flags&1, nHide + nHide ids (uint16) de triângulos do corpo cobertos. */
-    private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin {
-        val raw = am.open(path).use { it.readBytes() }
+    private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin =
+        readPieceBytes(am.open(path).use { it.readBytes() }, key, tex)
+
+    private fun readPieceBytes(raw: ByteArray, key: String, tex: String): Skin {
         val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
         require(b.get().toInt() == 'C'.code && b.get().toInt() == 'U'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
         val nv = b.int
@@ -585,6 +691,7 @@ object CuteChar {
 
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         if (texPending) loadPendingTex()
+        if (!modJobs.isEmpty()) runModJobs()
         if (simWant != simGrp && !simFail && assets != null) useSimClips(simWant)
         val cs = cur ?: return null
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)

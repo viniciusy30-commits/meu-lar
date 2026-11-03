@@ -91,10 +91,13 @@ class CreatorUi(
             Sub("Chapéu", 0.3f, Style("hat", AvaPal.HT_IDS, AvaPal.HT_N, { a -> a.chat }, { a, i -> a.chat = i }), intArrayOf(10, 11)),
             Sub("Cabeça", 0.3f, Style("headAcc", AvaPal.HA_IDS, AvaPal.HA_N, { a -> a.chac }, { a, i -> a.chac = i }), intArrayOf(10, 11)),
             Sub("Luvas", 0.3f, Style("gloves", AvaPal.GV_IDS, AvaPal.GV_N, { a -> a.cglove }, { a, i -> a.cglove = i }), intArrayOf(10, 11), 2.4f, 0.8f)
+        )),
+        Cat("Mods", 3.0f, 0.85f, listOf(
+            Sub("Importar .package", 0.3f, null, intArrayOf(), sl = 5)
         ))
     )
 
-    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT)
+    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT, Ic.PLUS)
 
     private var cat = 0
     private var sub = 0
@@ -349,10 +352,90 @@ class CreatorUi(
         val s = c.subs[sub]
         val stl = s.style
         if (stl != null) grid(stl, stl.get(av))
-        if (s.sl == 4) baseChoice() else if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
+        if (s.sl == 5) modsPanel() else if (s.sl == 4) baseChoice() else if (s.sl == 3) expressions() else if (s.sl != 0) sliders(s.sl)
         for (slot in s.colors) colorRow(slot)
         body.addView(View(context), LinearLayout.LayoutParams(-1, dp(8)))
         scroll.post { scroll.scrollTo(0, if (keepScroll) keep else 0) }
+    }
+
+    // ---- Mods: importar .package do The Sims 2/3/4 direto pelo jogo ----
+    private var modMsg = ""
+
+    /** Chamado pela MainActivity quando a importação termina (já na thread da tela). */
+    fun modsChanged(msg: String) {
+        modMsg = msg
+        CuteChar.setWear(st.avatar.wearKeys())
+        refresh(true)
+    }
+
+    private fun modBtn(text: String, on: Boolean, click: () -> Unit): TextView {
+        val t = TextView(context)
+        t.text = text
+        t.textSize = 12f
+        t.typeface = Ui.BOLD
+        t.gravity = Gravity.CENTER
+        t.setPadding(dp(12), 0, dp(12), 0)
+        t.setTextColor(if (on) Color.WHITE else SUB2)
+        t.background = pillBg(on, dpf(16f))
+        t.setOnClickListener { click() }
+        return t
+    }
+
+    private fun modsPanel() {
+        val act = context as? MainActivity
+        val info = TextView(context)
+        info.text = "Escolha arquivos .package de roupas, sapatos ou cabelos (The Sims 2, 3 ou 4). Eles são encaixados no corpo atual. " +
+            "Se a roupa vier sem cor, importe depois o package de textura (recolor)."
+        info.textSize = 12f
+        info.setTextColor(SUB2)
+        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(4), dp(4), dp(8)) })
+        body.addView(modBtn(if (ModStore.isBusy) "Importando..." else "+  Importar .package", true) { act?.pickMods(null) },
+            LinearLayout.LayoutParams(-1, dp(44)).also { it.setMargins(dp(4), 0, dp(4), dp(8)) })
+        if (modMsg.isNotEmpty()) {
+            val m = TextView(context)
+            m.text = modMsg
+            m.textSize = 12f
+            m.setTextColor(TXT)
+            body.addView(m, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), 0, dp(4), dp(8)) })
+        }
+        val grp = CuteChar.bodyGroup()
+        val list = ModStore.items.filter { it.grp == grp }
+        if (grp == null) {
+            val m = TextView(context)
+            m.text = "Escolha um corpo na aba Base primeiro."
+            m.textSize = 12f
+            m.setTextColor(SUB2)
+            body.addView(m)
+        }
+        for (it in list) {
+            val card = LinearLayout(context)
+            card.orientation = LinearLayout.VERTICAL
+            card.background = cardBg(dpf(14f))
+            card.setPadding(dp(10), dp(8), dp(10), dp(8))
+            val nm = TextView(context)
+            nm.text = it.name + "  \u00B7  " + (ModStore.SLOT_NAMES[it.slot] ?: it.slot) + if (it.hasTex) "" else "  (sem textura)"
+            nm.textSize = 13f
+            nm.typeface = Ui.BOLD
+            nm.setTextColor(TXT)
+            card.addView(nm, LinearLayout.LayoutParams(-1, -2))
+            val row = LinearLayout(context)
+            row.orientation = LinearLayout.HORIZONTAL
+            val worn = ModStore.isWorn(it)
+            row.addView(modBtn(if (worn) "Tirar" else "Vestir", !worn) {
+                ModStore.toggle(it)
+                CuteChar.setWear(st.avatar.wearKeys())
+                st.save()
+                refresh(true)
+            }, LinearLayout.LayoutParams(0, dp(34), 1f))
+            row.addView(modBtn("Textura", false) { act?.pickMods(it.id) }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
+            row.addView(modBtn("Excluir", false) {
+                ModStore.remove(it)
+                CuteChar.setWear(st.avatar.wearKeys())
+                refresh(true)
+            }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
+            card.addView(row, LinearLayout.LayoutParams(-1, -2).also { p -> p.topMargin = dp(6) })
+            body.addView(card, LinearLayout.LayoutParams(-1, -2).also { p -> p.setMargins(dp(4), dp(4), dp(4), dp(4)) })
+        }
     }
 
     private fun icon(key: String): Bitmap? = icons.getOrPut(key) {
