@@ -170,3 +170,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 42 — cabelo Heartbeat (Sims 3)
 - [x] Conversor ferramentas/etapa42_heartbeat.py, p_hairback_heartbeat.bin, heartbeat.png, ícone, pieces.txt, Avatar.kt (HB_IDS/HB_N), CuteChar.kt (isAlphaHair)
 - [ ] Testar no celular (build do GitHub). PRÓXIMO PASSO: ajustar encaixe/cor só se o teste mostrar problema.
+
+
+## Etapa 43 — Julie (personagem pronta, corpo/rosto do Sims 3) (entregue, aguardando teste)
+- [x] `ferramentas/etapa43_julie.py` gera `p_body_julie.bin` (corpo + rosto + couro cabeludo + olhos ligados ao esqueleto), `julie.png` (atlas) e `p_hairback_heartbeatjulie.bin` (Heartbeat ajustado a ela). Cartão "Julie" em Personagens prontos; `Avatar.julie` salvo no fim do encode; `CuteChar.MANAGED` inclui "body"; `Creator.kt`: Masculino/Feminino saem da Julie. Detalhes em `ETAPA43-JULIE-NOTAS.md`.
+- [ ] Não compilado nem testado no celular. PRÓXIMO PASSO: se o build falhar, corrigir só o erro; depois ajustar encaixe/cor da Julie conforme o teste.

@@ -162,7 +162,7 @@ object CuteChar {
     private var extra2Tex = 0
     private var skateTex = 0
     @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
-    private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
+    private val MANAGED = setOf("body", "hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()

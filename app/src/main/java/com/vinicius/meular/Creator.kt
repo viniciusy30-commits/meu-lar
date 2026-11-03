@@ -490,7 +490,7 @@ class CreatorUi(
             val sexRow = LinearLayout(context)
             sexRow.orientation = LinearLayout.HORIZONTAL
             for ((nome, m) in listOf("Feminino" to false, "Masculino" to true)) {
-                val on = av.masc == m
+                val on = av.masc == m && !av.julie
                 val t = TextView(context)
                 t.text = nome
                 t.textSize = 14f
@@ -500,8 +500,9 @@ class CreatorUi(
                 t.setPadding(0, 0, 0, dp(3))
                 t.background = pillBg(on, dpf(20f))
                 t.setOnClickListener {
-                    if (av.masc != m) {
+                    if (av.masc != m || av.julie) {
                         av.masc = m
+                        if (av.julie) { av.julie = false; CuteChar.setWear(av.wearKeys()) }   // Etapa 43: sair da Julie
                         CuteChar.setShape(av.bs, av.fs, av.masc)
                         st.save()
                         refresh(true)
@@ -576,7 +577,7 @@ class CreatorUi(
         info.setTextColor(SUB2)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         for ((nome, m) in listOf("Masculino" to true, "Feminino" to false)) {
-            val on = av.masc == m
+            val on = av.masc == m && !av.julie
             val t = TextView(context)
             t.text = (if (m) "\u2642  " else "\u2640  ") + nome + (if (on) "  \u2713" else "")
             t.textSize = 18f

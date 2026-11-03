@@ -107,3 +107,5 @@ hairBack|Faye|p_hairback_faye.bin|faye.png
 hairBack|Heartbeat|p_hairback_heartbeat.bin|heartbeat.png
 # roupa padrão (a Mary): chaves slot/id
 outfit=top/Sweater,bottom/Skirt,feet/Sandals,hairBack/Flare,hairFront/LongSweeps
+body|Julie|p_body_julie.bin|julie.png
+hairBack|HeartbeatJulie|p_hairback_heartbeatjulie.bin|heartbeat.png

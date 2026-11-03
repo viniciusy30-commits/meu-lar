@@ -71,8 +71,9 @@ object AvaPal {
     val HA_N = listOf("Sem", "Chifres", "Antenas")
 
     /** Etapa 37: personagens prontos da tela Base (Avatar.applyPreset). */
-    val PRESET_N = listOf("Zero YAM")
-    val PRESET_D = listOf("Base masculina careca, sem ajustes de corpo e rosto, camiseta e calça social, descalço, olhos vermelhos")
+    val PRESET_N = listOf("Zero YAM", "Julie")
+    val PRESET_D = listOf("Base masculina careca, sem ajustes de corpo e rosto, camiseta e calça social, descalço, olhos vermelhos",
+        "Mulher adulta do Sims 3 (corpo e rosto originais), cabelo longo liso com franja, top e short jeans, descalça. Tem o próprio corpo: roupas, cabelo e ajustes do criador não se aplicam; para sair dela, escolha Masculino ou Feminino")
 
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano", "Repartido volumoso")
@@ -114,15 +115,18 @@ class Avatar(
     var bs: IntArray = IntArray(BodyMorph.NB),
     var fs: IntArray = IntArray(BodyMorph.NF),
     /** Etapa 13: corpo masculino (false = feminino, o corpo original). */
-    var masc: Boolean = false
+    var masc: Boolean = false,
+    /** Etapa 43: personagem pronto Julie (corpo e rosto do Sims 3 como peça única; ignora roupas/cabelos do criador). */
+    var julie: Boolean = false
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
     fun wearKeys(): List<String> {
+        if (julie) return listOf("body/Julie", "hairBack/HeartbeatJulie")   // Etapa 43: a Julie já traz corpo, roupa pintada e cabelo
         val k = ArrayList<String>()
         AvaPal.HB_IDS[hb].let { if (it.isNotEmpty()) k.add("hairBack/$it") }
         // chapéu cobre a franja (a franja atravessaria o tecido)
@@ -145,6 +149,7 @@ class Avatar(
 
     /** Etapa 14: recomeça do zero com a base masculina ou feminina (sem roupa da Mary); mantém só tom de pele e cor dos olhos. */
     fun applyBase(m: Boolean) {
+        julie = false
         masc = m
         female = !m
         hb = if (m) 2 else 4          // Raspado (John) | Chanel
@@ -173,6 +178,11 @@ class Avatar(
                 ctop = 2; cbot = 11; cov = 0    // Camiseta + Calça social
                 cfeet = 0; cbrd = 0             // descalço, sem barba
                 cc[1] = 6                       // olhos: vermelho-escuro do original (rosa-avermelhado da paleta)
+            }
+            1 -> {
+                applyBase(false)
+                julie = true                    // Etapa 43: peça body/Julie (corpo + rosto + olhos) e cabelo Heartbeat ajustado a ela
+                hb = 0; hf = 0
             }
         }
     }
@@ -245,6 +255,8 @@ class Avatar(
                     if (36 + BodyMorph.NB + BodyMorph.NF < p.size) av.masc = p[36 + BodyMorph.NB + BodyMorph.NF] == 1
                     // Etapa 15: cor dos lábios (último número)
                     if (37 + BodyMorph.NB + BodyMorph.NF < p.size) av.cc[12] = p[37 + BodyMorph.NB + BodyMorph.NF].coerceIn(-1, CuteColor.palette(12).size - 1)
+                    // Etapa 43: Julie (último número; saves antigos não têm)
+                    if (38 + BodyMorph.NB + BodyMorph.NF < p.size) av.julie = p[38 + BodyMorph.NB + BodyMorph.NF] == 1
                 }
             } catch (e: Exception) {
                 null
