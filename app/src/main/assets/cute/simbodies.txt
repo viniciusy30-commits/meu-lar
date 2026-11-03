@@ -1,0 +1,22 @@
+# id|estagio(p c t a e)|sexo(f m u)|tipo(0 magro 1 normal 2 atletico 3 gordo)|altura relativa|tem cabelo
+af0|a|f|0|1.0002|1
+af1|a|f|1|1.0002|1
+af3|a|f|3|1.0002|1
+tf0|t|f|0|1.0000|1
+tf1|t|f|1|1.0000|1
+tf3|t|f|3|1.0004|1
+ef0|e|f|0|1.0000|1
+ef1|e|f|1|1.0000|1
+ef3|e|f|3|0.9997|1
+am0|a|m|0|0.9852|1
+am1|a|m|1|0.9861|1
+am3|a|m|3|0.9861|1
+tm0|t|m|0|0.9858|1
+tm1|t|m|1|0.9858|1
+tm3|t|m|3|0.9861|1
+em0|e|m|0|0.9857|1
+em1|e|m|1|0.9861|1
+em3|e|m|3|0.9862|1
+cu1|c|u|1|0.6760|0
+cu3|c|u|3|0.6761|0
+pu1|p|u|1|0.4165|0

@@ -107,5 +107,31 @@ hairBack|Faye|p_hairback_faye.bin|faye.png
 hairBack|Heartbeat|p_hairback_heartbeat.bin|heartbeat.png
 # roupa padrão (a Mary): chaves slot/id
 outfit=top/Sweater,bottom/Skirt,feet/Sandals,hairBack/Flare,hairFront/LongSweeps
-body|Julie|p_body_julie.bin|julie.png
-hairBack|HeartbeatJulie|p_hairback_heartbeatjulie.bin|heartbeat.png
+# Etapa 44: corpos do Sims 3 (id = estagio+sexo+tipo; ultimo campo = altura relativa ao adulto feminino)
+body|S_af0|p_body_af0.bin|sk_af.png|1.0002
+body|S_af1|p_body_af1.bin|sk_af.png|1.0002
+body|S_af3|p_body_af3.bin|sk_af.png|1.0002
+body|S_tf0|p_body_tf0.bin|sk_tf.png|1.0000
+body|S_tf1|p_body_tf1.bin|sk_tf.png|1.0000
+body|S_tf3|p_body_tf3.bin|sk_tf.png|1.0004
+body|S_ef0|p_body_ef0.bin|sk_ef.png|1.0000
+body|S_ef1|p_body_ef1.bin|sk_ef.png|1.0000
+body|S_ef3|p_body_ef3.bin|sk_ef.png|0.9997
+body|S_am0|p_body_am0.bin|sk_am.png|0.9852
+body|S_am1|p_body_am1.bin|sk_am.png|0.9861
+body|S_am3|p_body_am3.bin|sk_am.png|0.9861
+body|S_tm0|p_body_tm0.bin|sk_tm.png|0.9858
+body|S_tm1|p_body_tm1.bin|sk_tm.png|0.9858
+body|S_tm3|p_body_tm3.bin|sk_tm.png|0.9861
+body|S_em0|p_body_em0.bin|sk_em.png|0.9857
+body|S_em1|p_body_em1.bin|sk_em.png|0.9861
+body|S_em3|p_body_em3.bin|sk_em.png|0.9862
+body|S_cu1|p_body_cu1.bin|sk_cu.png|0.6760
+body|S_cu3|p_body_cu3.bin|sk_cu.png|0.6761
+body|S_pu1|p_body_pu1.bin|sk_pu.png|0.4165
+hairBack|H_af|p_hairback_haf.bin|heartbeat.png
+hairBack|H_tf|p_hairback_htf.bin|heartbeat.png
+hairBack|H_ef|p_hairback_hef.bin|heartbeat.png
+hairBack|H_am|p_hairback_ham.bin|heartbeat.png
+hairBack|H_tm|p_hairback_htm.bin|heartbeat.png
+hairBack|H_em|p_hairback_hem.bin|heartbeat.png

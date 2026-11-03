@@ -83,6 +83,10 @@ object CuteChar {
     @Volatile private var faceP = FloatArray(BodyMorph.NF)
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
+    @Volatile private var simOn = false       // Etapa 44
+    @Volatile private var simH = 1f
+    private val simRatio = HashMap<String, Float>()
+    @Volatile private var texPending = false
     @Volatile private var mascV = false   // Etapa 13: corpo masculino
     private var faceTmp = FloatArray(0)
 
@@ -140,9 +144,15 @@ object CuteChar {
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
-        heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
-        bodyP = b
-        faceP = f
+        if (simOn) {   // Etapa 44: corpo do Sims 3 (sem ajustes do corpo-base); a altura vem da idade/sexo
+            heightS = simH
+            bodyP = FloatArray(BodyMorph.NB)
+            faceP = FloatArray(BodyMorph.NF)
+        } else {
+            heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
+            bodyP = b
+            faceP = f
+        }
         shapeVer++
     }
 
@@ -179,6 +189,11 @@ object CuteChar {
     /** Etapas 3 e 4: peças escolhidas no criador (chaves "slot/id" de cabelo, blusa, calça/saia, vestido e roupa de baixo). */
     fun setWear(keys: List<String>) {
         wear = keys.toSet()
+        // Etapa 44: corpo do Sims 3 ("body/S_..."): altura relativa ao adulto feminino e sem ajustes do corpo-base
+        val bk = keys.firstOrNull { it.startsWith("body/S_") }
+        simOn = bk != null
+        simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
+        if (simOn) { heightS = simH; bodyP = FloatArray(BodyMorph.NB); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
         rebuildActive()
     }
 
@@ -194,7 +209,8 @@ object CuteChar {
             val slot = k.substringBefore('/')
             val on = if (w != null && slot in MANAGED) k in w else k in wanted
             if (!on) continue
-            val p = s.part ?: continue
+            val p = s.part
+            if (p == null) { if (s.tex.startsWith("sk_")) texPending = true; continue }   // Etapa 44: textura ainda não subiu (próximo quadro)
             act.add(s)
             parts.add(p)
             s.hide?.let { h ->
@@ -233,9 +249,9 @@ object CuteChar {
                 val names = LinkedHashSet<String>()
                 baseSkin?.let { names.add(it.tex) }
                 for (s in library.values) names.add(s.tex)
-                for (n in names) texIds[n] = uploadTexture(am, n)
+                for (n in names) if (!n.startsWith("sk_")) texIds[n] = uploadTexture(am, n)   // Etapa 44: atlas de pele do Sims 3 sobem só quando usados
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
-                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
+                for (s in library.values) if (!s.tex.startsWith("sk_")) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
@@ -308,6 +324,7 @@ object CuteChar {
             require(f.size >= 4)
             val key = f[0] + "/" + f[1]
             library[key] = readPiece(am, "cute/" + f[2], key, f[3])
+            if (f.size >= 5) f[4].toFloatOrNull()?.let { simRatio[key] = it }
         }
         wanted = outfit
     }
@@ -476,7 +493,26 @@ object CuteChar {
      * Nos clips em laço (parado/andar) a fase recomeça do zero quando o clip muda, e a troca
      * de clip é suavizada (≈0,15 s), sem "pulo" de pose. [slot] separa quem está desenhando.
      */
+    /** Etapa 44: sobe (na thread GL) a textura de pele do Sims 3 das peças em uso e refaz o conjunto ativo. */
+    private fun loadPendingTex() {
+        val am = assets ?: return
+        texPending = false
+        val w = wear ?: return
+        var any = false
+        try {
+            for ((k, s) in library) {
+                if (s.part != null || !s.tex.startsWith("sk_") || k !in w) continue
+                val id = texIds.getOrPut(s.tex) { uploadTexture(am, s.tex) }
+                s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, id)
+                any = true
+            }
+        } catch (e: Throwable) {
+        }
+        if (any) rebuildActive()
+    }
+
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
+        if (texPending) loadPendingTex()
         val cs = cur ?: return null
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
         val bs = baseSkin ?: return null

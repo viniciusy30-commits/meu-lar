@@ -73,7 +73,7 @@ object AvaPal {
     /** Etapa 37: personagens prontos da tela Base (Avatar.applyPreset). */
     val PRESET_N = listOf("Zero YAM", "Julie")
     val PRESET_D = listOf("Base masculina careca, sem ajustes de corpo e rosto, camiseta e calça social, descalço, olhos vermelhos",
-        "Mulher adulta do Sims 3 (corpo e rosto originais), cabelo longo liso com franja, top e short jeans, descalça. Tem o próprio corpo: roupas, cabelo e ajustes do criador não se aplicam; para sair dela, escolha Masculino ou Feminino")
+        "Mulher adulta do Sims 3 (corpo e rosto originais), cabelo longo liso com franja, top e short jeans, descalça")
 
     val HF_N = listOf("Sem", "Franja longa (Mary)", "Franja de lado", "Hime", "Desalinhada", "Wolf cut", "Para trás", "Dreads para trás",
         "Dreads caídos", "Rápido", "Moicano", "Repartido volumoso")
@@ -117,16 +117,36 @@ class Avatar(
     /** Etapa 13: corpo masculino (false = feminino, o corpo original). */
     var masc: Boolean = false,
     /** Etapa 43: personagem pronto Julie (corpo e rosto do Sims 3 como peça única; ignora roupas/cabelos do criador). */
-    var julie: Boolean = false
+    var julie: Boolean = false,
+    /** Etapa 44: corpo do Sims 3. Idade 0 bebê, 1 criança, 2 jovem, 3 adulto, 4 idoso; tipo 0 magro, 1 normal, 3 gordo; cabelo (jovem/adulto/idoso). */
+    var simAge: Int = 3,
+    var simType: Int = 1,
+    var simHair: Boolean = true
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.toList()).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
+
+    /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
+    fun simTypeFor(age: Int, t: Int): Int = when {
+        age == 0 -> 1
+        age == 1 -> if (t == 3) 3 else 1
+        else -> if (t == 0 || t == 3) t else 1
+    }
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
     fun wearKeys(): List<String> {
-        if (julie) return listOf("body/Julie", "hairBack/HeartbeatJulie")   // Etapa 43: a Julie já traz corpo, roupa pintada e cabelo
+        if (true) {   // Etapa 44: corpo, rosto e roupa de baixo vêm do Sims 3 (peça única); roupas/cabelos antigos esperam as peças novas
+            val a = simAge.coerceIn(0, 4)
+            val t = simTypeFor(a, simType)
+            val st = "pctae"[a]
+            val g = if (a <= 1) 'u' else if (masc) 'm' else 'f'
+            val keys = ArrayList<String>()
+            keys.add("body/S_$st$g$t")
+            if (simHair && a >= 2) keys.add("hairBack/H_$st$g")
+            return keys
+        }
         val k = ArrayList<String>()
         AvaPal.HB_IDS[hb].let { if (it.isNotEmpty()) k.add("hairBack/$it") }
         // chapéu cobre a franja (a franja atravessaria o tecido)
@@ -150,6 +170,7 @@ class Avatar(
     /** Etapa 14: recomeça do zero com a base masculina ou feminina (sem roupa da Mary); mantém só tom de pele e cor dos olhos. */
     fun applyBase(m: Boolean) {
         julie = false
+        simType = simTypeFor(simAge, simType)
         masc = m
         female = !m
         hb = if (m) 2 else 4          // Raspado (John) | Chanel
@@ -174,6 +195,7 @@ class Avatar(
         when (id) {
             0 -> {
                 applyBase(true)
+                simAge = 3; simType = 1; simHair = false   // Etapa 44: homem adulto do Sims 3, sem cabelo
                 hb = 0; hf = 0                  // careca (sem cabelo atrás nem franja)
                 ctop = 2; cbot = 11; cov = 0    // Camiseta + Calça social
                 cfeet = 0; cbrd = 0             // descalço, sem barba
@@ -181,7 +203,7 @@ class Avatar(
             }
             1 -> {
                 applyBase(false)
-                julie = true                    // Etapa 43: peça body/Julie (corpo + rosto + olhos) e cabelo Heartbeat ajustado a ela
+                simAge = 3; simType = 1; simHair = true   // Etapa 44: a Julie é a mulher adulta normal do Sims 3
                 hb = 0; hf = 0
             }
         }
@@ -257,6 +279,12 @@ class Avatar(
                     if (37 + BodyMorph.NB + BodyMorph.NF < p.size) av.cc[12] = p[37 + BodyMorph.NB + BodyMorph.NF].coerceIn(-1, CuteColor.palette(12).size - 1)
                     // Etapa 43: Julie (último número; saves antigos não têm)
                     if (38 + BodyMorph.NB + BodyMorph.NF < p.size) av.julie = p[38 + BodyMorph.NB + BodyMorph.NF] == 1
+                    // Etapa 44: idade, tipo de corpo e cabelo do Sims 3 (saves antigos ficam adulto normal com cabelo)
+                    if (41 + BodyMorph.NB + BodyMorph.NF < p.size) {
+                        av.simAge = p[39 + BodyMorph.NB + BodyMorph.NF].coerceIn(0, 4)
+                        av.simType = av.simTypeFor(av.simAge, p[40 + BodyMorph.NB + BodyMorph.NF])
+                        av.simHair = p[41 + BodyMorph.NB + BodyMorph.NF] == 1
+                    }
                 }
             } catch (e: Exception) {
                 null

@@ -482,6 +482,8 @@ class CreatorUi(
 
     /** Etapa 7: controles deslizantes (-100..100) de proporção do corpo (kind 1) ou formato do rosto (kind 2). */
     private fun sliders(kind: Int) {
+        simSelector()
+        if (true) return   // Etapa 44: corpo e rosto vêm do Sims 3; os controles deslizantes antigos não se aplicam
         val av = st.avatar
         val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
         val arr = if (kind == 1) av.bs else av.fs
@@ -568,6 +570,61 @@ class CreatorUi(
 
     private var exprSel = -1
 
+    /** Etapa 44: linha de botões (chips) com um selecionado; [ok] diz se a opção existe. */
+    private fun chipRow(titulo: String, nomes: List<String>, sel: Int, ok: (Int) -> Boolean, pick: (Int) -> Unit) {
+        val h = TextView(context)
+        h.text = titulo
+        h.textSize = 13f
+        h.typeface = Ui.BOLD
+        h.setTextColor(TXT)
+        body.addView(h, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(14); it.leftMargin = dp(4) })
+        val row = LinearLayout(context)
+        row.orientation = LinearLayout.HORIZONTAL
+        for (i in nomes.indices) {
+            val on = i == sel
+            val enabled = ok(i)
+            val t = TextView(context)
+            t.text = nomes[i]
+            t.textSize = 12.5f
+            t.typeface = Ui.BOLD
+            t.gravity = Gravity.CENTER
+            t.setTextColor(if (on) Color.WHITE else SUB2)
+            t.alpha = if (enabled) 1f else 0.35f
+            t.background = pillBg(on, dpf(18f))
+            if (enabled) t.setOnClickListener { pick(i) }
+            row.addView(t, LinearLayout.LayoutParams(0, dp(40), 1f).also { it.rightMargin = dp(4) })
+        }
+        body.addView(row, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+    }
+
+    private fun simApply() {
+        val av = st.avatar
+        av.simType = av.simTypeFor(av.simAge, av.simType)
+        CuteChar.setWear(av.wearKeys())
+        CuteChar.setShape(av.bs, av.fs, av.masc)
+        st.save()
+        refresh(true)
+    }
+
+    /** Etapa 44: corpo igual ao The Sims 3 (idade, sexo, tipo de corpo e cabelo). */
+    private fun simSelector() {
+        val av = st.avatar
+        val info = TextView(context)
+        info.text = "Corpo e rosto do The Sims 3. As roupas novas entram quando você mandar as peças."
+        info.textSize = 12f
+        info.setTextColor(SUB2)
+        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        chipRow("Idade", listOf("Bebê", "Criança", "Jovem", "Adulto", "Idoso"), av.simAge, { true }) { av.simAge = it; simApply() }
+        chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { av.simAge >= 2 }) {
+            av.masc = it == 1; av.female = !av.masc; simApply()
+        }
+        val tipos = listOf(0, 1, 3)
+        chipRow("Corpo", listOf("Magro", "Normal", "Gordo"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
+            av.simType = tipos[it]; simApply()
+        }
+        chipRow("Cabelo", listOf("Com cabelo", "Careca"), if (av.simHair) 0 else 1, { av.simAge >= 2 }) { av.simHair = it == 0; simApply() }
+    }
+
     /** Etapa 14: escolha da base. Recomeça o personagem do zero (roupa de baixo, cabelo simples, proporções zeradas). */
     private fun baseChoice() {
         val av = st.avatar
@@ -576,26 +633,7 @@ class CreatorUi(
         info.textSize = 12f
         info.setTextColor(SUB2)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
-        for ((nome, m) in listOf("Masculino" to true, "Feminino" to false)) {
-            val on = av.masc == m && !av.julie
-            val t = TextView(context)
-            t.text = (if (m) "\u2642  " else "\u2640  ") + nome + (if (on) "  \u2713" else "")
-            t.textSize = 18f
-            t.typeface = Ui.BOLD
-            t.gravity = Gravity.CENTER
-            t.setTextColor(if (on) Color.WHITE else SUB2)
-            t.setPadding(0, 0, 0, dp(4))
-            t.background = pillBg(on, dpf(26f))
-            t.setOnClickListener {
-                av.applyBase(m)
-                CuteColor.setColors(av.cc)
-                CuteChar.setWear(av.wearKeys())
-                CuteChar.setShape(av.bs, av.fs, av.masc)
-                st.save()
-                refresh(true)
-            }
-            body.addView(t, LinearLayout.LayoutParams(-1, dp(64)).also { it.topMargin = dp(12); it.leftMargin = dp(4); it.rightMargin = dp(4) })
-        }
+        simSelector()
         // Etapa 37: personagens prontos, à parte das bases
         val head = TextView(context)
         head.text = "Personagens prontos"

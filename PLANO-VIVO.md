@@ -175,3 +175,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 43 — Julie (personagem pronta, corpo/rosto do Sims 3) (entregue, aguardando teste)
 - [x] `ferramentas/etapa43_julie.py` gera `p_body_julie.bin` (corpo + rosto + couro cabeludo + olhos ligados ao esqueleto), `julie.png` (atlas) e `p_hairback_heartbeatjulie.bin` (Heartbeat ajustado a ela). Cartão "Julie" em Personagens prontos; `Avatar.julie` salvo no fim do encode; `CuteChar.MANAGED` inclui "body"; `Creator.kt`: Masculino/Feminino saem da Julie. Detalhes em `ETAPA43-JULIE-NOTAS.md`.
 - [ ] Não compilado nem testado no celular. PRÓXIMO PASSO: se o build falhar, corrigir só o erro; depois ajustar encaixe/cor da Julie conforme o teste.
+
+
+## Etapa 44 — Corpos do Sims 3 no lugar do "Bozo" (entregue, aguardando teste)
+- [x] `ferramentas/etapa44_sims.py` gera 21 corpos (bebê, criança, jovem, adulto, idoso × feminino/masculino × magro/normal/gordo; criança e bebê unissex), 8 atlas de pele `sk_*.png`, 6 cabelos Heartbeat ajustados e `simbodies.txt`. Criador: Base e abas Corpo/Rosto mostram Idade, Sexo, Corpo e Cabelo. Postura do Sims: braços para baixo ao lado do corpo (`ARM_EXTRA` no script). Altura relativa por idade em `pieces.txt` (5º campo) aplicada em `CuteChar.setWear`.
+- [x] Roupas antigas (feitas para o Bozo) não aparecem nos corpos novos; roupa de baixo pintada na pele. PRÓXIMO PASSO: o usuário manda as roupas do Sims 3 → converter peça a peça (top/bottom/overall/feet) para cada tipo de corpo.
+- [ ] Não compilado nem testado no celular. Se o build falhar, corrigir só o erro apontado.
