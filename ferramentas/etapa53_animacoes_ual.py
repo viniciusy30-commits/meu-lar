@@ -49,7 +49,7 @@ THUMB_GAIN = 0.8
 PARAMS = {
     0: dict(sx=0.45, sz=0.30, sb=1.0, pgain=0.35, trunk=8.0, head=3.0, abd=(9.0, 0.6), sag=(-4.0, 1.0), rate=1.0),
     1: dict(sx=1.0, sz=1.0, sb=1.0, pgain=1.0, trunk=11.0, head=3.0, abd=(10.0, 0.7), sag=(-8.0, 1.15), rate=1.2),
-    3: dict(sx=1.0, sz=0.55, sb=0.55, pgain=1.0, trunk=20.0, head=4.0, abd=(15.0, 0.5), sag=(-28.0, 0.65), rate=0.95),
+    3: dict(sx=1.0, sz=0.5, sb=0.45, pgain=0.8, trunk=10.0, head=3.0, abd=(14.0, 0.5), sag=(-14.0, 0.5), rate=1.1, elb=0.55),
 }
 
 # ------------------------------------------------------------------------------------------------ utilidades 3D
@@ -192,6 +192,7 @@ class Retarget:
             # abertura: gira em torno de z (ab' = ab + sx*delta)
             cab, gab = par['abd']; cab = mabd if cab is None else cab
             ab = abd_of(a1, sx_); new = cab + gab * (ab - mabd); Rc = rotz(sx_ * (new - ab)); a1, a2, a3 = Rc @ a1, Rc @ a2, Rc @ a3
+            e_ = par.get('elb', 1.0); a2 = unit(a1 + e_ * (a2 - a1)); a3 = unit(a2 + e_ * (a3 - a2))   # cotovelo menos dobrado
             dn1 = unit(Q[la] - Q[ua]); dn2 = unit(Q[hd] - Q[la]); dn3 = unit(J['_handtip_' + s] - J['hand_' + s])
             Dn[ua] = arc_fix(D['upperarm_' + s], dn1, a1)
             Dn[la] = arc_fix(D['lowerarm_' + s], dn2, a2)
@@ -298,8 +299,9 @@ def run_group(src, grp, ratios, outdir):
     for ci, c in enumerate(CLIPS):
         if c is None: continue
         anim, fps = c
-        rt = Retarget(src, body, PARAMS[ci], anim, fps)
-        cl = build_clip(src, rt, body, anim, fps, sole_ids, bi, bw, rest_m)
+        sx_ = globals().get('RUN_SRC') if (ci == RUN and globals().get('RUN_SRC') is not None) else src   # correr pode vir de um FBX Mixamo (RUN_FBX)
+        rt = Retarget(sx_, body, PARAMS[ci], anim, fps)
+        cl = build_clip(sx_, rt, body, anim, fps, sole_ids, bi, bw, rest_m)
         clips[ci] = (cl, rt)
     # pulo = pose do parado (primeiro quadro)
     idle_cl = clips[IDLE][0]
@@ -328,6 +330,9 @@ if __name__ == '__main__':
     groups = [a for a in rest_args if not a.startswith('--')] or GROUPS_ALL
     os.makedirs(out, exist_ok=True)
     ratios = read_ratios(); src = Source(UAL)
+    if os.environ.get('RUN_FBX'):
+        from mixamo_src import MixSource
+        RUN_SRC = MixSource(os.environ['RUN_FBX'])
     for g in groups:
         r = run_group(src, g, ratios, out)
         for ci, rep in r['report'].items():

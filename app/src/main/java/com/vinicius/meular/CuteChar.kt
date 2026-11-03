@@ -165,6 +165,8 @@ object CuteChar {
     @Volatile private var clipSet = ClipSet(FloatArray(0), IntArray(0), arrayOfNulls(0))
     private var bozoClips: ClipSet? = null
     @Volatile private var simGrp = ""
+    @Volatile private var simWant = ""      // Etapa 53: grupo desejado; frame() tenta de novo se os assets ainda não estavam prontos em setWear
+    @Volatile private var simFail = false
     private var baseSkin: Skin? = null
     private val library = LinkedHashMap<String, Skin>()   // todas as peças conhecidas, na ordem do manifesto
     @Volatile private var wanted: List<String> = emptyList()
@@ -198,7 +200,9 @@ object CuteChar {
         val bk = keys.firstOrNull { it.startsWith("body/S_") }
         simOn = bk != null
         simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
-        useSimClips(if (bk != null && bk.length >= 9) bk.substring(7, 9) else "")   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
+        simWant = if (bk != null && bk.length >= 9) bk.substring(7, 9) else ""
+        simFail = false
+        useSimClips(simWant)   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
         simKey = if (bk != null && bk.length >= 10) bk.substring(7) else ""   // Etapa 50: "body/S_af1" -> "af1"
         if (simOn) { heightS = simH * BodyMorph.heightScale(bodyP[0]); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
         rebuildActive()
@@ -235,7 +239,8 @@ object CuteChar {
             clipSet = ClipSet(len, fr, data)
             simGrp = grp
         } catch (e: Throwable) {
-            // sem o arquivo: continua com os clipes atuais
+            simFail = true
+            android.util.Log.e("CuteChar", "clips_$grp.bin falhou", e)
         }
     }
 
@@ -580,6 +585,7 @@ object CuteChar {
 
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
         if (texPending) loadPendingTex()
+        if (simWant != simGrp && !simFail && assets != null) useSimClips(simWant)
         val cs = cur ?: return null
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
         val bs = baseSkin ?: return null

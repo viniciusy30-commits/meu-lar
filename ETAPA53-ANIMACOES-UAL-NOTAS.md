@@ -16,3 +16,12 @@ Fonte: Universal Animation Library [Standard] (Quaternius, CC0): Idle_Loop, Walk
 
 ## Limites
 Nao sao as animacoes reais do jogo (o pacote do Sims 3 enviado nao traz animacoes); sao da UAL ajustadas ao estilo. Pulo continua sem animacao.
+
+## v2
+CuteChar.kt: se os assets ainda nao estavam prontos quando o corpo foi escolhido (setWear), os clipes eram ignorados e o boneco ficava na pose original. Agora frame() tenta carregar de novo e registra erro no logcat.
+
+## v3
+Correr mais calmo (cotovelo menos dobrado, tronco mais ereto, passada menor, bracos mais suaves); RUN_SPEED 2,1 m/s.
+
+## v4
+Correr agora vem do Treadmill_Running.fbx (Mixamo): ferramentas/mixamo_src.py acha um ciclo e fecha o laco com mistura. Uso: RUN_FBX=<arquivo.fbx> python3 etapa53_animacoes_ual.py ... RUN_SPEED 1,7 m/s.
