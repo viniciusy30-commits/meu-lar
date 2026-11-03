@@ -191,3 +191,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] bodyrig.txt + ferramentas etapa50_*.py
 - [x] BodyMorph.warpSim (Kotlin), CuteChar (carga do rig e uso), Avatar (save compativel), Creator (aba Corpo com grupos)
 - [ ] Testar no celular (ver ETAPA50-SLIDERS-CORPO-NOTAS.md)
+
+## Etapa 51 - Sem animacoes (corpo do Sims 3 como veio)
+- [x] clips_*.bin, base.bin e f_1.bin com 1 clipe parado; ferramentas/etapa51_sem_animacao.py
+- [ ] Testar no celular (ver ETAPA51-SEM-ANIMACAO-NOTAS.md)
+- [ ] Esqueleto real do Sims 3: precisa do arquivo de esqueleto (nao veio nos RAR)
