@@ -10,7 +10,7 @@ from scipy import ndimage
 from dbpf import read_index, get
 from geom import parse_geom, arrays
 from rle2 import rle2_mip0
-S, TOP, TZ, TOP_S4 = 1.3, 180.0, 4.0, 186.5
+S, TOP, TZ, TOP_S4 = 1.4, 180.0, 1.5, 186.5
 def main(pkg, out):
     d, ents = read_index(pkg)
     gm = {e['group']: e for e in ents if e['type'] == 0x015A1849}
@@ -35,6 +35,10 @@ def main(pkg, out):
     a = im[..., 3]; solid = a >= 100
     ii = ndimage.distance_transform_edt(~solid, return_distances=False, return_indices=True)
     im[..., :3] = im[..., :3][ii[0], ii[1]]             # cor das bordas para dentro do transparente (sem halo cinza)
+    # raízes muito escuras (no Sims a rampa de cor as esconde): clareia só os pixels escuros das mechas (lado esquerdo)
+    L = im[..., :3].astype(float).mean(2); k = np.clip(105.0/np.maximum(L, 1), 1.0, 2.6)
+    k[:, 720:] = 1.0
+    im[..., :3] = np.clip(im[..., :3]*k[..., None], 0, 255).astype(np.uint8)
     Image.fromarray(im).save(os.path.join(out, 'faye.png'), optimize=True)
     print(n, 'vertices', len(idx)//3, 'tris', P.min(0).round(1), P.max(0).round(1))
 if __name__ == '__main__': main(sys.argv[1], sys.argv[2])
