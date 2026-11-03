@@ -35,10 +35,18 @@ def main(pkg, out):
     a = im[..., 3]; solid = a >= 100
     ii = ndimage.distance_transform_edt(~solid, return_distances=False, return_indices=True)
     im[..., :3] = im[..., :3][ii[0], ii[1]]             # cor das bordas para dentro do transparente (sem halo cinza)
-    # raízes muito escuras (no Sims a rampa de cor as esconde): clareia só os pixels escuros das mechas (lado esquerdo)
-    L = im[..., :3].astype(float).mean(2); k = np.clip(105.0/np.maximum(L, 1), 1.0, 2.6)
-    k[:, 720:] = 1.0
-    im[..., :3] = np.clip(im[..., :3]*k[..., None], 0, 255).astype(np.uint8)
+    # ladrilhos de mechas (x<720): no Sims a cor vem de uma rampa; aqui achatamos o brilho de baixa frequência
+    # (raízes escuras) e mantemos só o detalhe das mechas, na cor loira do mod
+    X = 720
+    rgb = im[:, :X, :3].astype(float); L = rgb.mean(2); m = (a[:, :X] >= 100).astype(float)
+    num = ndimage.gaussian_filter(L*m, 22); den = ndimage.gaussian_filter(m, 22)
+    base = np.where(den > 1e-3, num/np.maximum(den, 1e-3), L)
+    detail = np.clip(L/np.maximum(base, 8), 0.55, 1.5)
+    tgt = np.median(rgb[(m > 0) & (L > np.percentile(L[m > 0], 55))], axis=0)
+    im[:, :X, :3] = np.clip(tgt*detail[..., None], 0, 255).astype(np.uint8)
+    solid = a >= 100
+    ii = ndimage.distance_transform_edt(~solid, return_distances=False, return_indices=True)
+    im[..., :3] = im[..., :3][ii[0], ii[1]]
     Image.fromarray(im).save(os.path.join(out, 'faye.png'), optimize=True)
     print(n, 'vertices', len(idx)//3, 'tris', P.min(0).round(1), P.max(0).round(1))
 if __name__ == '__main__': main(sys.argv[1], sys.argv[2])

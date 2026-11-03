@@ -9,3 +9,4 @@
 - Sem compilador local: o build do GitHub é a prova final.
 - Ajuste 2 (após o 1º teste): escala 1,4 e posição que cobre o topo da cabeça; mipmaps na textura; raízes escuras clareadas (só nas mechas).
 - Ajuste 3: `faye.png` decodificado com inPremultiplied=false (corrige franja preta/riscos: o fundo transparente virava preto e escurecia as bordas das mechas).
+- Ajuste 4: ladrilhos de mechas (franja/topo) com brilho de baixa frequência achatado: cor loira uniforme + detalhe das mechas (a rampa de cor do Sims não existe no app). A trança não mudou.
