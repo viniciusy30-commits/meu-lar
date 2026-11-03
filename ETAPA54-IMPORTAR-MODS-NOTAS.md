@@ -28,3 +28,7 @@ Criador > aba **Mods** (ícone +) > "Importar .package": abre o seletor de arqui
 - Sem compilador Android aqui: Java compilado e testado no PC; Kotlin (ModStore) checado com kotlinc + stubs; CuteChar/Creator/MainActivity só revisados. O build do GitHub é a prova final.
 
 Arquivos: mods/*.java (novos), ModStore.kt (novo), CuteChar.kt, Creator.kt, MainActivity.kt, Avatar.kt.
+
+## Ajuste 2
+- Criador: saíram as abas antigas (Cabelo, Roupa, Sapatos, Acessórios e Óculos/Barba do Rosto), que não faziam nada nos corpos do Sims. Agora: Base, Corpo, Rosto e **Roupas** (importar, vestir, tirar, excluir).
+- Textura preta: texturas quase todas pretas são ignoradas (a peça entra cinza); toda textura importada vira potência de 2 e carrega com CLAMP (no OpenGL ES 2 textura de tamanho "quebrado" com repetição aparece preta).

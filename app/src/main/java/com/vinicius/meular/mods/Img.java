@@ -41,6 +41,32 @@ public final class Img {
         return m;
     }
 
+    /** Lado em potência de 2 (GLES2 não carrega textura NPOT com repetição/mipmap: ficaria preta). */
+    public Img pot() {
+        int nw = 1, nh = 1;
+        while (nw < w) nw <<= 1;
+        while (nh < h) nh <<= 1;
+        if (nw == w && nh == h) return this;
+        Img n = new Img(nw, nh);
+        for (int y = 0; y < nh; y++) {
+            int sy = Math.min(h - 1, (int) ((long) y * h / nh));
+            for (int x = 0; x < nw; x++) n.argb[y * nw + x] = argb[sy * w + Math.min(w - 1, (int) ((long) x * w / nw))];
+        }
+        return n;
+    }
+
+    /** Brilho médio (0..255) dos pixels visíveis; textura quase preta quase sempre é leitura errada. */
+    public double meanLuma() {
+        double acc = 0;
+        long n = 0;
+        for (int c : argb) {
+            if ((c >>> 24) < 8) continue;
+            acc += (((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255)) / 3.0;
+            n++;
+        }
+        return n == 0 ? 0 : acc / n;
+    }
+
     /** true se existe algum pixel com alfa < 250. */
     public boolean hasAlpha() {
         for (int c : argb) if ((c >>> 24) < 250) return true;

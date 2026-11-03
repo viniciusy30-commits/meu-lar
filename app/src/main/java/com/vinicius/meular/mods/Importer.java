@@ -80,7 +80,7 @@ public final class Importer {
         }
         if (meshes.isEmpty()) {
             if (tex != null) {
-                out.texOnly = tex.limit(1024);
+                out.texOnly = tex.limit(1024).pot();
                 out.texName = base;
                 out.notes.add("Package só com textura.");
                 return out;
@@ -110,8 +110,12 @@ public final class Importer {
             po.fit = p.loss;
             po.cup = Fit.cup1(p.pos, p.nor, uv, m.idx, bi, bw);
             Img t = tex;
+            if (t != null && t.meanLuma() < 12) {
+                out.notes.add("A textura veio quase toda preta; ignorei (provável leitura errada).");
+                t = null;
+            }
             if (t != null) {
-                t = t.limit(1024);
+                t = t.limit(1024).pot();
                 po.alpha = (p.slot.equals("hairBack") || p.slot.equals("hat")) && t.hasAlpha();
                 if (!po.alpha) t = t.opaque();
                 po.png = t.png();
