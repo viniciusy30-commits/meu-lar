@@ -8,3 +8,4 @@
 - Se ficar pesado no celular: gerar com a malha LOD1 (GEOM 8035B4BE).
 - Sem compilador local: o build do GitHub é a prova final.
 - Ajuste 2 (após o 1º teste): escala 1,4 e posição que cobre o topo da cabeça; mipmaps na textura; raízes escuras clareadas (só nas mechas).
+- Ajuste 3: `faye.png` decodificado com inPremultiplied=false (corrige franja preta/riscos: o fundo transparente virava preto e escurecia as bordas das mechas).
