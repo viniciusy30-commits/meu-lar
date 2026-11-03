@@ -235,7 +235,7 @@ object CuteChar {
                 for (s in library.values) names.add(s.tex)
                 for (n in names) texIds[n] = uploadTexture(am, n)
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
-                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (s.tex == "faye.png") { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
+                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
@@ -250,11 +250,14 @@ object CuteChar {
         }
     }
 
+    /** Etapa 42: cabelos de mod com mechas em alfa (Faye, Heartbeat): recorte opaco, culling, sem pré-multiplicar e com mipmaps. */
+    private fun isAlphaHair(name: String) = name == "faye.png" || name == "heartbeat.png"
+
     private fun uploadTexture(am: AssetManager, name: String): Int {
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
         val opts = BitmapFactory.Options()
-        if (name == "faye.png") opts.inPremultiplied = false   // Etapa 41: sem pré-multiplicar (senão o fundo transparente vira preto nas bordas das mechas)
+        if (isAlphaHair(name)) opts.inPremultiplied = false   // Etapa 41: sem pré-multiplicar (senão o fundo transparente vira preto nas bordas das mechas)
         val bmp = am.open("cute/$name").use { BitmapFactory.decodeStream(it, null, opts) }!!
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
         GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
@@ -262,7 +265,7 @@ object CuteChar {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        if (name == "faye.png") {   // Etapa 41: mipmaps (mechas finas sem chiado)
+        if (isAlphaHair(name)) {   // Etapa 41/42: mipmaps (mechas finas sem chiado)
             GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
         }

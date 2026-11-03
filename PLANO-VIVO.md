@@ -165,3 +165,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 41 — Cabelo Faye (mod Sims 4) (entregue, aguardando teste)
 - [x] `ferramentas/etapa41_faye.py` converte o .package: franja/topo (GEOM 805EC934) + trança (8037F206), LOD0, escala uniforme 1,3, textura original (degradê loiro/rosa) em `faye.png`. Peça `hairBack/Faye` (Cabelo > Atrás > "Faye"); em Frente escolha "Sem". Detalhes em `ETAPA41-FAYE-NOTAS.md`.
 - [ ] Não compilado nem testado no celular. Se pesar (21,9 mil vértices) usar LOD1 (GEOM 8035B4BE).
+
+
+## Etapa 42 — cabelo Heartbeat (Sims 3)
+- [x] Conversor ferramentas/etapa42_heartbeat.py, p_hairback_heartbeat.bin, heartbeat.png, ícone, pieces.txt, Avatar.kt (HB_IDS/HB_N), CuteChar.kt (isAlphaHair)
+- [ ] Testar no celular (build do GitHub). PRÓXIMO PASSO: ajustar encaixe/cor só se o teste mostrar problema.
