@@ -89,6 +89,7 @@ def build_tee(B,st=None):
     R=np.convolve(np.concatenate([R[-3:],R,R[:3]]),np.ones(7)/7,mode='valid')[:NA] if False else R
     th=(xs+0.5)/NA*2*np.pi-np.pi
     P_all=[Q]; N_all=[n]; tri_all=[tri]; base=nv
+    RF=[np.zeros(nv)]; RY=[np.zeros(nv)]
     K=9; rings=[]
     for j in range(0,K+1):
         f=j/K; ids=[]
@@ -100,6 +101,7 @@ def build_tee(B,st=None):
             rr=R[k]+flare+0.35*np.sin(11*th[k]+f*2)*f
             p=c+d*rr; p[1]=yv
             P_all.append(p[None]); N_all.append(d[None]); ids.append(base); base+=1
+            RF.append(np.array([0.5*f])); RY.append(np.array([y0]))
         rings.append(ids)
     T=[]
     for j in range(K):
@@ -113,7 +115,7 @@ def build_tee(B,st=None):
     # normais de fora para dentro: confere pelo centro do tronco
     cen=np.array([0,0,-1.5]); chk=((PP[:,[0,2]]-cen[[0,2]])*NN[:,[0,2]]).sum(1)
     if np.mean(chk[chk!=0]>0)<0.5: NN=-NN
-    return PP,NN,TT,dict(yc=yc,HEM=HEM)
+    return PP,NN,TT,dict(yc=yc,HEM=HEM,ringf=np.concatenate(RF),ry0=np.concatenate(RY))
 
 
 # ---------------------------------------------------------------- bermuda jeans baggy
@@ -170,7 +172,7 @@ def build_cargo(B):
     band=(B.armw<0.3)&(footw<0.55)&(np.abs(P0[:,0])<26)
     M1=band&(P0[:,1]>=hem-3.0)&(P0[:,1]<=waist+3.0)
     tri0=_sel_tris(B,M1)
-    P,N,tri,(bandf,)=subdivide(P0,N0,tri0,[band.astype(float)])
+    P,N,tri,(bandf,legf)=subdivide(P0,N0,tri0,[band.astype(float),np.sign(P0[:,0])*(np.abs(P0[:,0])>0.8)])
     nv=len(P); ymid=P[:,1]
     keep=np.zeros(nv,bool); keep[np.unique(tri)]=True
     Q=P.copy(); n=N.copy()
@@ -189,7 +191,7 @@ def build_cargo(B):
     ay=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[0],B.kn[0],B.hip[0]]); az=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[2],B.kn[2],B.hip[2]])
     axx=sgn*ay
     rv=np.stack([Q[:,0]-axx,np.zeros(nv),Q[:,2]-az],1); rl=np.linalg.norm(rv,axis=1); rl[rl<1e-6]=1e-6
-    Rt=np.interp(Q[:,1],[14,45,70,92,100],[11.6,12.4,13.2,13.8,12.0])
+    Rt=np.interp(Q[:,1],[14,45,70,92,100],[10.4,11.0,11.8,12.6,11.8])
     wR=smooth(100,92,Q[:,1])*keep
     newr=rl+(np.maximum(rl,Rt)-rl)*wR
     Q=Q+(rv/rl[:,None])*(newr-rl)[:,None]
@@ -210,7 +212,7 @@ def build_cargo(B):
         Q=Q+dirx*bump[:,None]*0.9+(r/rn)*bump[:,None]*0.3
     Q=laplace(Q,tri,~keep,it=2,lam=0.35)
     # tubo extra descendo até perto do chão (barra empilhada sobre o tênis)
-    NA=48; P_all=[Q]; N_all=[n]; tri_all=[tri]; base=nv
+    NA=48; P_all=[Q]; N_all=[n]; tri_all=[tri]; base=nv; LEG=[np.sign(legf)]
     for s in (-1,1):
         legv=np.where(keep&(np.sign(Q[:,0])==s)&(Q[:,1]<40))[0]
         y0=float(np.percentile(Q[legv,1],4))+0.8
@@ -225,15 +227,15 @@ def build_cargo(B):
         ok=~np.isnan(R); xs=np.arange(NA)
         R=np.interp(xs,np.concatenate([xs[ok]-NA,xs[ok],xs[ok]+NA]),np.concatenate([R[ok]]*3))
         th2=(xs+0.5)/NA*2*np.pi-np.pi
-        K=7; rings=[]
+        K=5; rings=[]
         for j in range(K+1):
             f=j/K; ids=[]
             for k in range(NA):
                 d=np.array([np.sin(th2[k]),0,np.cos(th2[k])])
-                yv=y0+(3.2-y0)*f
+                yv=y0+(9.0-y0)*f
                 rr=R[k]+0.7+1.6*f+0.5*np.sin(9*th2[k]+f*3)*f+0.45*np.sin(f*9)*f
                 p=c+d*rr; p[1]=yv
-                P_all.append(p[None]); N_all.append(d[None]); ids.append(base); base+=1
+                P_all.append(p[None]); N_all.append(d[None]); ids.append(base); base+=1; LEG.append(np.array([float(s)]))
             rings.append(ids)
         T=[]
         for j in range(K):
@@ -245,4 +247,4 @@ def build_cargo(B):
     ax2=np.where(PP[:,0]>=0,1,-1)*B.kn[0]
     chk=((PP[:,[0]]-ax2[:,None])*NN[:,[0]]).sum(1)
     if np.mean(chk[np.abs(PP[:,1]-60)<15]>0)<0.5: NN=-NN
-    return PP,NN,TT,dict(waist=waist,hem=hem,low=3.2)
+    return PP,NN,TT,dict(waist=waist,hem=hem,low=9.0,leg=np.concatenate(LEG))

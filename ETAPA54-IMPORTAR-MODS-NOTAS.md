@@ -52,3 +52,10 @@ Aba Roupas > aparecem sozinhas (adulto/jovem/idoso, masculino e feminino). Gerad
 - Tênis: baixo, couro branco com detalhes pretos (calcanhar, gola, lateral, cadarço), feito a partir do All Star recortado.
 - Vêm como "peças embutidas" do ModStore (assets/cute/skate/*.cup/png); só sobem para a memória quando vestidas.
 Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, moletom, mochila e corrente da foto; pesos de osso copiados do corpo (a barra da camiseta e a calça balançam junto das pernas).
+
+## Etapa 55, ajuste 2 (bugs vistos no vídeo)
+- Calça colava as pernas e esticava ao andar: agora cada perna tem pesos próprios (os vértices seguem o eixo da perna do lado certo, mistura só no meio das pernas); pernas mais finas (raio 10,4-12,6 cm).
+- Calça cobria o tênis: a barra para na altura do cano do tênis (y=9), tubo mais curto.
+- Camiseta "cortada em duas partes" na cintura: a barra longa (parte de baixo) copiava pesos das pernas e abria uma fresta ao andar; agora segue o tronco/quadril (só 50% perna na ponta da barra).
+- Teste: ferramentas/skate/skin_test.py aplica um quadro das animações do jogo nas peças (andar/correr) e desenha.
+- Não é bug da roupa: o anel branco que aparece no peito nos vídeos é o marcador de destino do toque na tela (Renderer3D "walk" ring).

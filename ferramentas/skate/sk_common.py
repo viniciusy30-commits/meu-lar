@@ -104,3 +104,43 @@ def weld(B):
     B.P=B.P[first]; B.N=N/L; B.BI=B.BI[first]; B.BW=B.BW[first]; B.armw=B.armw[first]
     idx=inv[B.idx]; ok=(idx[:,0]!=idx[:,1])&(idx[:,1]!=idx[:,2])&(idx[:,0]!=idx[:,2])
     B.idx=idx[ok]
+
+
+def transfer_weights2(B,P,A):
+    """pesos por tipo de vértice: A[:,2]=perna (+1/-1/0), A[:,3]=fração da barra (camiseta), A[:,4]=altura de origem da barra."""
+    tree=cKDTree(B.P0); k=12
+    def wq(q,side):
+        d,ix=tree.query(q,k=k); sel=[]
+        for dd,j in zip(d,ix):
+            bx=B.P0[j,0]
+            if side!=0 and abs(bx)>1.0 and (bx>0)!=(side>0): continue
+            sel.append((dd,j))
+            if len(sel)==3: break
+        if not sel: sel=[(d[0],ix[0])]
+        acc={}
+        for dd,j in sel:
+            wk=1.0/(dd+0.8)
+            for b,w in zip(B.BI0[j],B.BW0[j]):
+                if w>0: acc[b]=acc.get(b,0)+w*wk
+        sm=sum(acc.values()); return {b:w/sm for b,w in acc.items()}
+    bi=np.zeros((len(P),4),np.uint8); bw=np.zeros((len(P),4),np.uint8)
+    cache={}
+    for v in range(len(P)):
+        x,y,z=P[v]; leg=A[v,2]; rf=A[v,3]; y0=A[v,4]
+        side=float(np.sign(x)) if abs(x)>2.5 else 0.0
+        if rf>0.001:
+            Wt=wq(np.array([x,y0,z]),side); Wl=wq(P[v],side)
+            W={}
+            for b,w in Wt.items(): W[b]=W.get(b,0)+w*(1-rf)
+            for b,w in Wl.items(): W[b]=W.get(b,0)+w*rf
+        elif abs(leg)>0.5:
+            lg=1.0 if leg>0 else -1.0
+            t=float(smooth(B.hip[1],B.hip[1]-12.0,y))
+            axp=np.array([lg*np.interp(y,[B.an[1],B.kn[1],B.hip[1]],[B.an[0],B.kn[0],B.hip[0]]),y,np.interp(y,[B.an[1],B.kn[1],B.hip[1]],[B.an[2],B.kn[2],B.hip[2]])])
+            W=wq(P[v]*(1-t)+axp*t,lg)
+        else:
+            W=wq(P[v],side)
+        top=sorted(W.items(),key=lambda kv:-kv[1])[:4]; sm=sum(w for _,w in top)
+        q=[int(round(w/sm*255)) for _,w in top]; q[0]+=255-sum(q)
+        for k2,((b,_),w) in enumerate(zip(top,q)): bi[v,k2]=b; bw[v,k2]=w
+    return bi,bw

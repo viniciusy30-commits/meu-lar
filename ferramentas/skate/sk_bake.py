@@ -5,7 +5,7 @@ from sk_common import *
 
 TS=512; AW=TS*3; AH=TS*2
 
-def prepare(P,N,tri,btype_fn):
+def prepare(P,N,tri,btype_fn,extra=None):
     """bd/btype por vértice (antes das beiradas), depois fecha as bordas com beirada."""
     be=boundary_edges(tri)
     bv=np.unique(np.array(be).ravel()) if be else np.array([],int)
@@ -13,7 +13,8 @@ def prepare(P,N,tri,btype_fn):
     if len(bv):
         tree=cKDTree(P[bv]); d,ix=tree.query(P)
         bd=d; types=np.array([btype_fn(P[v]) for v in bv]); bt=types[ix].astype(float)
-    attr=np.stack([bd,bt],1)
+    cols=[bd,bt]+([extra[0],extra[1],extra[2]] if extra is not None else [np.zeros(len(P))]*3)
+    attr=np.stack(cols,1)
     P2,N2,T2,A2,_=add_lips(P,N,tri,attr,0.55)
     nb=len(P)
     A2[nb:,0]=0.0

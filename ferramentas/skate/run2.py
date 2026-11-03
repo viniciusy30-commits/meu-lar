@@ -2,22 +2,27 @@ import sys, os, numpy as np
 sys.path.insert(0,'/home/claude/work/skate')
 from PIL import Image
 from sk_common import *; from sk_garments import *; from sk_bake import *; from sk_paint import *; from sk_paint2 import *
-from run import bake
+def bake(P,N,tri,btype_fn,extra=None):
+    P1,N1,T1,A1=prepare(P,N,tri,btype_fn,extra)
+    Pn,Nn,An,UV,T=unwrap(P1,N1,T1,A1)
+    feat=np.hstack([Pn,Nn,An]).astype(np.float32)
+    F,mask=raster_attrs(UV,T,feat)
+    return Pn,Nn,UV,T,F,An
 from prev_cg import TEE
 OUT='/home/claude/work/skate/out2/'; os.makedirs(OUT,exist_ok=True)
 ART=np.asarray(Image.open('/home/claude/work/skate/chaos_art.png').convert('RGBA'))
 def do_tee(B,g):
     P,N,tri,info=build_tee(B,TEE)
     bt=lambda p: 2 if (p[1]>B.neck_y-12 and abs(p[0])<12) else (1 if abs(p[0])>B.sh[0]+4 else 0)
-    Pn,Nn,UV,T,F=bake(P,N,tri,bt)
+    Pn,Nn,UV,T,F,An=bake(P,N,tri,bt,(np.zeros(len(P)),info['ringf'],info['ry0']))
     Image.fromarray(paint_tee2(F,B,ART)).save(OUT+'%s_tee.png'%g,optimize=True)
-    bi,bw=transfer_weights(B,Pn); write_cup(OUT+'%s_tee.cup'%g,Pn,Nn,UV,T,bi,bw)
+    bi,bw=transfer_weights2(B,Pn,An); write_cup(OUT+'%s_tee.cup'%g,Pn,Nn,UV,T,bi,bw)
 def do_cargo(B,g):
     P,N,tri,info=build_cargo(B)
     bt=lambda p: 3 if p[1]>info['waist']-6 else 0
-    Pn,Nn,UV,T,F=bake(P,N,tri,bt)
+    Pn,Nn,UV,T,F,An=bake(P,N,tri,bt,(info['leg'],np.zeros(len(P)),np.zeros(len(P))))
     Image.fromarray(paint_cargo(F,B,info)).save(OUT+'%s_cargo.png'%g,optimize=True)
-    bi,bw=transfer_weights(B,Pn); write_cup(OUT+'%s_cargo.cup'%g,Pn,Nn,UV,T,bi,bw)
+    bi,bw=transfer_weights2(B,Pn,An); write_cup(OUT+'%s_cargo.cup'%g,Pn,Nn,UV,T,bi,bw)
 def do_shoes(B,g):
     import struct
     from scipy import ndimage
