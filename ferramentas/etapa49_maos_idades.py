@@ -272,6 +272,33 @@ def natural_arms(clips, Q25):
         out.append((ln, res))
     return out
 
+
+# ------------------------------------------------------------------ cabeca/pescoco na corrida: olhar para a frente
+# O clipe antigo inclina o tronco ~16 graus e o pescoco acompanha (12-21), mas joga a cabeca 10-21 graus para TRAS:
+# o boneco olha para cima e o pescoco parece enorme/quebrado. Angulos "para cima" absolutos (graus, + = para frente), por clipe:
+# (alvo medio, fracao do balanco original mantida) para neck_01, neck_02, head
+HEAD = {3: ((8.0, 0.4), (4.0, 0.4), (-1.0, 0.3)), 6: ((8.0, 0.4), (4.0, 0.4), (-1.0, 0.3))}
+def fix_head(clips, Q25):
+    out = []
+    for ci, (ln, res) in enumerate(clips):
+        res = res.copy()
+        if ci in HEAD:
+            bones = [R.BI['neck_01'], R.BI['neck_02'], R.BI['head']]
+            def upang(M, b): return np.degrees(np.arctan2(M[b, 2, 1], M[b, 1, 1]))
+            Ms = [res[f].reshape(-1, 3, 4).astype(np.float64) / KK for f in range(res.shape[0])]
+            means = [np.mean([upang(M, b) for M in Ms]) for b in bones]
+            for f, M in enumerate(Ms):
+                for j, b in enumerate(bones):
+                    tgt, keep = HEAD[ci][j]; cur = upang(M, b)
+                    d = np.radians((tgt + keep * (cur - means[j])) - cur); cs, sn = np.cos(d), np.sin(d)
+                    Rx = np.array([[1, 0, 0], [0, cs, -sn], [0, sn, cs]])
+                    p = M[b, :, :3] @ Q25[b] + M[b, :, 3]
+                    for q in bones[j:]:
+                        M[q, :, :3] = Rx @ M[q, :, :3]; M[q, :, 3] = Rx @ (M[q, :, 3] - p) + p
+                res[f] = (M * KK).reshape(-1, 12).astype(np.float32)
+        out.append((ln, res))
+    return out
+
 # ------------------------------------------------------------------ pipeline por grupo (etapa48 + dedos)
 def run(grp, ratios, outdir):
     v1, i1, fl1, tail1 = E.read_piece(CU + 'p_body_%s1.bin' % grp)
@@ -302,6 +329,7 @@ def run(grp, ratios, outdir):
     degs = {ci: ab[ci] - E.TARGET_DEG[ci] for ci in E.TARGET_DEG if ci < len(cl)}
     cl = E.adduct(cl, Qnew, degs)
     cl = natural_arms(cl, Qnew)
+    cl = fix_head(cl, Qnew)
     cl = E.relax_elbows(cl, Qnew, ELBOW2)
     cl = curl_hands(cl, hm)
     E.write_clips(outdir + 'clips_%s.bin' % grp, cl)

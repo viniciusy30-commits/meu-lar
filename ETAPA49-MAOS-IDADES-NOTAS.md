@@ -27,9 +27,16 @@ Referência: a anatomia do **Jovem** (coluna, ombros, braços), sem mexer na apa
   Comprimento dos ossos não mudou (braço 31 cm + antebraço 25 cm no adulto): era o balanço.
 - Verificado em tf, af, ef, am, em, cu, pu (renderização sombreada de frente/lado/3-4, andar e correr): sem "aba" na axila, 0 NaN, soma dos pesos = 255.
 
+## Revisão 3 — cabeça olhando para cima / pescoço "enorme" na corrida
+- Causa: no clipe de correr o tronco inclina ~16° para a frente e o pescoço acompanha (12–21°), mas a cabeça era jogada 10–21° para TRÁS
+  (olhar para o alto + dobra no pescoço). Todas as idades herdavam isso.
+- Agora (`fix_head`, `HEAD`): na corrida (clipes 3 e 6) tronco 16° → pescoço ~6–10° → pescoço alto ~4° → cabeça ~−1° (olhando para a frente),
+  mantendo uma fração do balanço original para não ficar rígido. Parado, andar e pulo não mudaram.
+
 ## Ajustes finos (topo de `etapa49_maos_idades.py`)
 - `CURL_RELAX` / `CURL_RUN`: graus por falange (proximal, média, distal) de indicador, médio, anelar, mínimo e polegar. Mais aberto = números menores.
 - `SWING` / `ABD` / `ELBOW2`: (centro atual, escala, novo centro) em graus do balanço; escala maior = braço balança mais (1.0 = como o clipe original).
+- `HEAD`: (ângulo-alvo médio, fração do balanço original mantida) de neck_01, neck_02 e cabeça na corrida; cabeça mais para cima = número maior que −1, mais para baixo = menor.
 - `rad` em `smooth_armpit` e `fix_clavicle`: tamanho da zona suave da axila / altura onde a clavícula deixa de agir.
 - Posição do nó dos dedos: `u_mcp = 0.50 * L` em `hand_model` (fração do comprimento da mão).
 
