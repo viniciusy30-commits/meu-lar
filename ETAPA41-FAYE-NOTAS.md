@@ -10,3 +10,4 @@
 - Ajuste 2 (após o 1º teste): escala 1,4 e posição que cobre o topo da cabeça; mipmaps na textura; raízes escuras clareadas (só nas mechas).
 - Ajuste 3: `faye.png` decodificado com inPremultiplied=false (corrige franja preta/riscos: o fundo transparente virava preto e escurecia as bordas das mechas).
 - Ajuste 4: ladrilhos de mechas (franja/topo) com brilho de baixa frequência achatado: cor loira uniforme + detalhe das mechas (a rampa de cor do Sims não existe no app). A trança não mudou.
+- Ajuste 5 (causa real): o mod tem cada carta de cabelo duplicada (frente/costas no mesmo lugar) e o app nao tinha culling: as duas faces brigavam por profundidade com iluminacao oposta (chiado no topo/franja). Agora a peca Faye usa GL_CULL_FACE (winding confere com as normais em 99,5%), recorte opaco (alfa 0,45, sem mistura) e a textura voltou a ser a ORIGINAL do mod (sem clarear raizes nem achatar cor; a trança nao muda).

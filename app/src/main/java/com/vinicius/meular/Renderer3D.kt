@@ -278,6 +278,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
             GLES20.glUniform1f(uPush, p.push)
             GLES20.glUniform1f(uCut, p.cut)
+            if (p.cull) GLES20.glEnable(GLES20.GL_CULL_FACE)
+            if (p.solid) GLES20.glDisable(GLES20.GL_BLEND)
             val bytes = STRIDE * 4
             p.buf.position(0)
             GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
@@ -294,6 +296,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             } else {
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
             }
+            if (p.cull) GLES20.glDisable(GLES20.GL_CULL_FACE)
+            if (p.solid) GLES20.glEnable(GLES20.GL_BLEND)
         }
     }
 

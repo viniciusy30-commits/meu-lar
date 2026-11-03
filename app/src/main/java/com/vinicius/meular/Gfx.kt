@@ -46,6 +46,10 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var push: Float = 0f
     /** Pack de móveis: descarta pixels com alfa abaixo deste valor (folhas). 0 = não descarta. */
     var cut: Float = 0f
+    /** Etapa 41: descarta as faces de tras (cartas de cabelo duplicadas frente/costas no mesmo lugar brigavam por profundidade). */
+    var cull: Boolean = false
+    /** Etapa 41: desenha opaco (sem mistura de alfa): so recorte, evita mechas semitransparentes tapando as de tras. */
+    var solid: Boolean = false
 }
 class Mesh(val parts: List<Part>)
 

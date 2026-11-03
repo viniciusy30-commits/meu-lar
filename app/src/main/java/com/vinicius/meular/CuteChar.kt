@@ -235,7 +235,7 @@ object CuteChar {
                 for (s in library.values) names.add(s.tex)
                 for (n in names) texIds[n] = uploadTexture(am, n)
                 baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
-                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (s.tex == "faye.png") p.cut = 0.4f }   // Etapa 41: mechas com alfa
+                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (s.tex == "faye.png") { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
