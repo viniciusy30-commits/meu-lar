@@ -76,6 +76,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var cShift = 0f
     /** Etapa 6 (paisagem): deslocamento horizontal da imagem (negativo = personagem para a esquerda, painel na direita). */
     @Volatile var cShiftX = 0f
+    /** Etapa 40: inclinação da câmera do criador (rad), arrastar para cima/baixo; alvo NaN = livre. */
+    @Volatile var cPitch = 0.10f
+    @Volatile var cTargetPitch = Float.NaN
+    /** Etapa 40: deslocamento extra da imagem (arrastar com dois dedos), mesma unidade de cShift. */
+    @Volatile var cPanX = 0f
+    @Volatile var cPanY = 0f
     private var cshXCur = 0f
     private var cshCur = 0f
     private val shM = FloatArray(16)
@@ -576,7 +582,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // ------------------------------------------------------------ personagem
 
     private fun drawCreator(now: Long) {
-        GLES20.glClearColor(0.105f, 0.125f, 0.19f, 1f)
+        GLES20.glClearColor(0.70f, 0.88f, 0.93f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUniform3f(uEye, ex, ey, ez)
         GLES20.glUniform2f(uRoom, 0f, 0f)
@@ -716,14 +722,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 cyaw += dy * min(1f, dt * 5f)
                 if (abs(dy) < 0.004f) cTargetYaw = Float.NaN
             }
-            val cp = 0.10f
+            val tp = cTargetPitch
+            if (!tp.isNaN()) {
+                cPitch += (tp - cPitch) * min(1f, dt * 6f)
+                if (abs(tp - cPitch) < 0.003f) cTargetPitch = Float.NaN
+            }
+            val cp = cPitch
             ex = STX + cdist * cos(cp) * sin(cyaw)
             ey = cfy + cdist * sin(cp)
             ez = STZ + cdist * cos(cp) * cos(cyaw)
             Matrix.perspectiveM(proj, 0, 34f, aspect, 0.1f, 200f)
-            if (cshCur != 0f || cshXCur != 0f) {
+            if (cshCur != 0f || cshXCur != 0f || cPanX != 0f || cPanY != 0f) {
                 Matrix.setIdentityM(shM, 0)
-                Matrix.translateM(shM, 0, cshXCur, cshCur, 0f)
+                Matrix.translateM(shM, 0, cshXCur + cPanX, cshCur + cPanY, 0f)
                 System.arraycopy(proj, 0, pjT, 0, 16)
                 Matrix.multiplyMM(proj, 0, shM, 0, pjT, 0)
             }

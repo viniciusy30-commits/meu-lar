@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
@@ -96,117 +99,206 @@ class CreatorUi(
     private var cat = 0
     private var sub = 0
 
-    private val rail = LinearLayout(ctx)
+    private val TXT = 0xFF2F4B5E.toInt()
+    private val SUB2 = 0xFF6B8798.toInt()
+    private val GREEN = 0xFF6FD06A.toInt()
+    private val arc = FrameLayout(ctx)
+    private val rings = RingsView(ctx)
     private val subRow = LinearLayout(ctx)
     private val body = LinearLayout(ctx)
     private val scroll = ScrollView(ctx)
     private val panel = LinearLayout(ctx)
     private val titleTv = TextView(ctx)
-    private val stageTitle = TextView(ctx)
-    private val stageBtns = LinearLayout(ctx)
+    private val backBtn = FrameLayout(ctx)
+    private val rotL = FrameLayout(ctx)
+    private val rotR = FrameLayout(ctx)
+    private val diceBar = FrameLayout(ctx)
     private val icons = HashMap<String, Bitmap?>()
+    private var insL = 0
+    private var insT = 0
+    private var insR = 0
+    private var insB = 0
+    private var arcRad = 0f
+    private var arcMidX = 0f
+    private var arcCy = 0f
 
-    private fun grad(c1: Int, c2: Int, r: Float, stroke: Int = 0, sw: Float = 0f): GradientDrawable {
-        val g = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(c1, c2))
-        g.cornerRadius = r
-        if (stroke != 0) g.setStroke(sw.toInt().coerceAtLeast(1), stroke)
-        return g
+    /** Pílula clara (estilo CAS do Sims 4): ligada = azul-água; desligada = vidro branco. */
+    private fun pillBg(on: Boolean, r: Float): Drawable =
+        if (on) Ui.frost(r, 0x35B5E0, 0xF4, 0xDC, dpf(1.2f))
+        else Ui.frost(r, 0xFFFFFF, 0xC0, 0x90, dpf(1.1f), edge = 0x88A9C6D3.toInt())
+
+    /** Cartão branco (itens, personagens prontos). */
+    private fun cardBg(r: Float): Drawable = Ui.frost(r, 0xFFFFFF, 0xF2, 0xE0, dpf(1.1f), edge = 0x66A9C6D3)
+
+    private fun finish() {
+        CuteChar.setExpression(-1); exprSel = -1; st.avatarSet = true; st.save(); onDone()
     }
 
     init {
-        // título sobre o palco (esquerda)
-        stageTitle.text = "Meu personagem"
-        stageTitle.textSize = 18f
-        stageTitle.typeface = Ui.BOLD
-        stageTitle.setTextColor(Pal.TEXT)
-        stageTitle.setShadowLayer(dpf(2f), 0f, dpf(1f), 0x99000000.toInt())
-        stageTitle.setPadding(dp(18), dp(9), dp(20), dp(13))
-        stageTitle.background = Ui.panel(dpf(22f), dpf(3f), dpf(1.3f))
-        addView(stageTitle, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(20), dp(14), 0, 0) })
+        // fundo: véu suave azul-água por cima do 3D + anéis translúcidos atrás do personagem
+        background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x338CC9EC, 0x00FFFFFF, 0x38E4F8F6))
+        addView(rings, LayoutParams(-1, -1))
+        addView(arc, LayoutParams(-1, -1))
 
-        // botões de girar (esquerda embaixo)
-        stageBtns.orientation = LinearLayout.HORIZONTAL
-        stageBtns.gravity = Gravity.CENTER_VERTICAL
-        stageBtns.addView(roundBtn("\u21BA") { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw - 1.0f }, LinearLayout.LayoutParams(dp(52), dp(52)).also { it.rightMargin = dp(12) })
-        stageBtns.addView(roundBtn("\u21BB") { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw + 1.0f }, LinearLayout.LayoutParams(dp(52), dp(52)))
-        addView(stageBtns, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(20), 0, 0, dp(18)) })
+        // seta de voltar para o jogo (canto superior esquerdo)
+        backBtn.background = Ui.frost(0f, 0xFFFFFF, 0xD0, 0xA0, dpf(1.3f), oval = true, edge = 0xEEFFFFFF.toInt())
+        backBtn.addView(IconView(ctx, Ic.BACK, 0xFF2E78AE.toInt(), Color.WHITE), LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        backBtn.setOnClickListener { finish() }
+        addView(backBtn, LayoutParams(dp(46), dp(46), Gravity.TOP or Gravity.START).also { it.setMargins(dp(14), dp(12), 0, 0) })
 
-        // painel da direita
-        panel.orientation = LinearLayout.HORIZONTAL
-        val pbg = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xF533275A.toInt(), 0xF5231A38.toInt()))
-        pbg.cornerRadii = floatArrayOf(dpf(30f), dpf(30f), 0f, 0f, 0f, 0f, dpf(30f), dpf(30f))
-        pbg.setStroke(dpf(2f).toInt(), Pal.LINE)
-        panel.background = pbg
-        panel.setPadding(dp(8), dp(10), dp(10), dp(10))
+        // setas grandes de girar, embaixo (como no Sims)
+        for ((box, flip, dir) in listOf(Triple(rotL, true, -1.0f), Triple(rotR, false, 1.0f))) {
+            val ic = IconView(ctx, Ic.ROTATE, Color.WHITE, Color.WHITE).fancy(0xCC7FB8D8.toInt())
+            if (flip) ic.scaleX = -1f
+            box.addView(ic, LayoutParams(dp(50), dp(50), Gravity.CENTER))
+            box.setOnClickListener { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw + dir }
+            addView(box, LayoutParams(dp(60), dp(60), Gravity.BOTTOM or Gravity.START))
+        }
 
-        rail.orientation = LinearLayout.VERTICAL
-        rail.gravity = Gravity.CENTER_HORIZONTAL
-        val railScroll = ScrollView(ctx)
-        railScroll.isVerticalScrollBarEnabled = false
-        railScroll.addView(rail)
-        panel.addView(railScroll, LinearLayout.LayoutParams(dp(74), -1))
+        // dado (aleatório) no meio, entre as setas
+        diceBar.background = Ui.frost(dpf(21f), 0xFFFFFF, 0xC8, 0x98, dpf(1.2f), edge = 0xEEFFFFFF.toInt())
+        diceBar.addView(IconView(ctx, Ic.DICE, 0xFF4B9CC4.toInt(), Color.WHITE), LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        diceBar.setOnClickListener { randomize() }
+        addView(diceBar, LayoutParams(dp(72), dp(42), Gravity.BOTTOM or Gravity.START))
 
-        val content = LinearLayout(ctx)
-        content.orientation = LinearLayout.VERTICAL
-        content.setPadding(dp(8), dp(4), 0, 0)
-        titleTv.textSize = 24f
+        // painel da direita: vidro branco flutuante
+        panel.orientation = LinearLayout.VERTICAL
+        panel.background = Ui.frost(dpf(24f), 0xFFFFFF, 0xEB, 0xD6, dpf(1.3f), edge = 0xFFFFFFFF.toInt())
+        panel.setPadding(dp(14), dp(12), dp(14), dp(14))
+
+        titleTv.textSize = 14f
         titleTv.typeface = Ui.BOLD
-        titleTv.setTextColor(Pal.TEXT)
-        titleTv.setShadowLayer(dpf(2f), 0f, dpf(1f), 0x99000000.toInt())
-        content.addView(titleTv, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(4) })
+        titleTv.setTextColor(0xFF2E78AE.toInt())
+        titleTv.letterSpacing = 0.14f
+        titleTv.gravity = Gravity.CENTER
+        panel.addView(titleTv, LinearLayout.LayoutParams(-1, -2))
+
         subRow.orientation = LinearLayout.HORIZONTAL
+        subRow.gravity = Gravity.CENTER_HORIZONTAL
         val hs2 = HorizontalScrollView(ctx)
         hs2.isHorizontalScrollBarEnabled = false
-        hs2.addView(subRow)
-        content.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8) })
+        hs2.isFillViewport = true
+        hs2.addView(subRow, FrameLayout.LayoutParams(-2, -2))
+        panel.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(10) })
+
         body.orientation = LinearLayout.VERTICAL
         scroll.isVerticalScrollBarEnabled = false
         scroll.addView(body)
-        content.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
+
         val ok = TextView(ctx)
         ok.text = "Pronto  \u2713"
-        ok.textSize = 19f
+        ok.textSize = 17f
         ok.typeface = Ui.BOLD
         ok.setTextColor(Color.WHITE)
-        ok.setShadowLayer(dpf(1.5f), 0f, dpf(1f), 0x99000000.toInt())
+        ok.setShadowLayer(dpf(1.5f), 0f, dpf(1f), 0x66000000)
         ok.gravity = Gravity.CENTER
-        ok.setPadding(0, 0, 0, dp(4))
-        ok.background = Ui.chunky(Tn.MINT, dpf(26f), dpf(4f))
-        ok.setOnClickListener { CuteChar.setExpression(-1); exprSel = -1; st.avatarSet = true; st.save(); onDone() }
-        content.addView(ok, LinearLayout.LayoutParams(-1, dp(56)).also { it.topMargin = dp(8) })
-        panel.addView(content, LinearLayout.LayoutParams(0, -1, 1f))
-        addView(panel, LayoutParams(dp(380), -1, Gravity.END))
-        refresh(false)
-    }
+        ok.background = Ui.frost(dpf(24f), 0x34C77B, 0xF6, 0xDC, dpf(1.2f))
+        ok.setOnClickListener { finish() }
+        panel.addView(ok, LinearLayout.LayoutParams(-1, dp(48)).also { it.topMargin = dp(10) })
 
-    private fun roundBtn(text: String, click: () -> Unit): TextView {
-        val t = TextView(context)
-        t.text = text
-        t.textSize = 24f
-        t.setTextColor(Pal.TEXT)
-        t.gravity = Gravity.CENTER
-        t.setPadding(0, 0, 0, dp(3))
-        t.background = Ui.panel(dpf(52f), dpf(3f), dpf(1.3f))
-        t.setOnClickListener { click() }
-        return t
+        addView(panel, LayoutParams(dp(360), -1, Gravity.END).also { it.setMargins(0, dp(10), dp(10), dp(10)) })
+        refresh(false)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (w <= 0) return
-        val pw = (w * 0.46f).toInt().coerceIn(dp(330), dp(480))
+        val pw = (w * 0.40f).toInt().coerceIn(dp(320), dp(440))
         val lp = panel.layoutParams
         if (lp.width != pw) { lp.width = pw; panel.layoutParams = lp }
-        // personagem no centro da parte livre à esquerda do painel
-        game.r.cShift = 0f
-        game.r.cShiftX = -(pw.toFloat() / w.toFloat())
+        layoutStage()
     }
 
     fun setInsets(l: Int, t: Int, r: Int, b: Int) {
-        panel.setPadding(dp(8), dp(10) + t, dp(10) + r, dp(10) + b)
-        (stageTitle.layoutParams as LayoutParams).setMargins(dp(20) + l, dp(14) + t, 0, 0)
-        (stageBtns.layoutParams as LayoutParams).setMargins(dp(20) + l, 0, 0, dp(18) + b)
-        stageTitle.requestLayout(); stageBtns.requestLayout()
+        insL = l; insT = t; insR = r; insB = b
+        (panel.layoutParams as LayoutParams).setMargins(0, dp(10) + t, dp(10) + r, dp(10) + b)
+        panel.requestLayout()
+        layoutStage()
+    }
+
+    /**
+     * Tudo é centralizado na "área do palco" (entre a borda esquerda e o arco de categorias):
+     * personagem, anéis, setas de girar e dado ficam no mesmo eixo vertical.
+     */
+    private fun layoutStage() {
+        val w = width
+        val h = height
+        if (w <= 0 || h <= 0) return
+        val pw = panel.layoutParams.width
+        val panelL = w - pw - dp(10) - insR
+        val half = Math.toRadians(55.0)
+        val availH = h - insT - insB - dp(16)
+        val btn = dp(50).toFloat()
+        arcRad = kotlin.math.min((availH - btn) / (2f * Math.sin(half).toFloat()), dpf(170f))
+        arcMidX = (panelL - dp(14) - dp(25)).toFloat()
+        arcCy = insT + (h - insT - insB) / 2f
+        val arcLeft = arcMidX - arcRad * (1f - Math.cos(half).toFloat()) * 0.9f - btn / 2f
+        val stageL = (insL + dp(12)).toFloat()
+        val stageR = arcLeft - dp(8)
+        val cx = (stageL + stageR) / 2f
+        val sw = stageR - stageL
+
+        (backBtn.layoutParams as LayoutParams).setMargins(dp(14) + insL, dp(12) + insT, 0, 0)
+        val asz = dp(60)
+        val lx = (cx - sw * 0.34f - asz / 2f).toInt()
+        val rx = (cx + sw * 0.34f - asz / 2f).toInt()
+        (rotL.layoutParams as LayoutParams).setMargins(lx, 0, 0, dp(20) + insB)
+        (rotR.layoutParams as LayoutParams).setMargins(rx, 0, 0, dp(20) + insB)
+        (diceBar.layoutParams as LayoutParams).setMargins((cx - dp(36)).toInt(), 0, 0, dp(29) + insB)
+        backBtn.requestLayout(); rotL.requestLayout(); rotR.requestLayout(); diceBar.requestLayout()
+
+        // personagem no centro da área do palco (um pouco acima, para não ficar atrás das setas)
+        game.r.cShift = 0.07f
+        game.r.cShiftX = (cx - w / 2f) / (w / 2f)
+        rings.cx = cx
+        rings.cy = h / 2f - 0.07f * h / 2f
+        rings.r = kotlin.math.min(h * 0.44f, sw * 0.48f)
+        rings.invalidate()
+        buildArc()
+    }
+
+    /** Ícones das categorias em arco, ao lado do painel (como no Sims 4), bem espaçados. */
+    private fun buildArc() {
+        arc.removeAllViews()
+        if (arcRad <= 0f) return
+        val n = cats.size
+        for (i in 0 until n) {
+            val on = i == cat
+            val ang = Math.toRadians(-55.0 + 110.0 * i / (n - 1))
+            val cx = arcMidX - arcRad * (1.0 - Math.cos(ang)).toFloat() * 0.9f
+            val cy = arcCy + arcRad * Math.sin(ang).toFloat()
+            val sz = dp(if (on) 50 else 42)
+            val v = FrameLayout(context)
+            v.background = if (on) Ui.frost(0f, 0xFFFFFF, 0xF8, 0xEE, dpf(2.6f), oval = true, edge = GREEN)
+                           else Ui.frost(0f, 0xFFFFFF, 0xD0, 0xA8, dpf(1.2f), oval = true, edge = 0xCCFFFFFF.toInt())
+            val isz = (sz * 0.56f).toInt()
+            v.addView(IconView(context, CAT_ICONS[i], if (on) 0xFF2E9BD1.toInt() else 0xFF6F93A6.toInt(), Color.WHITE), LayoutParams(isz, isz, Gravity.CENTER))
+            v.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
+            arc.addView(v, LayoutParams(sz, sz, Gravity.TOP or Gravity.START).also { it.setMargins((cx - sz / 2f).toInt(), (cy - sz / 2f).toInt(), 0, 0) })
+        }
+    }
+
+    /** Dado: sorteia estilo e cores da aba atual. */
+    private fun randomize() {
+        val s = cats[cat].subs[sub]
+        val av = st.avatar
+        val rnd = java.util.Random()
+        s.style?.let { stl ->
+            if (stl.ids.isNotEmpty()) { stl.set(av, rnd.nextInt(stl.ids.size)); CuteChar.setWear(av.wearKeys()) }
+        }
+        for (slot in s.colors) {
+            val n = CuteColor.palette(slot).size
+            if (n > 0) av.cc[slot] = rnd.nextInt(n)
+        }
+        CuteColor.setColors(av.cc)
+        if (s.sl == 1 || s.sl == 2) {
+            val arr = if (s.sl == 1) av.bs else av.fs
+            for (i in arr.indices) arr[i] = rnd.nextInt(81) - 40
+            CuteChar.setShape(av.bs, av.fs, av.masc)
+        }
+        st.save()
+        refresh(true)
     }
 
     fun open() {
@@ -225,32 +317,17 @@ class CreatorUi(
         game.r.cTargetDist = if (s.dist.isNaN()) c.dist else s.dist
         game.r.cTargetY = if (s.y.isNaN()) c.y else s.y
         game.r.cTargetYaw = s.yaw
+        game.r.cTargetPitch = 0.10f
+        game.r.cPanX = 0f
+        game.r.cPanY = 0f
     }
 
     private fun refresh(keepScroll: Boolean) {
         val av = st.avatar
-        rail.removeAllViews()
-        for (i in cats.indices) {
-            val on = i == cat
-            val b = LinearLayout(context)
-            b.orientation = LinearLayout.VERTICAL
-            b.gravity = Gravity.CENTER
-            b.setPadding(0, 0, 0, dp(3))
-            b.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
-            b.addView(IconView(context, CAT_ICONS[i], if (on) Color.WHITE else Pal.SUB, if (on) Tn.CORAL.edge else Tn.GHOST.edge), LinearLayout.LayoutParams(dp(28), dp(28)))
-            val n = TextView(context)
-            n.text = cats[i].name
-            n.textSize = 10.5f
-            n.typeface = Ui.BOLD
-            n.maxLines = 1
-            n.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            b.addView(n, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2) })
-            b.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
-            rail.addView(b, LinearLayout.LayoutParams(dp(66), dp(66)).also { it.bottomMargin = dp(8) })
-        }
+        buildArc()
 
         val c = cats[cat]
-        titleTv.text = c.name
+        titleTv.text = c.name.uppercase()
         subRow.removeAllViews()
         for (i in c.subs.indices) {
             val t = TextView(context)
@@ -258,12 +335,12 @@ class CreatorUi(
             t.textSize = 13f
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
-            t.setPadding(dp(16), 0, dp(16), dp(3))
+            t.setPadding(dp(16), 0, dp(16), 0)
             val on = i == sub
-            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
-            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(18f), dpf(3f), on)
+            t.setTextColor(if (on) Color.WHITE else SUB2)
+            t.background = pillBg(on, dpf(18f))
             t.setOnClickListener { sub = i; refresh(false); camera() }
-            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(36)).also { it.rightMargin = dp(8) })
+            subRow.addView(t, LinearLayout.LayoutParams(-2, dp(36)).also { it.leftMargin = if (i > 0) dp(8) else 0 })
         }
         (subRow.parent as View).visibility = if (c.subs.size > 1) View.VISIBLE else View.GONE
 
@@ -293,13 +370,13 @@ class CreatorUi(
                 row.orientation = LinearLayout.HORIZONTAL
                 body.addView(row, LinearLayout.LayoutParams(-1, -2))
             }
-            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(120), 1f).also {
+            row!!.addView(tile(stl, i, i == cur), LinearLayout.LayoutParams(0, dp(104), 1f).also {
                 it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
         val rest = (cols - stl.ids.size % cols) % cols
         for (k in 0 until rest) {
-            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(120), 1f).also {
+            row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(104), 1f).also {
                 it.setMargins(dp(4), dp(4), dp(4), dp(4))
             })
         }
@@ -307,22 +384,21 @@ class CreatorUi(
 
     private fun tile(stl: Style, i: Int, sel: Boolean): View {
         val f = FrameLayout(context)
-        f.background = if (sel) Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, 0xFF55DDA3.toInt(), dpf(2.5f))
-                       else Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, 0x33FFFFFF, dpf(1f))
+        f.background = if (sel) Ui.frost(dpf(14f), 0xFFFFFF, 0xFF, 0xF2, dpf(2.6f), edge = GREEN) else cardBg(dpf(14f))
         val id = stl.ids[i]
         val bmp = if (id.isEmpty()) null else icon((stl.key + "_" + id).lowercase())
         if (bmp != null) {
             val iv = ImageView(context)
             iv.scaleType = ImageView.ScaleType.FIT_CENTER
             iv.setImageBitmap(bmp)
-            f.addView(iv, LayoutParams(-1, dp(78), Gravity.TOP).also { it.topMargin = dp(8) })
+            f.addView(iv, LayoutParams(-1, dp(64), Gravity.TOP).also { it.topMargin = dp(8) })
         } else {
             val x = TextView(context)
             x.text = if (id.isEmpty()) "\u2205" else "?"
             x.textSize = 30f
-            x.setTextColor(Pal.SUB)
+            x.setTextColor(SUB2)
             x.gravity = Gravity.CENTER
-            f.addView(x, LayoutParams(-1, dp(78), Gravity.TOP).also { it.topMargin = dp(8) })
+            f.addView(x, LayoutParams(-1, dp(64), Gravity.TOP).also { it.topMargin = dp(8) })
         }
         val n = TextView(context)
         n.text = stl.names[i]
@@ -330,7 +406,7 @@ class CreatorUi(
         n.typeface = Ui.MED
         n.maxLines = 2
         n.gravity = Gravity.CENTER
-        n.setTextColor(if (sel) Color.WHITE else Pal.SUB)
+        n.setTextColor(if (sel) TXT else SUB2)
         n.setPadding(dp(4), 0, dp(4), dp(5))
         n.setPadding(dp(4), 0, dp(4), dp(8))
         f.addView(n, LayoutParams(-1, dp(32), Gravity.BOTTOM))
@@ -341,7 +417,7 @@ class CreatorUi(
             ck.typeface = Ui.BOLD
             ck.setTextColor(Color.WHITE)
             ck.gravity = Gravity.CENTER
-            ck.background = Ui.oval(0xFF25AD7B.toInt())
+            ck.background = Ui.oval(0xFF4CBF6B.toInt())
             f.addView(ck, LayoutParams(dp(22), dp(22), Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(6), dp(6), 0) })
         }
         f.setOnClickListener { pickStyle(stl, i) }
@@ -366,17 +442,17 @@ class CreatorUi(
         lab.text = "Cor: " + CuteColor.SLOT_NAMES[slot]
         lab.textSize = 13f
         lab.typeface = Ui.BOLD
-        lab.setTextColor(Pal.TEXT)
+        lab.setTextColor(TXT)
         head.addView(lab, LinearLayout.LayoutParams(0, -2, 1f))
         val orig = TextView(context)
         orig.text = "Original"
         orig.textSize = 12f
         orig.typeface = Ui.BOLD
-        orig.setTextColor(Color.WHITE)
+        orig.setTextColor(if (cur < 0) Color.WHITE else TXT)
         orig.gravity = Gravity.CENTER
         orig.setPadding(dp(14), 0, dp(14), 0)
         orig.setPadding(dp(14), 0, dp(14), dp(2))
-        orig.background = Ui.chunky(Tn.GHOST, dpf(15f), dpf(2f), false, if (cur < 0) Color.WHITE else 0, dpf(2.5f))
+        orig.background = pillBg(cur < 0, dpf(15f))
         orig.setOnClickListener { pickColor(slot, -1) }
         head.addView(orig, LinearLayout.LayoutParams(-2, dp(32)))
         body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(12); it.bottomMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
@@ -393,7 +469,7 @@ class CreatorUi(
             val cell = FrameLayout(context)
             val v = View(context)
             val on = i == cur
-            v.background = Ui.oval(pal[i], if (on) Pal.TEXT else 0x66FFFFFF, if (on) dpf(3.5f) else dpf(1f))
+            v.background = Ui.oval(pal[i], if (on) TXT else 0x33000000, if (on) dpf(3.5f) else dpf(1f))
             v.setOnClickListener { pickColor(slot, i) }
             cell.addView(v, LayoutParams(dp(38), dp(38), Gravity.CENTER))
             row!!.addView(cell, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -420,9 +496,9 @@ class CreatorUi(
                 t.textSize = 14f
                 t.typeface = Ui.BOLD
                 t.gravity = Gravity.CENTER
-                t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+                t.setTextColor(if (on) Color.WHITE else SUB2)
                 t.setPadding(0, 0, 0, dp(3))
-                t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
+                t.background = pillBg(on, dpf(20f))
                 t.setOnClickListener {
                     if (av.masc != m) {
                         av.masc = m
@@ -439,10 +515,10 @@ class CreatorUi(
         reset.text = "Zerar tudo"
         reset.textSize = 12f
         reset.typeface = Ui.BOLD
-        reset.setTextColor(Color.WHITE)
+        reset.setTextColor(TXT)
         reset.gravity = Gravity.CENTER
         reset.setPadding(dp(14), 0, dp(14), dp(2))
-        reset.background = Ui.chunky(Tn.GHOST, dpf(15f), dpf(2f), false)
+        reset.background = pillBg(false, dpf(15f))
         reset.setOnClickListener {
             java.util.Arrays.fill(arr, 0)
             CuteChar.setShape(av.bs, av.fs, av.masc)
@@ -458,20 +534,21 @@ class CreatorUi(
             lab.text = names[i]
             lab.textSize = 13f
             lab.typeface = Ui.BOLD
-            lab.setTextColor(Pal.TEXT)
+            lab.setTextColor(TXT)
             head.addView(lab, LinearLayout.LayoutParams(0, -2, 1f))
             val value = TextView(context)
             value.text = pct(arr[i])
             value.textSize = 12f
             value.typeface = Ui.MED
-            value.setTextColor(Pal.SUB)
+            value.setTextColor(SUB2)
             head.addView(value, LinearLayout.LayoutParams(-2, -2))
             body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(12); it.leftMargin = dp(4); it.rightMargin = dp(4) })
             val sb = SeekBar(context)
             sb.max = 200
             sb.progress = arr[i] + 100
-            sb.progressTintList = ColorStateList.valueOf(0xFF6DE8B4.toInt())
-            sb.thumbTintList = ColorStateList.valueOf(0xFFFFF4E6.toInt())
+            sb.progressTintList = ColorStateList.valueOf(0xFF35B5E0.toInt())
+            sb.progressBackgroundTintList = ColorStateList.valueOf(0xFFBFD6E0.toInt())
+            sb.thumbTintList = ColorStateList.valueOf(0xFF2E9BD1.toInt())
             sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                     if (!fromUser) return
@@ -496,7 +573,7 @@ class CreatorUi(
         val info = TextView(context)
         info.text = "Escolha a base e monte seu personagem do zero, ou escolha um personagem pronto abaixo. Trocar a base ou o personagem apaga roupas, cabelo e ajustes (mantém a pele)."
         info.textSize = 12f
-        info.setTextColor(Pal.SUB)
+        info.setTextColor(SUB2)
         body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         for ((nome, m) in listOf("Masculino" to true, "Feminino" to false)) {
             val on = av.masc == m
@@ -505,9 +582,9 @@ class CreatorUi(
             t.textSize = 18f
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
-            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            t.setTextColor(if (on) Color.WHITE else SUB2)
             t.setPadding(0, 0, 0, dp(4))
-            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(26f), dpf(4f), on)
+            t.background = pillBg(on, dpf(26f))
             t.setOnClickListener {
                 av.applyBase(m)
                 CuteColor.setColors(av.cc)
@@ -523,23 +600,23 @@ class CreatorUi(
         head.text = "Personagens prontos"
         head.textSize = 14f
         head.typeface = Ui.BOLD
-        head.setTextColor(Pal.SUB)
+        head.setTextColor(TXT)
         body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(20); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         for (i in AvaPal.PRESET_N.indices) {
             val card = LinearLayout(context)
             card.orientation = LinearLayout.VERTICAL
             card.setPadding(dp(14), dp(10), dp(14), dp(14))
-            card.background = Ui.chunky(Tn.GHOST, dpf(22f), dpf(4f), false)
+            card.background = cardBg(dpf(18f))
             val nm = TextView(context)
             nm.text = "\u2605  " + AvaPal.PRESET_N[i]
             nm.textSize = 17f
             nm.typeface = Ui.BOLD
-            nm.setTextColor(Pal.SUB)
+            nm.setTextColor(TXT)
             card.addView(nm, LinearLayout.LayoutParams(-1, -2))
             val ds = TextView(context)
             ds.text = AvaPal.PRESET_D[i]
             ds.textSize = 12f
-            ds.setTextColor(Pal.SUB)
+            ds.setTextColor(SUB2)
             card.addView(ds, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(2) })
             card.setOnClickListener {
                 av.applyPreset(i)
@@ -566,9 +643,9 @@ class CreatorUi(
             t.textSize = 14f
             t.typeface = Ui.BOLD
             t.gravity = Gravity.CENTER
-            t.setTextColor(if (on) Color.WHITE else Pal.SUB)
+            t.setTextColor(if (on) Color.WHITE else SUB2)
             t.setPadding(0, 0, 0, dp(3))
-            t.background = Ui.chunky(if (on) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), on)
+            t.background = pillBg(on, dpf(20f))
             t.setOnClickListener {
                 exprSel = code[i]
                 CuteChar.setExpression(exprSel)
@@ -584,5 +661,26 @@ class CreatorUi(
         CuteColor.setColors(st.avatar.cc)
         st.save()
         refresh(true)
+    }
+}
+
+
+/** Anéis translúcidos atrás do personagem (como as faixas redondas do Sims 4). */
+private class RingsView(ctx: Context) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val d = ctx.resources.displayMetrics.density
+    var cx = 0f
+    var cy = 0f
+    var r = 0f
+
+    override fun onDraw(c: Canvas) {
+        if (r <= 0f) return
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 26f * d
+        p.color = 0x26FFFFFF
+        c.drawCircle(cx, cy, r, p)
+        p.strokeWidth = 14f * d
+        p.color = 0x1CFFFFFF
+        c.drawCircle(cx, cy, r * 1.3f, p)
     }
 }

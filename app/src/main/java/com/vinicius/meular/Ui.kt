@@ -213,6 +213,7 @@ object Ic {
     const val DOTS = 127
     const val PLUS = 128
     const val CASE = 129
+    const val BACK = 130
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -368,12 +369,29 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 rr(c, 32f, 64f, 48f, 94f, 7f); rr(c, 52f, 64f, 68f, 94f, 7f)
             }
             Ic.HAIR -> {
+                // cabelo comprido emoldurando o rosto, com franja de lado
                 fill(w)
                 path.reset(); path.fillType = Path.FillType.EVEN_ODD
-                rf.set(14f, 8f, 86f, 92f); path.addOval(rf, Path.Direction.CW)
-                rf.set(31f, 34f, 69f, 82f); path.addOval(rf, Path.Direction.CW)
+                path.moveTo(50f, 6f)
+                path.cubicTo(24f, 6f, 14f, 28f, 16f, 52f)
+                path.cubicTo(17f, 70f, 12f, 82f, 7f, 92f)
+                path.cubicTo(22f, 94f, 34f, 88f, 39f, 79f)
+                path.lineTo(61f, 79f)
+                path.cubicTo(66f, 88f, 78f, 94f, 93f, 92f)
+                path.cubicTo(88f, 82f, 83f, 70f, 84f, 52f)
+                path.cubicTo(86f, 28f, 76f, 6f, 50f, 6f)
+                path.close()
+                rf.set(30f, 28f, 70f, 80f); path.addOval(rf, Path.Direction.CW)
                 c.drawPath(path, p)
                 path.fillType = Path.FillType.WINDING
+                // franja
+                path.reset()
+                path.moveTo(29f, 50f)
+                path.cubicTo(31f, 32f, 52f, 26f, 72f, 26f)
+                path.cubicTo(70f, 38f, 64f, 46f, 54f, 48f)
+                path.cubicTo(44f, 49f, 35f, 49f, 29f, 50f)
+                path.close()
+                c.drawPath(path, p)
             }
             Ic.FACE -> {
                 fill(w)
@@ -408,6 +426,11 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
             Ic.SPARK -> {
                 fill(w); path.reset(); path.moveTo(50f, 2f); path.quadTo(54f, 46f, 98f, 50f); path.quadTo(54f, 54f, 50f, 98f)
                 path.quadTo(46f, 54f, 2f, 50f); path.quadTo(46f, 46f, 50f, 2f); path.close(); c.drawPath(path, p)
+            }
+            Ic.BACK -> {
+                stroke(w, 12f)
+                c.drawLine(80f, 50f, 24f, 50f, p)
+                path.reset(); path.moveTo(48f, 24f); path.lineTo(22f, 50f); path.lineTo(48f, 76f); c.drawPath(path, p)
             }
             Ic.CART -> {
                 // carrinho detalhado: alça, cesto com grade, rodinhas

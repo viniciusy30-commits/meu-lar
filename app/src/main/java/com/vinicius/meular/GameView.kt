@@ -208,26 +208,46 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
 
     // ------------------------------------------------------------ criador de personagem
 
+    private var cay = 0f
+    private var cmx = 0f
+    private var cmy = 0f
+
     private fun creatorTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { ax = e.x; amode = 1; r.autoSpin = false; r.cTargetYaw = Float.NaN }
+            MotionEvent.ACTION_DOWN -> {
+                ax = e.x; cay = e.y; amode = 1
+                r.autoSpin = false; r.cTargetYaw = Float.NaN; r.cTargetPitch = Float.NaN
+            }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                if (e.pointerCount >= 2) { amode = 3; pinchD = dist(e) }
+                if (e.pointerCount >= 2) {
+                    amode = 3; pinchD = dist(e)
+                    cmx = (e.getX(0) + e.getX(1)) / 2f; cmy = (e.getY(0) + e.getY(1)) / 2f
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 if (amode == 1) {
+                    // 1 dedo: gira em volta do personagem e inclina a câmera para cima/baixo
                     r.cyaw = r.cyaw - (e.x - ax) * 0.011f
-                    ax = e.x
+                    r.cPitch = (r.cPitch + (e.y - cay) * 0.004f).coerceIn(-0.25f, 0.75f)
+                    ax = e.x; cay = e.y
                 } else if (amode == 3 && e.pointerCount >= 2) {
+                    // 2 dedos: pinça = zoom; arrastar = move a câmera (o personagem anda pela tela)
                     val d = dist(e)
                     if (pinchD > 0f && d > 0f) r.cTargetDist = (r.cTargetDist * pinchD / d).coerceIn(0.9f, 6.0f)
                     pinchD = d
+                    val mx = (e.getX(0) + e.getX(1)) / 2f
+                    val my = (e.getY(0) + e.getY(1)) / 2f
+                    if (width > 0 && height > 0) {
+                        r.cPanX = (r.cPanX + (mx - cmx) * 2f / width).coerceIn(-1.2f, 1.2f)
+                        r.cPanY = (r.cPanY - (my - cmy) * 2f / height).coerceIn(-1.0f, 1.0f)
+                    }
+                    cmx = mx; cmy = my
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 if (amode == 3) {
                     val idx = if (e.actionIndex == 0) 1 else 0
-                    if (idx < e.pointerCount) ax = e.getX(idx)
+                    if (idx < e.pointerCount) { ax = e.getX(idx); cay = e.getY(idx) }
                     amode = 1
                 }
             }
