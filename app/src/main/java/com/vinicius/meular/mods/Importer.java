@@ -91,6 +91,8 @@ public final class Importer {
             }
         }
         if (meshes.isEmpty()) {
+            String dae = baseMeshName(pkg);
+            if (!dae.isEmpty()) out.notes.add(0, "Esse package é uma COR (recolor) do modelo \"" + dae + "\" do próprio jogo da EA; a malha não vem no arquivo, então não dá para montar a roupa só com ele. Use packages que tragam a malha junto.");
             if (tex != null) {
                 out.texOnly = tex.limit(1024).pot();
                 out.texName = base;
@@ -207,6 +209,22 @@ public final class Importer {
         } catch (RuntimeException e) {
             return cup;
         }
+    }
+
+    /** Sims 3: nome do modelo (daeFileName) que o CASP do recolor usa; vazio se não achar. */
+    private static String baseMeshName(Pkg pkg) {
+        try {
+            for (Pkg.Ent e : pkg.ofType(0x034AEECB)) {
+                byte[] b = pkg.read(e);
+                String t = new String(b, java.nio.charset.StandardCharsets.UTF_16LE);
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("daeFileName\"\\s+value=\"([^\"]+)\"").matcher(t);
+                if (m.find()) return m.group(1);
+                t = new String(b, java.nio.charset.StandardCharsets.ISO_8859_1);
+                m = java.util.regex.Pattern.compile("daeFileName\"\\s+value=\"([^\"]+)\"").matcher(t);
+                if (m.find()) return m.group(1);
+            }
+        } catch (Exception e) { /* ignora */ }
+        return "";
     }
 
     // ------------------------------------------------------------------ auxiliares

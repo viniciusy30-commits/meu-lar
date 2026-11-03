@@ -408,12 +408,14 @@ class CreatorUi(
                 st.save()
                 refresh(true)
             }, LinearLayout.LayoutParams(0, dp(34), 1f))
-            row.addView(modBtn("Textura", false) { act?.pickMods(it.id) }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
-            row.addView(modBtn("Excluir", false) {
-                ModStore.remove(it)
-                CuteChar.setWear(st.avatar.wearKeys())
-                refresh(true)
-            }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
+            if (!it.builtin) {
+                row.addView(modBtn("Textura", false) { act?.pickMods(it.id) }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
+                row.addView(modBtn("Excluir", false) {
+                    ModStore.remove(it)
+                    CuteChar.setWear(st.avatar.wearKeys())
+                    refresh(true)
+                }, LinearLayout.LayoutParams(0, dp(34), 1f).also { p -> p.leftMargin = dp(6) })
+            }
             card.addView(row, LinearLayout.LayoutParams(-1, -2).also { p -> p.topMargin = dp(6) })
             body.addView(card, LinearLayout.LayoutParams(-1, -2).also { p -> p.setMargins(dp(4), dp(4), dp(4), dp(4)) })
         }

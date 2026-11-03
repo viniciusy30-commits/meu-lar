@@ -41,3 +41,14 @@ Importar mods aceita .package, .zip e .rar (extrai os .package de dentro). RAR u
 
 ## Ajuste 5
 Quando o package não tem malha legível, a mensagem mostra a causa (GEOM achados/erros e tipos de recurso do arquivo).
+
+## Ajuste 6
+Package de recolor do Sims 3 (só CASP + texturas máscara, ex.: "Layered Shirt ..." do newone08, que usa o modelo da EA "amTopTshirtTightUntuck") não traz malha: o jogo agora explica isso na mensagem. Para importar, o package precisa ter GEOM dentro.
+
+## Etapa 55 - Roupas prontas (estilo da referência): camiseta oversized CHAOS, calça cargo baggy preta, tênis preto e branco
+Aba Roupas > aparecem sozinhas (adulto/jovem/idoso, masculino e feminino). Geradas direto em cima do corpo do Sims 3 de cada grupo (ferramentas/skate/, `python3 run2.py <grupo>`):
+- Camiseta: manga até o cotovelo, caimento largo, gola canelada, barra e punhos com costura dupla, estampa CHAOS (desenho original) na frente.
+- Calça cargo: perna reta e larga, bolsos cargo laterais com volume + aba + botão de pressão, bolsos de trás com aba, cós com passadores e botão, braguilha, alça com fivela na lateral, barra empilhada sobre o tênis, lavagem desbotada, costuras cinza.
+- Tênis: baixo, couro branco com detalhes pretos (calcanhar, gola, lateral, cadarço), feito a partir do All Star recortado.
+- Vêm como "peças embutidas" do ModStore (assets/cute/skate/*.cup/png); só sobem para a memória quando vestidas.
+Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, moletom, mochila e corrente da foto; pesos de osso copiados do corpo (a barra da camiseta e a calça balançam junto das pernas).

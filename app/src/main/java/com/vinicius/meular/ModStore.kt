@@ -13,7 +13,7 @@ import java.io.File
  * Cada peça fica em filesDir/mods: <id>.cup (malha já encaixada no corpo), <id>.png (textura), index.txt e worn.txt.
  */
 object ModStore {
-    class Item(val id: String, var name: String, val slot: String, val grp: String, val game: Int, var hasTex: Boolean, val alpha: Boolean) {
+    class Item(val id: String, var name: String, val slot: String, val grp: String, val game: Int, var hasTex: Boolean, val alpha: Boolean, val builtin: Boolean = false) {
         val key: String get() = "$slot/M_$id"
     }
 
@@ -41,13 +41,19 @@ object ModStore {
         } catch (e: Throwable) {
             android.util.Log.e("ModStore", "índice ilegível", e)
         }
+        // roupas que já vêm no jogo (assets/cute/skate): camiseta oversized CHAOS, calça cargo baggy e tênis preto e branco
+        for (g in listOf("af", "am", "tf", "tm", "ef", "em")) {
+            items.add(Item("tee_$g", "Camiseta oversized CHAOS", "top", g, 0, true, false, true))
+            items.add(Item("cargo_$g", "Calça cargo baggy preta", "bottom", g, 0, true, false, true))
+            items.add(Item("shoe_$g", "Tênis preto e branco", "feet", g, 0, true, false, true))
+        }
         worn.retainAll(items.map { it.key }.toSet())
     }
 
     private fun saveIndex() {
         val d = dir ?: return
         try {
-            File(d, "index.txt").writeText(items.joinToString("\n") { listOf(it.id, it.name.replace('|', ' '), it.slot, it.grp, it.game, if (it.hasTex) 1 else 0, if (it.alpha) 1 else 0).joinToString("|") }, Charsets.UTF_8)
+            File(d, "index.txt").writeText(items.filter { !it.builtin }.joinToString("\n") { listOf(it.id, it.name.replace('|', ' '), it.slot, it.grp, it.game, if (it.hasTex) 1 else 0, if (it.alpha) 1 else 0).joinToString("|") }, Charsets.UTF_8)
             File(d, "worn.txt").writeText(worn.joinToString(","))
         } catch (e: Throwable) {
             android.util.Log.e("ModStore", "não salvou", e)
@@ -63,23 +69,30 @@ object ModStore {
 
     @Synchronized
     fun toggle(it: Item) {
-        if (it.key in worn) worn.remove(it.key)
-        else {
+        if (it.key in worn) {
+            worn.remove(it.key)
+            if (it.builtin) CuteChar.enqueueMod(it.key, null, null, false)   // libera a textura
+        } else {
             // um por tipo; roupa inteira troca blusa e calça
             val same = items.filter { o -> o.grp == it.grp && o.key in worn }
             for (o in same) {
                 val clash = o.slot == it.slot ||
                     (it.slot == "overall" && (o.slot == "top" || o.slot == "bottom")) ||
                     (o.slot == "overall" && (it.slot == "top" || it.slot == "bottom"))
-                if (clash) worn.remove(o.key)
+                if (clash) {
+                    worn.remove(o.key)
+                    if (o.builtin) CuteChar.enqueueMod(o.key, null, null, false)
+                }
             }
             worn.add(it.key)
+            if (it.builtin) Thread { load(it) }.start()
         }
         saveIndex()
     }
 
     @Synchronized
     fun remove(it: Item) {
+        if (it.builtin) return
         worn.remove(it.key)
         items.remove(it)
         val d = dir
@@ -90,7 +103,7 @@ object ModStore {
 
     /** Manda todas as peças para a GL (ao iniciar ou quando o contexto GL é recriado). */
     fun requeue() {
-        val list = synchronized(this) { ArrayList(items) }
+        val list = synchronized(this) { items.filter { !it.builtin || it.key in worn } }
         if (list.isEmpty()) return
         Thread { for (it in list) load(it) }.start()
     }
@@ -98,10 +111,18 @@ object ModStore {
     private fun load(it: Item) {
         val d = dir ?: return
         try {
-            var cup = File(d, it.id + ".cup").readBytes()
             val opts = BitmapFactory.Options()
             opts.inPremultiplied = false
-            val bmp = BitmapFactory.decodeFile(File(d, it.id + ".png").path, opts) ?: return
+            var cup: ByteArray
+            val bmp: Bitmap
+            if (it.builtin) {
+                val am = CuteChar.assets ?: return
+                cup = am.open("cute/skate/" + it.id + ".cup").use { s -> s.readBytes() }
+                bmp = am.open("cute/skate/" + it.id + ".png").use { s -> BitmapFactory.decodeStream(s, null, opts) } ?: return
+            } else {
+                cup = File(d, it.id + ".cup").readBytes()
+                bmp = BitmapFactory.decodeFile(File(d, it.id + ".png").path, opts) ?: return
+            }
             if (it.game == 2 && it.hasTex) {
                 val px = IntArray(bmp.width * bmp.height)
                 bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
@@ -188,7 +209,7 @@ object ModStore {
                             val tx = out.texOnly
                             if (tx != null) {
                                 val tgt = synchronized(this) { items.firstOrNull { x -> x.id == target } ?: items.lastOrNull { x -> !x.hasTex && x.grp == grp } ?: items.lastOrNull { x -> x.grp == grp } }
-                                if (tgt == null) msgs.add("$nm: é só textura e ainda não há roupa importada para aplicar. " + out.notes.joinToString(" "))
+                                if (tgt == null) msgs.add("$nm: " + out.notes.joinToString(" "))
                                 else {
                                     setTexture(tgt, (if (tgt.alpha) tx else tx.opaque()).png())
                                     msgs.add("$nm: textura aplicada em ${tgt.name}.")
