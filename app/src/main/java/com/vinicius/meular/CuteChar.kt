@@ -1,5 +1,5 @@
 package com.vinicius.meular
-// versao etapa20-pes-no-chao (codigo vivo do object CuteChar; se esta linha aparece no GitHub, este zip foi aplicado)
+// versao etapa45-esqueleto-sims (etapa20-pes-no-chao) (codigo vivo do object CuteChar; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.BitmapFactory
@@ -157,9 +157,11 @@ object CuteChar {
     }
 
     private var nb = 0
-    private var clipLen = FloatArray(0)
-    private var clipFrames = IntArray(0)
-    private var clipData = arrayOfNulls<FloatArray>(0) // frames * nb * 12
+    // Etapa 45: conjunto de clipes trocado de uma vez (o corpo do Sims 3 tem esqueleto proprio, um conjunto por estagio+sexo)
+    private class ClipSet(val len: FloatArray, val frames: IntArray, val data: Array<FloatArray?>)   // data: frames * nb * 12
+    @Volatile private var clipSet = ClipSet(FloatArray(0), IntArray(0), arrayOfNulls(0))
+    private var bozoClips: ClipSet? = null
+    @Volatile private var simGrp = ""
     private var baseSkin: Skin? = null
     private val library = LinkedHashMap<String, Skin>()   // todas as peças conhecidas, na ordem do manifesto
     @Volatile private var wanted: List<String> = emptyList()
@@ -193,8 +195,44 @@ object CuteChar {
         val bk = keys.firstOrNull { it.startsWith("body/S_") }
         simOn = bk != null
         simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
+        useSimClips(if (bk != null && bk.length >= 9) bk.substring(7, 9) else "")   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
         if (simOn) { heightS = simH; bodyP = FloatArray(BodyMorph.NB); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
         rebuildActive()
+    }
+
+    /** Etapa 45: carrega clips_<grupo>.bin (CLP1: nb, nc, clipes) do esqueleto do Sims 3; "" volta aos clipes do base.bin. Falhando, mantém os atuais. */
+    private fun useSimClips(grp: String) {
+        if (grp == simGrp) return
+        try {
+            if (grp.isEmpty()) {
+                bozoClips?.let { clipSet = it }
+                simGrp = ""
+                return
+            }
+            val am = assets ?: return
+            val raw = am.open("cute/clips_$grp.bin").use { it.readBytes() }
+            val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
+            require(b.get().toInt() == 'C'.code && b.get().toInt() == 'L'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
+            val nb2 = b.int
+            val nc = b.int
+            require(nb2 == nb && nc > 0)
+            val len = FloatArray(nc)
+            val fr = IntArray(nc)
+            val data = arrayOfNulls<FloatArray>(nc)
+            for (c in 0 until nc) {
+                len[c] = b.float
+                val nf = b.int
+                fr[c] = nf
+                val d = FloatArray(nf * nb * 12)
+                b.asFloatBuffer().get(d)
+                b.position(b.position() + d.size * 4)
+                data[c] = d
+            }
+            clipSet = ClipSet(len, fr, data)
+            simGrp = grp
+        } catch (e: Throwable) {
+            // sem o arquivo: continua com os clipes atuais
+        }
     }
 
     private fun rebuildActive() {
@@ -300,7 +338,7 @@ object CuteChar {
             wanted = emptyList()
             morphIdx = emptyArray()
             morphDel = emptyArray()
-            clipData = arrayOfNulls(0)
+            clipSet = ClipSet(FloatArray(0), IntArray(0), arrayOfNulls(0))
             modular = false
             loadLegacy(am)
         }
@@ -407,17 +445,20 @@ object CuteChar {
         nb = b.int
         val nc = b.int
         val sk = readSkin(b, key, tex, nv, ni)
-        clipLen = FloatArray(nc)
-        clipFrames = IntArray(nc)
-        clipData = arrayOfNulls(nc)
+        val cLen = FloatArray(nc)
+        val cFrames = IntArray(nc)
+        val cData = arrayOfNulls<FloatArray>(nc)
         for (c in 0 until nc) {
-            clipLen[c] = b.float
+            cLen[c] = b.float
             val nf = b.int
-            clipFrames[c] = nf
+            cFrames[c] = nf
             val d = FloatArray(nf * nb * 12)
             for (i in d.indices) d[i] = b.float
-            clipData[c] = d
+            cData[c] = d
         }
+        clipSet = ClipSet(cLen, cFrames, cData)
+        bozoClips = clipSet
+        simGrp = ""
         return sk
     }
 
@@ -473,7 +514,7 @@ object CuteChar {
 
     /** Duração (s) do clip. */
     fun clipSeconds(clip: Int): Float =
-        if (loaded && clip in clipLen.indices) clipLen[clip] else 1f
+        clipSet.let { if (loaded && clip in it.len.indices) it.len[clip] else 1f }
 
     // estado por "slot" (0 = jogador, 1 = avatar da casa, 2 = criador): fase do laço e transição suave
     private val slotClip = IntArray(3) { -1 }
@@ -518,12 +559,13 @@ object CuteChar {
         val bs = baseSkin ?: return null
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
-        val c0 = clip.coerceIn(0, clipData.size - 1)
-        val c = if (MALE_CLIPS && mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
+        val cset = clipSet
+        val c0 = clip.coerceIn(0, cset.data.size - 1)
+        val c = if (MALE_CLIPS && mascV && cset.data.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
-        val nf = clipFrames[c]
-        val len = clipLen[c].coerceAtLeast(0.001f)
-        val d = clipData[c] ?: return null
+        val nf = cset.frames[c]
+        val len = cset.len[c].coerceAtLeast(0.001f)
+        val d = cset.data[c] ?: return null
         val n12 = nb * 12
         if (bone.size != n12) bone = FloatArray(n12)
 
@@ -564,7 +606,7 @@ object CuteChar {
         System.arraycopy(bone, 0, keep, 0, n12)
 
         // Etapa 17: braços do masculino mais para dentro (depois do keep, para não acumular na mistura entre clipes)
-        val armTarget = if (!mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
+        val armTarget = if (simOn || !mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
         slotArm[sl] += (armTarget - slotArm[sl]) * (dt * 10f).coerceAtMost(1f)
         if (slotArm[sl] > 0.01f) armIn(bone, MALE_ARM_IN * slotArm[sl], MALE_FOREARM_IN * slotArm[sl])
 
@@ -645,8 +687,9 @@ object CuteChar {
 
     /** Menor y (m) do corpo-base e dos sapatos em todos os quadros do clip; devolve a subida necessária (m), com folga de 1,5 mm. */
     private fun computeLift(c: Int, cs: Active, bs: Skin): Float {
-        val d = clipData.getOrNull(c) ?: return 0f
-        val nf = clipFrames[c]
+        val cset = clipSet
+        val d = cset.data.getOrNull(c) ?: return 0f
+        val nf = cset.frames[c]
         val n12 = nb * 12
         var low = 0f
         fun scan(s: Skin) {
@@ -667,8 +710,8 @@ object CuteChar {
                 }
             }
         }
-        scan(bs)
-        for (s in cs.skins) if (s.key.startsWith("feet/")) scan(s)
+        if (!simOn) scan(bs)
+        for (s in cs.skins) if (s.key.startsWith("feet/") || s.key.startsWith("body/S_")) scan(s)
         val up = -low * heightS + 0.0015f
         return up.coerceIn(0f, 0.06f)
     }
