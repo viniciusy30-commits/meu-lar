@@ -23,7 +23,7 @@ object ModStore {
     @Volatile private var busy = false
     val isBusy: Boolean get() = busy
 
-    val SLOT_NAMES = mapOf("top" to "Blusa", "bottom" to "Calça/saia", "overall" to "Roupa inteira", "feet" to "Sapatos", "hairBack" to "Cabelo", "hat" to "Chapéu", "gloves" to "Luvas", "glasses" to "Óculos", "beard" to "Barba", "headAcc" to "Acessório")
+    val SLOT_NAMES = mapOf("top" to "Blusa", "jacket" to "Jaqueta", "bottom" to "Calça/saia", "overall" to "Roupa inteira", "feet" to "Sapatos", "hairBack" to "Cabelo", "hat" to "Chapéu", "gloves" to "Luvas", "glasses" to "Óculos", "beard" to "Barba", "headAcc" to "Acessório")
 
     @Synchronized
     fun init(ctx: Context) {
@@ -44,9 +44,17 @@ object ModStore {
         // roupas que já vêm no jogo (assets/cute/skate): camiseta oversized CHAOS, calça cargo baggy e tênis preto e branco
         for (g in listOf("af", "am", "tf", "tm", "ef", "em")) {
             items.add(Item("tee_$g", "Camiseta CHAOS", "top", g, 0, true, false, true))
+            items.add(Item("jacket_$g", "Jaqueta jeans preta", "jacket", g, 0, true, false, true))
             items.add(Item("cargo_$g", "Cargo baggy preta", "bottom", g, 0, true, false, true))
-            items.add(Item("shoe_$g", "Tênis panda", "feet", g, 0, true, false, true))
+            items.add(Item("shoe_$g", "Jordan preto e branco", "feet", g, 0, true, false, true))
             items.add(Item("hair_$g", "Wolf cut preto", "hairBack", g, 0, true, true, true))
+        }
+        // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
+        for (g in listOf("am", "tm", "em")) {
+            items.add(Item("singlet_white_$g", "Regata baggy branca", "top", g, 0, true, true, true))
+            items.add(Item("singlet_black_$g", "Regata baggy preta", "top", g, 0, true, true, true))
+            items.add(Item("singlet_love_$g", "Regata love you (preta)", "top", g, 0, true, true, true))
+            items.add(Item("singlet_haters_$g", "Regata haters (preta)", "top", g, 0, true, true, true))
         }
         worn.retainAll(items.map { it.key }.toSet())
     }

@@ -25,6 +25,7 @@ fun main(args: Array<String>) {
         val head = Thumb.Piece(Thumb.headOf(Thumb.parse(File(A + "p_body_${g}1.bin").readBytes())), null, 0, 0, 0xFFE3BFA2.toInt(), false, true)
         for ((name, slot, p) in listOf(
             Triple("tee_$g", "top", listOf(piece("skate/tee_$g.cup", "skate/tee_$g.png"))),
+            Triple("jacket_$g", "jacket", listOf(piece("skate/jacket_$g.cup", "skate/jacket_$g.png"))),
             Triple("cargo_$g", "bottom", listOf(piece("skate/cargo_$g.cup", "skate/cargo_$g.png"))),
             Triple("shoe_$g", "feet", listOf(piece("skate/shoe_$g.cup", "skate/shoe_$g.png"))),
             Triple("hair_$g", "hairBack", listOf(head, piece("skate/hair_$g.cup", "skate/hair_$g.png", true))),

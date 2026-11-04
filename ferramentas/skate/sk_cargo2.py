@@ -37,32 +37,30 @@ def build_cargo2(B,shoe_cup):
     nv=len(P)
     keep=np.ones(nv,bool)
     Q=P.copy(); n=N.copy()
-    off=np.interp(Q[:,1],[ycut,45,60,80,90,100,waist],[5.0,5.4,5.4,4.8,3.6,2.2,1.2])
+    off=np.interp(Q[:,1],[ycut,40,55,70,90,100,waist],[1.8,2.6,2.8,2.0,1.8,1.5,1.2])
     Q=Q+n*off[:,None]
     sgn=np.where(Q[:,0]>=0,1.0,-1.0)
     axis_x=sgn*B.kn[0]
     r=np.stack([Q[:,0]-axis_x,np.zeros(nv),Q[:,2]-B.kn[2]],1); rn=np.linalg.norm(r,axis=1,keepdims=True); rn[rn<1e-6]=1
-    extra=0.5*smooth(98,70,Q[:,1]); Q=Q+(r/rn)*extra[:,None]
     ay=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[0],B.kn[0],B.hip[0]]); az=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[2],B.kn[2],B.hip[2]])
     axx=sgn*ay
     rv=np.stack([Q[:,0]-axx,np.zeros(nv),Q[:,2]-az],1); rl=np.linalg.norm(rv,axis=1); rl[rl<1e-6]=1e-6
-    Rt=np.interp(Q[:,1],[ycut,45,70,92,100],[10.6,11.2,11.8,12.6,11.8])
-    wR=smooth(100,92,Q[:,1])
+    Rt=np.interp(Q[:,1],[ycut,45,70,85,95,102],[11.6,12.2,12.4,12.2,10.4,8.0])   # perna reta (sem 'balão' nos quadris)
+    wR=np.ones(nv)
     newr=rl+(np.maximum(rl,Rt)-rl)*wR
     Q=Q+(rv/rl[:,None])*(newr-rl)[:,None]
     Q[:,0]=sgn*np.maximum(np.abs(Q[:,0]),1.3)
     r=np.stack([Q[:,0]-axis_x,np.zeros(nv),Q[:,2]-B.kn[2]],1); rn=np.linalg.norm(r,axis=1,keepdims=True); rn[rn<1e-6]=1
     th=np.arctan2(r[:,0],r[:,2])
-    fold=0.8*np.sin(6*th+Q[:,1]*0.12)*smooth(100,70,Q[:,1])
+    fold=0.45*np.sin(6*th+Q[:,1]*0.12)*smooth(98,70,Q[:,1])
     Q=Q+(r/rn)*fold[:,None]
     for s in (-1,1):
         side=(Q[:,0]*s>0)
-        px=smooth(-8.2,-6.0,(Q[:,2]-0.5))*smooth(8.2,6.0,(Q[:,2]-0.5))
-        py=smooth(62,65,Q[:,1])*smooth(90,87,Q[:,1])
-        outer=smooth(0.0,1.0,(np.abs(Q[:,0])-(np.abs(axis_x)+2.0))/6.0)
-        bump=4.2*px*py*outer*side
-        dirx=np.stack([np.full(nv,s),np.zeros(nv),np.zeros(nv)],1)
-        Q=Q+dirx*bump[:,None]*0.9+(r/rn)*bump[:,None]*0.3
+        px=smooth(-8.4,-6.4,(Q[:,2]-0.5))*smooth(8.4,6.4,(Q[:,2]-0.5))
+        py=smooth(61,64,Q[:,1])*smooth(88,85,Q[:,1])
+        outer=smooth(0.2,0.8,(Q[:,0]-axis_x)*s/np.maximum(rn[:,0],1e-6))
+        bump=1.9*px*py*outer*side
+        Q=Q+(r/rn)*bump[:,None]
     # laço de borda inferior (por perna): vértices de borda abertos perto de ycut
     be=[e for e in boundary_edges(tri) if P[e[0],1]<60 and P[e[1],1]<60]
     nxt={a:b for a,b in be}

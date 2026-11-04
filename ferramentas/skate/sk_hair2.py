@@ -91,7 +91,7 @@ def cap(B,hp):
     azc=np.arctan2(Pc[:,0],Pc[:,2]-zc); hlc=hairline(azc,B); yy=Pc[:,1]
     top=B.head_y+19.7
     taper=smooth(0.0,3.0,yy-hlc)
-    th=1.1+1.5*smooth(top-10,top,yy)+0.5*smooth(0.3,0.95,np.cos(azc))*smooth(top-8,top-1,yy)
+    th=1.1+1.5*smooth(top-10,top,yy)+1.5*smooth(0.3,0.95,np.cos(azc))*smooth(top-8,top-1,yy)
     th=th*(0.3+0.7*taper)
     Pc=Pc+Nc*th[:,None]
     Pc=laplace(Pc,tri,np.zeros(len(Pc),bool),it=2,lam=0.35)

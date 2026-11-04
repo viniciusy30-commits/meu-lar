@@ -70,6 +70,7 @@ class CreatorUi(
         )),
         Cat("Roupas", 2.6f, 0.95f, listOf(
             Sub("Blusas", 0.3f, null, intArrayOf(), dist = 2.0f, y = 1.1f, sl = 6, slots = listOf("top")),
+            Sub("Jaquetas", 0.3f, null, intArrayOf(), dist = 2.0f, y = 1.1f, sl = 6, slots = listOf("jacket")),
             Sub("Calças", 0.3f, null, intArrayOf(), dist = 2.4f, y = 0.55f, sl = 6, slots = listOf("bottom")),
             Sub("Inteiras", 0.3f, null, intArrayOf(), sl = 6, slots = listOf("overall"))
         )),

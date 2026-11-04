@@ -89,3 +89,17 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Itens antigos do Bozo removidos do manifesto (assets/cute/pieces.txt) e os .bin deles apagados (~8 MB). Ficam só os corpos do Sims 3, o cabelo padrão (Heartbeat) e as peças novas.
 - Miniaturas embutidas: assets/cute/thumbs/<id>.png (tee_/cargo_/shoe_/hair_/hairdef_ + grupo), geradas por ferramentas/thumbs/GeraMiniaturas.kt usando o mesmo Thumb.kt do jogo.
 - Camera: cada categoria enquadra a parte (cabelo/rosto de perto, calças nas pernas, sapatos nos pés).
+
+## Etapa 59 — Cabelo estilo Sims 4, calça reta, Jordan e jaqueta
+- **Cabelo (sk_hair3.py):** médio, repartido ao meio, franja em cortina, camadas. Agora é uma "saia" contínua de cabelo + mechas grossas de seção arredondada, opacas (sem recorte por alfa, sem o pontilhado), com textura preta e brilho azulado suave. Substitui o wolf cut antigo (mesmos arquivos hair_<g>).
+- **Calça (sk_cargo2.py):** sem o "balão" nos quadris/coxas: perna reta e larga (raio quase constante), bolsos de coxa achatados. Barra continua assentando sobre o tênis.
+- **Tênis:** Jordan 1 Low preto e branco modelado do zero (sk_jordan.py): sola com friso e costura, bico preto perfurado, painel branco com faixa lateral preta, calcanhar e colarinho pretos, língua, cadarços. Sem logos/marcas. Arquivos shoe_<g> (nome na lista: "Jordan preto e branco").
+- **Jaqueta jeans preta lavada (sk_jacket.py):** nova peça no tipo "jacket" (Roupas > Jaquetas), veste POR CIMA da blusa: gola virada, botões, bolsos do peito com aba, pences, carcela/pences nas costas, punhos com botão, cós. Ao vestir a jaqueta, a manga da blusa por baixo some (CuteChar.rebuildActive) para não atravessar. "jacket" entrou em MANAGED e nas listas de cobertura do corpo.
+- Miniaturas regeneradas (inclui jaqueta); Thumb.kt enquadra "jacket" de frente.
+
+## Etapa 60 — Regata baggy (Baggy Singlet Set, ArthurGoring / Mod The Sims) embutida
+- Pacote Sims 3 (GEOM + 3 estampas) convertido para os corpos masculinos jovem/adulto/idoso (am, tm, em) com o próprio importador (Fit), depois refinado offline em ferramentas/skate/sk_singlet.py: a parte de cima ficava 1-2 cm DENTRO do corpo (sumia atrás da pele) -> empurrada para fora com margem (decollide); malha subdividida 1x; recorte da regata feito por ALFA na textura (bordas limpas) e não por triângulo.
+- 4 itens em Roupas > Blusas: branca, preta, "I'll love you when you're dead" (preta) e "Haters be hatin" (preta). Arquivos assets/cute/skate/singlet_<variante>_<grupo>.cup/.png.
+- CuteChar: peças com alfa agora são desenhadas sem culling (p.cull=false) — vale para cabelos e roupas recortadas. Peças com alfa não escondem triângulos do corpo (a pele aparece pelos recortes).
+- Ferramentas de diagnóstico do importador em ferramentas/importador (listar GEOMs, dump de texturas, ajuste por grupo).
+- Achado para o importador: pacotes Sims 3 de roupa justa podem afundar no corpo do app; vale aplicar o "decollide" ao importar (ainda não feito no app).

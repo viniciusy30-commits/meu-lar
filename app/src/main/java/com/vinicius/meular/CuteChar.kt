@@ -181,7 +181,7 @@ object CuteChar {
     private var extra2Tex = 0
     private var skateTex = 0
     @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
-    private val MANAGED = setOf("body", "hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
+    private val MANAGED = setOf("body", "hairBack", "hairFront", "top", "jacket", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -308,13 +308,13 @@ object CuteChar {
             for (m in act) {
                 if (!m.mod || m.modAlpha) continue
                 val sl = m.key.substringBefore('/')
-                if (sl != "top" && sl != "bottom" && sl != "overall" && sl != "feet") continue
+                if (sl != "top" && sl != "jacket" && sl != "bottom" && sl != "overall" && sl != "feet") continue
                 val ck = m.key + "@" + sims.key
                 val cv = coverCache.getOrPut(ck) {
                     val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
                     val r = BooleanArray(sims.ni / 3)
                     val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
-                    val lim = if (sl == "top" || sl == "overall") nk - 7f else 9999f
+                    val lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
                     com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lim)
                     r
                 }
@@ -331,6 +331,44 @@ object CuteChar {
                 }
                 ib.position(0)
                 parts[at] = Part(Mt.PLAIN, sims.fb, sims.nv, ib, keep * 3, simsPart.tex).also { it.soft = simsPart.soft; it.push = simsPart.push }
+            }
+        }
+        // jaqueta vestida: some a manga da blusa/roupa de baixo (fica só o tronco, o resto da manga atravessaria a jaqueta)
+        if (act.any { it.mod && it.key.startsWith("jacket/") }) {
+            val rg = rigs[simKey]
+            if (rg != null && rg.size >= 6) {
+                val ux0 = rg[3] - rg[0]; val uy0 = rg[4] - rg[1]; val uz0 = rg[5] - rg[2]
+                val ul = Math.sqrt((ux0 * ux0 + uy0 * uy0 + uz0 * uz0).toDouble()).toFloat().coerceAtLeast(1e-3f)
+                val ux = ux0 / ul; val uy = uy0 / ul; val uz = uz0 / ul
+                for (m in act) {
+                    if (!m.mod || m.modAlpha) continue
+                    val sl = m.key.substringBefore('/')
+                    if (sl != "top" && sl != "overall") continue
+                    val mp = m.part ?: continue
+                    val at = parts.indexOf(mp)
+                    if (at < 0) continue
+                    val nt = m.ni / 3
+                    val gone = BooleanArray(nt)
+                    var keep = 0
+                    for (t in 0 until nt) {
+                        val a = m.idx[t * 3].toInt() and 0xFFFF; val b = m.idx[t * 3 + 1].toInt() and 0xFFFF; val c = m.idx[t * 3 + 2].toInt() and 0xFFFF
+                        val cx = Math.abs(m.pos0[a * 3] + m.pos0[b * 3] + m.pos0[c * 3]) / 3f - rg[0]
+                        val cy = (m.pos0[a * 3 + 1] + m.pos0[b * 3 + 1] + m.pos0[c * 3 + 1]) / 3f - rg[1]
+                        val cz = (m.pos0[a * 3 + 2] + m.pos0[b * 3 + 2] + m.pos0[c * 3 + 2]) / 3f - rg[2]
+                        val tt = cx * ux + cy * uy + cz * uz
+                        val px = cx - tt * ux; val py = cy - tt * uy; val pz = cz - tt * uz
+                        val perp = Math.sqrt((px * px + py * py + pz * pz).toDouble()).toFloat()
+                        gone[t] = tt > 2f && tt < ul * 1.15f && perp < 14.5f
+                        if (!gone[t]) keep++
+                    }
+                    val ib = ByteBuffer.allocateDirect(keep * 3 * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+                    for (t in 0 until nt) {
+                        if (gone[t]) continue
+                        ib.put(m.idx[t * 3]); ib.put(m.idx[t * 3 + 1]); ib.put(m.idx[t * 3 + 2])
+                    }
+                    ib.position(0)
+                    parts[at] = Part(Mt.PLAIN, m.fb, m.nv, ib, keep * 3, mp.tex).also { np -> np.cut = mp.cut; np.cull = mp.cull; np.solid = mp.solid; np.soft = mp.soft; np.push = mp.push }
+                }
             }
         }
         cur = Active(act, Mesh(parts))
@@ -377,7 +415,7 @@ object CuteChar {
                     GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
                 }
                 texIds[tname] = ids[0]
-                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = !j.key.startsWith("hairBack/"); p.solid = true } }
+                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = false; p.solid = true } }
                 library[j.key] = sk
                 j.bmp.recycle()
                 changed = true
