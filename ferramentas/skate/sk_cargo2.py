@@ -23,7 +23,7 @@ class ShoeField:
         return self.H[b,a]
 
 def build_cargo2(B,shoe_cup):
-    SF=ShoeField(read_cup_pos(shoe_cup))
+    SP=read_cup_pos(shoe_cup); SF=ShoeField(SP)
     waist=B.hip[1]+4.5
     ycut=30.0
     footw=np.array([sum(w for b,w in zip(B.BI[i],B.BW[i]) if b in (19,20,23,24)) for i in range(len(B.P))])
@@ -42,10 +42,10 @@ def build_cargo2(B,shoe_cup):
     sgn=np.where(Q[:,0]>=0,1.0,-1.0)
     axis_x=sgn*B.kn[0]
     r=np.stack([Q[:,0]-axis_x,np.zeros(nv),Q[:,2]-B.kn[2]],1); rn=np.linalg.norm(r,axis=1,keepdims=True); rn[rn<1e-6]=1
-    ay=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[0],B.kn[0],B.hip[0]]); az=np.interp(Q[:,1],[B.an[1],B.kn[1],B.hip[1]],[B.an[2],B.kn[2],B.hip[2]])
+    ay=np.interp(Q[:,1],[B.an[1],B.hip[1]],[B.an[0]+0.6,B.hip[0]+1.2]); az=np.interp(Q[:,1],[B.an[1],B.hip[1]],[B.an[2]+0.8,B.hip[2]])   # eixo reto (perna da calça reta, sem dobra no joelho)
     axx=sgn*ay
     rv=np.stack([Q[:,0]-axx,np.zeros(nv),Q[:,2]-az],1); rl=np.linalg.norm(rv,axis=1); rl[rl<1e-6]=1e-6
-    Rt=np.interp(Q[:,1],[ycut,45,70,85,95,102],[11.6,12.2,12.4,12.2,10.4,8.0])   # perna reta (sem 'balão' nos quadris)
+    Rt=np.interp(Q[:,1],[ycut,45,70,85,95,102],[12.0,11.6,11.8,12.6,11.6,8.6])   # perna reta (sem 'balão' nos quadris)
     wR=np.ones(nv)
     newr=rl+(np.maximum(rl,Rt)-rl)*wR
     Q=Q+(rv/rl[:,None])*(newr-rl)[:,None]
@@ -86,11 +86,26 @@ def build_cargo2(B,shoe_cup):
         Q[lv,1]=ycut                         # borda reta
         R0=np.hypot(Q[lv,0]-c[0],Q[lv,2]-c[2])
         # altura da barra: assenta em cima do tênis; atrás/lados cai até quase o chão
-        Rh=R0*0.84-0.9*np.maximum(0,np.cos(ang))
+        # contorno do tênis visto do centro da perna (raio por ângulo)
+        sp=SP[np.sign(SP[:,0])==s]
+        sa=np.arctan2(sp[:,0]-c[0],sp[:,2]-c[2]); sr=np.hypot(sp[:,0]-c[0],sp[:,2]-c[2])
+        NB=72; bins=((sa+np.pi)/(2*np.pi)*NB).astype(int)%NB
+        SR=np.zeros(NB)
+        for kb in range(NB):
+            m=bins==kb
+            if m.any(): SR[kb]=sr[m].max()
+        SR=ndimage.maximum_filter1d(SR,3,mode='wrap'); SR=ndimage.gaussian_filter1d(SR,1.0,mode='wrap')
+        shoeR=SR[((ang+np.pi)/(2*np.pi)*NB).astype(int)%NB]
+        fwd=smooth(0.15,0.65,np.cos(ang))
+        # atrás e dos lados: a barra passa por FORA do tênis e cai quase até o chão; na frente: apoia em cima do peito do pé
+        Rback=np.maximum(R0*0.95,shoeR+1.0)
+        Rfront=R0*0.84-0.9*np.maximum(0,np.cos(ang))
+        Rh=Rback*(1-fwd)+Rfront*fwd
         hx=c[0]+np.sin(ang)*Rh; hz=c[2]+np.cos(ang)*Rh
-        yh=np.maximum(SF(hx,hz)+1.1,1.6)
-        # suaviza circularmente
+        yfront=np.maximum(SF(hx,hz)+1.1,1.6)
+        yh=2.2*(1-fwd)+yfront*fwd
         yh=ndimage.gaussian_filter1d(yh,2.0,mode='wrap')
+        Rh=ndimage.gaussian_filter1d(Rh,1.5,mode='wrap')
         yh=np.maximum(yh,1.6)
         rings=[list(lv)]
         for j in range(1,K+1):

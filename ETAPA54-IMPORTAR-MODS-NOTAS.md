@@ -103,3 +103,8 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - CuteChar: peças com alfa agora são desenhadas sem culling (p.cull=false) — vale para cabelos e roupas recortadas. Peças com alfa não escondem triângulos do corpo (a pele aparece pelos recortes).
 - Ferramentas de diagnóstico do importador em ferramentas/importador (listar GEOMs, dump de texturas, ajuste por grupo).
 - Achado para o importador: pacotes Sims 3 de roupa justa podem afundar no corpo do app; vale aplicar o "decollide" ao importar (ainda não feito no app).
+
+## Etapa 61 — Cabelo, Jordan e calça mais bonitos
+- Cabelo (sk_hair4.py): mechas 3D (tubos achatados e afilados) em camadas: base longa, camada do meio wolf cut com pontas para fora, volume bagunçado no topo, franja bagunçada até as sobrancelhas e mechas laterais emoldurando o rosto. Capacete colado no couro cabeludo (sem "disco" liso no topo). Textura com brilho ao longo da mecha.
+- Jordan (sk_jordan.py): perfil mais baixo; cada parte (cabedal, sola, língua, cadarço, gola) com atlas próprio (antes a projeção sobreposta borrava a pintura); biqueira, gola, calcanhar e painel dos cadarços pretos, faixa lateral em arco, cadarços brancos, sola branca com borracha escura.
+- Calça (sk_cargo2.py): eixo da perna reto (sem dobra no joelho), raio mais uniforme na coxa; atrás e nos lados a barra passa POR FORA do tênis e cai até ~2 cm do chão; na frente assenta no peito do pé.

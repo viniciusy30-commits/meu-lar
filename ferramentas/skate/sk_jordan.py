@@ -28,12 +28,12 @@ def build_shoe(B,side=1):
     N=56; t=np.linspace(0,1,N); S=(1-np.cos(np.pi*t))/2
     Z=z0+S*Lz; w=wF(S); ysb=lift(S); yst=ysb+SOLE
     # altura do cabedal (topo do arco) e abertura do tornozelo
-    hAbs=np.interp(S,[0,0.06,0.10,0.2,0.3,0.4,0.46,0.55,0.65,0.75,0.85,0.92,1.0],[11.4,11.5,11.0,10.2,9.2,8.5,8.4,7.5,6.5,5.5,4.7,4.0,3.4])
+    hAbs=np.interp(S,[0,0.06,0.10,0.2,0.3,0.4,0.46,0.55,0.65,0.75,0.85,0.92,1.0],[10.6,10.7,10.4,9.8,9.0,8.4,8.2,7.4,6.5,5.6,4.8,4.1,3.5])
     tt2=np.clip((S-0.90)/0.10,0,1); toecap=(1-tt2**2.3)**(1/2.3)
     ha_closed=np.maximum(hAbs-yst,0.25)*toecap
     sa,sb=0.085,0.455
     gap=smooth(sa,sa+0.03,S)*(1-smooth(sb-0.11,sb,S))
-    yc=np.interp(S,[0.08,0.2,0.3,0.4,0.46],[11.0,10.3,9.3,8.4,8.0])
+    yc=np.interp(S,[0.08,0.2,0.3,0.4,0.46],[10.3,9.8,9.0,8.3,8.0])
     ha_open=(yc-yst)/0.80
     ha=ha_closed*(1-gap)+ha_open*gap
     th_a=np.arcsin(0.80**(Q_EXP/2))
@@ -84,8 +84,8 @@ def build_shoe(B,side=1):
     tb=[];KT=9
     for u in np.linspace(0,1,8):
         zt=Z[i0]+(Z[i1]-Z[i0])*u*1.02
-        yb=yst[i0]+ha[i0]*0.93+(11.9-(yst[i0]+ha[i0]*0.93))*smooth(0,1,u)*1.0
-        wd=w[i0]*(0.56+0.34*u)
+        yb=yst[i0]+ha[i0]*0.93+(10.2-(yst[i0]+ha[i0]*0.93))*smooth(0,1,u)*1.0
+        wd=w[i0]*(0.60-0.12*u**2)
         row=[]
         for v in np.linspace(-1,1,KT):
             row.append((xc+v*wd, yb+0.6*(1-v*v)*0.5-0.0*u, zt+0.55*(1-v*v)*(1-0.4*u)))
@@ -157,69 +157,40 @@ def paint_jordan(F,info):
     H,W,_=F.shape
     X,Y,Z=F[...,0],F[...,1],F[...,2]; nx,ny,nz=F[...,3],F[...,4],F[...,5]
     part=np.rint(F[...,6]).astype(int); S=F[...,7]; lx=F[...,8]
-    z0,z1=info['z0'],info['z1']; Lz=z1-z0
-    yy,xx=np.mgrid[0:H,0:W].astype(np.float32)
-    WHITE=np.array([240,240,236],np.float32); BLACK=np.array([24,24,27],np.float32); GREY=np.array([205,205,200],np.float32)
-    grain=noise((H,W),0.8,31)
+    WHITE=np.array([238,238,234],np.float32); BLACK=np.array([22,22,25],np.float32)
     img=np.zeros((H,W,3),np.float32)+WHITE
-    img=img*(1+0.018*grain[...,None])
-    crease=noise((H,W),4.0,32)*0.5+0.5
-    img=img*(1-0.05*(crease[...,None]-0.5))
-    yst=2.9
-    up=(part==0)
-    black=np.zeros((H,W),bool)
-    # bico preto
-    capb=0.735
-    black|=up&(S>capb)
-    # colarinho (faixa na borda da abertura) e contraforte do calcanhar
-    yrim=np.interp(S,[0.08,0.2,0.3,0.4,0.46,0.55],[11.0,10.3,9.3,8.4,8.0,0.0])
-    black|=up&(S<0.47)&(Y>yrim-1.25)
-    heel_edge=0.07+0.075*smooth(3.4,10.0,Y)
-    black|=up&(S<heel_edge)
-    # painel lateral (faixa curva) preto
-    pts=np.array([(z0+0.215*Lz,yst+1.4),(z0+0.30*Lz,yst+0.95),(z0+0.42*Lz,yst+1.7),(z0+0.53*Lz,yst+3.3),(z0+0.62*Lz,yst+4.6)])
-    side=up&(np.abs(nx)>0.35)&(S<0.70)
-    d,u=poly_dist(Z,Y,pts,side)
-    tot=np.linalg.norm(pts[-1]-pts[0]); uu=np.clip(u/ (tot*1.05),0,1)
-    thick=1.55*(1-uu)**0.8+0.35
-    black|=side&(d<thick)
-    img=blend(img,black,BLACK)
-    # costuras brancas nas bordas dos pretos
-    d_cap=np.abs(S-capb)*Lz
-    img=stitch_line(img,d_cap+(~up)*9,Y*1.2+X*0.7,0.12,GREY,0.55,0.6)
-    d_rim=np.abs(Y-(yrim-1.25))
-    img=stitch_line(img,d_rim+((~up)|(S>0.47)|(S<0.08))*9,Z*1.2,0.11,GREY,0.55,0.6)
-    # perfurações do bico
-    px=(X*1.8); pz=(Z*1.8)
-    cell=((np.abs(((px+0.5*np.floor(pz))%1.0)-0.5)**2+np.abs((pz%1.0)-0.5)**2)<0.07)
-    perf=up&(S>0.80)&(S<0.94)&(ny>0.35)&(np.abs(lx)<4.4)
-    img=blend(img,perf&cell,np.array([70,70,76]))
-    # sombra de oclusão perto da sola
-    ao=smooth(yst+2.2,yst,Y)*up
-    img=img*(1-0.18*ao[...,None])
-    # sola
+    img=img*(1+0.02*noise((H,W),0.8,31)[...,None])
+    up=(part==0); Wd=info['W']; side=np.abs(lx)/max(Wd,1e-6)
+    blk=np.zeros((H,W),bool)
+    capE=0.795+0.03*smooth(0.3,1.0,side)          # biqueira preta (borda curva)
+    blk|=up&(S>capE)
+    blk|=up&(S>0.42)&(S<0.705)&(np.abs(lx)<2.9)   # ilhoses / painel dos cadarços
+    yrim=np.interp(S,[0.0,0.08,0.2,0.3,0.4,0.46],[10.6,10.6,9.8,9.0,8.3,8.0])
+    blk|=up&(S<0.46)&(Y>yrim-1.5)                 # gola
+    blk|=up&(S<0.13+0.07*smooth(3.0,9.0,Y))       # contraforte do calcanhar
+    # faixa lateral (arco genérico) do calcanhar até o peito do pé
+    z0,z1=info['z0'],info['z1']; Lz=z1-z0; yst=2.9
+    pts=np.array([(z0+0.22*Lz,yst+1.1),(z0+0.34*Lz,yst+1.0),(z0+0.47*Lz,yst+2.2),(z0+0.60*Lz,yst+4.0)])
+    sd=up&(side>0.55)&(S>0.19)&(S<0.66)
+    d,u=poly_dist(Z,Y,pts,sd)
+    tot=np.linalg.norm(np.diff(pts,axis=0),axis=1).sum(); uu=np.clip(u/tot,0,1)
+    blk|=sd&(d<(0.2+0.8*(1-uu)**1.3))
+    img=blend(img,blk,BLACK)
+    GRY=np.array([150,150,150],np.float32)
+    img=stitch_line(img,np.abs(S-capE)*Lz+(~up)*9,X*2+Y*2,0.07,GRY,0.45,0.6,False)
+    img=stitch_line(img,np.abs(Y-(yrim-1.5))+((~up)|(S>0.46))*9,Z*2,0.07,GRY,0.45,0.6,False)
+    # sombra junto da sola
+    img=img*(1-0.15*(up*smooth(yst+1.8,yst,Y))[...,None])
     so=(part==1)
-    mid=np.array([244,244,240],np.float32)
-    img=blend(img,so,mid)
-    bottom=so&(ny<-0.55)
-    tread=np.array([58,58,62],np.float32)+np.array([10,10,10],np.float32)*(0.5+0.5*np.sin(Z*2.6)*np.sin(X*2.6))[...,None]
-    img=np.where(bottom[...,None],tread,img)
-    sidew=so&(ny>=-0.55)
-    # linha de costura da sola e friso cinza
-    img=blend(img,sidew&(np.abs(Y-1.75)<0.07),np.array([200,200,200]))
-    d_st=np.abs(Y-2.15)
-    img=stitch_line(img,d_st+(~sidew)*9,Z*1.0+X*1.0,0.075,np.array([150,150,150]),0.5,0.55,False)
-    img=blend(img,sidew&(Y<0.35),np.array([225,225,222]))
-    img=img*(1-0.10*(sidew&(ny<0.2)&(Y>0.2)&(Y<1.0))[...,None])
-    # língua: branca com faixa preta no topo
+    img=blend(img,so,np.array([244,244,240]))
+    img=blend(img,so&(ny<-0.55),np.array([30,30,33]))
+    img=blend(img,so&(ny>=-0.55)&(Y<0.45),np.array([40,40,44]))
+    img=blend(img,so&(ny>=-0.55)&(np.abs(Y-2.0)<0.06),np.array([170,170,170]))
     tg=(part==2)
-    img=blend(img,tg,np.array([242,242,238]))
-    img=blend(img,tg&(Y>11.3),BLACK)
-    # cadarço
-    img=blend(img,part==3,np.array([30,30,32]))
+    img=blend(img,tg,np.array([240,240,236])); img=blend(img,tg&(Y>9.4),BLACK)
+    img=blend(img,part==3,np.array([235,235,232]))   # cadarços brancos
     img=blend(img,part==4,BLACK)
-    img=np.clip(img,0,255)
-    return img.astype(np.uint8)
+    return np.clip(img,0,255).astype(np.uint8)
 
 def bake_nolip(P,N,T,A):
     Pn,Nn,An,UV,Tn=unwrap(P,N,T,A)
@@ -232,9 +203,25 @@ def do_jordan(B,g,OUT):
     N=vnormals(P,T)
     cen=np.stack([np.full(len(P),info['xc']),np.full(len(P),5.0),P[:,2]],1)
     fl=((P-cen)*N).sum(1)<0; N[fl]=-N[fl]
-    Pn,Nn,An,UV,Tn,F=bake_nolip(P,N,T,A)
-    Image.fromarray(paint_jordan(F,info)).save(OUT+'%s_shoes.png'%g,optimize=True)
-    # pé esquerdo = espelho (mesmas UV, mesma textura)
+    # cada peça com seu próprio atlas (projeção planar sobreposta estragava a textura)
+    tpart=np.rint(A[T][:,0,0]).astype(int)
+    groups=[[0],[1],[2],[3],[4]]
+    slots=[(0,0,2,2),(0,2,2,2),(0,4,1,1),(1,4,1,1),(0,5,1,1)]   # (col,row,w,h) em unidades de 768x512
+    GW,GH=2,6
+    big=np.zeros((GH*512,GW*768,3),np.uint8)
+    Ps=[];Ns=[];Us=[];Ts=[];base=0
+    for gi,(grp,(cx,cy,w,h)) in enumerate(zip(groups,slots)):
+        sel=np.isin(tpart,grp)
+        if not sel.any(): continue
+        Tg=T[sel]; u,inv=np.unique(Tg.ravel(),return_inverse=True); Tg=inv.reshape(-1,3)
+        Pn,Nn,An,UV,Tn,F=bake_nolip(P[u],N[u],Tg,A[u])
+        tex=paint_jordan(F,info)
+        tim=Image.fromarray(tex).resize((w*768,h*512),Image.LANCZOS)
+        big[cy*512:(cy+h)*512,cx*768:(cx+w)*768]=np.array(tim)
+        UV2=np.stack([(cx+UV[:,0]*w)/GW,(cy+UV[:,1]*h)/GH],1)
+        Ps.append(Pn);Ns.append(Nn);Us.append(UV2);Ts.append(Tn+base);base+=len(Pn)
+    Pn=np.vstack(Ps);Nn=np.vstack(Ns);UV=np.vstack(Us);Tn=np.vstack(Ts)
+    Image.fromarray(big).resize((2048,2048),Image.LANCZOS).save(OUT+'%s_shoes.png'%g,optimize=True)
     n=len(Pn); PL=Pn.copy(); PL[:,0]*=-1; NL=Nn.copy(); NL[:,0]*=-1
     PP=np.vstack([Pn,PL]); NN=np.vstack([Nn,NL]); UU=np.vstack([UV,UV]); TT=np.vstack([Tn,Tn[:,[0,2,1]]+n])
     bi,bw=transfer_weights(B,PP); write_cup(OUT+'%s_shoes.cup'%g,PP,NN,UU,TT,bi,bw)
