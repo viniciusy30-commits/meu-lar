@@ -47,6 +47,9 @@ object ModStore {
             items.add(Item("jacket_$g", "Jaqueta jeans preta", "jacket", g, 0, true, false, true))
             items.add(Item("cargo_$g", "Cargo baggy preta", "bottom", g, 0, true, false, true))
             items.add(Item("shoe_$g", "Jordan preto e branco", "feet", g, 0, true, false, true))
+            items.add(Item("short_$g", "Short preto", "bottom", g, 0, true, false, true))
+            // alpha=true: não esconde a pele do pé por baixo (chinelo deixa o pé aparecendo)
+            items.add(Item("kenner_$g", "Chinelo estilo Kenner", "feet", g, 0, true, true, true))
             items.add(Item("hair_$g", "Wolf cut preto", "hairBack", g, 0, true, true, true))
             // Sims 4: Bernard Hair (JohnnySims), mesh original reajustado à cabeça de cada corpo
             items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))

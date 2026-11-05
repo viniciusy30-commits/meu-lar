@@ -129,3 +129,9 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Itens embutidos `bern1_<grupo>` (assets/cute/skate/*.cup/.png + thumbs). Registrados no ModStore.
 - Crianças (cu) e bebês (pu) também: o ajuste roda com a cabeça do corpo reduzida ao tamanho adulto e o cabelo volta à escala real. Tampa de couro cabeludo (0,4 cm acima do crânio, textura preta) tapa as falhas da nuca e do topo. V2 não incluído. Não testado no aparelho.
 - Viseira: as mechas que saíam 12 cm à frente da testa são comprimidas e caem sobre a testa (drape).
+
+## Etapa 66 — Short preto e Chinelo estilo Kenner (peças do jogo)
+- `short_<grupo>` ("Short preto", categoria Calça/Bermuda): short baggy preto logo acima do joelho, cós elástico com cordão e costuras. Feito sobre cada corpo (af, am, tf, tm, ef, em).
+- `kenner_<grupo>` ("Chinelo estilo Kenner", categoria Sapato): chinelo de dedo com solado grosso, tudo preto: palmilha com textura de pontinhos e tira acolchoada em Y (modelo Kenner Red/Pro); marcado como "alpha" no ModStore para NÃO esconder a pele do pé (senão o pé some por baixo do solado). Sem logotipo da marca (só o estilo).
+- Arquivos: assets/cute/skate/{short,kenner}_<g>.cup/.png e assets/cute/thumbs/{short,kenner}_<g>.png; itens registrados no ModStore.kt.
+- Não testado no aparelho. Crianças (cu/pu) não têm essas peças (igual à cargo/jordan).
