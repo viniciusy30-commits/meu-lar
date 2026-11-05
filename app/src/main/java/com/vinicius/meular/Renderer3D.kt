@@ -99,6 +99,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var avMesh: Mesh? = null
     private var stageM: Mesh? = null
     private val cloth = ClothCurtains()
+    /** Usa o que está ao alcance (porta ou cortina). Chamado pela thread da interface. */
+    fun interact() {
+        when (nearKind) {
+            1 -> doorOpen = !doorOpen
+            2 -> cloth.toggle(nearId)
+        }
+    }
+
+    /** Porta aberta/fechada (agora por interação, não mais automática). */
+    @Volatile var doorOpen = false
+    /** O que está ao alcance do personagem: 0 nada, 1 porta, 2 cortina (para o botão de interação). */
+    @Volatile var nearKind = 0
+    @Volatile var nearId = 0
+    @Volatile var nearLabel = ""
     private var clothT = 0L
     // Etapa 34: na vista aérea o jogador é o MESMO personagem da câmera de perto (px, pz, pYaw); toque no chão = andar até lá
     @Volatile private var walkReq: FloatArray? = null
@@ -651,10 +665,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
-        CuteChar.hideAbove = if (mode == 0 && !third && CuteChar.ready) 0.925f * CuteChar.bodyTop() else Float.NaN   // 1ª pessoa: nada colado no olho
+        CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
         val cute = if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
-        CuteChar.hideAbove = Float.NaN
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
         Matrix.setIdentityM(mdl, 0)
@@ -845,12 +858,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 Matrix.perspectiveM(proj, 0, 60f, aspect, 0.08f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
-                // 1ª pessoa: a câmera fica no olho do personagem (um pouco à frente do pescoço); o corpo aparece ao olhar para baixo
-                val bt = CuteChar.bodyTop()
+                // 1ª pessoa: a câmera fica no olho do personagem, seguindo a cabeça animada (corrida, pulo...)
                 val lift = if (CuteChar.ready) CuteChar.lift(0) else 0f
-                val fwx = sin(fyaw); val fwz = -cos(fyaw)
-                ex = px + fwx * CuteChar.FP_FWD; ez = pz + fwz * CuteChar.FP_FWD
-                ey = baseY + py + lift + 0.925f * bt
+                val dn = maxOf(0f, -fpitch).coerceAtMost(1.45f)
+                val adj = 0.11f * sin(dn)          // olhando para baixo, a cabeça se inclina e o olho vai para a frente do peito
+                CuteChar.fpAdjF = adj
+                val er = Math.toRadians(pYaw.toDouble())
+                val ecs = cos(er).toFloat(); val esn = sin(er).toFloat()
+                val mex = CuteChar.fpEye[0]; val mez = CuteChar.fpEye[2] + adj
+                ex = px + mex * ecs + mez * esn
+                ez = pz - mex * esn + mez * ecs
+                ey = baseY + py + lift + (if (CuteChar.fpEye[1] > 0.5f) CuteChar.fpEye[1] else 1.5f) - 0.03f * sin(dn)
                 Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
@@ -912,6 +930,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val dtc = if (clothT == 0L) 0.016f else ((tn - clothT) / 1e9f).coerceIn(0f, 0.05f)
             clothT = tn
             cloth.step(dtc, (tn / 1_000_000L % 1_000_000L) / 1000f, gw.toFloat(), gh.toFloat(), px, pz, st.items)
+            // o que dá para usar daqui (porta ou cortina mais perto)
+            if (mode == 0) {
+                val ddx = px - gw / 2f; val ddz = pz - (gh - 0.3f)
+                val dDoor = Math.sqrt((ddx * ddx + ddz * ddz).toDouble()).toFloat()
+                val nw = cloth.nearest(px, pz, gw.toFloat(), gh.toFloat())
+                if (dDoor < 1.6f && dDoor <= nw.second) { nearKind = 1; nearId = 0; nearLabel = if (doorOpen) "Fechar porta" else "Abrir porta" }
+                else if (nw.first >= 0 && nw.second < 1.5f) { nearKind = 2; nearId = nw.first; nearLabel = if (cloth.wins[nw.first].closed) "Abrir cortina" else "Fechar cortina" }
+                else nearKind = 0
+            } else nearKind = 0
             for (pn in cloth.panels) if (shown[pn.wall]) {
                 wallModel(pn.wall, gw.toFloat(), gh.toFloat())
                 draw(pn.mesh, mdl, 1f)
@@ -922,9 +949,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val now2 = System.nanoTime()
             val dtd = ((now2 - doorT) / 1e9f).coerceIn(0f, 0.1f)
             doorT = now2
-            val dx = px - gw / 2f; val dz = pz - gh.toFloat()
-            val near = dx * dx + dz * dz < 2.3f * 2.3f
-            val tgt = if (near) 100f else 0f
+            val tgt = if (doorOpen) 100f else 0f
             doorAng += (tgt - doorAng) * Math.min(1f, dtd * 5f)
             if (Math.abs(tgt - doorAng) < 0.3f) doorAng = tgt
             if (shown[1]) {

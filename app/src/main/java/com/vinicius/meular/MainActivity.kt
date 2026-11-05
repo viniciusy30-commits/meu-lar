@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var hud: LinearLayout
     private lateinit var bottom: LinearLayout
     private lateinit var jumpBtn: FrameLayout
+    private lateinit var useBtn: TextView
     private lateinit var dockR: LinearLayout
     private lateinit var creator: CreatorUi
     private var prevMode = 0
@@ -258,6 +259,28 @@ class MainActivity : AppCompatActivity() {
         jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
         press(jumpBtn) { if (game.mode == 0) game.r.jumpReq = true }
         root.addView(jumpBtn, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(18), dp(72)) })
+
+        // botão de interação: aparece só quando há porta ou cortina ao alcance
+        useBtn = TextView(this)
+        useBtn.setTextColor(Color.WHITE); useBtn.textSize = 15f
+        useBtn.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        useBtn.gravity = Gravity.CENTER
+        useBtn.setPadding(dp(22), dp(11), dp(22), dp(11))
+        useBtn.background = Ui.frost(dpf(24f), 0x2FA8F0, 0xC8, 0x8A, dpf(1.5f))
+        useBtn.visibility = View.GONE
+        press(useBtn) { game.r.interact() }
+        root.addView(useBtn, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.setMargins(0, 0, 0, dp(96)) })
+        val useTick = object : Runnable {
+            override fun run() {
+                val k = game.r.nearKind
+                if (game.mode == 0 && k != 0) {
+                    useBtn.text = game.r.nearLabel
+                    if (useBtn.visibility != View.VISIBLE) useBtn.visibility = View.VISIBLE
+                } else if (useBtn.visibility != View.GONE) useBtn.visibility = View.GONE
+                useBtn.postDelayed(this, 150)
+            }
+        }
+        useBtn.post(useTick)
 
         creator = CreatorUi(this, st, game) { fecharCriador() }
         creator.visibility = View.GONE

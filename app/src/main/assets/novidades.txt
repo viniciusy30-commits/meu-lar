@@ -1,3 +1,11 @@
+#id 2026-11-07-e
+#titulo Interação, câmera e criação
+- Porta e cortinas agora abrem e fecham por interação (botão aparece quando você chega perto)
+- Câmera em 1ª pessoa segue a cabeça do personagem, sem mostrar o interior do corpo ao olhar para baixo
+- Cortinas refeitas: abertas ficam recolhidas nas laterais, fechadas cobrem a janela
+- Criação de personagem mais limpa: sem textos extras, setas de girar fora do personagem
+- Ícones das categorias redesenhados em silhueta, no estilo The Sims 4
+
 #id 2026-11-07-d
 #titulo Mãos fechadas na corrida
 - O personagem agora corre com as mãos fechadas em punho (dedos e polegar dobram aos poucos ao começar a correr e soltam ao parar)

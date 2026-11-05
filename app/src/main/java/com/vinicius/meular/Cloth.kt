@@ -25,7 +25,16 @@ class ClothCurtains {
     private val FULL = 1.85f     // largura do tecido (fullness): sobra vira prega
     private val Z0 = 0.075f      // distância mínima da parede
 
-    inner class Panel(val wall: Int, val xTop0: Float, val xTop1: Float, val tieX: Float, val col: Int, val phase: Float) {
+    inner class Panel(val wall: Int, val cx: Float, val ww: Float, val side: Int, val col: Int, val phase: Float) {
+        var t = 0f              // 0 = aberta (amarrada ao lado), 1 = fechada (cobre a janela)
+        var tgt = 0f
+        val tieX: Float = cx + side * (ww / 2f + 0.10f + 0.05f)
+        private val o0: Float = if (side < 0) cx - (ww / 2f + 0.10f) - PW else cx + (ww / 2f + 0.10f)
+        private val o1: Float = o0 + PW
+        private val c0: Float = if (side < 0) cx - ww / 2f - 0.14f else cx - 0.03f
+        private val c1: Float = if (side < 0) cx + 0.03f else cx + ww / 2f + 0.14f
+        var xTop0 = o0
+        var xTop1 = o1
         val n = NX * NY
         val x = FloatArray(n); val y = FloatArray(n); val z = FloatArray(n)
         val ox = FloatArray(n); val oy = FloatArray(n); val oz = FloatArray(n)
@@ -39,21 +48,29 @@ class ClothCurtains {
         val mesh: Mesh
         val ni: Int
 
-        init {
+        fun updateAnchors() {
+            xTop0 = o0 + (c0 - o0) * t; xTop1 = o1 + (c1 - o1) * t
             for (j in 0 until NY) for (i in 0 until NX) {
                 val k = j * NX + i
                 val u = i / (NX - 1f)
-                x[k] = xTop0 + (xTop1 - xTop0) * u
-                y[k] = TOP - restY * j
-                z[k] = 0.118f + 0.05f * (i % 2) * (j / (NY - 1f))
-                ox[k] = x[k]; oy[k] = y[k]; oz[k] = z[k]
                 val v = j / (NY - 1f)
                 val mid = (xTop0 + xTop1) / 2f
                 val bandX = tieX + (u - 0.5f) * 0.09f
                 val ux = xTop0 + (xTop1 - xTop0) * u
-                ax[k] = if (j <= rowT) ux + (bandX - ux) * (j / rowT.toFloat())
-                        else { val t2 = (j - rowT) / (NY - 1f - rowT); bandX + ((mid + (u - 0.5f) * PW * 1.22f) - bandX) * t2 }
-                az[k] = 0.118f + 0.10f * (i % 2) * (0.25f + 0.75f * v)
+                val axOpen = if (j <= rowT) ux + (bandX - ux) * (j / rowT.toFloat())
+                             else { val t2 = (j - rowT) / (NY - 1f - rowT); bandX + ((mid + (u - 0.5f) * PW * 1.22f) - bandX) * t2 }
+                ax[k] = axOpen + (ux - axOpen) * t
+                az[k] = 0.118f + (0.10f - 0.055f * t) * (i % 2) * (0.25f + 0.75f * v)
+            }
+        }
+
+        init {
+            updateAnchors()
+            for (j in 0 until NY) for (i in 0 until NX) {
+                val k = j * NX + i
+                x[k] = ax[k]; y[k] = TOP - restY * j
+                z[k] = az[k]
+                ox[k] = x[k]; oy[k] = y[k]; oz[k] = z[k]
             }
             val idx = ShortArray((NX - 1) * (NY - 1) * 6)
             var c = 0
@@ -111,16 +128,43 @@ class ClothCurtains {
     private var gh = 0f
     private var tAcc = 0f
 
-    fun clear() { panels.clear() }
+    fun clear() { panels.clear(); wins.clear() }
+
+    /** Uma janela com suas duas folhas; [closed] = cortina fechada. */
+    class Win(val wall: Int, val c: Float, val w: Float, val left: Panel, val right: Panel) {
+        var closed = false
+    }
+    val wins = ArrayList<Win>()
 
     /** Cria as duas folhas (esquerda e direita) de uma janela da parede [wall] (coordenadas locais da parede). */
     fun addWindow(wall: Int, c: Double, w: Double, col: Int) {
-        val xin = (w / 2 + 0.10).toFloat()
-        val cc = c.toFloat()
-        // esquerda: borda externa em c - xin - PW, interna em c - xin
-        panels.add(Panel(wall, cc - xin - PW, cc - xin, cc - xin - 0.05f, col, 0f))
-        // direita
-        panels.add(Panel(wall, cc + xin, cc + xin + PW, cc + xin + 0.05f, col, 1.7f))
+        val l = Panel(wall, c.toFloat(), w.toFloat(), -1, col, 0f)
+        val r = Panel(wall, c.toFloat(), w.toFloat(), 1, col, 1.7f)
+        panels.add(l); panels.add(r)
+        wins.add(Win(wall, c.toFloat(), w.toFloat(), l, r))
+    }
+
+    fun toggle(i: Int) {
+        val w = wins.getOrNull(i) ?: return
+        w.closed = !w.closed
+        val tg = if (w.closed) 1f else 0f
+        w.left.tgt = tg; w.right.tgt = tg
+    }
+
+    /** Janela mais próxima do personagem (índice, distância em metros) ou (-1, grande). */
+    fun nearest(plx: Float, plz: Float, gw: Float, gh: Float): Pair<Int, Float> {
+        var bi = -1; var bd = 1e9f
+        for ((i, w) in wins.withIndex()) {
+            val wx: Float; val wz: Float
+            when (w.wall) {
+                1 -> { wx = gw - w.c; wz = gh - 0.4f }
+                2 -> { wx = 0.4f; wz = gh - w.c }
+                else -> { wx = w.c; wz = 0.4f }
+            }
+            val d = sqrt((plx - wx) * (plx - wx) + (plz - wz) * (plz - wz))
+            if (d < bd) { bd = d; bi = i }
+        }
+        return Pair(bi, bd)
     }
 
     /** Passo da física. Posição do personagem e móveis em coordenadas do mundo. */
@@ -145,6 +189,11 @@ class ClothCurtains {
     private fun stepPanel(p: Panel, dt: Float, time: Float, plx: Float, plz: Float, items: List<Item>) {
         val n = p.n
         val g = -9.0f * dt * dt
+        if (abs(p.tgt - p.t) > 0.001f) {
+            val stp = dt * 1.1f
+            p.t = if (p.tgt > p.t) min(p.tgt, p.t + stp) else max(p.tgt, p.t - stp)
+            p.updateAnchors()
+        }
         // personagem e móveis no espaço local da parede
         toLocal(p.wall, plx, plz, tl)
         val pcx = tl[0]; val pcz = tl[1]
@@ -193,10 +242,11 @@ class ClothCurtains {
                 val k = rt * NX + i
                 val u = i / (NX - 1f) - 0.5f
                 val tx = p.tieX + u * 2f * half
-                p.x[k] += (tx - p.x[k]) * 0.8f
+                val tw = 1f - p.t
+                p.x[k] += (tx - p.x[k]) * 0.8f * tw
                 val tz = 0.14f + 0.03f * (i % 2)
-                p.z[k] += (tz - p.z[k]) * 0.35f
-                p.y[k] += ((TIE_Y) - p.y[k]) * 0.5f
+                p.z[k] += (tz - p.z[k]) * 0.35f * tw
+                p.y[k] += ((TIE_Y) - p.y[k]) * 0.5f * tw
             }
             // memória das pregas: puxão leve para a forma costurada (o tecido balança em volta dela)
             for (j in 1 until NY) {
@@ -212,18 +262,22 @@ class ClothCurtains {
                 val k = j * NX + i
                 if (p.z[k] < Z0) p.z[k] = Z0
                 if (p.y[k] < 0.02f) { p.y[k] = 0.02f }
-                // personagem: cilindro de 30 cm de raio
-                if (p.y[k] < 1.8f) {
+                // personagem (cilindro de 26 cm de raio): quem está entre ele e a parede é aberto para o lado, nunca jogado para a frente
+                if (p.y[k] < 1.8f && pcz < 0.9f) {
                     val dx = p.x[k] - pcx; val dz = p.z[k] - pcz
                     val d2 = dx * dx + dz * dz
-                    val r = 0.30f
+                    val r = 0.26f
                     if (d2 < r * r) {
                         val d = sqrt(max(d2, 1e-6f))
-                        // sempre empurra para o lado de dentro do cômodo (z) quando está atrás do personagem
-                        val nx = dx / d; var nz = dz / d
-                        if (nz < 0f) nz = abs(nz) * 0.2f
-                        p.x[k] = pcx + nx * r
-                        p.z[k] = max(p.z[k], pcz + nz * r)
+                        var nxx = dx / d; var nzz = dz / d
+                        var zz = pcz + nzz * r
+                        var xx = pcx + nxx * r
+                        if (zz < Z0) {
+                            zz = Z0
+                            val lat = sqrt(max(r * r - (zz - pcz) * (zz - pcz), 0f))
+                            xx = pcx + (if (dx >= 0f) lat else -lat)
+                        }
+                        p.x[k] = xx; p.z[k] = max(zz, Z0)
                     }
                 }
             }
@@ -240,7 +294,7 @@ class ClothCurtains {
                 }
                 if (lz0 > 1.3f || lx1 < p.xTop0 - 0.2f || lx0 > p.xTop1 + 0.2f) continue
                 val top = it.type.alt
-                if (top < HEM - 0.05f) continue
+                if (top < HEM - 0.05f || top > 1.2f) continue   // só móveis baixos (sofá, mesa, cama): o tecido pousa neles; os altos ficam na frente do tecido
                 for (j in 1 until NY) for (i in 0 until NX) {
                     val k = j * NX + i
                     val px = p.x[k]; val py = p.y[k]; val pz = p.z[k]

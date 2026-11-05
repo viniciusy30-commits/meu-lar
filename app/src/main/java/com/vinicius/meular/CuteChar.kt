@@ -88,8 +88,18 @@ object CuteChar {
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
     /** Etapa 74 (1ª pessoa): tudo acima desta altura (m) é recolhido num ponto no pescoço, para a cabeça não tapar a câmera. NaN = desligado. */
-    @Volatile var hideAbove = Float.NaN
+    @Volatile var hideAbove = Float.NaN   // (antigo, não usado)
+    /** 1ª pessoa ligada: a cabeça sai da frente da câmera e o olho passa a seguir a cabeça animada. */
+    @Volatile var fpOn = false
+    /** Deslocamento extra do olho para a frente (m) quando olha para baixo. */
+    @Volatile var fpAdjF = 0f
+    /** Posição do olho no espaço do modelo (m): x, y, z (z = para a frente), seguindo a cabeça animada. */
+    val fpEye = FloatArray(3)
+    private var fpEyeInit = false
+    private val fpRing = FloatArray(3)
+    private var fpRingOk = false
     private var topRef = 0f
+    private var fpRestTop = 0f   // altura do corpo-base na pose de repouso (cm)
     /** Distância (m) do olho à frente do eixo do corpo na 1ª pessoa (a câmera fica um pouco adiante do rosto). */
     const val FP_FWD = 0.13f
     @Volatile private var topObs = 0f   // topo da cabeça medido no último quadro (já com pose e escala)
@@ -1057,11 +1067,9 @@ object CuteChar {
         val bw = s.bw
         val out = s.out
         val hs = heightS
-        // 1ª pessoa (hideAbove = altura do olho no espaço do modelo): o que ficaria colado na câmera (rosto, franja, chapéu,
-        // armação de óculos) é levado para o ponto do olho; todo triângulo que passa pelo olho é visto "de lado" e não tampa nada.
-        val eyeY = hideAbove
-        val clearOn = !eyeY.isNaN()
-        val r2 = if (!clearOn) 0f else if (base) 0.16f * 0.16f else if (s.key.substringBefore('/') in HEAD_SLOTS) 0.30f * 0.30f else 0f
+        val fp = fpOn
+        val slotName = s.key.substringBefore('/')
+        val headSlot = fp && !base && slotName in HEAD_SLOTS
         var topMax = 0f
         for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
@@ -1081,14 +1089,56 @@ object CuteChar {
             }
             val o = v * STRIDE
             if (base && y * hs > topMax) topMax = y * hs
-            val vwx = x * hs; val vwy = y * hs; val vwz = z * hs
-            if (r2 > 0f && vwx * vwx + (vwy - eyeY) * (vwy - eyeY) + (vwz - FP_FWD) * (vwz - FP_FWD) < r2) { out[o] = 0f; out[o + 1] = eyeY; out[o + 2] = FP_FWD }
-            else { out[o] = vwx; out[o + 1] = vwy; out[o + 2] = vwz }
+            out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs
             val nl = Math.sqrt((snx * snx + sny * sny + snz * snz).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = snx * inv; out[o + 4] = if (nl > 1e-9f) sny * inv else 1f; out[o + 5] = snz * inv
         }
         if (base && topMax > 0.8f) topObs = topMax
+
+        if (fp) {
+            // altura de repouso do corpo (cm) e o corte do queixo, medidos na pose de repouso (não mudam com a animação)
+            val p0 = s.pos0
+            if (base) {
+                var rt = 0f
+                for (v in 0 until s.nv) { val yy = p0[v * 3 + 1]; if (yy > rt) rt = yy }
+                if (rt > 50f) fpRestTop = rt
+            }
+            val rtop = if (fpRestTop > 50f) fpRestTop else 0f
+            if (rtop > 0f) {
+                val cut = rtop * 0.862f
+                val band = rtop * 0.035f
+                // anel do pescoço (logo abaixo do queixo) na pose atual: o centro dele fecha o pescoço e ancora o olho
+                if (base) {
+                    var sx = 0f; var sy = 0f; var sz = 0f; var cn = 0
+                    for (v in 0 until s.nv) {
+                        val yy = p0[v * 3 + 1]
+                        if (yy <= cut && yy >= cut - band) { val o = v * STRIDE; sx += out[o]; sy += out[o + 1]; sz += out[o + 2]; cn++ }
+                    }
+                    if (cn > 0) {
+                        fpRing[0] = sx / cn; fpRing[1] = sy / cn; fpRing[2] = sz / cn; fpRingOk = true
+                        val tm = rtop * hs
+                        val tx = fpRing[0]; val ty = fpRing[1] + 0.058f * tm; val tz = fpRing[2] + 0.085f
+                        if (!fpEyeInit) { fpEye[0] = tx; fpEye[1] = ty; fpEye[2] = tz; fpEyeInit = true }
+                        else { fpEye[0] += (tx - fpEye[0]) * 0.5f; fpEye[1] += (ty - fpEye[1]) * 0.5f; fpEye[2] += (tz - fpEye[2]) * 0.5f }
+                    }
+                }
+                val ex = fpEye[0]; val ey = fpEye[1]; val ez = fpEye[2] + fpAdjF
+                val rr2 = 0.17f * 0.17f
+                val rx = fpRing[0]; val ry = fpRing[1]; val rz = fpRing[2]
+                for (v in 0 until s.nv) {
+                    val o = v * STRIDE
+                    if (headSlot) { out[o] = 0f; out[o + 1] = 0f; out[o + 2] = 0f; continue }
+                    if (fpRingOk && p0[v * 3 + 1] > cut) { out[o] = rx; out[o + 1] = ry; out[o + 2] = rz; continue }
+                    // braços/mãos/roupa que passam colados na lente: vão para o olho (triângulo visto "de lado" = invisível)
+                    val dx = out[o] - ex; val dy = out[o + 1] - ey; val dz = out[o + 2] - ez
+                    if (dx * dx + dy * dy + dz * dz < rr2) { out[o] = ex; out[o + 1] = ey; out[o + 2] = ez }
+                }
+            }
+        } else if (base) {
+            fpEyeInit = false; fpRingOk = false
+        }
+
         val buf = s.fb
         buf.position(0)
         buf.put(out, 0, s.nv * STRIDE)

@@ -169,6 +169,7 @@ class CreatorUi(
                 game.r.autoSpin = false
                 game.r.cTargetDist = (game.r.cTargetDist + (if (plus) -0.35f else 0.35f)).coerceIn(0.9f, 5f)
             }
+            box.visibility = View.GONE
             addView(box, LayoutParams(dp(38), dp(38), Gravity.TOP or Gravity.START))
         }
 
@@ -280,16 +281,13 @@ class CreatorUi(
         bw.width = barW
         bw.setMargins((cx - barW / 2f).toInt(), 0, 0, barBottom)
         // setas de girar: nas laterais, na altura do tronco
-        val midY = (h - barH - barBottom) * 0.52f
-        (rotL.layoutParams as LayoutParams).setMargins((cx - sw * 0.40f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
-        (rotR.layoutParams as LayoutParams).setMargins((cx + sw * 0.40f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
-        // zoom: coluna na borda esquerda
-        (zoomIn.layoutParams as LayoutParams).setMargins(dp(10) + insL, (midY - dp(44)).toInt(), 0, 0)
-        (zoomOut.layoutParams as LayoutParams).setMargins(dp(10) + insL, (midY + dp(6)).toInt(), 0, 0)
-        for (v in listOf<View>(nameTab, backBtn, rotL, rotR, zoomIn, zoomOut, railBar)) v.requestLayout()
+        val midY = (h - barH - barBottom) - dp(34).toFloat()
+        (rotL.layoutParams as LayoutParams).setMargins((cx - sw * 0.30f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
+        (rotR.layoutParams as LayoutParams).setMargins((cx + sw * 0.30f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
+        for (v in listOf<View>(nameTab, backBtn, rotL, rotR, railBar)) v.requestLayout()
 
         // personagem na área livre acima da barra
-        val freeTop = (dp(6) + insT).toFloat()
+        val freeTop = (dp(60) + insT).toFloat()
         val freeBot = (h - barH - barBottom - dp(4)).toFloat()
         val cyPx = (freeTop + freeBot) / 2f
         game.r.cShift = (1f - 2f * cyPx / h)
@@ -600,11 +598,6 @@ class CreatorUi(
             m.setTextColor(TXT)
             body.addView(m, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(6), dp(4), dp(4)) })
         }
-        val info = TextView(context)
-        info.text = "Importe roupas, sapatos e cabelos de arquivos .package do The Sims 2, 3 ou 4 (também .zip e .rar). Se a peça vier sem cor, toque em \"sem textura\" e escolha o package de textura."
-        info.textSize = 11f
-        info.setTextColor(SUB2)
-        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(10), dp(4), dp(4)) })
     }
 
     private fun colorRow(slot: Int) {
@@ -891,11 +884,6 @@ class CreatorUi(
     /** Etapa 44: corpo igual ao The Sims 3 (idade, sexo, tipo de corpo e cabelo). */
     private fun simSelector() {
         val av = st.avatar
-        val info = TextView(context)
-        info.text = "Corpo e rosto do The Sims 3."
-        info.textSize = 12f
-        info.setTextColor(SUB2)
-        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         chipRow("Idade", listOf("Bebê", "Criança", "Jovem", "Adulto", "Idoso"), av.simAge, { true }) { av.simAge = it; simApply() }
         chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { av.simAge >= 2 }) {
             av.masc = it == 1; av.female = !av.masc; simApply()
@@ -909,11 +897,6 @@ class CreatorUi(
     /** Etapa 14: escolha da base. Recomeça o personagem do zero (roupa de baixo, cabelo simples, proporções zeradas). */
     private fun baseChoice() {
         val av = st.avatar
-        val info = TextView(context)
-        info.text = "Escolha a idade, o sexo e o tipo de corpo. Roupas, cabelo e sapatos ficam nas outras categorias."
-        info.textSize = 12f
-        info.setTextColor(SUB2)
-        body.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
         simSelector()
     }
 
