@@ -51,6 +51,9 @@ object Flora {
         return id
     }
 
+    /** Existe o modelo assets/flora/<id>.bin? */
+    fun exists(id: String): Boolean = read(id).isNotEmpty()
+
     private fun read(id: String): List<Src> {
         cache[id]?.let { return it }
         val out = ArrayList<Src>()

@@ -177,7 +177,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         CuteChar.assets = assets
         ModStore.init(this)
-        MobLoader.assets = assets
         Flora.assets = assets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
@@ -459,7 +458,7 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ loja
 
-    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val thumb: String? = null, val acao: () -> Unit)
+    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val acao: () -> Unit)
 
     private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val img: ImageView, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
 
@@ -496,13 +495,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(h: VH, i: Int) {
             val e = data[i]
-            val tb = e.thumb?.let { MobLoader.thumb(it) }
-            if (tb != null) {
-                h.icon.visibility = View.GONE
-                h.sw.visibility = View.GONE
-                h.img.visibility = View.VISIBLE
-                h.img.setImageBitmap(tb)
-            } else if (e.swatch != 0) {
+            if (e.swatch != 0) {
                 h.img.visibility = View.GONE
                 h.icon.visibility = View.GONE
                 h.sw.visibility = View.VISIBLE
@@ -532,7 +525,7 @@ class MainActivity : AppCompatActivity() {
     private fun entries(tab: Int): List<Entry> {
         val out = ArrayList<Entry>()
         if (tab in 0..3) {
-            for (t in Type.values()) if (t.cat == tab && t.mob == null) out.add(Entry(t.nome, "Grátis", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
+            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "Grátis", t.ordinal, 0, st.money >= t.preco) { comprar(t) })
         } else if (tab == 4) {
             Finish.floors.forEachIndexed { i, f ->
                 val own = (st.ownFloors shr i) and 1 == 1

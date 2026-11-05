@@ -284,7 +284,6 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnableVertexAttribArray(aUV)
         Tex.init()
         fm.clear()          // móveis do pack: as texturas do contexto antigo não valem mais
-        MobLoader.reset()
         Flora.reset()
         CuteChar.initGl()
         skyM = Models.sky()

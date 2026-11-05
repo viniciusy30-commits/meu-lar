@@ -94,7 +94,6 @@ class CreatorUi(
     private val rail = LinearLayout(ctx)
     private val railBar = FrameLayout(ctx)
     private val titleTv = TextView(ctx)
-    private val nameTab = TextView(ctx)
     private val okBtn = FrameLayout(ctx)
     private val zoomIn = FrameLayout(ctx)
     private val zoomOut = FrameLayout(ctx)
@@ -129,29 +128,20 @@ class CreatorUi(
         addView(CasBgView(ctx), LayoutParams(-1, -1))
         addView(rings, LayoutParams(-1, -1))
 
-        // topo esquerdo: voltar + título
-        nameTab.text = "MEU PERSONAGEM"
-        nameTab.textSize = 13f
-        nameTab.typeface = Ui.BOLD
-        nameTab.letterSpacing = 0.1f
-        nameTab.setTextColor(0xFF1F5FA8.toInt())
-        nameTab.gravity = Gravity.CENTER_VERTICAL
-        nameTab.setPadding(dp(64), 0, dp(22), 0)
-        nameTab.background = GradientDrawable().also { g -> g.setColor(0xF2FFFFFF.toInt()); g.cornerRadius = dpf(25f) }
-        addView(nameTab, LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START))
+        // topo esquerdo: só a seta de voltar
         backBtn.background = Ui.frost(0f, 0x35B5E0, 0xFF, 0xDC, dpf(2f), oval = true, edge = 0xFFFFFFFF.toInt())
-        backBtn.addView(IconView(ctx, Ic.BACK, Color.WHITE, Color.WHITE).fancy(0x88FFFFFF.toInt()), LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        backBtn.addView(IconView(ctx, Ic.BACK, Color.WHITE, Color.WHITE).fancy(0x88FFFFFF.toInt()), LayoutParams(dp(22), dp(22), Gravity.CENTER))
         backBtn.setOnClickListener { finish() }
-        addView(backBtn, LayoutParams(dp(46), dp(46), Gravity.TOP or Gravity.START))
+        addView(backBtn, LayoutParams(dp(42), dp(42), Gravity.TOP or Gravity.START))
 
         // setas de girar
         for ((box, flip, dir) in listOf(Triple(rotL, true, -1.0f), Triple(rotR, false, 1.0f))) {
             box.background = Ui.frost(0f, 0xFFFFFF, 0xCC, 0x99, dpf(1.4f), oval = true, edge = 0xEEFFFFFF.toInt())
             val ic = IconView(ctx, Ic.ROTATE, 0xFF3C8FC4.toInt(), Color.WHITE)
             if (flip) ic.scaleX = -1f
-            box.addView(ic, LayoutParams(dp(26), dp(26), Gravity.CENTER))
+            box.addView(ic, LayoutParams(dp(21), dp(21), Gravity.CENTER))
             box.setOnClickListener { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw + dir }
-            addView(box, LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.START))
+            addView(box, LayoutParams(dp(36), dp(36), Gravity.TOP or Gravity.START))
         }
 
         // zoom (+/-)
@@ -178,8 +168,8 @@ class CreatorUi(
         rail.orientation = LinearLayout.HORIZONTAL
         rail.gravity = Gravity.CENTER
         railBar.setPadding(dp(8), dp(5), dp(8), dp(5))
-        railBar.addView(rail, LayoutParams(-2, -2, Gravity.CENTER))
-        addView(railBar, LayoutParams(-2, dp(66), Gravity.BOTTOM or Gravity.START))
+        railBar.addView(rail, LayoutParams(-1, -1, Gravity.CENTER))
+        addView(railBar, LayoutParams(-2, dp(58), Gravity.BOTTOM or Gravity.START))
 
         // botão de confirmar
         okBtn.background = Ui.frost(0f, 0x34C77B, 0xFF, 0xEA, dpf(2.4f), oval = true, edge = 0xFFE9FFF1.toInt())
@@ -237,14 +227,14 @@ class CreatorUi(
         scroll.addView(body)
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
 
-        addView(panel, LayoutParams(dp(360), -1, Gravity.END).also { it.setMargins(0, dp(8), dp(10), dp(76)) })
+        addView(panel, LayoutParams(dp(360), -1, Gravity.END).also { it.setMargins(0, dp(10), dp(10), dp(76)) })
         refresh(false)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (w <= 0) return
-        val pw = (w * 0.44f).toInt().coerceIn(dp(320), dp(460))
+        val pw = (w * 0.37f).toInt().coerceIn(dp(290), dp(390))
         val lp = panel.layoutParams
         if (lp.width != pw) { lp.width = pw; panel.layoutParams = lp }
         layoutStage()
@@ -270,24 +260,23 @@ class CreatorUi(
         val stageR = (panelL - dp(8)).toFloat()
         val cx = (stageL + stageR) / 2f
         val sw = stageR - stageL
-        val barH = dp(66)
-        val barBottom = dp(8) + insB
+        val barH = dp(58)
+        val barBottom = dp(6) + insB
 
-        (backBtn.layoutParams as LayoutParams).setMargins(dp(8) + insL, dp(6) + insT, 0, 0)
-        (nameTab.layoutParams as LayoutParams).setMargins(dp(14) + insL, dp(7) + insT, 0, 0)
+        (backBtn.layoutParams as LayoutParams).setMargins(dp(10) + insL, dp(8) + insT, 0, 0)
         // categorias: centralizadas sob o personagem
-        val barW = min(sw.toInt() - dp(12), dp(7 * 58 + 24))
+        val barW = min(sw.toInt() - dp(12), dp(7 * 54 + 16))
         val bw = railBar.layoutParams as LayoutParams
         bw.width = barW
         bw.setMargins((cx - barW / 2f).toInt(), 0, 0, barBottom)
         // setas de girar: nas laterais, na altura do tronco
-        val midY = (h - barH - barBottom) - dp(34).toFloat()
-        (rotL.layoutParams as LayoutParams).setMargins((cx - sw * 0.30f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
-        (rotR.layoutParams as LayoutParams).setMargins((cx + sw * 0.30f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
-        for (v in listOf<View>(nameTab, backBtn, rotL, rotR, railBar)) v.requestLayout()
+        val midY = (h - barH - barBottom) - dp(24).toFloat()
+        (rotL.layoutParams as LayoutParams).setMargins((cx - sw * 0.34f - dp(18)).toInt(), (midY - dp(18)).toInt(), 0, 0)
+        (rotR.layoutParams as LayoutParams).setMargins((cx + sw * 0.34f - dp(18)).toInt(), (midY - dp(18)).toInt(), 0, 0)
+        for (v in listOf<View>(backBtn, rotL, rotR, railBar)) v.requestLayout()
 
         // personagem na área livre acima da barra
-        val freeTop = (dp(60) + insT).toFloat()
+        val freeTop = (dp(14) + insT).toFloat()
         val freeBot = (h - barH - barBottom - dp(4)).toFloat()
         val cyPx = (freeTop + freeBot) / 2f
         game.r.cShift = (1f - 2f * cyPx / h)
@@ -298,28 +287,29 @@ class CreatorUi(
         rings.invalidate()
     }
 
-    /** Barra de categorias: ícone colorido, nome embaixo; a selecionada sobe num cartão azul com borda verde. */
+    /** Barra de categorias: ícones planos (azul no fundo branco; branco na aba escolhida). Todas as células têm o mesmo tamanho. */
     private fun buildRail() {
         rail.removeAllViews()
+        val fgOff = 0xFF3A86B8.toInt()
         for (i in cats.indices) {
             val on = i == cat
             val cell = LinearLayout(context)
             cell.orientation = LinearLayout.VERTICAL
             cell.gravity = Gravity.CENTER
-            cell.background = if (on) Ui.frost(dpf(16f), 0x35B5E0, 0xFC, 0xE6, dpf(2.4f), edge = GREEN) else null
-            val ic = IconView(context, CAT_ICONS[i], Color.WHITE, Color.WHITE)
-            ic.alpha = if (on) 1f else 0.82f
-            cell.addView(ic, LinearLayout.LayoutParams(dp(if (on) 34 else 30), dp(if (on) 34 else 30)))
+            cell.background = if (on) Ui.frost(dpf(14f), 0x35B5E0, 0xFF, 0xE4, dpf(2f), edge = GREEN) else null
+            val ic = IconView(context, CAT_ICONS[i], if (on) Color.WHITE else fgOff, if (on) 0xFF2E9FD0.toInt() else Color.WHITE)
+            cell.addView(ic, LinearLayout.LayoutParams(dp(26), dp(26)))
             val t = TextView(context)
             t.text = cats[i].name
-            t.textSize = 10.5f
+            t.textSize = 9.5f
             t.typeface = Ui.BOLD
-            t.setTextColor(if (on) Color.WHITE else 0xFF3C6F96.toInt())
+            t.setTextColor(if (on) Color.WHITE else fgOff)
             t.gravity = Gravity.CENTER
             t.maxLines = 1
-            cell.addView(t, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(1) })
+            t.includeFontPadding = false
+            cell.addView(t, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(2) })
             cell.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
-            rail.addView(cell, LinearLayout.LayoutParams(dp(56), -1).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) })
+            rail.addView(cell, LinearLayout.LayoutParams(0, -1, 1f).also { it.setMargins(dp(2), dp(3), dp(2), dp(3)) })
         }
     }
 
@@ -377,7 +367,7 @@ class CreatorUi(
         val c = cats[cat]
         val s = c.subs[sub]
         game.r.autoSpin = false
-        game.r.cTargetDist = (if (s.dist.isNaN()) c.dist else s.dist) * 1.12f
+        game.r.cTargetDist = (if (s.dist.isNaN()) c.dist else s.dist) * 1.34f
         game.r.cTargetY = if (s.y.isNaN()) c.y else s.y
         game.r.cTargetYaw = s.yaw
         game.r.cTargetPitch = 0.10f

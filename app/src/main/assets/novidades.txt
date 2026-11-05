@@ -1,3 +1,11 @@
+#id 2026-11-08-a
+#titulo Móveis refeitos com muito mais detalhe
+- Os 14 móveis foram refeitos: pés torneados, capitonê com botões, frisos e cornijas, painéis em relevo, puxadores de latão, talheres, copos, frutas, livros, globo, abajur plissado e mais
+- Sombra de contato calculada em cada móvel (cantos, vãos e embaixo ficam mais escuros, como na vida real)
+- Pacote antigo de móveis removido do jogo
+- Cortina com colisão em todos os móveis: pousa por cima ou cai na frente, sem atravessar
+- Câmera em 1ª pessoa corrigida, criador mais limpo e ícones novos
+
 #id 2026-11-07-e
 #titulo Interação, câmera e criação
 - Porta e cortinas agora abrem e fecham por interação (botão aparece quando você chega perto)

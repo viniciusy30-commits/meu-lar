@@ -1102,9 +1102,9 @@ object CuteChar {
             if (base) {
                 var rt = 0f
                 for (v in 0 until s.nv) { val yy = p0[v * 3 + 1]; if (yy > rt) rt = yy }
-                if (rt > 50f) fpRestTop = rt
+                if (rt > 0.5f) fpRestTop = rt
             }
-            val rtop = if (fpRestTop > 50f) fpRestTop else 0f
+            val rtop = if (fpRestTop > 0.5f) fpRestTop else 0f
             if (rtop > 0f) {
                 val cut = rtop * 0.862f
                 val band = rtop * 0.035f

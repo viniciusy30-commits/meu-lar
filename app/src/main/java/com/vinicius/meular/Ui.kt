@@ -220,6 +220,61 @@ object Ic {
     const val AVATAR = 134
 }
 
+
+/** Ícones de categoria do criador: desenhados em vetor (estilo plano, como o The Sims 4). Formato "tipo|caminho SVG":
+ *  f = preenchido, s = preenchido translúcido, l = traço, l2 = traço fino na cor de contraste. */
+private val ICON_SVG: Map<Int, Array<String>> = mapOf(
+    Ic.BASE to arrayOf(
+        "f|M45.0 21.0 C45.0 27.1 40.1 32.0 34.0 32.0 C27.9 32.0 23.0 27.1 23.0 21.0 C23.0 14.9 27.9 10.0 34.0 10.0 C40.1 10.0 45.0 14.9 45.0 21.0 Z",
+        "f|M16 90 C14 58 18 42 34 42 C50 42 54 58 52 90 Z",
+        "f|M82.0 52.0 C82.0 57.0 78.0 61.0 73.0 61.0 C68.0 61.0 64.0 57.0 64.0 52.0 C64.0 47.0 68.0 43.0 73.0 43.0 C78.0 43.0 82.0 47.0 82.0 52.0 Z",
+        "f|M60 90 C59 74 63 65 73 65 C83 65 87 74 86 90 Z"
+    ),
+    Ic.BODY to arrayOf(
+        "f|M59.0 12.0 C59.0 17.0 55.0 21.0 50.0 21.0 C45.0 21.0 41.0 17.0 41.0 12.0 C41.0 7.0 45.0 3.0 50.0 3.0 C55.0 3.0 59.0 7.0 59.0 12.0 Z",
+        "f|M44 24 Q50 27 56 24 Q70 25 75 34 C79 44 82 58 84 69 Q85 74 80 74.5 Q77 74 76 70 C74 60 71 52 69 46 C69 56 68 62 67 68 L66 92 Q66 96 61 96 L55 96 Q52 96 52 92 L51 72 L49 72 L48 92 Q48 96 45 96 L39 96 Q34 96 34 92 L33 68 C32 62 31 56 31 46 C29 52 26 60 24 70 Q23 74.5 20 74.5 Q15 74 16 69 C18 58 21 44 25 34 Q30 25 44 24 Z",
+        "s|M31 46 C32 38 36 32 43 29 L43 27 C36 28 30 31 27 37 C25 41 26 44 31 46 Z"
+    ),
+    Ic.HAIR to arrayOf(
+        "f|M50 6 C24 6 16 30 20 56 C22 70 18 82 12 92 C26 94 36 86 36 72 C34 60 36 48 42 40 C54 42 66 36 72 26 C76 40 70 58 68 72 C66 86 76 94 90 92 C84 82 80 70 82 54 C86 28 76 6 50 6 Z",
+        "s|M38 44 C38 70 44 78 50 78 C56 78 62 70 62 44 C54 46 44 46 38 44 Z",
+        "s|M30 22 C40 12 56 10 66 16 C54 14 42 18 34 30 Z"
+    ),
+    Ic.FACE to arrayOf(
+        "l|M50 10 C74 10 86 28 86 50 C86 74 70 90 50 90 C30 90 14 74 14 50 C14 28 26 10 50 10 Z",
+        "f|M41.0 46.0 C41.0 50.1 38.3 53.5 35.0 53.5 C31.7 53.5 29.0 50.1 29.0 46.0 C29.0 41.9 31.7 38.5 35.0 38.5 C38.3 38.5 41.0 41.9 41.0 46.0 Z",
+        "f|M71.0 46.0 C71.0 50.1 68.3 53.5 65.0 53.5 C61.7 53.5 59.0 50.1 59.0 46.0 C59.0 41.9 61.7 38.5 65.0 38.5 C68.3 38.5 71.0 41.9 71.0 46.0 Z",
+        "l|M24 33 Q35 26 44 32",
+        "l|M56 32 Q65 26 76 33",
+        "l|M50 52 Q46 62 52 64",
+        "l|M34 70 Q50 84 66 70"
+    ),
+    Ic.SHIRT to arrayOf(
+        "f|M35 10 L8 25 L19 49 L31 43 L31 88 Q31 91 34 91 L66 91 Q69 91 69 88 L69 43 L81 49 L92 25 L65 10 Q60 24 50 24 Q40 24 35 10 Z",
+        "s|M35 10 Q40 24 50 24 Q60 24 65 10 Q60 17 50 17 Q40 17 35 10 Z",
+        "l2|M31 43 L31 60",
+        "l2|M69 43 L69 60",
+        "l2|M40 74 Q50 78 60 74"
+    ),
+    Ic.SHOE to arrayOf(
+        "f|M4 80 Q4 73 11 73 L90 73 Q97 73 97 80 Q97 88 89 88 L12 88 Q4 88 4 80 Z",
+        "f|M11 71 L11 46 Q11 38 18 38 L28 38 Q32 30 36 24 Q42 19 49 23 L54 33 Q62 42 74 46 Q90 52 94 65 L95 71 Z",
+        "l2|M40 32 L48 40",
+        "l2|M35 40 L44 48",
+        "l2|M30 48 L40 56",
+        "l2|M11 60 Q34 54 56 62"
+    ),
+    Ic.HAT to arrayOf(
+        "f|M15 66 C14 36 32 19 54 19 C74 19 87 38 87 66 Z",
+        "f|M8 68 Q50 58 97 72 Q99 80 90 80 Q50 72 14 81 Q5 79 8 68 Z",
+        "f|M58.5 18.0 C58.5 20.5 56.5 22.5 54.0 22.5 C51.5 22.5 49.5 20.5 49.5 18.0 C49.5 15.5 51.5 13.5 54.0 13.5 C56.5 13.5 58.5 15.5 58.5 18.0 Z",
+        "l2|M54 20 C45 34 43 50 46 64",
+        "l2|M54 20 C64 34 69 50 72 66"
+    )
+)
+private val SVG_CACHE = HashMap<String, Path>()
+private fun svgPath(d: String): Path = SVG_CACHE.getOrPut(d) { androidx.core.graphics.PathParser.createPathFromPathData(d) ?: Path() }
+
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
 class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var accent: Int = Pal.BG) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -415,51 +470,17 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(w); poly(c, 50f, 42f, 74f, 62f, 68f, 62f, 68f, 82f, 32f, 82f, 32f, 62f, 26f, 62f)
                 fill(a); rr(c, 44f, 68f, 56f, 82f, 3f)
             }
-            Ic.BASE -> {
-                // adulto e criança, silhueta lisa
-                val w = Color.WHITE
-                fill(w); c.drawCircle(36f, 22f, 12f, p)
-                path.reset(); path.moveTo(16f, 86f); path.cubicTo(14f, 52f, 22f, 38f, 36f, 38f); path.cubicTo(50f, 38f, 58f, 52f, 56f, 86f); path.close(); c.drawPath(path, p)
-                fill(w); c.drawCircle(74f, 52f, 9f, p)
-                path.reset(); path.moveTo(62f, 86f); path.cubicTo(60f, 68f, 66f, 62f, 74f, 62f); path.cubicTo(82f, 62f, 88f, 68f, 86f, 86f); path.close(); c.drawPath(path, p)
-            }
-            Ic.BODY -> {
-                // figura inteira, silhueta lisa
-                val w = Color.WHITE
-                fill(w); c.drawCircle(50f, 14f, 10f, p)
-                rr(c, 30f, 28f, 70f, 62f, 9f)
-                rr(c, 16f, 30f, 28f, 66f, 6f); rr(c, 72f, 30f, 84f, 66f, 6f)
-                rr(c, 32f, 58f, 48f, 94f, 6f); rr(c, 52f, 58f, 68f, 94f, 6f)
-            }
-            Ic.HAIR -> {
-                // cabelo: massa lisa com franja e rosto vazado
-                fill(Color.WHITE)
-                path.reset(); path.moveTo(50f, 8f); path.cubicTo(20f, 8f, 14f, 42f, 20f, 70f); path.cubicTo(22f, 82f, 16f, 90f, 12f, 94f); path.cubicTo(30f, 96f, 38f, 86f, 34f, 70f)
-                path.cubicTo(32f, 56f, 36f, 44f, 44f, 38f); path.cubicTo(56f, 38f, 66f, 32f, 70f, 24f); path.cubicTo(74f, 38f, 68f, 56f, 66f, 70f)
-                path.cubicTo(62f, 86f, 70f, 96f, 88f, 94f); path.cubicTo(84f, 90f, 78f, 82f, 80f, 68f); path.cubicTo(86f, 42f, 80f, 8f, 50f, 8f); path.close(); c.drawPath(path, p)
-                stroke(Color.WHITE, 4f); c.drawOval(RectF(36f, 40f, 64f, 78f), p)
-            }
-            Ic.FACE -> {
-                // rosto simples: contorno, olhos e sorriso
-                stroke(Color.WHITE, 6f); c.drawCircle(50f, 50f, 38f, p)
-                fill(Color.WHITE); c.drawCircle(36f, 42f, 5f, p); c.drawCircle(64f, 42f, 5f, p)
-                stroke(Color.WHITE, 6f); path.reset(); path.moveTo(32f, 62f); path.quadTo(50f, 80f, 68f, 62f); c.drawPath(path, p)
-            }
-            Ic.SHIRT -> {
-                fill(Color.WHITE)
-                path.reset(); path.moveTo(34f, 12f); path.lineTo(6f, 28f); path.lineTo(18f, 54f); path.lineTo(30f, 48f); path.lineTo(30f, 90f); path.lineTo(70f, 90f); path.lineTo(70f, 48f)
-                path.lineTo(82f, 54f); path.lineTo(94f, 28f); path.lineTo(66f, 12f); path.quadTo(50f, 30f, 34f, 12f); path.close(); c.drawPath(path, p)
-            }
-            Ic.SHOE -> {
-                fill(Color.WHITE)
-                path.reset(); path.moveTo(8f, 78f); path.lineTo(8f, 46f); path.quadTo(10f, 36f, 22f, 34f); path.lineTo(38f, 20f); path.quadTo(46f, 14f, 52f, 24f); path.lineTo(58f, 40f)
-                path.quadTo(74f, 46f, 88f, 58f); path.quadTo(96f, 64f, 94f, 78f); path.close(); c.drawPath(path, p)
-                rr(c, 6f, 80f, 96f, 92f, 5f)
-            }
-            Ic.HAT -> {
-                fill(Color.WHITE)
-                path.reset(); path.moveTo(16f, 68f); path.cubicTo(14f, 34f, 34f, 16f, 54f, 18f); path.cubicTo(74f, 20f, 86f, 40f, 86f, 68f); path.close(); c.drawPath(path, p)
-                path.reset(); path.moveTo(6f, 74f); path.cubicTo(30f, 64f, 70f, 64f, 94f, 74f); path.cubicTo(98f, 82f, 90f, 88f, 80f, 84f); path.cubicTo(60f, 78f, 36f, 78f, 16f, 86f); path.cubicTo(6f, 88f, 0f, 80f, 6f, 74f); path.close(); c.drawPath(path, p)
+            Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT -> {
+                val parts = ICON_SVG[kind]
+                if (parts != null) for (pt in parts) {
+                    val k = pt.substringBefore('|'); val pa = svgPath(pt.substringAfter('|'))
+                    when (k) {
+                        "f" -> { fill(w); c.drawPath(pa, p) }
+                        "s" -> { fill(w); if (!glowPass) p.alpha = 140; c.drawPath(pa, p); p.alpha = 255 }
+                        "l" -> { stroke(w, 5.4f); c.drawPath(pa, p) }
+                        else -> { stroke(a, 3.4f); c.drawPath(pa, p) }
+                    }
+                }
             }
             Ic.AVATAR -> {
                 // retrato: cabelo, rosto e camiseta

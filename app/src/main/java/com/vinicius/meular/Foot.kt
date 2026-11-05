@@ -8,28 +8,10 @@ import java.util.concurrent.ConcurrentHashMap
 object Foot {
     private val cache = ConcurrentHashMap<Type, FloatArray>()
 
-    // Escala dos móveis do pack, para ficarem do tamanho certo ao lado do personagem (cerca de 1,75 m).
-    // O pack original é grande demais (sofá com 5 m, cadeira de escritório com 1,5 m, planta com 2,3 m).
-    private val ESC: Map<String, Float> = mapOf(
-        "sofa01" to 0.72f, "sofa02" to 0.75f, "casual-chair01" to 0.85f,
-        "coffee-table01" to 0.72f, "coffee-table02" to 0.70f, "cabinet01" to 0.85f,
-        "shelf01" to 0.88f, "stool01" to 0.80f,
-        "small-cushion01" to 0.60f, "small-cushion02" to 0.65f, "speaker01" to 1.25f,
-        "office-desk01" to 0.80f, "office-chair01" to 0.70f, "computer-case" to 1.45f,
-        "monitor01" to 0.70f, "keyboard01" to 1.25f, "desk-lamp01" to 0.60f,
-        "carpet01" to 0.60f, "carpet02" to 0.60f, "indoor-plant01" to 0.70f,
-        "vase03" to 0.85f, "book01" to 0.70f, "book02" to 0.75f
-    )
-
-    fun scale(t: Type): Float {
-        val m = t.mob ?: return 1f
-        return ESC[m] ?: 1f
-    }
+    fun scale(t: Type): Float = 1f
 
     // Limites da malha sem escala: [x0, z0, x1, z1, altura] ou null se não deu para ler.
     private fun raw(t: Type): FloatArray? {
-        val m = t.mob
-        if (m != null) return MobLoader.bounds(m)
         return try {
             val mesh = Models.furniture(t)
             var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE

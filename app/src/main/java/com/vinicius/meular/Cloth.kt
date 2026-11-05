@@ -23,7 +23,7 @@ class ClothCurtains {
     private val TIE_Y = 1.22f
     private val PW = 0.5f        // largura presa na barra
     private val FULL = 1.85f     // largura do tecido (fullness): sobra vira prega
-    private val Z0 = 0.075f      // distância mínima da parede
+    private val Z0 = 0.19f       // distância mínima da parede (o batente da janela avança até 0,165 m)
 
     inner class Panel(val wall: Int, val cx: Float, val ww: Float, val side: Int, val col: Int, val phase: Float) {
         var t = 0f              // 0 = aberta (amarrada ao lado), 1 = fechada (cobre a janela)
@@ -60,7 +60,7 @@ class ClothCurtains {
                 val axOpen = if (j <= rowT) ux + (bandX - ux) * (j / rowT.toFloat())
                              else { val t2 = (j - rowT) / (NY - 1f - rowT); bandX + ((mid + (u - 0.5f) * PW * 1.22f) - bandX) * t2 }
                 ax[k] = axOpen + (ux - axOpen) * t
-                az[k] = 0.118f + (0.10f - 0.055f * t) * (i % 2) * (0.25f + 0.75f * v)
+                az[k] = 0.215f + (0.10f - 0.055f * t) * (i % 2) * (0.25f + 0.75f * v)
             }
         }
 
@@ -233,7 +233,7 @@ class ClothCurtains {
             for (i in 0 until NX) {
                 p.x[i] = p.xTop0 + (p.xTop1 - p.xTop0) * (i / (NX - 1f))
                 p.y[i] = TOP
-                p.z[i] = 0.118f
+                p.z[i] = 0.215f
             }
             // faixa de amarração: a linha do laço fica junta, ao lado da janela
             val rt = p.rowT
@@ -293,15 +293,29 @@ class ClothCurtains {
                     else -> { lx0 = r[0]; lx1 = r[2]; lz0 = r[1]; lz1 = r[3] }
                 }
                 if (lz0 > 1.3f || lx1 < p.xTop0 - 0.2f || lx0 > p.xTop1 + 0.2f) continue
-                val top = it.type.alt
-                if (top < HEM - 0.05f || top > 1.2f) continue   // só móveis baixos (sofá, mesa, cama): o tecido pousa neles; os altos ficam na frente do tecido
+                val top = Foot.height(it.type)
+                if (top < 0.05f) continue
+                val m = 0.04f
                 for (j in 1 until NY) for (i in 0 until NX) {
                     val k = j * NX + i
                     val px = p.x[k]; val py = p.y[k]; val pz = p.z[k]
-                    if (px > lx0 - 0.02f && px < lx1 + 0.02f && pz < lz1 + 0.02f && pz > lz0 - 0.05f && py < top + 0.02f) {
-                        val over = top + 0.02f - py
-                        val front = lz1 + 0.025f - pz
-                        if (over < 0.10f && over < front) p.y[k] = top + 0.02f else p.z[k] = lz1 + 0.025f
+                    if (px > lx0 - m && px < lx1 + m && pz < lz1 + m && py < top + m) {
+                        val up = top + m - py
+                        val front = lz1 + m - pz
+                        val left = px - (lx0 - m)
+                        val right = (lx1 + m) - px
+                        if (up < 0.14f && up <= front + 0.02f) {
+                            // pousa por cima do móvel
+                            p.y[k] = top + m
+                            // e leva a velocidade vertical embora (não quica)
+                            p.oy[k] = p.y[k]
+                        } else if (front <= left && front <= right) {
+                            p.z[k] = lz1 + m; p.oz[k] = p.z[k]
+                        } else if (left < right) {
+                            p.x[k] = lx0 - m; p.ox[k] = p.x[k]
+                        } else {
+                            p.x[k] = lx1 + m; p.ox[k] = p.x[k]
+                        }
                     }
                 }
             }

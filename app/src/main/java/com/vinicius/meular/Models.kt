@@ -79,7 +79,6 @@ object Models {
     )
 
     fun furniture(t: Type): Mesh {
-        t.mob?.let { return MobLoader.load(it) }
         t.fl?.let { id ->
             val fb = Flora.Batch()
             // a cerca nasce no canto (0..2 m em x); o resto é centrado na área do item
@@ -412,14 +411,14 @@ object Models {
                 fl.place("win_$id", o.c, 0.0, 0.0)
                 val half = ww / 2 + 0.10 + 0.5 + 0.06
                 b.m(Mt.WOOD)
-                b.rbox(o.c, 2.075, 0.125, half * 2, 0.028, 0.028, 0.012, C("#4A3426"), true, 1)
+                b.rbox(o.c, 2.075, 0.215, half * 2, 0.028, 0.028, 0.012, C("#4A3426"), true, 1)
                 b.m(Mt.PLAIN)
                 for (sd in intArrayOf(-1, 1)) {
-                    b.sphere(o.c + sd * (half + 0.025), 2.075, 0.125, 0.034, C("#C9A24E"), 0.04, 8, false)
-                    b.box(o.c + sd * (half - 0.04), 2.075, 0.075, 0.016, 0.016, 0.1, C("#8A6A2E"), false)
-                    b.box(o.c + sd * (ww / 2 + 0.10 + 0.03), 2.075, 0.075, 0.016, 0.016, 0.1, C("#8A6A2E"), false)
+                    b.sphere(o.c + sd * (half + 0.025), 2.075, 0.215, 0.034, C("#C9A24E"), 0.04, 8, false)
+                    b.box(o.c + sd * (half - 0.04), 2.075, 0.11, 0.016, 0.016, 0.21, C("#8A6A2E"), false)
+                    b.box(o.c + sd * (ww / 2 + 0.10 + 0.03), 2.075, 0.11, 0.016, 0.016, 0.21, C("#8A6A2E"), false)
                     // gancho de amarração
-                    b.sphere(o.c + sd * (ww / 2 + 0.10 + 0.0), 1.22, 0.05, 0.02, C("#C9A24E"), 0.02, 6, false)
+                    b.sphere(o.c + sd * (ww / 2 + 0.10 + 0.0), 1.22, 0.17, 0.02, C("#C9A24E"), 0.02, 6, false)
                 }
             }
         }
