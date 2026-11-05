@@ -29,6 +29,10 @@ object CuteChar {
     const val JUMP = 2
     const val RUNJUMP = 4   // Etapa 63: pulo correndo (só nos corpos do Sims; sem eles vira JUMP)
     const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
+    /** Etapa 83: sentar (entrar), sentado (laço) e levantar; só nos corpos do Sims (clips_<g>.bin com 8 clipes, ferramentas/etapa83_sentar.py) */
+    const val SIT_IN = 5
+    const val SIT_LOOP = 6
+    const val SIT_OUT = 7
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -753,6 +757,28 @@ object CuteChar {
         return Skin(key, tex, nv, ni, pos, nor, bi, bw, out, fb, ib, idx)
     }
 
+    /** Etapa 83: o corpo atual tem os clipes de sentar? */
+    fun hasSit(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 8
+
+    private val sitSeats = HashMap<String, Float>()
+    /** Etapa 83: altura (m) do assento que este personagem precisa sentado (traseiro), já com a altura do slider. */
+    fun sitSeat(): Float {
+        if (sitSeats.isEmpty()) {
+            try {
+                assets?.open("cute/sit.txt")?.bufferedReader()?.useLines { ls ->
+                    for (ln in ls) {
+                        if (ln.startsWith("#") || ln.isBlank()) continue
+                        val f = ln.split('|')
+                        if (f.size >= 2) f[1].toFloatOrNull()?.let { sitSeats[f[0]] = it }
+                    }
+                }
+            } catch (e: Throwable) { }
+        }
+        val base = sitSeats[simGrp] ?: 0.335f
+        val k = if (simH > 0.05f) heightS / simH else 1f
+        return base * k
+    }
+
     /** Duração (s) do clip. */
     fun clipSeconds(clip: Int): Float =
         clipSet.let { if (loaded && clip in it.len.indices) it.len[clip] else 1f }
@@ -808,7 +834,7 @@ object CuteChar {
         val cset = clipSet
         val clipR = if (clip == RUNJUMP && (simGrp.isEmpty() || cset.data.size < 5)) JUMP else clip
         val c0 = clipR.coerceIn(0, cset.data.size - 1)
-        val c = if (MALE_CLIPS && mascV && cset.data.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
+        val c = if (MALE_CLIPS && mascV && simGrp.isEmpty() && cset.data.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = cset.frames[c]
         val len = cset.len[c].coerceAtLeast(0.001f)
@@ -827,8 +853,10 @@ object CuteChar {
             slotT0[sl] = t
         }
         val isJ = c == JUMP || c == RUNJUMP
-        var lt = if (isJ) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
-        if (!isJ) {
+        val once = isJ || ((c == SIT_IN || c == SIT_OUT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
+        var lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
+        if (once && lt > len) lt = len
+        if (!once) {
             lt %= len
             if (lt < 0f) lt += len
         } else if (lt < 0f) lt = 0f

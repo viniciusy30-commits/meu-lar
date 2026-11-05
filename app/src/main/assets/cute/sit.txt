@@ -1,0 +1,9 @@
+# grupo|altura do assento (m)|recuo do traseiro em relação à raiz (m, z<0 = atrás); multiplicar pela escala de altura do slider
+tf|0.3476|-0.2968
+tm|0.3376|-0.3034
+af|0.3345|-0.3011
+am|0.3285|-0.3019
+ef|0.3617|-0.2968
+em|0.3499|-0.2990
+cu|0.2196|-0.2182
+pu|0.1289|-0.1430

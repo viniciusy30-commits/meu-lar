@@ -1,0 +1,100 @@
+{
+ "lote": "Etapa 1 (protótipo)",
+ "itens": [
+  {
+   "id": "decor_vaso_costela",
+   "nome": "Vaso com costela-de-adão",
+   "categoria": "decoracao",
+   "classe": "decorativo",
+   "arquivo": "obj3d/decor_vaso_costela.glb",
+   "miniatura": "obj3d/thumb/decor_vaso_costela.png",
+   "dimensoes": {
+    "largura": 1.338,
+    "altura": 0.7838,
+    "profundidade": 1.3438
+   },
+   "fisica": "estatico",
+   "vertices": 3377,
+   "triangulos": 5340,
+   "bytes": 337924,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "fis_bola",
+   "nome": "Bola de borracha",
+   "categoria": "objetos",
+   "classe": "fisico",
+   "arquivo": "obj3d/fis_bola.glb",
+   "miniatura": "obj3d/thumb/fis_bola.png",
+   "dimensoes": {
+    "largura": 0.22,
+    "altura": 0.22,
+    "profundidade": 0.22
+   },
+   "fisica": "dinamico",
+   "vertices": 701,
+   "triangulos": 1224,
+   "bytes": 69932,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "fis_caixa_papelao",
+   "nome": "Caixa de papelão",
+   "categoria": "objetos",
+   "classe": "fisico",
+   "arquivo": "obj3d/fis_caixa_papelao.glb",
+   "miniatura": "obj3d/thumb/fis_caixa_papelao.png",
+   "dimensoes": {
+    "largura": 0.4024,
+    "altura": 0.3012,
+    "profundidade": 0.3206
+   },
+   "fisica": "dinamico",
+   "vertices": 120,
+   "triangulos": 120,
+   "bytes": 62464,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_aparador",
+   "nome": "Aparador de carvalho",
+   "categoria": "sala",
+   "classe": "interativo",
+   "arquivo": "obj3d/int_aparador.glb",
+   "miniatura": "obj3d/thumb/int_aparador.png",
+   "dimensoes": {
+    "largura": 1.1,
+    "altura": 0.66,
+    "profundidade": 0.438
+   },
+   "fisica": "estatico",
+   "vertices": 4533,
+   "triangulos": 5616,
+   "bytes": 435188,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_poltrona",
+   "nome": "Poltrona de linho",
+   "categoria": "sala",
+   "classe": "interativo",
+   "arquivo": "obj3d/int_poltrona.glb",
+   "miniatura": "obj3d/thumb/int_poltrona.png",
+   "dimensoes": {
+    "largura": 0.744,
+    "altura": 0.7927,
+    "profundidade": 0.6503
+   },
+   "fisica": "estatico",
+   "vertices": 3952,
+   "triangulos": 5452,
+   "bytes": 390904,
+   "erros": [],
+   "avisos": []
+  }
+ ]
+}

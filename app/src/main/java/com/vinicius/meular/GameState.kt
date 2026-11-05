@@ -8,7 +8,9 @@ import kotlin.math.floor
 fun snapQ(v: Float): Float = Math.round(v * 4f) / 4f
 
 /** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração, 4 Externo (só aparece na sala de testes) */
-enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val rug: Boolean = false, val fl: String? = null) {
+enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val rug: Boolean = false, val fl: String? = null,
+                /** Etapa 83: modelo da biblioteca 3D (assets/obj3d/<glb>.glb) */ val glb: String? = null,
+                /** Etapa 83: objeto solto com física (caixa, bola...) */ val dyn: Boolean = false) {
     CHAIR("Cadeira", 1, 1, 20, 1.0f, 2),
     TABLE("Mesa de jantar", 2, 1, 60, 1.25f, 2),
     BED("Cama", 1, 2, 120, 1.1f, 1),
@@ -40,7 +42,13 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
     X_FENCE("Painel de cerca", 2, 1, 0, 1.0f, 4, fl = "fence_panel"),
     X_LAMP_POST("Poste de luz", 1, 1, 0, 2.1f, 4, fl = "lamp_post"),
     X_BENCH("Banco de jardim", 2, 1, 0, 1.0f, 4, fl = "bench"),
-    X_MAILBOX("Caixa de correio", 1, 1, 0, 1.36f, 4, fl = "mailbox")
+    X_MAILBOX("Caixa de correio", 1, 1, 0, 1.36f, 4, fl = "mailbox"),
+    // Etapa 83: protótipos da biblioteca 3D (GLB com peças, colisores, física e interação)
+    G_POLTRONA("Poltrona de linho", 1, 1, 0, 0.79f, 0, glb = "int_poltrona"),
+    G_APARADOR("Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador"),
+    G_VASO("Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela"),
+    G_CAIXA("Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true),
+    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true)
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -53,6 +61,36 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
 
     // Retângulo que o móvel ocupa de verdade no mundo: [x0, z0, x1, z1].
     fun rect(): FloatArray = Foot.rect(type, rot, x, y, ox, oz)
+
+    // ---- Etapa 83: estado dos objetos da biblioteca 3D
+    /** estado gravado da física (posição/rotação do corpo), "" = nenhum */
+    var st: String = ""
+    /** corpo rígido (só itens com type.dyn), criado pela física */
+    var body: Body? = null
+    /** progresso atual (0..1) e alvo (0 ou 1) de cada peça animada do GLB (mesma ordem de GModel.animated) */
+    var animCur: FloatArray? = null
+    var animTgt: FloatArray? = null
+    /** limite de abertura (0..1) de cada peça, calculado ao abrir (parede ou móvel na frente) */
+    var animLim: FloatArray? = null
+    /** ocupado (alguém sentado) */
+    var busy = false
+
+    fun encodeState(): String {
+        val sb = StringBuilder(st)
+        animTgt?.let { a -> if (a.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("a="); sb.append(a.joinToString(":") { if (it > 0.5f) "1" else "0" }) } }
+        return sb.toString()
+    }
+
+    fun decodeState(s: String) {
+        val keep = ArrayList<String>()
+        for (kv in s.split('~')) {
+            if (kv.startsWith("a=")) {
+                val v = kv.substring(2).split(':').map { if (it == "1") 1f else 0f }.toFloatArray()
+                animTgt = v; animCur = v.copyOf()
+            } else if (kv.isNotEmpty()) keep.add(kv)
+        }
+        st = keep.joinToString("~")
+    }
 }
 
 class GameState(ctx: Context) {
@@ -140,6 +178,7 @@ class GameState(ctx: Context) {
                         val tp = try { Type.valueOf(f[0]) } catch (e: Exception) { continue }
                         val novo = Item(tp, f[1].toInt(), f[2].toInt(), f[3].toInt() % 4)
                         if (f.size > 5) { novo.ox = f[4].toInt() / 100f; novo.oz = f[5].toInt() / 100f }
+                        if (f.size > 6) novo.decodeState(f[6])
                         items.add(novo)
                     }
                 }
@@ -166,9 +205,9 @@ class GameState(ctx: Context) {
     fun canPlace(item: Item, nx: Int, ny: Int, rot: Int, ox: Float = item.ox, oz: Float = item.oz): Boolean {
         val r = Foot.rect(item.type, rot, nx, ny, ox, oz)
         if (r[0] < -0.001f || r[1] < -0.001f || r[2] > gw + 0.001f || r[3] > gh + 0.001f) return false
-        if (item.type.rug) return true
+        if (item.type.rug || item.type.dyn) return true      // objeto solto: a física resolve onde ele fica
         return items.none { o ->
-            if (o === item || o.type.rug) return@none false
+            if (o === item || o.type.rug || o.type.dyn) return@none false
             val b = o.rect()
             r[0] < b[2] - 0.01f && r[2] > b[0] + 0.01f && r[1] < b[3] - 0.01f && r[3] > b[1] + 0.01f
         }
@@ -246,7 +285,7 @@ class GameState(ctx: Context) {
 
     fun save() {
         if (testRoom) return
-        val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot},${Math.round(it.ox * 100f)},${Math.round(it.oz * 100f)}" }
+        val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot},${Math.round(it.ox * 100f)},${Math.round(it.oz * 100f)},${it.encodeState()}" }
         prefs.edit()
             .putString("state", "$money|$gw|$gh|$s")
             .putInt("floor", floorIdx).putInt("wall", wallIdx)

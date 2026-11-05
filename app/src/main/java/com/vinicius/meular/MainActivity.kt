@@ -178,6 +178,7 @@ class MainActivity : AppCompatActivity() {
         CuteChar.assets = assets
         ModStore.init(this)
         Flora.assets = assets
+        Glb.assets = assets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -285,7 +286,8 @@ class MainActivity : AppCompatActivity() {
         val useTick = object : Runnable {
             override fun run() {
                 val k = game.r.nearKind
-                if (game.mode == 0 && k != 0) {
+                if (game.r.saveReq) { game.r.saveReq = false; st.save() }   // Etapa 83: objeto com física parou (grava a posição)
+                if ((game.mode == 0 || k == 5) && k != 0) {
                     useBtn.text = game.r.nearLabel
                     if (useBtn.visibility != View.VISIBLE) useBtn.visibility = View.VISIBLE
                 } else if (useBtn.visibility != View.GONE) useBtn.visibility = View.GONE
@@ -472,7 +474,13 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ loja
 
-    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val acao: () -> Unit)
+    private class Entry(val titulo: String, val sub: String, val icon: Int, val swatch: Int, val ok: Boolean, val thumb: String? = null, val acao: () -> Unit)
+
+    /** Etapa 83: miniaturas dos objetos da biblioteca 3D (assets/obj3d/thumb/<id>.png) */
+    private val thumbs = HashMap<String, android.graphics.Bitmap?>()
+    private fun thumb(id: String): android.graphics.Bitmap? = thumbs.getOrPut(id) {
+        try { assets.open("obj3d/thumb/$id.png").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+    }
 
     private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val img: ImageView, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
 
@@ -509,7 +517,13 @@ class MainActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(h: VH, i: Int) {
             val e = data[i]
-            if (e.swatch != 0) {
+            val tb = e.thumb?.let { thumb(it) }
+            if (tb != null) {
+                h.icon.visibility = View.GONE
+                h.sw.visibility = View.GONE
+                h.img.visibility = View.VISIBLE
+                h.img.setImageBitmap(tb)
+            } else if (e.swatch != 0) {
                 h.img.visibility = View.GONE
                 h.icon.visibility = View.GONE
                 h.sw.visibility = View.VISIBLE
@@ -539,7 +553,7 @@ class MainActivity : AppCompatActivity() {
     private fun entries(tab: Int): List<Entry> {
         val out = ArrayList<Entry>()
         if (tab in 0..3) {
-            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "Grátis", t.ordinal, 0, st.money >= t.preco) { comprar(t) })
+            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "Grátis", t.ordinal, 0, st.money >= t.preco, t.glb) { comprar(t) })
         } else if (tab == 4) {
             Finish.floors.forEachIndexed { i, f ->
                 val own = (st.ownFloors shr i) and 1 == 1

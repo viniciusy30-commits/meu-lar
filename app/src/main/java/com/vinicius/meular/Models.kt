@@ -79,6 +79,7 @@ object Models {
     )
 
     fun furniture(t: Type): Mesh {
+        t.glb?.let { id -> Glb.get(id)?.let { return it.staticMesh(t.w / 2f, t.h / 2f) } }
         t.fl?.let { id ->
             val fb = Flora.Batch()
             // a cerca nasce no canto (0..2 m em x); o resto é centrado na área do item

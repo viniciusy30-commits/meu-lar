@@ -1,3 +1,10 @@
+#id 2026-11-08-c
+#titulo Biblioteca 3D: primeiros objetos com física e interação
+- Novo na loja: Poltrona de linho (dá para sentar e levantar; a almofada afunda), Aparador de carvalho (gavetas e portas abrem de verdade), Vaso com costela-de-adão, Caixa de papelão e Bola de borracha
+- Caixa e bola têm física: caem, quicam, rolam, tombam na borda da mesa e são empurradas ou chutadas pelo personagem
+- Portas e gavetas não atravessam parede nem outros móveis: abrem só até onde dá
+- Botão de interação mostra Sentar, Levantar, Abrir gaveta, Fechar porta...
+
 #id 2026-11-08-b
 #titulo Criador mais limpo, ícones novos e rosto no HUD
 - Círculos brancos ao redor do personagem no criador removidos

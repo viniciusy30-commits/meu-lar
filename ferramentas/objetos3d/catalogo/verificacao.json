@@ -1,0 +1,117 @@
+{
+ "decor_vaso_costela": {
+  "erros": [],
+  "avisos": [],
+  "info": {
+   "vertices": 3377,
+   "triangulos": 5340,
+   "malhas": 2,
+   "nos": 4,
+   "materiais": 4,
+   "texturas": 4,
+   "bbox_min": [
+    -0.655,
+    0.0,
+    -0.706
+   ],
+   "bbox_max": [
+    0.683,
+    0.7838,
+    0.6378
+   ],
+   "bytes": 337924
+  }
+ },
+ "fis_caixa_papelao": {
+  "erros": [],
+  "avisos": [],
+  "info": {
+   "vertices": 120,
+   "triangulos": 120,
+   "malhas": 1,
+   "nos": 4,
+   "materiais": 4,
+   "texturas": 4,
+   "bbox_min": [
+    -0.2012,
+    0.0,
+    -0.16
+   ],
+   "bbox_max": [
+    0.2012,
+    0.3012,
+    0.1606
+   ],
+   "bytes": 62464
+  }
+ },
+ "fis_bola": {
+  "erros": [],
+  "avisos": [],
+  "info": {
+   "vertices": 701,
+   "triangulos": 1224,
+   "malhas": 1,
+   "nos": 3,
+   "materiais": 1,
+   "texturas": 1,
+   "bbox_min": [
+    -0.11,
+    0.0,
+    -0.11
+   ],
+   "bbox_max": [
+    0.11,
+    0.22,
+    0.11
+   ],
+   "bytes": 69932
+  }
+ },
+ "int_poltrona": {
+  "erros": [],
+  "avisos": [],
+  "info": {
+   "vertices": 3952,
+   "triangulos": 5452,
+   "malhas": 3,
+   "nos": 11,
+   "materiais": 2,
+   "texturas": 2,
+   "bbox_min": [
+    -0.372,
+    -0.0016,
+    -0.3453
+   ],
+   "bbox_max": [
+    0.372,
+    0.791,
+    0.305
+   ],
+   "bytes": 390904
+  }
+ },
+ "int_aparador": {
+  "erros": [],
+  "avisos": [],
+  "info": {
+   "vertices": 4533,
+   "triangulos": 5616,
+   "malhas": 5,
+   "nos": 10,
+   "materiais": 4,
+   "texturas": 4,
+   "bbox_min": [
+    -0.55,
+    0.0,
+    -0.2
+   ],
+   "bbox_max": [
+    0.55,
+    0.66,
+    0.238
+   ],
+   "bytes": 435188
+  }
+ }
+}

@@ -100,12 +100,38 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var stageM: Mesh? = null
     private val cloth = ClothCurtains()
     /** Usa o que está ao alcance (porta ou cortina). Chamado pela thread da interface. */
-    fun interact() {
-        when (nearKind) {
-            1 -> doorOpen = !doorOpen
-            2 -> cloth.toggle(nearId)
-        }
-    }
+    fun interact() { useReq = true }
+    @Volatile private var useReq = false
+    /** Etapa 83: objeto com física dormiu (posição estável): a interface grava o jogo */
+    @Volatile var saveReq = false
+    private var nearItem: Item? = null
+    private var nearPart = -1
+    private var msgText = ""
+    private var msgT = 0f
+    // ---- Etapa 83: sentar (poltrona). Fases: 0 nada, 1 andando até o assento, 2 virando, 3 sentando, 4 sentado, 5 levantando
+    private var sitItem: Item? = null
+    @Volatile private var sitPh = 0
+    private var sitT = 0f
+    private var sitStuck = 0f
+    private var sitCancel = false
+    private var sitPath: ArrayList<FloatArray>? = null
+    private var sitStartPt: FloatArray? = null
+    private val sitPt = FloatArray(4)          // raiz sentada (x, z) e ponto de início (x, z)
+    private var sitYaw = 0f
+    private var sitDY = 0f
+    private var sitLift = 0f
+    private val sitWhere = FloatArray(3)        // onde o assento estava ao começar (se o móvel for mexido, a ação é cancelada)
+    // ---- Etapa 83: física e peças animadas
+    private val statics = ArrayList<SBox>()
+    private val partBoxes = ArrayList<FloatArray>()
+    private var physT = 0L
+    private var lastPhX = Float.NaN
+    private var lastPhZ = 0f
+    private val gmA = FloatArray(16)
+    private val gmB = FloatArray(16)
+    private val gmL = FloatArray(16)
+    private var nodeW = Array(32) { FloatArray(16) }
+    private val baseM = FloatArray(16)
 
     /** Porta aberta/fechada (agora por interação, não mais automática). */
     @Volatile var doorOpen = false
@@ -408,9 +434,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         val g = grabbed
         for (o in st.items) {
-            if (o.type.rug || o === g || Foot.height(o.type) < 0.12f) continue   // coisa baixinha dá para pisar por cima
+            if (o.type.rug || o.type.dyn || o === g || Foot.height(o.type) < 0.12f) continue   // coisa baixinha dá para pisar por cima; objeto solto é empurrado
             if (inside(o, nx, nz) && !inside(o, ox, oz)) return false
         }
+        // portas e gavetas abertas (Etapa 83); se já está dentro, deixa sair
+        for (b in partBoxes) if (nx > b[0] && nx < b[2] && nz > b[1] && nz < b[3] && !(ox > b[0] && ox < b[2] && oz > b[1] && oz < b[3])) return false
         return true
     }
 
@@ -437,9 +465,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (!ins && !door) return true
         } else if (!(x > -6.6f && x < gw + 6.6f && z > -6.6f && z < gh + 8.6f)) return true   // fora do quintal
         for (o in st.items) {
-            if (o.type.rug || Foot.height(o.type) < 0.12f) continue
+            if (o.type.rug || o.type.dyn || Foot.height(o.type) < 0.12f) continue
             if (inside(o, x, z)) return true
         }
+        for (b in partBoxes) if (x > b[0] && x < b[2] && z > b[1] && z < b[3]) return true
         return false
     }
 
@@ -588,6 +617,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val req = walkReq
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
         if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; return }
+        if (sitPh != 0) { jumpReq = false; updateSit(dt); return }
         // pulo
         if (jumpReq && mode == 0) {
             jumpReq = false
@@ -666,12 +696,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
         CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
-        val cute = if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
+        val sp = sitPh
+        val cute = if (sp >= 3) CuteChar.frame(if (sp == 3) CuteChar.SIT_IN else if (sp == 4) CuteChar.SIT_LOOP else CuteChar.SIT_OUT, if (sp == 4) t else sitT)
+                   else if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, px, py + up + baseY, pz)
+        Matrix.translateM(mdl, 0, px, py + up + baseY + sitLift, pz)
         Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
         draw(m, mdl, 1f)
     }
@@ -930,7 +962,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 val mex = CuteChar.fpEye[0]; val mez = CuteChar.fpEye[2] + adj
                 ex = px + mex * ecs + mez * esn
                 ez = pz - mex * esn + mez * ecs
-                ey = baseY + py + lift + (if (CuteChar.fpEye[1] > 0.5f) CuteChar.fpEye[1] else 1.5f) - 0.03f * sin(dn)
+                ey = baseY + py + lift + sitLift + (if (CuteChar.fpEye[1] > 0.5f) CuteChar.fpEye[1] else 1.5f) - 0.03f * sin(dn)
                 Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
@@ -993,15 +1025,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val dtc = if (clothT == 0L) 0.016f else ((tn - clothT) / 1e9f).coerceIn(0f, 0.05f)
             clothT = tn
             cloth.step(dtc, (tn / 1_000_000L % 1_000_000L) / 1000f, gw.toFloat(), gh.toFloat(), px, pz, st.items)
-            // o que dá para usar daqui (porta ou cortina mais perto)
-            if (mode == 0) {
-                val ddx = px - gw / 2f; val ddz = pz - (gh - 0.3f)
-                val dDoor = Math.sqrt((ddx * ddx + ddz * ddz).toDouble()).toFloat()
-                val nw = cloth.nearest(px, pz, gw.toFloat(), gh.toFloat())
-                if (dDoor < 1.6f && dDoor <= nw.second) { nearKind = 1; nearId = 0; nearLabel = if (doorOpen) "Fechar porta" else "Abrir porta" }
-                else if (nw.first >= 0 && nw.second < 1.5f) { nearKind = 2; nearId = nw.first; nearLabel = if (cloth.wins[nw.first].closed) "Abrir cortina" else "Fechar cortina" }
-                else nearKind = 0
-            } else nearKind = 0
+            // Etapa 83: peças animadas, física dos objetos soltos e o que dá para usar daqui
+            stepObjects(dtc)
+            findNear(dtc)
+            if (useReq) {
+                useReq = false
+                when (nearKind) {
+                    1 -> doorOpen = !doorOpen
+                    2 -> cloth.toggle(nearId)
+                    3 -> nearItem?.let { startSit(it) }
+                    4 -> nearItem?.let { togglePart(it, nearPart) }
+                    5 -> sitCancel = true
+                }
+            }
             for (pn in cloth.panels) if (shown[pn.wall]) {
                 wallModel(pn.wall, gw.toFloat(), gh.toFloat())
                 draw(pn.mesh, mdl, 1f)
@@ -1030,6 +1066,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val items = st.items
         for (item in items) {
             val t = item.type
+            if (t.glb != null) { drawGlbItem(item, now); continue }
             val mesh = fm.getOrPut(t) { Models.furniture(t) }
             val age = if (item.born == 0L) 99f else (now - item.born) / 1e9f
             var s = 1f
@@ -1054,12 +1091,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val tt = (now / 1_000_000L % 100000L) / 1000f
         for (item in items) {
             if (item.type.rug) continue
+            val bd = item.body
+            if (bd != null && bd.p[1] - bd.extent(0f, 1f, 0f) > topUnder(bd.p[0], bd.p[2], bd.p[1]) + 0.25f) continue   // no ar alto: sem sombra
             val rc = item.rect()
             val sa = Math.round((rc[2] - rc[0]) * 20f)
             val sb = Math.round((rc[3] - rc[1]) * 20f)
             val shm = sm.getOrPut(1000000 + sa * 10000 + sb) { Models.shadowF(sa / 20.0, sb / 20.0) }
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f, 0f, (rc[1] + rc[3]) / 2f)
+            Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f, if (bd != null) topUnder(bd.p[0], bd.p[2], bd.p[1]) + 0.002f else 0f, (rc[1] + rc[3]) / 2f)
             draw(shm, mdl, 1f)
         }
         if (mode == 1 || fp) {
@@ -1092,6 +1131,447 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             walls[i]?.let { draw(it, mdl, 1f, true) }
         }
         GLES20.glDepthMask(true)
+    }
+
+    // ================================================================ Etapa 83: biblioteca 3D (GLB)
+
+    /** centro do item no mundo */
+    private fun itemBase(item: Item, out: FloatArray) {
+        Matrix.setIdentityM(out, 0)
+        Matrix.translateM(out, 0, item.x + item.ox + item.w / 2f, 0f, item.y + item.oz + item.h / 2f)
+        Matrix.rotateM(out, 0, item.rot * 90f, 0f, 1f, 0f)
+    }
+
+    /** ponto (x, z) do espaço do objeto -> mundo */
+    private fun toWorld(o: Item, lx: Float, lz: Float): FloatArray {
+        val cx = o.x + o.ox + o.w / 2f; val cz = o.y + o.oz + o.h / 2f
+        return when (((o.rot % 4) + 4) % 4) {
+            1 -> floatArrayOf(cx + lz, cz - lx)
+            2 -> floatArrayOf(cx - lx, cz - lz)
+            3 -> floatArrayOf(cx - lz, cz + lx)
+            else -> floatArrayOf(cx + lx, cz + lz)
+        }
+    }
+
+    /** matriz de mundo do nó [ni] com a peça animada [ak] no progresso [u] (as outras no progresso atual) */
+    private fun nodeWorld(item: Item, g: GModel, ni: Int, ak: Int, u: Float, out: FloatArray) {
+        val chain = IntArray(24); var n = 0; var c = ni
+        while (c >= 0 && n < 24) { chain[n++] = c; c = g.nodes[c].parent }
+        itemBase(item, out)
+        for (k in n - 1 downTo 0) {
+            val idx = chain[k]; val nd = g.nodes[idx]
+            val slot = g.animSlot[idx]
+            val uu = if (slot >= 0 && slot == ak) u else if (slot >= 0) (item.animCur?.getOrNull(slot) ?: 0f) else 0f
+            nd.local(gmL, nd.value(uu))
+            Matrix.multiplyMM(gmB, 0, out, 0, gmL, 0)
+            System.arraycopy(gmB, 0, out, 0, 16)
+        }
+    }
+
+    private fun groundAt(x: Float, z: Float): Float =
+        if (x > 0f && x < st.gw && z > 0f && z < st.gh) 0f else groundH(x, z)
+
+    /** topo da coisa mais alta (abaixo de [maxY]) sob o ponto (x, z): piso, tampo de mesa, braço da poltrona... */
+    private fun topUnder(x: Float, z: Float, maxY: Float): Float {
+        var best = groundAt(x, z)
+        for (s in statics) if (x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1 && s.y1 <= maxY && s.y1 > best) best = s.y1
+        return best
+    }
+
+    private fun buildStatics() {
+        statics.clear()
+        for (o in st.items) {
+            if (o.type.rug || o.type.dyn) continue
+            val g = o.type.glb?.let { Glb.get(it) }
+            if (g != null && g.cols.isNotEmpty()) {
+                val q = ((o.rot % 4) + 4) % 4
+                for (c in g.cols) {
+                    val w = toWorld(o, c.cx, c.cz)
+                    val sx = if (q % 2 == 1) c.sz else c.sx
+                    val sz = if (q % 2 == 1) c.sx else c.sz
+                    statics.add(SBox(w[0] - sx / 2f, c.cy - c.sy / 2f, w[1] - sz / 2f, w[0] + sx / 2f, c.cy + c.sy / 2f, w[1] + sz / 2f))
+                }
+            } else {
+                val h = Foot.height(o.type)
+                if (h < 0.03f) continue
+                val r = o.rect()
+                statics.add(SBox(r[0], 0f, r[1], r[2], h, r[3]))
+            }
+        }
+    }
+
+    private fun makeBody(o: Item): Body? {
+        val g = Glb.get(o.type.glb ?: return null) ?: return null
+        val c = g.cols.firstOrNull() ?: return null
+        val f = g.meta.optJSONObject("fisica")
+        fun fv(k: String, d: Double): Float = (f?.optDouble(k, d) ?: d).toFloat()
+        val b = Body(o, c.shape == "sphere", c.sx / 2f, c.sy / 2f, c.sz / 2f, c.cy,
+            fv("massa", 1.0), fv("atrito", 0.6), fv("restituicao", 0.2), fv("amortecimento", 0.05), fv("amortecimento_ang", 0.1), fv("rolamento", 0.0))
+        var ok = false
+        if (o.st.isNotEmpty()) {
+            try {
+                val m = HashMap<String, String>()
+                for (kv in o.st.split('~')) { val i = kv.indexOf('='); if (i > 0) m[kv.substring(0, i)] = kv.substring(i + 1) }
+                val qs = m["q"]?.split(':')?.map { it.toFloat() }
+                val sx = m["px"]?.toFloat(); val sy = m["py"]?.toFloat(); val sz = m["pz"]?.toFloat()
+                if (sx != null && sy != null && sz != null && qs != null && qs.size == 4) {
+                    b.p[0] = sx; b.p[1] = sy; b.p[2] = sz
+                    for (k in 0..3) b.q[k] = qs[k]
+                    b.updR(); b.sleep = true; ok = true
+                }
+            } catch (e: Exception) { }
+        }
+        // posição gravada longe do lugar do item (o item foi mexido): põe no lugar do item
+        if (ok && (abs(b.p[0] - (o.x + o.ox + o.w / 2f)) > 0.06f || abs(b.p[2] - (o.y + o.oz + o.h / 2f)) > 0.06f)) ok = false
+        if (!ok) placeBody(b)
+        b.lastX = o.x + o.ox; b.lastZ = o.y + o.oz
+        return b
+    }
+
+    /** põe o corpo parado em cima do que houver no lugar do item (piso, mesa...) */
+    private fun placeBody(b: Body) {
+        val o = b.item
+        b.p[0] = o.x + o.ox + o.w / 2f; b.p[2] = o.y + o.oz + o.h / 2f
+        b.setYaw(o.rot * 90f)
+        b.p[1] = topUnder(b.p[0], b.p[2], 1.25f) + b.extent(0f, 1f, 0f) + 0.01f
+        for (k in 0..2) { b.v[k] = 0f; b.w[k] = 0f }
+        b.sleep = false; b.still = 0f
+    }
+
+    /** Peças animadas (portas, gavetas, almofada) e física dos objetos soltos, uma vez por quadro. */
+    private fun stepObjects(dt: Float) {
+        partBoxes.clear()
+        for (o in st.items) {
+            val gid = o.type.glb ?: continue
+            val g = Glb.get(gid) ?: continue
+            val na = g.animated.size
+            if (na == 0) continue
+            if (o.animTgt?.size != na) o.animTgt = FloatArray(na)
+            if (o.animCur?.size != na) o.animCur = o.animTgt!!.copyOf()
+            if (o.animLim?.size != na) o.animLim = FloatArray(na) { 1f }
+            val cur = o.animCur!!; val tgt = o.animTgt!!; val lim = o.animLim!!
+            for (k in 0 until na) {
+                val nd = g.nodes[g.animated[k]]
+                val goal = tgt[k] * lim[k]
+                val sp = dt / nd.aDur
+                val d = goal - cur[k]
+                cur[k] += d.coerceIn(-sp, sp)
+                if (cur[k] > 0.05f && nd.aType != 3) {
+                    // caixa (chão) da peça aberta: o personagem não atravessa a porta/gaveta aberta
+                    nodeWorld(o, g, g.animated[k], k, cur[k], gmA)
+                    val bb = nd.bb
+                    var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+                    for (c in 0 until 8) {
+                        val x = if (c and 1 != 0) bb[3] else bb[0]; val y = if (c and 2 != 0) bb[4] else bb[1]; val z = if (c and 4 != 0) bb[5] else bb[2]
+                        val wx = gmA[0] * x + gmA[4] * y + gmA[8] * z + gmA[12]
+                        val wz = gmA[2] * x + gmA[6] * y + gmA[10] * z + gmA[14]
+                        if (wx < x0) x0 = wx; if (wx > x1) x1 = wx; if (wz < z0) z0 = wz; if (wz > z1) z1 = wz
+                    }
+                    partBoxes.add(floatArrayOf(x0 - 0.16f, z0 - 0.16f, x1 + 0.16f, z1 + 0.16f))
+                }
+            }
+        }
+        // física
+        buildStatics()
+        Physics.sync(st.items) { makeBody(it) }
+        if (Physics.bodies.isEmpty()) { lastPhX = Float.NaN; return }
+        val g0 = grabbed
+        for (b in Physics.bodies) {
+            val it = b.item
+            val ix = it.x + it.ox; val iz = it.y + it.oz
+            if (it === g0) {
+                // sendo arrastado pela interface: segue o item, um pouco acima do apoio
+                b.kinematic = true
+                b.p[0] = ix + it.w / 2f; b.p[2] = iz + it.h / 2f
+                b.setYaw(it.rot * 90f)
+                b.p[1] = topUnder(b.p[0], b.p[2], 1.25f) + b.extent(0f, 1f, 0f) + 0.08f
+                for (k in 0..2) { b.v[k] = 0f; b.w[k] = 0f }
+                b.sleep = false; b.lastX = ix; b.lastZ = iz
+            } else if (b.kinematic || abs(ix - b.lastX) > 0.002f || abs(iz - b.lastZ) > 0.002f) {
+                b.kinematic = false
+                placeBody(b)
+                b.lastX = ix; b.lastZ = iz
+            }
+        }
+        var pvx = 0f; var pvz = 0f
+        if (!lastPhX.isNaN() && dt > 1e-4f) { pvx = (px - lastPhX) / dt; pvz = (pz - lastPhZ) / dt }
+        lastPhX = px; lastPhZ = pz
+        if (pvx * pvx + pvz * pvz > 36f) { pvx = 0f; pvz = 0f }      // teletransporte (troca de casa): ignora
+        val w = Physics.World(statics, st.gw.toFloat(), st.gh.toFloat(), doorOpen, { x, z -> groundH(x, z) },
+            px, pz, pvx, pvz, pRun && pMoving, (mode == 0 || mode == 1) && sitPh < 3)
+        Physics.step(dt, w)
+        for (b in Physics.bodies) if (!b.kinematic) Physics.writeBack(b)
+        if (Physics.settled) { Physics.settled = false; saveReq = true }
+    }
+
+    /** O que dá para usar daqui: porta, cortina, assento ou peça (gaveta/porta de móvel) mais perto e à frente. */
+    private fun findNear(dt: Float) {
+        if (msgT > 0f) msgT -= dt
+        if (sitPh != 0) {
+            nearItem = null; nearPart = -1
+            when (sitPh) {
+                1, 2 -> { nearKind = 5; nearLabel = "Cancelar" }
+                3, 4 -> { nearKind = 5; nearLabel = "Levantar" }
+                else -> nearKind = 0
+            }
+            return
+        }
+        if (mode != 0) { nearKind = 0; return }
+        val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
+        var best = Float.MAX_VALUE; var kind = 0; var lab = ""; var bi: Item? = null; var bp = -1; var bid = 0
+        val ddx = px - gw / 2f; val ddz = pz - (gh - 0.3f)
+        val dDoor = sqrt(ddx * ddx + ddz * ddz)
+        if (dDoor < 1.6f) { best = dDoor; kind = 1; lab = if (doorOpen) "Fechar porta" else "Abrir porta" }
+        val nw = cloth.nearest(px, pz, gw, gh)
+        if (nw.first >= 0 && nw.second < 1.5f && nw.second < best) { best = nw.second; kind = 2; bid = nw.first; lab = if (cloth.wins[nw.first].closed) "Abrir cortina" else "Fechar cortina" }
+        val yr = Math.toRadians(pYaw.toDouble())
+        val fx = sin(yr).toFloat(); val fz = cos(yr).toFloat()
+        for (o in st.items) {
+            val gid = o.type.glb ?: continue
+            val g = Glb.get(gid) ?: continue
+            val cx = o.x + o.ox + o.w / 2f; val cz = o.y + o.oz + o.h / 2f
+            if (kotlin.math.hypot(cx - px, cz - pz) > 3f) continue
+            if (!o.busy && CuteChar.hasSit()) g.point("IP_sentar")?.let { ip ->
+                val w = toWorld(o, ip[0], ip[2])
+                val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
+                if (d < 1.4f && d * 0.9f < best) { best = d * 0.9f; kind = 3; lab = "Sentar"; bi = o; bp = -1 }
+            }
+            for (k in g.animated.indices) {
+                val ni = g.animated[k]; val nd = g.nodes[ni]
+                if (nd.aType == 3) continue
+                val al = nd.anim?.optJSONArray("alca") ?: continue
+                val lx = al.optDouble(0).toFloat() - g.rest[ni][12]
+                val ly = al.optDouble(1).toFloat() - g.rest[ni][13]
+                val lz = al.optDouble(2).toFloat() - g.rest[ni][14]
+                nodeWorld(o, g, ni, k, o.animCur?.getOrNull(k) ?: 0f, gmA)
+                val hx = gmA[0] * lx + gmA[4] * ly + gmA[8] * lz + gmA[12]
+                val hz = gmA[2] * lx + gmA[6] * ly + gmA[10] * lz + gmA[14]
+                val dx = hx - px; val dz = hz - pz
+                val d = sqrt(dx * dx + dz * dz)
+                if (d > 1.25f || d < 1e-3f) continue
+                val dot = (dx * fx + dz * fz) / d
+                if (dot < 0.15f) continue
+                val sc = d - 0.45f * dot
+                if (sc < best) {
+                    best = sc; kind = 4; bi = o; bp = k
+                    val open = (o.animTgt?.getOrNull(k) ?: 0f) > 0.5f
+                    lab = (if (open) "Fechar " else "Abrir ") + (nd.anim?.optString("rotulo", "peça") ?: "peça")
+                }
+            }
+        }
+        nearItem = bi; nearPart = bp; nearId = bid
+        nearLabel = if (msgT > 0f && kind != 0) msgText else lab
+        nearKind = kind
+    }
+
+    /** quanto (0..1) a peça [k] pode abrir sem entrar na parede ou em outro móvel */
+    private fun openLimit(item: Item, g: GModel, k: Int): Float {
+        val ni = g.animated[k]; val b = g.nodes[ni].bb
+        if (b[0] > b[3]) return 1f
+        val cx = item.x + item.ox + item.w / 2f; val cz = item.y + item.oz + item.h / 2f
+        val inHouse = cx > 0f && cx < st.gw && cz > 0f && cz < st.gh
+        var ok = 0f
+        for (s in 1..12) {
+            val u = s / 12f
+            nodeWorld(item, g, ni, k, u, gmA)
+            var hit = false
+            for (c in 0 until 8) {
+                val x = if (c and 1 != 0) b[3] else b[0]; val y = if (c and 2 != 0) b[4] else b[1]; val z = if (c and 4 != 0) b[5] else b[2]
+                val wx = gmA[0] * x + gmA[4] * y + gmA[8] * z + gmA[12]
+                val wy = gmA[1] * x + gmA[5] * y + gmA[9] * z + gmA[13]
+                val wz = gmA[2] * x + gmA[6] * y + gmA[10] * z + gmA[14]
+                if (inHouse && (wx < 0.01f || wx > st.gw - 0.01f || wz < 0.01f || wz > st.gh - 0.01f)) { hit = true; break }
+                for (o in st.items) {
+                    if (o === item || o.type.rug || o.type.dyn) continue
+                    val h = Foot.height(o.type)
+                    if (h < 0.1f || wy > h) continue
+                    val r = o.rect()
+                    if (wx > r[0] && wx < r[2] && wz > r[1] && wz < r[3]) { hit = true; break }
+                }
+                if (hit) break
+            }
+            if (hit) break
+            ok = u
+        }
+        return ok
+    }
+
+    private fun togglePart(item: Item, k: Int) {
+        val g = Glb.get(item.type.glb ?: return) ?: return
+        val tgt = item.animTgt ?: return; val lim = item.animLim ?: return
+        if (k !in tgt.indices) return
+        if (tgt[k] > 0.5f) { tgt[k] = 0f; saveReq = true; return }
+        val l = openLimit(item, g, k)
+        if (l < 0.15f) { msgText = "Sem espaço para abrir"; msgT = 1.4f; return }
+        lim[k] = l; tgt[k] = 1f; saveReq = true
+        if (l < 0.99f) { msgText = "Abriu até onde deu"; msgT = 1.2f }
+    }
+
+    /** Desenha um objeto GLB: estático (centro do item) ou com física (pose do corpo). */
+    private fun drawGlbItem(item: Item, now: Long) {
+        val g = Glb.get(item.type.glb ?: return) ?: return
+        g.ensureGl()
+        val b = item.body
+        if (b != null) {
+            Matrix.setIdentityM(baseM, 0)
+            Matrix.translateM(baseM, 0, b.p[0], b.p[1], b.p[2])
+            val r = b.r
+            gmA[0] = r[0]; gmA[1] = r[3]; gmA[2] = r[6]; gmA[3] = 0f
+            gmA[4] = r[1]; gmA[5] = r[4]; gmA[6] = r[7]; gmA[7] = 0f
+            gmA[8] = r[2]; gmA[9] = r[5]; gmA[10] = r[8]; gmA[11] = 0f
+            gmA[12] = 0f; gmA[13] = 0f; gmA[14] = 0f; gmA[15] = 1f
+            Matrix.multiplyMM(gmB, 0, baseM, 0, gmA, 0)
+            Matrix.translateM(gmB, 0, 0f, -b.comY, 0f)
+            System.arraycopy(gmB, 0, baseM, 0, 16)
+        } else {
+            itemBase(item, baseM)
+            val age = if (item.born == 0L) 99f else (now - item.born) / 1e9f
+            if (age < 0.4f) {
+                val u = age / 0.4f - 1f
+                val s = (1f + 2.70158f * u * u * u + 1.70158f * u * u).coerceAtLeast(0.01f)
+                Matrix.scaleM(baseM, 0, s, s, s)
+            }
+            if (item === grabbed) { baseM[13] += 0.08f }
+        }
+        val nodes = g.nodes
+        if (nodeW.size < nodes.size) nodeW = Array(nodes.size) { FloatArray(16) }
+        val cur = item.animCur
+        for (i in nodes.indices) {
+            val n = nodes[i]
+            val slot = g.animSlot[i]
+            val u = if (slot >= 0) (cur?.getOrNull(slot) ?: 0f) else 0f
+            n.local(gmL, n.value(u))
+            val pw = if (n.parent >= 0 && n.parent < i) nodeW[n.parent] else baseM
+            Matrix.multiplyMM(nodeW[i], 0, pw, 0, gmL, 0)
+            n.mesh?.let { draw(it, nodeW[i], 1f) }
+        }
+    }
+
+    // ---------------------------------------------------------------- sentar
+    private fun startSit(o: Item) {
+        val g = Glb.get(o.type.glb ?: return) ?: return
+        val ip = g.point("IP_sentar") ?: return
+        val ap = g.extraPoint("IP_sentar", "aproximacao") ?: return
+        val ini = g.extraPoint("IP_sentar", "inicio") ?: return
+        val sy = g.extraFloat("IP_sentar", "assento_y", 0.34f)
+        if (!CuteChar.hasSit() || o.busy) return
+        val w0 = toWorld(o, ip[0], ip[2]); sitPt[0] = w0[0]; sitPt[1] = w0[1]
+        val w1 = toWorld(o, ini[0], ini[2]); sitPt[2] = w1[0]; sitPt[3] = w1[1]
+        val w2 = toWorld(o, ap[0], ap[2])
+        sitYaw = o.rot * 90f + Math.toDegrees(ip[3].toDouble()).toFloat()
+        sitDY = (sy - CuteChar.sitSeat()).coerceIn(-0.015f, 0.25f)
+        val pth: ArrayList<FloatArray> = if (kotlin.math.hypot(px - w2[0], pz - w2[1]) < 0.12f) ArrayList()
+            else (planPath(w2[0], w2[1]) ?: run { msgText = "Não dá para chegar"; msgT = 1.4f; return })
+        val sp = floatArrayOf(w1[0], w1[1])
+        pth.add(sp)
+        sitStartPt = sp
+        sitPath = pth; sitItem = o; sitT = 0f; sitStuck = 0f; sitCancel = false
+        sitWhere[0] = o.x + o.ox; sitWhere[1] = o.y + o.oz; sitWhere[2] = o.rot.toFloat()
+        jumping = false; py = 0f; vy = 0f
+        path = null; markX = Float.NaN
+        sitPh = 1
+    }
+
+    private fun occ(o: Item?, v: Float) {
+        val g = o?.type?.glb?.let { Glb.get(it) } ?: return
+        val k = g.occSlot
+        val t = o.animTgt ?: return
+        if (k in t.indices) t[k] = v
+    }
+
+    private fun sitAbort() {
+        sitItem?.busy = false
+        occ(sitItem, 0f)
+        sitItem = null; sitPh = 0; sitLift = 0f; sitPath = null; pMoving = false
+    }
+
+    private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
+
+    private fun updateSit(dt: Float) {
+        val o = sitItem
+        if (o == null || !st.items.contains(o) || o === grabbed ||
+            abs(o.x + o.ox - sitWhere[0]) > 0.01f || abs(o.y + o.oz - sitWhere[1]) > 0.01f || o.rot.toFloat() != sitWhere[2]) { sitAbort(); return }
+        val mag2 = moveX * moveX + moveY * moveY
+        val out = sitCancel || mag2 > 0.09f || (mode == 1 && path != null)
+        sitCancel = false
+        pRun = false
+        when (sitPh) {
+            1 -> {
+                if (out) { sitAbort(); return }
+                val pth = sitPath
+                if (pth == null || pth.isEmpty()) { sitPh = 2; sitT = 0f; pMoving = false; return }
+                var budget = WALK_SPEED * dt
+                val bx = px; val bz = pz
+                while (budget > 0f && pth.isNotEmpty()) {
+                    val w = pth[0]
+                    val dx = w[0] - px; val dz = w[1] - pz
+                    val d = sqrt(dx * dx + dz * dz)
+                    if (d < 0.02f) { pth.removeAt(0); continue }
+                    val s = min(d, budget)
+                    val mx = dx / d * s; val mz = dz / d * s
+                    if (w === sitStartPt) { px += mx; pz += mz }          // último passo: entra na folga do próprio assento
+                    else {
+                        if (walkable(px + mx, pz, px, pz)) px += mx
+                        if (walkable(px, pz + mz, px, pz)) pz += mz
+                    }
+                    val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+                    var dl = dir - pYaw
+                    while (dl > 180f) dl -= 360f
+                    while (dl < -180f) dl += 360f
+                    pYaw += dl * min(1f, dt * 12f)
+                    budget -= s
+                    if (s < d) break
+                }
+                pMoving = true
+                if (kotlin.math.hypot(px - bx, pz - bz) < 0.0005f && pth.isNotEmpty()) sitStuck += dt else sitStuck = 0f
+                if (sitStuck > 1.0f) { msgText = "Não dá para chegar"; msgT = 1.4f; sitAbort(); return }
+                if (pth.isEmpty()) { sitPh = 2; sitT = 0f; pMoving = false }
+            }
+            2 -> {
+                if (out) { sitAbort(); return }
+                pMoving = false
+                var dl = sitYaw - pYaw
+                while (dl > 180f) dl -= 360f
+                while (dl < -180f) dl += 360f
+                val st_ = 330f * dt
+                pYaw += dl.coerceIn(-st_, st_)
+                px += (sitPt[2] - px) * min(1f, dt * 10f); pz += (sitPt[3] - pz) * min(1f, dt * 10f)
+                if (abs(dl) < 1.5f) {
+                    pYaw = sitYaw; px = sitPt[2]; pz = sitPt[3]
+                    o.busy = true; sitPh = 3; sitT = 0f
+                }
+            }
+            3 -> {
+                pMoving = false; pYaw = sitYaw
+                sitT += dt
+                val dur = CuteChar.clipSeconds(CuteChar.SIT_IN)
+                val u = sitT / dur
+                val k = smooth(u / 0.55f)
+                px = sitPt[2] + (sitPt[0] - sitPt[2]) * k; pz = sitPt[3] + (sitPt[1] - sitPt[3]) * k
+                sitLift = sitDY * smooth((u - 0.35f) / 0.5f)
+                if (u > 0.55f) occ(o, 1f)
+                if (out) {
+                    if (u < 0.35f) { sitAbort(); return }
+                    sitPh = 5; sitT = 0f; return
+                }
+                if (u >= 1f) { sitPh = 4; sitT = 0f }
+            }
+            4 -> {
+                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY
+                if (out) { sitPh = 5; sitT = 0f }
+            }
+            5 -> {
+                pMoving = false; pYaw = sitYaw
+                sitT += dt
+                val dur = CuteChar.clipSeconds(CuteChar.SIT_OUT)
+                val u = sitT / dur
+                if (u > 0.1f) occ(o, 0f)
+                val k = smooth((u - 0.45f) / 0.5f)
+                px = sitPt[0] + (sitPt[2] - sitPt[0]) * k; pz = sitPt[1] + (sitPt[3] - sitPt[1]) * k
+                sitLift = sitDY * (1f - smooth(u / 0.6f))
+                if (u >= 1f) { sitAbort(); px = sitPt[2]; pz = sitPt[3] }
+            }
+        }
     }
 
     /** Raio (origem + direção) no mundo para um toque na tela (vista aérea). */
