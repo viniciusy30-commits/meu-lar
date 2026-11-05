@@ -40,6 +40,7 @@ object CuteChar {
     private const val MALE_FOREARM_IN = 3f
     private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
     private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
+    private val slotFist = FloatArray(3)   // 0..1: mão fechando ao correr
     private val slotArm = FloatArray(3)   // 0..1: suaviza a entrada/saída do ajuste dos braços (ex.: pulo)
 
     @Volatile var assets: AssetManager? = null
@@ -89,9 +90,14 @@ object CuteChar {
     /** Etapa 74 (1ª pessoa): tudo acima desta altura (m) é recolhido num ponto no pescoço, para a cabeça não tapar a câmera. NaN = desligado. */
     @Volatile var hideAbove = Float.NaN
     private var topRef = 0f
+    /** Distância (m) do olho à frente do eixo do corpo na 1ª pessoa (a câmera fica um pouco adiante do rosto). */
+    const val FP_FWD = 0.13f
+    @Volatile private var topObs = 0f   // topo da cabeça medido no último quadro (já com pose e escala)
+    private val HEAD_SLOTS = setOf("hairBack", "hairFront", "hat", "glasses", "beard", "headAcc")
     /** Altura do corpo-base (m, já com a escala do personagem): topo da cabeça na pose de referência. */
     fun bodyTop(): Float {
-        val bs = baseSkin ?: return 1.7f * heightS
+        if (topObs > 0.8f) return topObs
+        val bs = baseSkin ?: return 1.6f * heightS
         if (topRef <= 0f) {
             var m = 0f
             for (v in 0 until bs.nv) { val y = bs.pos[v * 3 + 1]; if (y > m) m = y }
@@ -841,6 +847,10 @@ object CuteChar {
         val armTarget = if (simOn || !mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
         slotArm[sl] += (armTarget - slotArm[sl]) * (dt * 10f).coerceAtMost(1f)
         if (slotArm[sl] > 0.01f) armIn(bone, MALE_ARM_IN * slotArm[sl], MALE_FOREARM_IN * slotArm[sl])
+        // mãos fechadas só na corrida (andar e parado seguem com a mão solta)
+        val fistT = if (c0 == RUN || clip == RUNJUMP) 1f else 0f
+        slotFist[sl] += (fistT - slotFist[sl]) * (dt * 14f).coerceAtMost(1f)
+        if (slotFist[sl] > 0.01f) fistHands(bone, slotFist[sl])
 
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
         // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
@@ -859,10 +869,10 @@ object CuteChar {
             System.arraycopy(exprCur, 0, exprApplied, 0, EXPR_N)
             refit(bs, true, sv, bp, fp)   // só o corpo-base tem o rosto
         } else if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
-        skinInto(bs, bone)
+        skinInto(bs, bone, !simOn)
         for (s in cs.skins) {
             if (s.warpVer != sv) refit(s, false, sv, bp, fp)
-            skinInto(s, bone)
+            skinInto(s, bone, s.key.startsWith("body/"))
         }
         updateLift(sl, c, cs, bs, sv, dt)
         return cs.mesh
@@ -961,6 +971,63 @@ object CuteChar {
         }
     }
 
+
+    // ---- Etapa 77: mão fechada ao correr ----
+    // Ossos dos dedos da mão esquerda (a direita é +15): indicador 25-27, médio 28-30, anelar 31-33, mindinho 34-36, polegar 37-39.
+    // Juntas (x,y em cm, pose de repouso) medidas no malha da mão: nós, meio e ponta de cada dedo. Os dedos se espalham em Z e
+    // apontam para baixo/fora; a palma olha para o corpo, então o fechar é um giro em torno do eixo Z do repouso.
+    private val FIST_BONES = arrayOf(intArrayOf(25, 26, 27), intArrayOf(28, 29, 30), intArrayOf(31, 32, 33), intArrayOf(34, 35, 36), intArrayOf(37, 38, 39))
+    private val FIST_J = arrayOf(
+        floatArrayOf(64.7f, 100.5f, 66.7f, 98.45f, 68.6f, 96.5f),
+        floatArrayOf(65.05f, 100.35f, 67.15f, 98.05f, 69.15f, 96.05f),
+        floatArrayOf(64.7f, 100.15f, 66.9f, 98.05f, 68.8f, 96.3f),
+        floatArrayOf(64.55f, 100.45f, 66.85f, 98.35f, 68.8f, 96.6f),
+        floatArrayOf(59.35f, 103.5f, 60.25f, 101.1f, 62.65f, 99.65f))
+    private val FIST_ANG = arrayOf(
+        floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
+        floatArrayOf(18f, 28f, 18f))
+
+    /** Fecha a mão: cada junta gira em torno do seu pivô (no espaço de repouso) e a matriz do osso recebe esse giro antes da pose da animação. */
+    private fun fistHands(mm: FloatArray, k: Float) {
+        val rc = FloatArray(9); val tc = FloatArray(3); val rn = FloatArray(9); val tn = FloatArray(3)
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val off = if (side == 0) 0 else 15
+            for (f in 0 until 5) {
+                val bones = FIST_BONES[f]; val j = FIST_J[f]; val a = FIST_ANG[f]
+                // acumulado = identidade
+                rc[0] = 1f; rc[1] = 0f; rc[2] = 0f; rc[3] = 0f; rc[4] = 1f; rc[5] = 0f; rc[6] = 0f; rc[7] = 0f; rc[8] = 1f
+                tc[0] = 0f; tc[1] = 0f; tc[2] = 0f
+                for (jt in 0 until 3) {
+                    val ang = -sx * Math.toRadians((a[jt] * k).toDouble())
+                    val cs = Math.cos(ang).toFloat(); val sn = Math.sin(ang).toFloat()
+                    val px = sx * j[jt * 2]; val py = j[jt * 2 + 1]
+                    // C = giro em Z em torno do pivô: R = [[c,-s,0],[s,c,0],[0,0,1]], t = P - R*P
+                    val tx = px - (cs * px - sn * py)
+                    val ty = py - (sn * px + cs * py)
+                    // novo = acumulado * C
+                    for (r in 0..2) {
+                        val a0 = rc[r * 3]; val a1 = rc[r * 3 + 1]; val a2 = rc[r * 3 + 2]
+                        rn[r * 3] = a0 * cs + a1 * sn
+                        rn[r * 3 + 1] = -a0 * sn + a1 * cs
+                        rn[r * 3 + 2] = a2
+                        tn[r] = a0 * tx + a1 * ty + tc[r]
+                    }
+                    System.arraycopy(rn, 0, rc, 0, 9); System.arraycopy(tn, 0, tc, 0, 3)
+                    // aplica na matriz do osso desta junta: M = M * acumulado
+                    val o = (bones[jt] + off) * 12
+                    for (r in 0..2) {
+                        val m0 = mm[o + r * 4]; val m1 = mm[o + r * 4 + 1]; val m2 = mm[o + r * 4 + 2]; val mt = mm[o + r * 4 + 3]
+                        mm[o + r * 4] = m0 * rc[0] + m1 * rc[3] + m2 * rc[6]
+                        mm[o + r * 4 + 1] = m0 * rc[1] + m1 * rc[4] + m2 * rc[7]
+                        mm[o + r * 4 + 2] = m0 * rc[2] + m1 * rc[5] + m2 * rc[8]
+                        mm[o + r * 4 + 3] = m0 * tc[0] + m1 * tc[1] + m2 * tc[2] + mt
+                    }
+                }
+            }
+        }
+    }
+
     // Gira os ossos da lista a partir do indice from, em torno do ponto de repouso (rx,ry,rz) posado pelo osso de indice pivotIdx.
     private fun rotArm(mm: FloatArray, bones: IntArray, pivotIdx: Int, from: Int, rx: Float, ry: Float, rz: Float, ang: Double) {
         val u = bones[pivotIdx] * 12
@@ -983,14 +1050,19 @@ object CuteChar {
         }
     }
 
-    private fun skinInto(s: Skin, mm: FloatArray) {
+    private fun skinInto(s: Skin, mm: FloatArray, base: Boolean = false) {
         val pos = s.pos
         val nor = s.nor
         val bi = s.bi
         val bw = s.bw
         val out = s.out
         val hs = heightS
-        val cutY = hideAbove.let { if (it.isNaN()) Float.MAX_VALUE else it }
+        // 1ª pessoa (hideAbove = altura do olho no espaço do modelo): o que ficaria colado na câmera (rosto, franja, chapéu,
+        // armação de óculos) é levado para o ponto do olho; todo triângulo que passa pelo olho é visto "de lado" e não tampa nada.
+        val eyeY = hideAbove
+        val clearOn = !eyeY.isNaN()
+        val r2 = if (!clearOn) 0f else if (base) 0.16f * 0.16f else if (s.key.substringBefore('/') in HEAD_SLOTS) 0.30f * 0.30f else 0f
+        var topMax = 0f
         for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
@@ -1008,11 +1080,15 @@ object CuteChar {
                 Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
-            if (y * hs > cutY) { out[o] = 0f; out[o + 1] = cutY; out[o + 2] = 0f } else { out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs }
+            if (base && y * hs > topMax) topMax = y * hs
+            val X = x * hs; val Y = y * hs; val Z = z * hs
+            if (r2 > 0f && X * X + (Y - eyeY) * (Y - eyeY) + (Z - FP_FWD) * (Z - FP_FWD) < r2) { out[o] = 0f; out[o + 1] = eyeY; out[o + 2] = FP_FWD }
+            else { out[o] = X; out[o + 1] = Y; out[o + 2] = Z }
             val nl = Math.sqrt((X * X + Y * Y + Z * Z).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv
         }
+        if (base && topMax > 0.8f) topObs = topMax
         val buf = s.fb
         buf.position(0)
         buf.put(out, 0, s.nv * STRIDE)

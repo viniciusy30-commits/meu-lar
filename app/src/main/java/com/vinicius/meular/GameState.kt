@@ -108,7 +108,10 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
 
 class GameState(ctx: Context) {
     private val prefs = ctx.getSharedPreferences("meular", Context.MODE_PRIVATE)
-    var money = 50
+    /** Dinheiro infinito (o trabalho saiu do jogo): sempre alto; gastar e ganhar não mudam o valor. */
+    var money: Int
+        get() = 999_999_999
+        set(_) {}
     var gw = 6
     var gh = 5
     var floorIdx = 0

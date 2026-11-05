@@ -406,12 +406,21 @@ object Models {
                 b.m(Mt.PLAIN)
                 b.sphere(o.c + ww / 2 + 0.45, 1.75, -0.24, 0.06, C("#FFE9A8"), 0.07, 7, false)
             } else {
+                // Etapa 75: a cortina agora é tecido simulado (Cloth.kt); aqui ficam só a janela, a barra e os suportes
                 val wn = Math.round(ww * 100).toInt()
                 val id = if (wn >= 175) "190" else if (wn >= 140) "160" else "125"
                 fl.place("win_$id", o.c, 0.0, 0.0)
-                val cc = if (o.c < len / 2) C("#D9786B") else C("#E4B25F")
-                fl.place("curt_$id", o.c, 0.0, 0.0, 1.0, 0.0,
-                    Math.min(1.25f, android.graphics.Color.red(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.green(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.blue(cc) / 255f * 1.15f))
+                val half = ww / 2 + 0.10 + 0.5 + 0.06
+                b.m(Mt.WOOD)
+                b.rbox(o.c, 2.075, 0.125, half * 2, 0.028, 0.028, 0.012, C("#4A3426"), true, 1)
+                b.m(Mt.PLAIN)
+                for (sd in intArrayOf(-1, 1)) {
+                    b.sphere(o.c + sd * (half + 0.025), 2.075, 0.125, 0.034, C("#C9A24E"), 0.04, 8, false)
+                    b.box(o.c + sd * (half - 0.04), 2.075, 0.075, 0.016, 0.016, 0.1, C("#8A6A2E"), false)
+                    b.box(o.c + sd * (ww / 2 + 0.10 + 0.03), 2.075, 0.075, 0.016, 0.016, 0.1, C("#8A6A2E"), false)
+                    // gancho de amarração
+                    b.sphere(o.c + sd * (ww / 2 + 0.10 + 0.0), 1.22, 0.05, 0.02, C("#C9A24E"), 0.02, 6, false)
+                }
             }
         }
 

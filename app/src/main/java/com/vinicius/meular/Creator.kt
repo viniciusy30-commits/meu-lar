@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import kotlin.math.min
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -53,6 +54,9 @@ class CreatorUi(
 
     // Alturas reais: personagem ~1,55 m (com chifres ~1,65); olhos ~1,45; pés em 0. Altura visível = 0,61 x distância.
     private val cats: List<Cat> = listOf(
+        Cat("Base", 3.5f, 0.82f, listOf(
+            Sub("Idade e sexo", 0.3f, null, intArrayOf(), sl = 4)
+        )),
         Cat("Corpo", 3.5f, 0.82f, listOf(
             Sub("Pele", 0.3f, null, intArrayOf(0)),
             Sub("Proporções", 0.3f, null, intArrayOf(), sl = 1)
@@ -79,7 +83,7 @@ class CreatorUi(
         ))
     )
 
-    private val CAT_ICONS = intArrayOf(Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT)
+    private val CAT_ICONS = intArrayOf(Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT)
 
     private var cat = 0
     private var sub = 0
@@ -88,11 +92,9 @@ class CreatorUi(
     private val SUB2 = 0xFF6B8798.toInt()
     private val GREEN = 0xFF6FD06A.toInt()
     private val rail = LinearLayout(ctx)
-    private val railScroll = ScrollView(ctx)
+    private val railBar = FrameLayout(ctx)
     private val titleTv = TextView(ctx)
-    private val idCol = LinearLayout(ctx)
     private val nameTab = TextView(ctx)
-    private val tab = LinearLayout(ctx)
     private val okBtn = FrameLayout(ctx)
     private val zoomIn = FrameLayout(ctx)
     private val zoomOut = FrameLayout(ctx)
@@ -127,34 +129,29 @@ class CreatorUi(
         addView(CasBgView(ctx), LayoutParams(-1, -1))
         addView(rings, LayoutParams(-1, -1))
 
-        // aba branca "Olá, meu nome é..." + botão do plumbob (canto superior esquerdo)
-        nameTab.text = "OLÁ, MEU NOME É…"
-        nameTab.textSize = 13.5f
+        // topo esquerdo: voltar + título
+        nameTab.text = "MEU PERSONAGEM"
+        nameTab.textSize = 13f
         nameTab.typeface = Ui.BOLD
-        nameTab.letterSpacing = 0.08f
+        nameTab.letterSpacing = 0.1f
         nameTab.setTextColor(0xFF1F5FA8.toInt())
         nameTab.gravity = Gravity.CENTER_VERTICAL
-        nameTab.setPadding(dp(72), 0, dp(34), 0)
-        nameTab.background = GradientDrawable().also { g -> g.setColor(0xF5FFFFFF.toInt()); val r = dpf(30f); g.cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, r, r, 0f, 0f) }
-        addView(nameTab, LayoutParams(-2, dp(50), Gravity.TOP or Gravity.START))
-        backBtn.background = Ui.frost(0f, 0xDDF2FF, 0xFF, 0xE8, dpf(2.2f), oval = true, edge = 0xFF9ED0F0.toInt())
-        backBtn.addView(IconView(ctx, Ic.PLUMB, 0xFF6BE04A.toInt(), 0xFF2FA83A.toInt()), LayoutParams(dp(30), dp(30), Gravity.CENTER))
+        nameTab.setPadding(dp(64), 0, dp(22), 0)
+        nameTab.background = GradientDrawable().also { g -> g.setColor(0xF2FFFFFF.toInt()); g.cornerRadius = dpf(25f) }
+        addView(nameTab, LayoutParams(-2, dp(44), Gravity.TOP or Gravity.START))
+        backBtn.background = Ui.frost(0f, 0x35B5E0, 0xFF, 0xDC, dpf(2f), oval = true, edge = 0xFFFFFFFF.toInt())
+        backBtn.addView(IconView(ctx, Ic.BACK, Color.WHITE, Color.WHITE).fancy(0x88FFFFFF.toInt()), LayoutParams(dp(26), dp(26), Gravity.CENTER))
         backBtn.setOnClickListener { finish() }
-        addView(backBtn, LayoutParams(dp(54), dp(54), Gravity.TOP or Gravity.START).also { it.setMargins(dp(8), dp(4), 0, 0) })
+        addView(backBtn, LayoutParams(dp(46), dp(46), Gravity.TOP or Gravity.START))
 
-        // coluna de identidade (sexo, idade e corpo), como o painel do alto à esquerda do Sims 4
-        idCol.orientation = LinearLayout.HORIZONTAL
-        idCol.setPadding(dp(6), dp(8), dp(6), dp(8))
-        idCol.background = Ui.frost(dpf(18f), 0xDCEEFB, 0xC8, 0xA8, dpf(1.4f), edge = 0xCCFFFFFF.toInt())
-        addView(idCol, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(10), dp(64), 0, 0) })
-
-        // setas grandes de girar, embaixo (como no Sims)
+        // setas de girar
         for ((box, flip, dir) in listOf(Triple(rotL, true, -1.0f), Triple(rotR, false, 1.0f))) {
-            val ic = IconView(ctx, Ic.ROTATE, Color.WHITE, Color.WHITE).fancy(0xCC4C86B8.toInt())
+            box.background = Ui.frost(0f, 0xFFFFFF, 0xCC, 0x99, dpf(1.4f), oval = true, edge = 0xEEFFFFFF.toInt())
+            val ic = IconView(ctx, Ic.ROTATE, 0xFF3C8FC4.toInt(), Color.WHITE)
             if (flip) ic.scaleX = -1f
-            box.addView(ic, LayoutParams(dp(54), dp(54), Gravity.CENTER))
+            box.addView(ic, LayoutParams(dp(26), dp(26), Gravity.CENTER))
             box.setOnClickListener { game.r.autoSpin = false; game.r.cTargetYaw = game.r.cyaw + dir }
-            addView(box, LayoutParams(dp(62), dp(62), Gravity.BOTTOM or Gravity.START))
+            addView(box, LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.START))
         }
 
         // zoom (+/-)
@@ -162,7 +159,7 @@ class CreatorUi(
             box.background = Ui.frost(0f, 0xFFFFFF, 0xD8, 0xB0, dpf(1.4f), oval = true, edge = 0xEEFFFFFF.toInt())
             val t = TextView(ctx)
             t.text = if (plus) "+" else "\u2212"
-            t.textSize = 24f
+            t.textSize = 22f
             t.typeface = Ui.BOLD
             t.setTextColor(0xFF2E78AE.toInt())
             t.gravity = Gravity.CENTER
@@ -172,71 +169,58 @@ class CreatorUi(
                 game.r.autoSpin = false
                 game.r.cTargetDist = (game.r.cTargetDist + (if (plus) -0.35f else 0.35f)).coerceIn(0.9f, 5f)
             }
-            addView(box, LayoutParams(dp(42), dp(42), Gravity.TOP or Gravity.START))
+            addView(box, LayoutParams(dp(38), dp(38), Gravity.TOP or Gravity.START))
         }
 
-        // aba inferior central: sortear e zerar
-        tab.orientation = LinearLayout.HORIZONTAL
-        tab.gravity = Gravity.CENTER
-        tab.setPadding(dp(10), dp(6), dp(10), 0)
-        tab.background = GradientDrawable().also { g -> g.setColor(0xE8FFFFFF.toInt()); val r = dpf(24f); g.cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
-        fun tabBtn(icon: Int, label: String, click: () -> Unit): View {
+        // barra de categorias embaixo do personagem (ícone colorido + nome)
+        railBar.background = GradientDrawable().also { g -> g.setColor(0xF2FFFFFF.toInt()); g.cornerRadius = dpf(26f) }
+        rail.orientation = LinearLayout.HORIZONTAL
+        rail.gravity = Gravity.CENTER
+        railBar.setPadding(dp(8), dp(5), dp(8), dp(5))
+        railBar.addView(rail, LayoutParams(-2, -2, Gravity.CENTER))
+        addView(railBar, LayoutParams(-2, dp(66), Gravity.BOTTOM or Gravity.START))
+
+        // botão de confirmar
+        okBtn.background = Ui.frost(0f, 0x34C77B, 0xFF, 0xEA, dpf(2.4f), oval = true, edge = 0xFFE9FFF1.toInt())
+        okBtn.addView(IconView(ctx, Ic.CHECK, Color.WHITE, 0xFF1F8A52.toInt()).fancy(0x88FFFFFF.toInt()), LayoutParams(dp(30), dp(30), Gravity.CENTER))
+        okBtn.setOnClickListener { finish() }
+        addView(okBtn, LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(8)) })
+
+        // painel da direita
+        panel.orientation = LinearLayout.VERTICAL
+        panel.background = Ui.frost(dpf(22f), 0xF4FAFF, 0xF2, 0xE2, dpf(1.4f), edge = 0xFFFFFFFF.toInt())
+        panel.setPadding(dp(14), dp(12), dp(14), dp(12))
+
+        val head = LinearLayout(ctx)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        titleTv.textSize = 14f
+        titleTv.typeface = Ui.BOLD
+        titleTv.setTextColor(0xFF1F5FA8.toInt())
+        titleTv.letterSpacing = 0.12f
+        head.addView(titleTv, LinearLayout.LayoutParams(0, -2, 1f))
+        fun headBtn(icon: Int, label: String, click: () -> Unit): View {
             val l = LinearLayout(ctx)
             l.orientation = LinearLayout.HORIZONTAL
             l.gravity = Gravity.CENTER
-            l.setPadding(dp(8), 0, dp(10), 0)
-            l.addView(IconView(ctx, icon, 0xFF3C8FC4.toInt(), Color.WHITE), LinearLayout.LayoutParams(dp(22), dp(22)).also { it.rightMargin = dp(5) })
+            l.setPadding(dp(9), 0, dp(11), 0)
+            l.background = Ui.frost(dpf(17f), 0xFFFFFF, 0xF0, 0xD0, dpf(1.2f), edge = 0xFFB5D8EC.toInt())
+            l.addView(IconView(ctx, icon, 0xFF3C8FC4.toInt(), Color.WHITE), LinearLayout.LayoutParams(dp(17), dp(17)).also { it.rightMargin = dp(5) })
             val t = TextView(ctx)
             t.text = label
-            t.textSize = 12.5f
+            t.textSize = 12f
             t.typeface = Ui.BOLD
             t.setTextColor(0xFF2E78AE.toInt())
             l.addView(t)
             l.setOnClickListener { click() }
             return l
         }
-        tab.addView(tabBtn(Ic.DICE, "Sortear") { randomize() }, LinearLayout.LayoutParams(-2, dp(38)))
-        val sepv = View(ctx)
-        sepv.setBackgroundColor(0x3382B4CE)
-        tab.addView(sepv, LinearLayout.LayoutParams(dp(1), dp(22)).also { it.setMargins(dp(4), 0, dp(4), 0) })
-        tab.addView(tabBtn(Ic.REFRESH, "Zerar aba") { resetCurrent() }, LinearLayout.LayoutParams(-2, dp(38)))
-        addView(tab, LayoutParams(-2, dp(46), Gravity.BOTTOM or Gravity.START))
-
-        // botão de confirmar (canto inferior direito)
-        okBtn.background = Ui.frost(0f, 0x34C77B, 0xFF, 0xEA, dpf(2.4f), oval = true, edge = 0xFFE9FFF1.toInt())
-        okBtn.addView(IconView(ctx, Ic.CHECK, Color.WHITE, 0xFF1F8A52.toInt()).fancy(0x88FFFFFF.toInt()), LayoutParams(dp(32), dp(32), Gravity.CENTER))
-        okBtn.setOnClickListener { finish() }
-        addView(okBtn, LayoutParams(dp(58), dp(58), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(10)) })
-
-        // categorias: coluna de medalhões ao lado do painel
-        rail.orientation = LinearLayout.VERTICAL
-        rail.gravity = Gravity.END
-        railScroll.isVerticalScrollBarEnabled = false
-        railScroll.addView(rail, FrameLayout.LayoutParams(-2, -2))
-        addView(railScroll, LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL))
-
-        // painel da direita: lista de peças
-        panel.orientation = LinearLayout.VERTICAL
-        panel.background = Ui.frost(dpf(22f), 0xF4FAFF, 0xF0, 0xDC, dpf(1.4f), edge = 0xFFFFFFFF.toInt())
-        panel.setPadding(dp(12), dp(10), dp(12), dp(12))
-
-        val head = LinearLayout(ctx)
-        head.orientation = LinearLayout.HORIZONTAL
-        head.gravity = Gravity.CENTER_VERTICAL
-        titleTv.textSize = 13f
-        titleTv.typeface = Ui.BOLD
-        titleTv.setTextColor(0xFF1F5FA8.toInt())
-        titleTv.letterSpacing = 0.12f
-        head.addView(titleTv, LinearLayout.LayoutParams(0, -2, 1f))
-        val dice = FrameLayout(ctx)
-        dice.background = Ui.frost(0f, 0xFFFFFF, 0xE0, 0xC0, dpf(1.2f), oval = true, edge = 0xFFB5D8EC.toInt())
-        dice.addView(IconView(ctx, Ic.DICE, 0xFF3C8FC4.toInt(), Color.WHITE), LayoutParams(dp(18), dp(18), Gravity.CENTER))
-        dice.setOnClickListener { randomize() }
-        head.addView(dice, LinearLayout.LayoutParams(dp(30), dp(30)))
+        head.addView(headBtn(Ic.DICE, "Sortear") { randomize() }, LinearLayout.LayoutParams(-2, dp(34)).also { it.rightMargin = dp(6) })
+        head.addView(headBtn(Ic.REFRESH, "Zerar") { resetCurrent() }, LinearLayout.LayoutParams(-2, dp(34)))
         panel.addView(head, LinearLayout.LayoutParams(-1, -2))
         val hsep = View(ctx)
         hsep.setBackgroundColor(0x4482B4CE)
-        panel.addView(hsep, LinearLayout.LayoutParams(-1, dp(1)).also { it.topMargin = dp(8) })
+        panel.addView(hsep, LinearLayout.LayoutParams(-1, dp(1)).also { it.topMargin = dp(9) })
 
         subRow.orientation = LinearLayout.HORIZONTAL
         subRow.gravity = Gravity.CENTER_HORIZONTAL
@@ -244,7 +228,7 @@ class CreatorUi(
         hs2.isHorizontalScrollBarEnabled = false
         hs2.isFillViewport = true
         hs2.addView(subRow, FrameLayout.LayoutParams(-2, -2))
-        panel.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8) })
+        panel.addView(hs2, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(9) })
 
         body.orientation = LinearLayout.VERTICAL
         scroll.isVerticalScrollBarEnabled = true
@@ -252,14 +236,14 @@ class CreatorUi(
         scroll.addView(body)
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).also { it.topMargin = dp(8) })
 
-        addView(panel, LayoutParams(dp(360), -1, Gravity.END).also { it.setMargins(0, dp(10), dp(10), dp(78)) })
+        addView(panel, LayoutParams(dp(360), -1, Gravity.END).also { it.setMargins(0, dp(8), dp(10), dp(76)) })
         refresh(false)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (w <= 0) return
-        val pw = (w * 0.38f).toInt().coerceIn(dp(300), dp(420))
+        val pw = (w * 0.44f).toInt().coerceIn(dp(320), dp(460))
         val lp = panel.layoutParams
         if (lp.width != pw) { lp.width = pw; panel.layoutParams = lp }
         layoutStage()
@@ -268,114 +252,77 @@ class CreatorUi(
 
     fun setInsets(l: Int, t: Int, r: Int, b: Int) {
         insL = l; insT = t; insR = r; insB = b
-        (panel.layoutParams as LayoutParams).setMargins(0, dp(10) + t, dp(10) + r, dp(78) + b)
-        (okBtn.layoutParams as LayoutParams).setMargins(0, 0, dp(14) + r, dp(10) + b)
+        (panel.layoutParams as LayoutParams).setMargins(0, dp(8) + t, dp(10) + r, dp(76) + b)
+        (okBtn.layoutParams as LayoutParams).setMargins(0, 0, dp(14) + r, dp(8) + b)
         panel.requestLayout(); okBtn.requestLayout()
         layoutStage()
     }
 
-    /** Tudo é centralizado na "área do palco" (entre o painel de identidade e a coluna de categorias). */
+    /** A "área do palco" fica entre a borda esquerda e o painel; a barra de categorias fica embaixo dela. */
     private fun layoutStage() {
         val w = width
         val h = height
         if (w <= 0 || h <= 0) return
         val pw = panel.layoutParams.width
         val panelL = w - pw - dp(10) - insR
-        val railW = dp(64)
-        val stageL = (insL + dp(10) + dp(100)).toFloat()
-        val stageR = (panelL - dp(8) - railW).toFloat()
+        val stageL = (insL + dp(8)).toFloat()
+        val stageR = (panelL - dp(8)).toFloat()
         val cx = (stageL + stageR) / 2f
         val sw = stageR - stageL
+        val barH = dp(66)
+        val barBottom = dp(8) + insB
 
-        (nameTab.layoutParams as LayoutParams).setMargins(insL, insT, 0, 0)
-        (backBtn.layoutParams as LayoutParams).setMargins(dp(8) + insL, dp(2) + insT, 0, 0)
-        (idCol.layoutParams as LayoutParams).setMargins(dp(10) + insL, dp(62) + insT, 0, 0)
-        val asz = dp(62)
-        val lx = (cx - sw * 0.34f - asz / 2f).toInt()
-        val rx = (cx + sw * 0.34f - asz / 2f).toInt()
-        (rotL.layoutParams as LayoutParams).setMargins(lx, 0, 0, dp(16) + insB)
-        (rotR.layoutParams as LayoutParams).setMargins(rx, 0, 0, dp(16) + insB)
-        (zoomIn.layoutParams as LayoutParams).setMargins((stageR - dp(44)).toInt(), (h / 2f - dp(50)).toInt(), 0, 0)
-        (zoomOut.layoutParams as LayoutParams).setMargins((stageR - dp(44)).toInt(), (h / 2f + dp(4)).toInt(), 0, 0)
-        (tab.layoutParams as LayoutParams).setMargins((cx - dp(100)).toInt(), 0, 0, insB)
-        (railScroll.layoutParams as LayoutParams).setMargins(0, dp(8) + insT, pw + dp(10) + insR + dp(6), dp(8) + insB)
-        for (v in listOf<View>(nameTab, backBtn, idCol, rotL, rotR, zoomIn, zoomOut, tab, railScroll)) v.requestLayout()
+        (backBtn.layoutParams as LayoutParams).setMargins(dp(8) + insL, dp(6) + insT, 0, 0)
+        (nameTab.layoutParams as LayoutParams).setMargins(dp(14) + insL, dp(7) + insT, 0, 0)
+        // categorias: centralizadas sob o personagem
+        val barW = min(sw.toInt() - dp(12), dp(7 * 58 + 24))
+        val bw = railBar.layoutParams as LayoutParams
+        bw.width = barW
+        bw.setMargins((cx - barW / 2f).toInt(), 0, 0, barBottom)
+        // setas de girar: nas laterais, na altura do tronco
+        val midY = (h - barH - barBottom) * 0.52f
+        (rotL.layoutParams as LayoutParams).setMargins((cx - sw * 0.40f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
+        (rotR.layoutParams as LayoutParams).setMargins((cx + sw * 0.40f - dp(22)).toInt(), (midY - dp(22)).toInt(), 0, 0)
+        // zoom: coluna na borda esquerda
+        (zoomIn.layoutParams as LayoutParams).setMargins(dp(10) + insL, (midY - dp(44)).toInt(), 0, 0)
+        (zoomOut.layoutParams as LayoutParams).setMargins(dp(10) + insL, (midY + dp(6)).toInt(), 0, 0)
+        for (v in listOf<View>(nameTab, backBtn, rotL, rotR, zoomIn, zoomOut, railBar)) v.requestLayout()
 
-        // personagem no centro da área do palco (um pouco acima, para não ficar atrás das setas)
-        game.r.cShift = 0.07f
+        // personagem na área livre acima da barra
+        val freeTop = (dp(6) + insT).toFloat()
+        val freeBot = (h - barH - barBottom - dp(4)).toFloat()
+        val cyPx = (freeTop + freeBot) / 2f
+        game.r.cShift = (1f - 2f * cyPx / h)
         game.r.cShiftX = (cx - w / 2f) / (w / 2f)
         rings.cx = cx
-        rings.cy = h / 2f - 0.07f * h / 2f
-        rings.r = kotlin.math.min(h * 0.44f, sw * 0.48f)
+        rings.cy = cyPx
+        rings.r = min((freeBot - freeTop) * 0.5f, sw * 0.46f)
         rings.invalidate()
     }
 
-    /** Coluna de categorias (Corpo, Cabelo, Rosto, Roupas, Sapatos, Acessórios): medalhão + etiqueta na selecionada. */
+    /** Barra de categorias: ícone colorido, nome embaixo; a selecionada sobe num cartão azul com borda verde. */
     private fun buildRail() {
         rail.removeAllViews()
         for (i in cats.indices) {
             val on = i == cat
-            val row = LinearLayout(context)
-            row.orientation = LinearLayout.HORIZONTAL
-            row.gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            if (on) {
-                val bub = TextView(context)
-                bub.text = cats[i].name
-                bub.textSize = 11.5f
-                bub.typeface = Ui.BOLD
-                bub.setTextColor(0xFF1F5FA8.toInt())
-                bub.setPadding(dp(10), dp(3), dp(10), dp(4))
-                bub.background = Ui.frost(dpf(12f), 0xFFFFFF, 0xFA, 0xF0, dpf(1.1f), edge = 0xFFB5D8EC.toInt())
-                row.addView(bub, LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(6) })
-            }
-            val circ = FrameLayout(context)
-            circ.background = if (on) Ui.frost(0f, 0x35B5E0, 0xFC, 0xEC, dpf(2.6f), oval = true, edge = GREEN)
-                              else Ui.frost(0f, 0xFFFFFF, 0xE4, 0xC0, dpf(1.3f), oval = true, edge = 0xDDFFFFFF.toInt())
-            val sz = if (on) 52 else 44
-            circ.addView(IconView(context, CAT_ICONS[i], if (on) Color.WHITE else 0xFF5F8FAA.toInt(), if (on) 0xFF2E78AE.toInt() else Color.WHITE), LayoutParams(dp((sz * 0.52f).toInt()), dp((sz * 0.52f).toInt()), Gravity.CENTER))
-            row.addView(circ, LinearLayout.LayoutParams(dp(sz), dp(sz)))
-            row.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
-            rail.addView(row, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(5); it.bottomMargin = dp(5); it.rightMargin = dp(if (on) 0 else 4) })
-        }
-    }
-
-    // ---- painel de identidade: sexo, idade e corpo (sempre visível, como no Sims 4) ----
-    private fun idBtn(on: Boolean, enabled: Boolean, content: View, click: () -> Unit): View {
-        val f = FrameLayout(context)
-        f.background = if (on) Ui.frost(dpf(12f), 0xFFFFFF, 0xFF, 0xF4, dpf(2.2f), edge = GREEN) else Ui.frost(dpf(12f), 0xFFFFFF, 0x99, 0x66, dpf(1f), edge = 0x99FFFFFF.toInt())
-        f.addView(content, LayoutParams(dp(24), dp(24), Gravity.CENTER))
-        f.alpha = if (enabled) 1f else 0.35f
-        if (enabled) f.setOnClickListener { click() }
-        return f
-    }
-
-    private fun buildIdentity() {
-        idCol.removeAllViews()
-        val av = st.avatar
-        val a = LinearLayout(context); a.orientation = LinearLayout.VERTICAL
-        val b = LinearLayout(context); b.orientation = LinearLayout.VERTICAL
-        fun add(col: LinearLayout, v: View) = col.addView(v, LinearLayout.LayoutParams(dp(36), dp(36)).also { it.setMargins(dp(2), dp(2), dp(2), dp(2)) })
-        for ((txt, m) in listOf("\u2642" to true, "\u2640" to false)) {
+            val cell = LinearLayout(context)
+            cell.orientation = LinearLayout.VERTICAL
+            cell.gravity = Gravity.CENTER
+            cell.background = if (on) Ui.frost(dpf(16f), 0x35B5E0, 0xFC, 0xE6, dpf(2.4f), edge = GREEN) else null
+            val ic = IconView(context, CAT_ICONS[i], Color.WHITE, Color.WHITE)
+            ic.alpha = if (on) 1f else 0.82f
+            cell.addView(ic, LinearLayout.LayoutParams(dp(if (on) 34 else 30), dp(if (on) 34 else 30)))
             val t = TextView(context)
-            t.text = txt
-            t.textSize = 20f
+            t.text = cats[i].name
+            t.textSize = 10.5f
             t.typeface = Ui.BOLD
+            t.setTextColor(if (on) Color.WHITE else 0xFF3C6F96.toInt())
             t.gravity = Gravity.CENTER
-            val on = av.masc == m
-            t.setTextColor(if (on) 0xFF3BB04B.toInt() else 0xFF5F8FAA.toInt())
-            add(a, idBtn(on, av.simAge >= 2, t) { av.masc = m; av.female = !m; simApply() })
+            t.maxLines = 1
+            cell.addView(t, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(1) })
+            cell.setOnClickListener { cat = i; sub = 0; refresh(false); camera() }
+            rail.addView(cell, LinearLayout.LayoutParams(dp(56), -1).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) })
         }
-        val tipos = listOf(0, 1, 3)
-        for ((k, tp) in tipos.withIndex()) {
-            val cur = av.simTypeFor(av.simAge, av.simType) == tp
-            add(a, idBtn(cur, av.simTypeFor(av.simAge, tp) == tp, FigView(context, 10 + k, if (cur) 0xFF3BB04B.toInt() else 0xFF5F8FAA.toInt())) { av.simType = tp; simApply() })
-        }
-        for (i in 0..4) {
-            val cur = av.simAge == i
-            add(b, idBtn(cur, true, FigView(context, i, if (cur) 0xFF3BB04B.toInt() else 0xFF5F8FAA.toInt())) { av.simAge = i; simApply() })
-        }
-        idCol.addView(a)
-        idCol.addView(b)
     }
 
     /** Zera só a aba atual: cores voltam ao original, proporções a zero, peças são tiradas. */
@@ -432,7 +379,7 @@ class CreatorUi(
         val c = cats[cat]
         val s = c.subs[sub]
         game.r.autoSpin = false
-        game.r.cTargetDist = if (s.dist.isNaN()) c.dist else s.dist
+        game.r.cTargetDist = (if (s.dist.isNaN()) c.dist else s.dist) * 1.12f
         game.r.cTargetY = if (s.y.isNaN()) c.y else s.y
         game.r.cTargetYaw = s.yaw
         game.r.cTargetPitch = 0.10f
@@ -443,7 +390,6 @@ class CreatorUi(
     private fun refresh(keepScroll: Boolean) {
         val av = st.avatar
         buildRail()
-        buildIdentity()
 
         val c = cats[cat]
         titleTv.text = (if (c.subs.size == 1) c.subs[0].name else c.name).uppercase()

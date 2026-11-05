@@ -217,6 +217,7 @@ object Ic {
     const val CAM3P = 131
     const val CAM1P = 132
     const val CAMAIR = 133
+    const val AVATAR = 134
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -244,6 +245,11 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
         if (glowPass) { p.shader = null; p.color = glowColor }
         else if (soft && c == Color.WHITE) { p.shader = softShader; p.color = Color.WHITE }
         else { p.shader = null; p.color = c }
+    }
+    /** Preenchimento com degradê vertical (ícones coloridos). */
+    private fun gf(top: Int, bot: Int, y0: Float, y1: Float) {
+        p.style = Paint.Style.FILL; p.color = Color.WHITE
+        p.shader = LinearGradient(0f, y0, 0f, y1, top, bot, Shader.TileMode.CLAMP)
     }
     private fun fill(c: Int) { p.style = Paint.Style.FILL; paintColor(c) }
     private fun stroke(c: Int, w: Float) {
@@ -362,67 +368,6 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(Color.parseColor("#B8F59A")); poly(c, 50f, 4f, 50f, 50f, 18f, 50f)
                 fill(Pal.PLUMB2); poly(c, 18f, 50f, 50f, 50f, 50f, 96f)
             }
-            Ic.BASE -> {
-                fill(w); c.drawCircle(50f, 26f, 17f, p)
-                path.reset(); path.moveTo(16f, 92f); path.cubicTo(16f, 46f, 84f, 46f, 84f, 92f); path.close(); c.drawPath(path, p)
-            }
-            Ic.BODY -> {
-                fill(w); c.drawCircle(50f, 16f, 12f, p)
-                rr(c, 30f, 33f, 70f, 72f, 13f); rr(c, 12f, 35f, 26f, 68f, 7f); rr(c, 74f, 35f, 88f, 68f, 7f)
-                rr(c, 32f, 64f, 48f, 94f, 7f); rr(c, 52f, 64f, 68f, 94f, 7f)
-            }
-            Ic.HAIR -> {
-                // cabelo comprido emoldurando o rosto, com franja de lado
-                fill(w)
-                path.reset(); path.fillType = Path.FillType.EVEN_ODD
-                path.moveTo(50f, 6f)
-                path.cubicTo(24f, 6f, 14f, 28f, 16f, 52f)
-                path.cubicTo(17f, 70f, 12f, 82f, 7f, 92f)
-                path.cubicTo(22f, 94f, 34f, 88f, 39f, 79f)
-                path.lineTo(61f, 79f)
-                path.cubicTo(66f, 88f, 78f, 94f, 93f, 92f)
-                path.cubicTo(88f, 82f, 83f, 70f, 84f, 52f)
-                path.cubicTo(86f, 28f, 76f, 6f, 50f, 6f)
-                path.close()
-                rf.set(30f, 28f, 70f, 80f); path.addOval(rf, Path.Direction.CW)
-                c.drawPath(path, p)
-                path.fillType = Path.FillType.WINDING
-                // franja
-                path.reset()
-                path.moveTo(29f, 50f)
-                path.cubicTo(31f, 32f, 52f, 26f, 72f, 26f)
-                path.cubicTo(70f, 38f, 64f, 46f, 54f, 48f)
-                path.cubicTo(44f, 49f, 35f, 49f, 29f, 50f)
-                path.close()
-                c.drawPath(path, p)
-            }
-            Ic.FACE -> {
-                fill(w)
-                path.reset(); path.fillType = Path.FillType.EVEN_ODD
-                path.addCircle(50f, 50f, 44f, Path.Direction.CW)
-                path.addCircle(34f, 34f, 6.5f, Path.Direction.CW)
-                path.addCircle(66f, 34f, 6.5f, Path.Direction.CW)
-                path.moveTo(26f, 58f); path.quadTo(50f, 90f, 74f, 58f); path.quadTo(50f, 71f, 26f, 58f); path.close()
-                c.drawPath(path, p)
-                path.fillType = Path.FillType.WINDING
-            }
-            Ic.SHIRT -> {
-                fill(w)
-                path.reset(); path.moveTo(32f, 12f); path.lineTo(8f, 30f); path.lineTo(20f, 49f); path.lineTo(30f, 42f)
-                path.lineTo(30f, 88f); path.lineTo(70f, 88f); path.lineTo(70f, 42f); path.lineTo(80f, 49f); path.lineTo(92f, 30f)
-                path.lineTo(68f, 12f); path.quadTo(50f, 32f, 32f, 12f); path.close(); c.drawPath(path, p)
-            }
-            Ic.SHOE -> {
-                fill(w)
-                path.reset(); path.moveTo(10f, 22f); path.lineTo(40f, 22f); path.lineTo(42f, 46f); path.quadTo(48f, 58f, 66f, 60f)
-                path.quadTo(92f, 62f, 92f, 76f); path.lineTo(10f, 76f); path.close(); c.drawPath(path, p)
-                rr(c, 8f, 72f, 94f, 90f, 8f)
-                fill(a); rr(c, 18f, 34f, 34f, 39f, 2f); rr(c, 18f, 46f, 34f, 51f, 2f)
-            }
-            Ic.HAT -> {
-                fill(w); rf.set(16f, 22f, 84f, 94f); c.drawArc(rf, 180f, 180f, true, p)
-                rr(c, 8f, 57f, 94f, 71f, 7f)
-            }
             Ic.CHEV -> {
                 stroke(w, 12f); path.reset(); path.moveTo(34f, 16f); path.lineTo(68f, 50f); path.lineTo(34f, 84f); c.drawPath(path, p)
             }
@@ -469,6 +414,90 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 rf.set(8f, 58f, 92f, 92f); c.drawOval(rf, p); p.pathEffect = null
                 fill(w); poly(c, 50f, 42f, 74f, 62f, 68f, 62f, 68f, 82f, 32f, 82f, 32f, 62f, 26f, 62f)
                 fill(a); rr(c, 44f, 68f, 56f, 82f, 3f)
+            }
+            Ic.BASE -> {
+                // duas pessoas (adulto e criança)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 8f, 30f); c.drawCircle(36f, 20f, 11f, p)
+                gf(0xFF6C4A33.toInt(), 0xFF4A2F1F.toInt(), 6f, 22f); path.reset(); path.addArc(RectF(25f, 7f, 47f, 29f), 180f, 180f); path.close(); c.drawPath(path, p)
+                gf(0xFF5BC4EE.toInt(), 0xFF2F8FD0.toInt(), 34f, 80f); path.reset(); path.moveTo(22f, 82f); path.cubicTo(20f, 50f, 26f, 35f, 36f, 35f); path.cubicTo(46f, 35f, 52f, 50f, 50f, 82f); path.close(); c.drawPath(path, p)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 44f, 62f); c.drawCircle(72f, 52f, 8.5f, p)
+                gf(0xFFF28B3C.toInt(), 0xFFE0662A.toInt(), 54f, 62f); path.reset(); path.addArc(RectF(63f, 43f, 81f, 61f), 180f, 180f); path.close(); c.drawPath(path, p)
+                gf(0xFFFF8FB8.toInt(), 0xFFE2578F.toInt(), 60f, 84f); path.reset(); path.moveTo(58f, 84f); path.cubicTo(58f, 66f, 64f, 60f, 72f, 60f); path.cubicTo(80f, 60f, 86f, 66f, 86f, 84f); path.close(); c.drawPath(path, p)
+            }
+            Ic.BODY -> {
+                // corpo inteiro: cabeça, tronco, braços e pernas
+                gf(0xFF6C4A33.toInt(), 0xFF4A2F1F.toInt(), 4f, 24f); path.reset(); path.addArc(RectF(38f, 4f, 62f, 28f), 180f, 180f); path.close(); c.drawPath(path, p)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 8f, 30f); c.drawCircle(50f, 19f, 11f, p)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 28f, 36f); rr(c, 45f, 28f, 55f, 38f, 3f)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 36f, 70f); rr(c, 14f, 38f, 26f, 70f, 6f); rr(c, 74f, 38f, 86f, 70f, 6f)
+                gf(0xFF5BC4EE.toInt(), 0xFF2F8FD0.toInt(), 34f, 66f); rr(c, 25f, 34f, 75f, 66f, 10f)
+                fill(0x55FFFFFF); rr(c, 30f, 38f, 38f, 60f, 4f)
+                gf(0xFF3E4F8F.toInt(), 0xFF2B386B.toInt(), 62f, 78f); rr(c, 27f, 62f, 73f, 78f, 5f)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 76f, 94f); rr(c, 30f, 76f, 47f, 94f, 5f); rr(c, 53f, 76f, 70f, 94f, 5f)
+                fill(0xFF2B386B.toInt()); rr(c, 48.5f, 62f, 51.5f, 78f, 1.5f)
+            }
+            Ic.HAIR -> {
+                // cabelo comprido castanho com brilho
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 30f, 80f); path.reset(); path.addOval(RectF(32f, 28f, 68f, 78f), Path.Direction.CW); c.drawPath(path, p)
+                gf(0xFF9A6238.toInt(), 0xFF5E3A20.toInt(), 6f, 94f)
+                path.reset(); path.moveTo(50f, 6f); path.cubicTo(18f, 6f, 14f, 44f, 20f, 68f); path.cubicTo(22f, 82f, 14f, 90f, 12f, 94f); path.cubicTo(30f, 96f, 36f, 84f, 33f, 70f)
+                path.cubicTo(30f, 56f, 34f, 42f, 40f, 36f); path.cubicTo(52f, 36f, 64f, 30f, 70f, 22f); path.cubicTo(74f, 36f, 70f, 56f, 67f, 70f)
+                path.cubicTo(64f, 84f, 70f, 96f, 88f, 94f); path.cubicTo(86f, 90f, 78f, 82f, 80f, 68f); path.cubicTo(86f, 44f, 82f, 6f, 50f, 6f); path.close(); c.drawPath(path, p)
+                stroke(0x66FFE2B5, 3.4f); path.reset(); path.moveTo(34f, 14f); path.cubicTo(22f, 24f, 22f, 44f, 26f, 60f); c.drawPath(path, p)
+                path.reset(); path.moveTo(50f, 10f); path.cubicTo(40f, 12f, 32f, 18f, 30f, 26f); c.drawPath(path, p)
+                fill(0xFF3A2A22.toInt()); c.drawCircle(43f, 54f, 2.4f, p); c.drawCircle(57f, 54f, 2.4f, p)
+            }
+            Ic.FACE -> {
+                gf(0xFFFFD2B0.toInt(), 0xFFEBA982.toInt(), 6f, 94f); c.drawCircle(50f, 50f, 40f, p)
+                fill(0x33FF6F6F); c.drawCircle(27f, 60f, 7f, p); c.drawCircle(73f, 60f, 7f, p)
+                fill(Color.WHITE); rf.set(24f, 38f, 44f, 54f); c.drawOval(rf, p); rf.set(56f, 38f, 76f, 54f); c.drawOval(rf, p)
+                gf(0xFF6BC6F0.toInt(), 0xFF2F7FC0.toInt(), 38f, 54f); c.drawCircle(34f, 46f, 7f, p); c.drawCircle(66f, 46f, 7f, p)
+                fill(0xFF1B2733.toInt()); c.drawCircle(34f, 46f, 3.6f, p); c.drawCircle(66f, 46f, 3.6f, p)
+                fill(Color.WHITE); c.drawCircle(32f, 43.5f, 1.8f, p); c.drawCircle(64f, 43.5f, 1.8f, p)
+                stroke(0xFF6A4630.toInt(), 3.6f); path.reset(); path.moveTo(23f, 33f); path.quadTo(34f, 26f, 44f, 31f); c.drawPath(path, p)
+                path.reset(); path.moveTo(56f, 31f); path.quadTo(66f, 26f, 77f, 33f); c.drawPath(path, p)
+                stroke(0x88C98866.toInt(), 2.6f); path.reset(); path.moveTo(50f, 48f); path.quadTo(46f, 58f, 51f, 61f); c.drawPath(path, p)
+                gf(0xFFFF6F85.toInt(), 0xFFD9405F.toInt(), 66f, 80f); path.reset(); path.moveTo(36f, 69f); path.quadTo(50f, 82f, 64f, 69f); path.quadTo(50f, 72f, 36f, 69f); path.close(); c.drawPath(path, p)
+            }
+            Ic.SHIRT -> {
+                gf(0xFF5BD0C8.toInt(), 0xFF2A9EA0.toInt(), 14f, 90f)
+                path.reset(); path.moveTo(34f, 14f); path.lineTo(8f, 28f); path.lineTo(18f, 52f); path.lineTo(30f, 46f); path.lineTo(30f, 90f); path.lineTo(70f, 90f); path.lineTo(70f, 46f)
+                path.lineTo(82f, 52f); path.lineTo(92f, 28f); path.lineTo(66f, 14f); path.quadTo(50f, 30f, 34f, 14f); path.close(); c.drawPath(path, p)
+                fill(0xFFE9FBFA.toInt()); path.reset(); path.moveTo(34f, 14f); path.quadTo(50f, 30f, 66f, 14f); path.quadTo(50f, 22f, 34f, 14f); path.close(); c.drawPath(path, p)
+                stroke(0xFF1E7C80.toInt(), 3f); path.reset(); path.moveTo(34f, 14f); path.quadTo(50f, 30f, 66f, 14f); c.drawPath(path, p)
+                stroke(0x55000000, 2.4f); c.drawLine(30f, 46f, 30f, 88f, p); c.drawLine(70f, 46f, 70f, 88f, p)
+                path.reset(); path.moveTo(40f, 60f); path.quadTo(44f, 72f, 40f, 86f); c.drawPath(path, p)
+                gf(0xFFFFD84D.toInt(), 0xFFF2A91E.toInt(), 50f, 72f); poly(c, 50f, 50f, 54f, 58f, 63f, 59f, 56f, 65f, 58f, 74f, 50f, 69f, 42f, 74f, 44f, 65f, 37f, 59f, 46f, 58f)
+            }
+            Ic.SHOE -> {
+                // tênis de cano baixo com cadarço
+                gf(0xFFFFFFFF.toInt(), 0xFFD2DCE6.toInt(), 72f, 90f); rr(c, 6f, 72f, 94f, 90f, 9f)
+                gf(0xFFFF6B5E.toInt(), 0xFFD6382F.toInt(), 22f, 76f)
+                path.reset(); path.moveTo(10f, 74f); path.lineTo(10f, 50f); path.quadTo(12f, 40f, 24f, 38f); path.lineTo(40f, 24f); path.quadTo(46f, 20f, 52f, 26f); path.lineTo(58f, 40f)
+                path.quadTo(72f, 46f, 86f, 56f); path.quadTo(94f, 62f, 92f, 74f); path.close(); c.drawPath(path, p)
+                gf(0xFFFFFFFF.toInt(), 0xFFE3EAF1.toInt(), 52f, 76f); path.reset(); path.moveTo(68f, 54f); path.quadTo(84f, 58f, 92f, 66f); path.lineTo(92f, 74f); path.lineTo(66f, 74f); path.close(); c.drawPath(path, p)
+                stroke(Color.WHITE, 3.4f); c.drawLine(40f, 34f, 50f, 40f, p); c.drawLine(36f, 42f, 48f, 48f, p); c.drawLine(32f, 50f, 46f, 56f, p)
+                stroke(0x55B02A22, 3f); path.reset(); path.moveTo(14f, 64f); path.quadTo(34f, 56f, 56f, 66f); c.drawPath(path, p)
+                fill(0x33000000); rr(c, 6f, 86f, 94f, 90f, 2f)
+            }
+            Ic.HAT -> {
+                // boné com aba, botão e costuras
+                gf(0xFFFFC94D.toInt(), 0xFFF29A1E.toInt(), 18f, 74f)
+                path.reset(); path.moveTo(14f, 70f); path.cubicTo(12f, 34f, 34f, 16f, 54f, 18f); path.cubicTo(74f, 20f, 88f, 40f, 88f, 70f); path.close(); c.drawPath(path, p)
+                gf(0xFFE07D14.toInt(), 0xFFB85A0A.toInt(), 62f, 84f); path.reset(); path.moveTo(8f, 72f); path.cubicTo(30f, 62f, 70f, 62f, 92f, 72f); path.cubicTo(98f, 80f, 90f, 86f, 80f, 82f); path.cubicTo(60f, 76f, 36f, 76f, 16f, 84f); path.cubicTo(6f, 86f, 2f, 78f, 8f, 72f); path.close(); c.drawPath(path, p)
+                stroke(0x66B85A0A, 2.4f); path.reset(); path.moveTo(54f, 18f); path.cubicTo(44f, 34f, 42f, 52f, 46f, 68f); c.drawPath(path, p)
+                path.reset(); path.moveTo(54f, 18f); path.cubicTo(64f, 34f, 70f, 52f, 74f, 68f); c.drawPath(path, p)
+                fill(0xFFB85A0A.toInt()); c.drawCircle(54f, 18f, 4.4f, p)
+                fill(0x55FFFFFF); path.reset(); path.moveTo(26f, 56f); path.cubicTo(28f, 40f, 38f, 28f, 48f, 24f); path.cubicTo(38f, 34f, 32f, 44f, 32f, 58f); path.close(); c.drawPath(path, p)
+            }
+            Ic.AVATAR -> {
+                // retrato: cabelo, rosto e camiseta
+                gf(0xFF5BD0C8.toInt(), 0xFF2A9EA0.toInt(), 62f, 100f); path.reset(); path.moveTo(10f, 100f); path.cubicTo(10f, 74f, 26f, 66f, 50f, 66f); path.cubicTo(74f, 66f, 90f, 74f, 90f, 100f); path.close(); c.drawPath(path, p)
+                gf(0xFFFFC9A5.toInt(), 0xFFE9A47E.toInt(), 56f, 70f); rr(c, 42f, 54f, 58f, 72f, 5f)
+                gf(0xFFFFD2B0.toInt(), 0xFFEBA982.toInt(), 14f, 62f); rf.set(29f, 14f, 71f, 64f); c.drawOval(rf, p)
+                gf(0xFF6C4A33.toInt(), 0xFF3F281A.toInt(), 6f, 40f); path.reset(); path.moveTo(26f, 44f); path.cubicTo(22f, 14f, 40f, 6f, 54f, 8f); path.cubicTo(72f, 8f, 82f, 24f, 74f, 46f); path.cubicTo(72f, 34f, 66f, 28f, 56f, 28f); path.cubicTo(42f, 30f, 32f, 34f, 26f, 44f); path.close(); c.drawPath(path, p)
+                fill(0xFF1B2733.toInt()); c.drawCircle(42f, 44f, 3.2f, p); c.drawCircle(58f, 44f, 3.2f, p)
+                stroke(0xFFD9405F.toInt(), 2.8f); path.reset(); path.moveTo(42f, 55f); path.quadTo(50f, 61f, 58f, 55f); c.drawPath(path, p)
             }
             Ic.BACK -> {
                 stroke(w, 12f)

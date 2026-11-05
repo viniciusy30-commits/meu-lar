@@ -98,6 +98,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var cfy = 1.0f
     private var avMesh: Mesh? = null
     private var stageM: Mesh? = null
+    private val cloth = ClothCurtains()
+    private var clothT = 0L
     // Etapa 34: na vista aérea o jogador é o MESMO personagem da câmera de perto (px, pz, pYaw); toque no chão = andar até lá
     @Volatile private var walkReq: FloatArray? = null
     @Volatile private var stopReq = false
@@ -353,6 +355,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         walls[2] = Models.wall(H, listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
         walls[3] = Models.wall(H, emptyList(), wl.cor, false, true)
         bw = gw; bh = gh; bf = st.floorIdx; bwl = st.wallIdx
+        // cortinas simuladas (uma por janela; a cor segue a regra antiga: rosada na metade esquerda, dourada na direita)
+        cloth.clear()
+        fun cur(wall: Int, c: Double, w: Double, len: Double) =
+            cloth.addWindow(wall, c, w, if (c < len / 2) C("#D9786B") else C("#E4B25F"))
+        cur(0, W / 2, 1.9, W)
+        cur(1, W * 0.22, 1.25, W); cur(1, W * 0.78, 1.25, W)
+        cur(2, H / 2, 1.6, H)
     }
 
     private fun wallModel(i: Int, gw: Float, gh: Float) {
@@ -642,7 +651,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
-        CuteChar.hideAbove = if (mode == 0 && !third && CuteChar.ready) 0.865f * CuteChar.bodyTop() else Float.NaN
+        CuteChar.hideAbove = if (mode == 0 && !third && CuteChar.ready) 0.925f * CuteChar.bodyTop() else Float.NaN   // 1ª pessoa: nada colado no olho
         val cute = if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
         CuteChar.hideAbove = Float.NaN
@@ -840,8 +849,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 val bt = CuteChar.bodyTop()
                 val lift = if (CuteChar.ready) CuteChar.lift(0) else 0f
                 val fwx = sin(fyaw); val fwz = -cos(fyaw)
-                ex = px + fwx * 0.075f * bt; ez = pz + fwz * 0.075f * bt
-                ey = baseY + py + lift + 0.935f * bt
+                ex = px + fwx * CuteChar.FP_FWD; ez = pz + fwz * CuteChar.FP_FWD
+                ey = baseY + py + lift + 0.925f * bt
                 Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
@@ -896,6 +905,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (i in 0..3) if (shown[i]) {
             wallModel(i, gw.toFloat(), gh.toFloat())
             walls[i]?.let { draw(it, mdl, 1f) }
+        }
+        // cortinas: física de tecido (só quando há alguém dentro da casa a ver; no criador/sala de testes também roda)
+        run {
+            val tn = System.nanoTime()
+            val dtc = if (clothT == 0L) 0.016f else ((tn - clothT) / 1e9f).coerceIn(0f, 0.05f)
+            clothT = tn
+            cloth.step(dtc, (tn / 1_000_000L % 1_000_000L) / 1000f, gw.toFloat(), gh.toFloat(), px, pz, st.items)
+            for (pn in cloth.panels) if (shown[pn.wall]) {
+                wallModel(pn.wall, gw.toFloat(), gh.toFloat())
+                draw(pn.mesh, mdl, 1f)
+            }
         }
         // porta animada: abre sozinha quando o personagem chega perto e fecha quando ele se afasta
         doorM?.let { dm ->

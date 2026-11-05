@@ -1,8 +1,20 @@
+#id 2026-11-07-d
+#titulo Mãos fechadas na corrida
+- O personagem agora corre com as mãos fechadas em punho (dedos e polegar dobram aos poucos ao começar a correr e soltam ao parar)
+
+#id 2026-11-07-c
+#titulo HUD limpo, criador reorganizado e cortinas com física
+- Trabalho removido: o dinheiro agora é infinito (∞) e os preços viraram "Grátis"
+- HUD enxuto: só o dinheiro no topo, retrato do personagem no canto, e 3 botões pequenos embaixo (câmera, loja, mais). Sala de testes e novidades ficam no menu Mais. O ícone do The Sims saiu
+- Criador refeito: categorias numa barra embaixo do personagem (com nomes), painel da direita maior com Sortear e Zerar no topo, e "Base" (idade, sexo e corpo) de volta como categoria com nomes escritos
+- Ícones novos e coloridos: corpo, cabelo, rosto, roupas, sapatos, acessórios, base e retrato
+- Cortinas com física de tecido: pregas, faixa de amarração, balançam com a brisa, são empurradas pelo personagem e cobrem os móveis por baixo
+
 #id 2026-11-07-b
 #titulo Câmera em 1ª pessoa
 - Agora são 3 câmeras: 3ª pessoa, 1ª pessoa e vista aérea. O botão da câmera no canto inferior troca entre elas, e cada uma tem um ícone próprio
 - Na 1ª pessoa você vê pelos olhos do personagem: ao olhar para baixo aparecem o corpo, as roupas e os pés, e o corpo vira junto com o olhar
-- A cabeça e o cabelo ficam escondidos só nessa câmera, para não tapar a visão
+- Nada tapa o olho: só o que fica colado na câmera (rosto, franja, chapéu, óculos) deixa de aparecer; o resto do corpo e do cabelo continua visível
 
 #id 2026-11-07-a
 #titulo Criador de personagem no estilo The Sims 4

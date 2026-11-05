@@ -30,7 +30,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var movTv: TextView
     private lateinit var sideCol: LinearLayout
     private lateinit var portrait: FrameLayout
-    private lateinit var workBar: PillBar
     private lateinit var editBar: LinearLayout
     private lateinit var moveIcon: IconView
     private lateinit var moveLbl: TextView
@@ -43,7 +42,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dockR: LinearLayout
     private lateinit var creator: CreatorUi
     private var prevMode = 0
-    private var progresso = 0
     private var bottomInset = 0
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -149,10 +147,10 @@ class MainActivity : AppCompatActivity() {
     /** Segmento da barra inferior direita; devolve o ícone para poder trocá-lo. */
     private fun dockSeg(icon: Int, tint: Int, acao: () -> Unit): Pair<FrameLayout, IconView> {
         val f = FrameLayout(this)
-        f.background = Ui.frost(dpf(19f), tint, 0xD0, 0x8A, dpf(1.5f), edge = 0xDDFFFFFF.toInt())
+        f.background = Ui.frost(0f, tint, 0xE8, 0xA8, dpf(1.6f), oval = true, edge = 0xEEFFFFFF.toInt())
         val ic = IconView(this, icon, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt())
-        f.addView(ic, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER))
-        f.layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).also { it.setMargins(dp(3), dp(3), dp(3), dp(3)) }
+        f.addView(ic, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.setMargins(dp(3), dp(3), dp(3), dp(3)) }
         press(f, acao)
         return Pair(f, ic)
     }
@@ -198,25 +196,20 @@ class MainActivity : AppCompatActivity() {
         hud.orientation = LinearLayout.HORIZONTAL
         hud.gravity = Gravity.CENTER
         hud.setPadding(dp(12), dp(8), dp(12), dp(4))
-        moneyTv = tvShadow(tv("", 15f, Color.WHITE, true))
+        moneyTv = tvShadow(tv("", 22f, Color.WHITE, true))
         casaTv = tvShadow(tv("", 15f, Color.WHITE, true))
         movTv = tvShadow(tv("", 15f, Color.WHITE, true))
-        hud.addView(statPill(Ic.COIN, Tn.SUN, moneyTv, { loja(0) }, null), LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) })
-        hud.addView(statPill(Ic.HOME, Tn.SIMS_BLUE, casaTv, null, { loja(5) }), LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) })
-        hud.addView(statPill(Ic.SHOP, Tn.SIMS_PURPLE, movTv, null, { loja(0) }), LinearLayout.LayoutParams(-2, -2))
+        hud.addView(statPill(Ic.COIN, Tn.SUN, moneyTv, null, { loja(0) }))
         root.addView(hud, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         // canto superior esquerdo: retrato do personagem + coluna de atalhos
         portrait = FrameLayout(this)
-        portrait.background = Ui.frost(0f, 0x0B1624, 0xCC, 0x99, dpf(2.2f), oval = true, edge = 0xFFFFFFFF.toInt())
-        portrait.addView(IconView(this, Ic.PERSON, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(36), dp(36), Gravity.CENTER))
+        portrait.background = Ui.frost(0f, 0xBFE6FA, 0xF0, 0xCC, dpf(2.4f), oval = true, edge = 0xFFFFFFFF.toInt())
+        portrait.addView(IconView(this, Ic.AVATAR, Color.WHITE, Color.WHITE), FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER))
         press(portrait) { abrirCriador() }
-        root.addView(portrait, FrameLayout.LayoutParams(dp(60), dp(60), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
+        root.addView(portrait, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
         sideCol = LinearLayout(this)
         sideCol.orientation = LinearLayout.VERTICAL
-        sideCol.addView(sideTile(Ic.CASE, Tn.ROSE) { trabalhar() })
-        sideCol.addView(sideTile(Ic.SPARK, Tn.SIMS_GREEN) { mostrarNovidades(true) })
-        sideCol.addView(sideTile(Ic.PLUMB, Tn.SUN) { alternarSalaTestes() })
         root.addView(sideCol, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).also { it.setMargins(dp(17), dp(76), 0, 0) })
 
         msgTv = tvShadow(tv("", 13f, Pal.TEXT, true))
@@ -249,25 +242,22 @@ class MainActivity : AppCompatActivity() {
         dockR.orientation = LinearLayout.VERTICAL
         val frame = LinearLayout(this)
         frame.orientation = LinearLayout.HORIZONTAL
-        frame.setPadding(dp(4), dp(4), dp(4), dp(4))
-        frame.background = Ui.frost(dpf(27f), DARK, 0x90, 0x60, dpf(1.5f), edge = 0xCCFFFFFF.toInt())
+        frame.setPadding(dp(3), dp(3), dp(3), dp(3))
+        frame.background = Ui.frost(dpf(25f), DARK, 0x80, 0x55, dpf(1.4f), edge = 0xBBFFFFFF.toInt())
         val dv = dockSeg(Ic.CAM3P, 0x2FA8F0) { alternarVista() }
         viewIcon = dv.second
         frame.addView(dv.first)
-        frame.addView(dockSeg(Ic.PERSON, 0x2FA8F0) { abrirCriador() }.first)
         frame.addView(dockSeg(Ic.CART, 0x9B5CF0) { loja(0) }.first)
         frame.addView(dockSeg(Ic.DOTS, 0x3CD68A) { config() }.first)
         dockR.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        workBar = PillBar(this)
-        dockR.addView(workBar, LinearLayout.LayoutParams(-1, dp(9)).also { it.topMargin = dp(7); it.leftMargin = dp(8); it.rightMargin = dp(8) })
         root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(10)) })
 
         // botão de pular (só na primeira pessoa)
         jumpBtn = FrameLayout(this)
         jumpBtn.background = Ui.frost(0f, 0x2FA8F0, 0xB8, 0x72, dpf(1.5f), oval = true)
-        jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+        jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
         press(jumpBtn) { if (game.mode == 0) game.r.jumpReq = true }
-        root.addView(jumpBtn, FrameLayout.LayoutParams(dp(60), dp(60), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(78), dp(108)) })
+        root.addView(jumpBtn, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(18), dp(72)) })
 
         creator = CreatorUi(this, st, game) { fecharCriador() }
         creator.visibility = View.GONE
@@ -279,7 +269,7 @@ class MainActivity : AppCompatActivity() {
             val b = ins.getInsets(WindowInsetsCompat.Type.systemBars())
             hud.setPadding(dp(12) + b.left, b.top + dp(6), dp(12) + b.right, dp(4))
             bottom.setPadding(0, 0, 0, b.bottom + dp(8))
-            (jumpBtn.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(78) + b.right, dp(108) + b.bottom)
+            (jumpBtn.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(18) + b.right, dp(72) + b.bottom)
             (portrait.layoutParams as FrameLayout.LayoutParams).setMargins(dp(12) + b.left, b.top + dp(8), 0, 0)
             (sideCol.layoutParams as FrameLayout.LayoutParams).setMargins(dp(17) + b.left, b.top + dp(76), 0, 0)
             portrait.requestLayout(); sideCol.requestLayout()
@@ -333,9 +323,7 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------ HUD
 
     private fun atualizarDinheiro(pulso: Boolean) {
-        moneyTv.text = "R$ ${st.money}"
-        casaTv.text = "${st.gw}x${st.gh}"
-        movTv.text = "${st.items.size}"
+        moneyTv.text = "\u221E"
         if (pulso) moneyTv.animate().scaleX(1.25f).scaleY(1.25f).setDuration(120).withEndAction {
             moneyTv.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
         }.start()
@@ -414,18 +402,6 @@ class MainActivity : AppCompatActivity() {
         msg(msgTxt)
     }
 
-    private fun trabalhar() {
-        progresso += 12
-        if (progresso >= 100) {
-            progresso = 0
-            st.money += 25
-            st.save()
-            atualizarDinheiro(true)
-            msg("Pagamento recebido: +R$ 25")
-        }
-        workBar.value = progresso / 100f
-    }
-
     // ------------------------------------------------------------ edição
 
     private fun pegarSoltar() {
@@ -455,7 +431,7 @@ class MainActivity : AppCompatActivity() {
         st.save()
         atualizarDinheiro(true)
         editBar.visibility = View.GONE
-        msg("${s.type.nome} vendido: +R$ ${s.type.preco / 2}")
+        msg("${s.type.nome} guardado")
     }
 
     // ------------------------------------------------------------ loja
@@ -533,22 +509,22 @@ class MainActivity : AppCompatActivity() {
     private fun entries(tab: Int): List<Entry> {
         val out = ArrayList<Entry>()
         if (tab in 0..3) {
-            for (t in Type.values()) if (t.cat == tab && t.mob == null) out.add(Entry(t.nome, "R$ ${t.preco}", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
+            for (t in Type.values()) if (t.cat == tab && t.mob == null) out.add(Entry(t.nome, "Grátis", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
         } else if (tab == 4) {
             Finish.floors.forEachIndexed { i, f ->
                 val own = (st.ownFloors shr i) and 1 == 1
-                val sub = if (st.floorIdx == i) "Em uso" else if (own) "Comprado" else "R$ ${f.preco}"
+                val sub = if (st.floorIdx == i) "Em uso" else if (own) "Comprado" else "Grátis"
                 out.add(Entry("Piso\n${f.nome}", sub, 0, f.amostra, own || st.money >= f.preco) { comprarPiso(i) })
             }
             Finish.walls.forEachIndexed { i, w ->
                 val own = (st.ownWalls shr i) and 1 == 1
-                val sub = if (st.wallIdx == i) "Em uso" else if (own) "Comprado" else "R$ ${w.preco}"
+                val sub = if (st.wallIdx == i) "Em uso" else if (own) "Comprado" else "Grátis"
                 out.add(Entry("Parede\n${w.nome}", sub, 0, w.cor, own || st.money >= w.preco) { comprarParede(i) })
             }
         } else {
             if (st.podeAmpliar()) {
                 val p = st.precoAmpliar()
-                out.add(Entry("Ampliar casa\n${st.gw}x${st.gh} → ${st.gw + 1}x${st.gh + 1}", "R$ $p", Ic.HOME, 0, st.money >= p) { ampliarCasa() })
+                out.add(Entry("Ampliar casa\n${st.gw}x${st.gh} → ${st.gw + 1}x${st.gh + 1}", "Grátis", Ic.HOME, 0, st.money >= p) { ampliarCasa() })
             } else {
                 out.add(Entry("Tamanho máximo\n${st.gw}x${st.gh}", "—", Ic.HOME, 0, false) { })
             }
@@ -559,7 +535,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshShop() {
         shopAdapter?.data = entries(shopTab)
         shopAdapter?.notifyDataSetChanged()
-        shopMoney?.text = "R$ ${st.money}"
+        shopMoney?.text = "\u221E"
         for ((i, t) in tabViews.withIndex()) {
             val sel = i == shopTab
             t.background = Ui.chunky(if (sel) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), sel)
@@ -624,7 +600,7 @@ class MainActivity : AppCompatActivity() {
         val adapter = ShopAdapter()
         shopAdapter = adapter
         val d = sheet("Loja", Ic.SHOP, Tn.MINT, false) { panel ->
-            val money = tvShadow(tv("R$ ${st.money}", 16f, Pal.GOLD, true))
+            val money = tvShadow(tv("\u221E", 18f, Pal.GOLD, true))
             shopMoney = money
             val moneyChip = LinearLayout(this)
             moneyChip.orientation = LinearLayout.HORIZONTAL
@@ -660,7 +636,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun comprar(t: Type) {
-        if (st.money < t.preco) { msg("Dinheiro insuficiente. Vá trabalhar!"); return }
+        if (st.money < t.preco) { msg("Dinheiro insuficiente."); return }
         val alvo = game.frontTarget()
         val spot = st.findPlaceNear(t, alvo[0], alvo[1])
         if (spot == null) { msg("Sem espaço na casa. Venda algo ou amplie."); return }
