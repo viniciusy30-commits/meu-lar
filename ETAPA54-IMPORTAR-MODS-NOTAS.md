@@ -135,3 +135,4 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - `kenner_<grupo>` ("Chinelo estilo Kenner", categoria Sapato): chinelo de dedo com solado grosso, tudo preto: palmilha com textura de pontinhos e tira acolchoada em Y (modelo Kenner Red/Pro); marcado como "alpha" no ModStore para NÃO esconder a pele do pé (senão o pé some por baixo do solado). Sem logotipo da marca (só o estilo).
 - Arquivos: assets/cute/skate/{short,kenner}_<g>.cup/.png e assets/cute/thumbs/{short,kenner}_<g>.png; itens registrados no ModStore.kt.
 - Não testado no aparelho. Crianças (cu/pu) não têm essas peças (igual à cargo/jordan).
+- Correção (pós-teste no aparelho): o short tinha as duas pernas se encostando (parecia saia e se mexia como saia); agora cada perna é separada e com pesos de osso da própria perna. A tira do chinelo foi refeita: sai do vão entre o dedão e o segundo dedo (posição medida na textura do pé do Sims) e abre em Y até as laterais do pé.
