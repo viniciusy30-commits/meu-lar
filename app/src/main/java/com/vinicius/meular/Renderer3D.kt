@@ -234,6 +234,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        GlGen.gen++
         GLES20.glClearColor(0.66f, 0.85f, 0.94f, 1f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -265,6 +266,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         Tex.init()
         fm.clear()          // móveis do pack: as texturas do contexto antigo não valem mais
         MobLoader.reset()
+        Flora.reset()
         CuteChar.initGl()
         skyM = Models.sky()
         stageM = AvatarModel.stage()
@@ -294,20 +296,37 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (p.cull) GLES20.glEnable(GLES20.GL_CULL_FACE)
             if (p.solid) GLES20.glDisable(GLES20.GL_BLEND)
             val bytes = STRIDE * 4
-            p.buf.position(0)
-            GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
-            p.buf.position(3)
-            GLES20.glVertexAttribPointer(aNor, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
-            p.buf.position(6)
-            GLES20.glVertexAttribPointer(aCol, 4, GLES20.GL_FLOAT, false, bytes, p.buf)
-            p.buf.position(10)
-            GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, bytes, p.buf)
-            val ib = p.idx
-            if (ib != null) {
-                ib.position(0)
-                GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, ib)
+            if (p.gpu) {
+                if (p.vbo == 0 || p.gpuGen != GlGen.gen) p.upload()
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, p.vbo)
+                GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, 0)
+                GLES20.glVertexAttribPointer(aNor, 3, GLES20.GL_FLOAT, false, bytes, 12)
+                GLES20.glVertexAttribPointer(aCol, 4, GLES20.GL_FLOAT, false, bytes, 24)
+                GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, bytes, 40)
+                if (p.ibo != 0) {
+                    GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, p.ibo)
+                    GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, 0)
+                    GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+                } else {
+                    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
+                }
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
             } else {
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
+                p.buf.position(0)
+                GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
+                p.buf.position(3)
+                GLES20.glVertexAttribPointer(aNor, 3, GLES20.GL_FLOAT, false, bytes, p.buf)
+                p.buf.position(6)
+                GLES20.glVertexAttribPointer(aCol, 4, GLES20.GL_FLOAT, false, bytes, p.buf)
+                p.buf.position(10)
+                GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, bytes, p.buf)
+                val ib = p.idx
+                if (ib != null) {
+                    ib.position(0)
+                    GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, ib)
+                } else {
+                    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
+                }
             }
             if (p.cull) GLES20.glDisable(GLES20.GL_CULL_FACE)
             if (p.solid) GLES20.glEnable(GLES20.GL_BLEND)
@@ -319,6 +338,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val gh = st.gh
         val fl = Finish.floors[st.floorIdx]
         val wl = Finish.walls[st.wallIdx]
+        yardM?.release(); floorM?.release(); ceilM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh)
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)

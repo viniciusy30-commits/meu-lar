@@ -36,7 +36,7 @@ object Models {
     fun shadow(w: Int, h: Int): Mesh {
         val b = MB()
         b.blob(w / 2.0, 0.07, h / 2.0, w / 2.0 + 0.28, h / 2.0 + 0.28, 0.42f)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     fun ring(w: Int, h: Int, c: Int): Mesh {
@@ -46,14 +46,14 @@ object Models {
         b.box(w / 2.0, 0.09, h + 0.03, w + 0.14, 0.02, t, c, false)
         b.box(-0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
         b.box(w + 0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     // Sombra e anel de seleção do tamanho real do móvel (metros). A sombra fica centrada na origem.
     fun shadowF(w: Double, h: Double): Mesh {
         val b = MB()
         b.blob(0.0, 0.07, 0.0, w / 2.0 + 0.18, h / 2.0 + 0.18, 0.42f)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     fun ringF(w: Double, h: Double, c: Int): Mesh {
@@ -63,7 +63,7 @@ object Models {
         b.box(w / 2.0, 0.09, h + 0.03, w + 0.14, 0.02, t, c, false)
         b.box(-0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
         b.box(w + 0.03, 0.09, h / 2.0, t, 0.02, h + 0.14, c, false)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     private fun leg(b: MB, x: Double, z: Double, h: Double, rb: Double, rt: Double, c: Int) =
@@ -71,8 +71,21 @@ object Models {
 
     // ------------------------------------------------------------ móveis
 
+    // Etapa 68: móveis básicos modelados (assets/flora/f_*.bin, ferramentas/ambiente/furn_items.py). Se o arquivo faltar, cai no modelo antigo de caixas.
+    private val FURN = mapOf(
+        Type.CHAIR to "f_chair", Type.TABLE to "f_table", Type.BED to "f_bed", Type.SOFA to "f_sofa", Type.SHELF to "f_shelf",
+        Type.PLANT to "f_plant", Type.RUG to "f_rug", Type.TV to "f_tv", Type.FRIDGE to "f_fridge", Type.STOVE to "f_stove",
+        Type.LAMP to "f_lamp", Type.NIGHT to "f_night", Type.COFFEE to "f_coffee", Type.WARDROBE to "f_wardrobe"
+    )
+
     fun furniture(t: Type): Mesh {
         t.mob?.let { return MobLoader.load(it) }
+        FURN[t]?.let { id ->
+            val fb = Flora.Batch()
+            fb.place(id, 0.0, 0.0, 0.0)
+            val parts = fb.build()
+            if (parts.isNotEmpty()) return Mesh(parts)
+        }
         val b = MB()
         when (t) {
             Type.CHAIR -> {
@@ -305,7 +318,7 @@ object Models {
             }
             else -> {}
         }
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     // ------------------------------------------------------------ casa
@@ -316,7 +329,7 @@ object Models {
         b.plane(0, 0, gw, gh, 0.0, fl.tint)
         b.m(Mt.STONE, 0.5f)
         b.box(gw / 2.0, -0.205, gh / 2.0, gw + 0.5, 0.4, gh + 0.5, C("#C9C3B9"))
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     private fun curtains(b: MB, c: Double, w: Double, y0: Double, y1: Double, col: Int) {
@@ -345,6 +358,7 @@ object Models {
 
     fun wall(len: Double, ops: List<Opening>, tint: Int, ext: Boolean, art: Boolean): Mesh {
         val b = MB()
+        val fl = Flora.Batch()
         val ti = 0.07
         val to = 0.10
         val tt = ti + to
@@ -377,44 +391,32 @@ object Models {
         for (o in sorted) {
             val ww = o.w
             if (o.door) {
-                val dh = 2.1
-                b.m(Mt.PLAIN)
-                b.rbox(o.c - ww / 2 + 0.03, dh / 2, -0.075, 0.06, dh, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c + ww / 2 - 0.03, dh / 2, -0.075, 0.06, dh, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c, dh - 0.03, -0.075, ww, 0.06, 0.19, 0.01, wh, true, 1)
-                b.m(Mt.STONE, 1f)
-                b.rbox(o.c, 0.012, -0.075, ww, 0.024, 0.19, 0.008, C("#CFC8BE"), true, 1)
+                // porta modelada: batente, soleira e folha aberta para fora (Etapa 68)
+                fl.place("door_110", o.c, 0.0, 0.0)
                 b.m(Mt.METAL)
                 b.rbox(o.c + ww / 2 + 0.45, 1.75, -0.2, 0.08, 0.14, 0.06, 0.02, C("#2B3036"), true, 1)
                 b.m(Mt.PLAIN)
                 b.sphere(o.c + ww / 2 + 0.45, 1.75, -0.24, 0.06, C("#FFE9A8"), 0.07, 7, false)
             } else {
-                val ya = 0.92; val yb = 1.95; val ym = (ya + yb) / 2; val hw = yb - ya
-                b.m(Mt.PLAIN)
-                b.rbox(o.c - ww / 2 + 0.03, ym, -0.075, 0.06, hw, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c + ww / 2 - 0.03, ym, -0.075, 0.06, hw, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c, yb - 0.03, -0.075, ww, 0.06, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c, ya + 0.03, -0.075, ww, 0.06, 0.19, 0.01, wh, true, 1)
-                b.rbox(o.c, ym, -0.07, 0.04, hw - 0.1, 0.05, 0.01, wh, true, 1)
-                b.rbox(o.c, ym, -0.07, ww - 0.1, 0.04, 0.05, 0.01, wh, true, 1)
-                b.rbox(o.c, ya - 0.01, 0.07, ww + 0.14, 0.04, 0.22, 0.015, wh, true, 1)
-                b.rbox(o.c, ya - 0.03, -tt - 0.05, ww + 0.14, 0.05, 0.14, 0.015, wh, true, 1)
-                b.m(Mt.GLASS)
-                b.al = 0.2f
-                b.box(o.c, ym, -0.07, ww - 0.1, hw - 0.1, 0.012, C("#CBE8F8"))
-                b.al = 1f
-                curtains(b, o.c, ww, ya, yb, if (o.c < len / 2) C("#D9786B") else C("#E4B25F"))
+                val wn = Math.round(ww * 100).toInt()
+                val id = if (wn >= 175) "190" else if (wn >= 140) "160" else "125"
+                fl.place("win_$id", o.c, 0.0, 0.0)
+                val cc = if (o.c < len / 2) C("#D9786B") else C("#E4B25F")
+                fl.place("curt_$id", o.c, 0.0, 0.0, 1.0, 0.0,
+                    Math.min(1.25f, android.graphics.Color.red(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.green(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.blue(cc) / 255f * 1.15f))
             }
+        }
+
+        // lambri (Etapa 68): módulos de 1 m, menos na porta
+        for (i in 0 until Math.floor(len).toInt()) {
+            val x0m = i.toDouble(); val x1m = i + 1.0
+            var skip = false
+            for (o in sorted) if (o.door && x1m > o.c - o.w / 2 - 0.02 && x0m < o.c + o.w / 2 + 0.02) skip = true
+            if (!skip) fl.place("wain_1", x0m, 0.0, 0.0)
         }
 
         // rodapé, moldura de teto e platibanda externa
         b.m(Mt.PLAIN)
-        fun base(a: Double, c: Double) {
-            if (c - a > 0.01) b.rbox((a + c) / 2, 0.07, 0.018, c - a, 0.14, 0.036, 0.008, wh, true, 1)
-        }
-        var cs = 0.0
-        for (o in sorted) if (o.door) { base(cs, o.c - o.w / 2); cs = o.c + o.w / 2 }
-        base(cs, len)
         b.rbox(len / 2, HH - 0.04, 0.028, len, 0.08, 0.056, 0.01, wh, true, 1)
         b.m(Mt.STONE, 0.5f)
         b.rbox((xs + xe) / 2, 0.12, -tt - 0.015, xe - xs + 0.02, 0.24, 0.04, 0.012, C("#8A8F98"), true, 1)
@@ -429,7 +431,8 @@ object Models {
             b.box(cx - 0.05, 1.6, 0.075, 0.28, 0.45, 0.005, C("#E3A72F"), false)
             b.box(cx + 0.3, 1.5, 0.075, 0.2, 0.6, 0.005, C("#2F7F86"), false)
         }
-        return b.toMesh()
+        val wm = b.toMesh(true)
+        return Mesh(wm.parts + fl.build())
     }
 
     fun ceiling(gw: Int, gh: Int): Mesh {
@@ -450,7 +453,7 @@ object Models {
         b.rbox(W / 2, HH + 0.125, H / 2, W + 0.9, 0.24, H + 0.9, 0.05, C("#7A7E88"), true, 2)
         b.m(Mt.PLAIN)
         b.rbox(W / 2, HH + 0.02, H / 2, W + 0.5, 0.05, H + 0.5, 0.015, C("#F7F5F0"), true, 1)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 
     // ------------------------------------------------------------ quintal
@@ -516,6 +519,7 @@ object Models {
 
     fun yard(gw: Int, gh: Int): Mesh {
         val b = MB()
+        val fl = Flora.Batch()
         val W = gw.toDouble(); val H = gh.toDouble()
         val x0 = -7.0; val x1 = W + 7.0; val z0 = -7.0; val z1 = H + 9.0
         val white = C("#FFFFFF")
@@ -545,9 +549,7 @@ object Models {
             val px = W / 2 + sx * 1.15
             b.m(Mt.PLAIN)
             b.lathe(px, 0.09, H + 1.2, floatArrayOf(0f, 0f, 0.13f, 0f, 0.2f, 0.32f, 0.23f, 0.34f, 0.23f, 0.41f, 0.2f, 0.41f, 0.19f, 0.37f, 0f, 0.37f), C("#C9703F"), true, 20)
-            b.m(Mt.GRASS, 1.5f)
-            b.sphere(px, 0.75, H + 1.2, 0.3, C("#3E8F3E"), 0.3, 9)
-            b.sphere(px + 0.12, 0.98, H + 1.15, 0.2, C("#5CB04A"), 0.2, 8)
+            fl.place("bush_b", px, 0.44, H + 1.2, 0.5, px * 7.0)
         }
 
         // postes de luz do jardim
@@ -560,44 +562,60 @@ object Models {
             b.cyl(px, 1.03, zz, 0.1, 0.0, 0.08, C("#2B3036"), true, 8)
         }
 
-        // canteiros com flores na frente da casa
-        val fl = listOf(C("#F26B8A"), C("#FFD24D"), C("#FFFFFF"), C("#B48CF2"), C("#F59A4A"))
+        // canteiros com flores na frente da casa (flores e folhas de verdade, Etapa 67)
+        val fnames = listOf("fl_tulip", "fl_daisy", "fl_lav", "fl_yellow", "fl_poppy")
         for (side in 0..1) {
             val xa = if (side == 0) 0.45 else W / 2 + 1.75
             val xb = if (side == 0) W / 2 - 1.75 else W - 0.45
             b.m(Mt.PLAIN)
             b.rbox((xa + xb) / 2, 0.08, H + 0.65, xb - xa, 0.16, 0.7, 0.05, C("#4B3427"), true, 2)
-            var x = xa + 0.2
+            var x = xa + 0.25
             var i = 0
             while (x < xb - 0.1) {
                 val zz = H + 0.5 + (i % 3) * 0.14
-                b.m(Mt.GRASS, 2f)
-                b.cyl(x, 0.12, zz, 0.012, 0.012, 0.22, C("#3E8F3E"), true, 6)
-                b.sphere(x + 0.06, 0.2, zz, 0.08, C("#4FA04A"), 0.04, 6)
-                b.m(Mt.PLAIN)
-                b.sphere(x, 0.37, zz, 0.07, fl[i % fl.size], 0.06, 6)
-                x += 0.3
+                fl.place(fnames[(i + side * 2) % fnames.size], x, 0.14, zz, 0.9 + 0.2 * ((i * 7) % 5) / 4.0, i * 1.9)
+                if (i % 3 == 1) fl.place("bush_a", x + 0.2, 0.13, H + 0.82, 0.32, i * 2.3, 1f, 1f, 1f)
+                x += 0.42
                 i++
             }
         }
 
         // cerca-viva atrás da casa
-        b.m(Mt.GRASS, 1f)
-        b.rbox(W / 2, 0.45, -0.85, W + 1.4, 0.9, 0.6, 0.22, C("#3F7F34"), true, 3)
+        run {
+            val n = Math.ceil((W + 1.4) / 2.0).toInt()
+            val step = (W + 1.4) / n
+            for (i in 0 until n) fl.place("hedge", -0.7 + step * (i + 0.5), 0.0, -0.85, step / 2.0, 0.0, 1f, 1f, 1f)
+        }
 
         // árvores e arbustos
-        tree(b, -3.6, -3.2, 1.0, C("#4C9A3C"), C("#5CB04A"))
-        tree(b, W + 3.8, H * 0.25, 1.2, C("#3F8A3A"), C("#58AA48"))
-        tree(b, -3.4, H + 3.6, 0.95, C("#E8A0B8"), C("#F2B8CB"))
-        tree(b, W + 3.2, H + 4.8, 1.1, C("#4C9A3C"), C("#6CBE5C"))
-        tree(b, W / 2 + 4.5, -4.8, 1.3, C("#3F8A3A"), C("#4FA04A"))
-        tree(b, -5.2, H * 0.5, 1.15, C("#58AA48"), C("#4C9A3C"))
-        bush(b, -1.1, H * 0.4, 1.0, C("#3F8A3A"), C("#F26B8A"))
-        bush(b, W + 1.2, H * 0.7, 1.1, C("#4C9A3C"), C("#FFD24D"))
-        bush(b, -1.0, H + 1.5, 0.9, C("#3F8A3A"), null)
-        bush(b, W + 1.1, H + 1.2, 1.0, C("#4C9A3C"), C("#FFFFFF"))
-        bush(b, W / 2 - 3.2, H + 5.0, 1.2, C("#3F8A3A"), null)
-        bush(b, W / 2 + 3.4, H + 6.2, 1.1, C("#4C9A3C"), C("#B48CF2"))
+        fl.place("oak_a", -3.6, 0.0, -3.2, 1.0, 0.4)
+        fl.place("oak_b", W + 3.8, 0.0, H * 0.25, 1.1, 2.0, 0.97f, 1.0f, 0.97f)
+        fl.place("cherry_a", -3.4, 0.0, H + 3.6, 0.95, 1.1)
+        fl.place("pine_a", W + 3.2, 0.0, H + 4.8, 1.05, 0.7)
+        fl.place("oak_a", W / 2 + 4.5, 0.0, -4.8, 1.2, 3.6, 0.95f, 1.0f, 0.95f)
+        fl.place("pine_a", -5.2, 0.0, H * 0.5, 1.2, 2.6, 0.95f, 1.0f, 0.97f)
+        fl.place("bush_pink", -1.1, 0.0, H * 0.4, 1.0, 0.5)
+        fl.place("bush_a", W + 1.2, 0.0, H * 0.7, 1.15, 1.7)
+        fl.place("bush_white", -1.0, 0.0, H + 1.5, 0.95, 2.9)
+        fl.place("bush_pink", W + 1.1, 0.0, H + 1.2, 1.0, 4.1)
+        fl.place("bush_b", W / 2 - 3.2, 0.0, H + 5.0, 1.25, 0.9)
+        fl.place("bush_white", W / 2 + 3.4, 0.0, H + 6.2, 1.1, 3.3)
+
+        // tufos de grama espalhados pelo quintal (fora da casa e do caminho)
+        run {
+            val rnd = java.util.Random(7)
+            var k = 0
+            var tries = 0
+            while (k < 360 && tries < 4000) {
+                tries++
+                val gx = x0 + 1.0 + rnd.nextDouble() * (x1 - x0 - 2.0)
+                val gz = z0 + 1.0 + rnd.nextDouble() * (z1 - z0 - 2.0)
+                if (gx > -0.9 && gx < W + 0.9 && gz > -1.4 && gz < H + 0.9) continue
+                if (Math.abs(gx - W / 2) < 1.5 && gz > H) continue
+                fl.place(if (k % 3 == 0) "grass_b" else "grass_a", gx, 0.0, gz, 0.8 + rnd.nextDouble() * 0.7, rnd.nextDouble() * 6.28)
+                k++
+            }
+        }
 
         // banco de jardim
         val bx = W + 2.6; val bz = H + 2.4
@@ -612,20 +630,37 @@ object Models {
         b.m(Mt.PLAIN)
         b.rbox(W / 2 + 1.5, 1.16, H + 8.5, 0.34, 0.22, 0.22, 0.07, C("#D9473F"), true, 2)
 
-        // cerca com portão
-        b.m(Mt.WOOD, 1f)
-        picketX(b, z0, x0, x1)
-        picketX(b, z1, x0, x1)
-        picketZ(b, x0, z0, z1)
-        picketZ(b, x1, z0, z1)
-        for (sx in intArrayOf(-1, 1)) {
-            val px = W / 2 + sx * 1.0
-            b.box(px, 0.75, z1, 0.18, 1.5, 0.18, C("#EEE9DD"))
-            b.m(Mt.PLAIN)
-            b.sphere(px, 1.62, z1, 0.1, C("#FFE9A8"), 0.12, 8, false)
-            b.m(Mt.WOOD, 1f)
+        // cerca com portão (painéis e postes modelados)
+        run {
+            fun line(len: Double, cb: (Double, Double, Double) -> Unit) {
+                val n = Math.max(1, (len / 2.0).toInt())
+                val step = len / n
+                for (i in 0 until n) cb(i * step, step, step / 2.0)
+            }
+            line(x1 - x0) { o, st, sc ->
+                val cx = x0 + o + st / 2
+                fl.place("fence_post", x0 + o, 0.0, z0, 1.0, 0.0)
+                fl.place("fence_panel", x0 + o + st, 0.0, z0, sc, Math.PI)
+                fl.place("fence_post", x0 + o, 0.0, z1, 1.0, 0.0)
+                if (Math.abs(cx - W / 2) > 1.4) fl.place("fence_panel", x0 + o, 0.0, z1, sc, 0.0)
+            }
+            fl.place("fence_post", x1, 0.0, z0, 1.0, 0.0); fl.place("fence_post", x1, 0.0, z1, 1.0, 0.0)
+            line(z1 - z0) { o, st, sc ->
+                fl.place("fence_post", x0, 0.0, z0 + o, 1.0, 0.0)
+                fl.place("fence_panel", x0, 0.0, z0 + o, sc, -Math.PI / 2)
+                fl.place("fence_post", x1, 0.0, z0 + o, 1.0, 0.0)
+                fl.place("fence_panel", x1, 0.0, z0 + o + st, sc, Math.PI / 2)
+            }
+            fl.place("fence_post", x0, 0.0, z1, 1.0, 0.0)
+            for (sx in intArrayOf(-1, 1)) {
+                val px = W / 2 + sx * 1.0
+                fl.place("fence_post", px, 0.0, z1, 1.25, 0.0)
+                b.m(Mt.PLAIN)
+                b.sphere(px, 1.62, z1, 0.1, C("#FFE9A8"), 0.12, 8, false)
+            }
         }
-        return b.toMesh()
+        val yardMesh = b.toMesh(true)
+        return Mesh(yardMesh.parts + fl.build())
     }
 
     // ------------------------------------------------------------ céu
@@ -667,6 +702,6 @@ object Models {
         b.sphere(sx, sy, sz, 10.0, C("#FFE9A0"), 10.0, 10, false)
         b.al = 1f
         b.sphere(sx, sy, sz, 5.0, C("#FFF6D0"), 5.0, 10, false)
-        return b.toMesh()
+        return b.toMesh(true)
     }
 }

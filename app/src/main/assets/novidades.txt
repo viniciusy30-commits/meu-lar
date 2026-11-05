@@ -1,3 +1,17 @@
+#id 2026-11-05-b
+#titulo Móveis e casa com visual novo, e jogo mais leve
+- Os 14 móveis básicos foram refeitos com mais forma e detalhe: cadeira com ripas e almofada, mesa com louça e flores, cama com cabeceira acolchoada e travesseiros, sofá com almofadas fofas, estante com livros e planta, TV com tela, geladeira inox, fogão com forno, abajur, criado-mudo, mesa de centro, guarda-roupa com painéis, tapete estampado e planta de vaso
+- Janelas com caixilho, peitoril e cortinas com dobras; porta com folha aberta; lambri nas paredes
+- Móveis, paredes e quintal agora ficam guardados na placa de vídeo, em vez de serem reenviados a cada quadro: o jogo roda mais leve
+
+#id 2026-11-05-a
+#titulo Quintal com visual novo: árvores, arbustos, flores e cerca de verdade
+- Árvores com tronco, raízes, galhos e copa de folhas de verdade: carvalho, bordo, cerejeira em flor e pinheiro, cada uma com sombreamento próprio na copa
+- Arbustos folhudos e com flores, cerca-viva cheia de folhas, tufos de grama espalhados pelo quintal
+- Canteiros com tulipas, margaridas, lavanda, papoulas e flores amarelas
+- Cerca de madeira branca com ripas pontudas, travessas e postes com tampa
+- Tudo é montado em poucas peças grandes, então o quintal pesa pouco no celular
+
 #id 2026-11-02-c
 #titulo Móveis novos do pack home-set-2020s
 - 49 móveis e objetos 3D do pack, do jeito que eles são lá (tamanho, forma e texturas originais): sofás, poltrona, mesas de centro, aparador, estante, pufe, escrivaninha, cadeira de escritório, monitor, luminárias, tapetes, plantas, vasos, livros e mais

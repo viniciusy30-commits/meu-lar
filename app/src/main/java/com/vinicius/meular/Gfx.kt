@@ -52,8 +52,44 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var solid: Boolean = false
     /** Etapa 47: pele do Sims; o shader limita a soma de luz (a luz pontual do criador estourava ombros/peito/testa para branco). */
     var soft: Boolean = false
+    /** Etapa 68: malha estática guardada na memória da placa de vídeo (VBO/IBO), em vez de reenviada a cada quadro. Só para peças que nunca mudam. */
+    var gpu: Boolean = false
+    var vbo = 0
+    var ibo = 0
+    var gpuGen = 0
+
+    fun upload() {
+        val ids = IntArray(2)
+        GLES20.glGenBuffers(if (idx != null) 2 else 1, ids, 0)
+        vbo = ids[0]
+        ibo = if (idx != null) ids[1] else 0
+        buf.position(0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, count * STRIDE * 4, buf, GLES20.GL_STATIC_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        val ib = idx
+        if (ib != null) {
+            ib.position(0)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
+            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, icount * 2, ib, GLES20.GL_STATIC_DRAW)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        }
+        gpuGen = GlGen.gen
+    }
+
+    /** Libera os buffers da placa (chamar quando a malha for descartada, na thread do GL). */
+    fun release() {
+        if (vbo != 0 && gpuGen == GlGen.gen) GLES20.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
+        vbo = 0
+        ibo = 0
+    }
 }
-class Mesh(val parts: List<Part>)
+
+/** Contador do contexto do GL: sobe quando o contexto é recriado (os buffers antigos deixam de valer). */
+object GlGen { @JvmField var gen = 1 }
+class Mesh(val parts: List<Part>) {
+    fun release() { for (p in parts) p.release() }
+}
 
 fun C(s: String): Int = Color.parseColor(s)
 
@@ -545,14 +581,14 @@ class MB {
         al = old
     }
 
-    fun toMesh(): Mesh {
+    fun toMesh(gpu: Boolean = false): Mesh {
         val parts = ArrayList<Part>()
         for ((mat, f) in bufs) {
             if (f.n == 0) continue
             val bb = ByteBuffer.allocateDirect(f.n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             bb.put(f.a, 0, f.n)
             bb.position(0)
-            parts.add(Part(mat, bb, f.n / STRIDE))
+            parts.add(Part(mat, bb, f.n / STRIDE).also { it.gpu = gpu })
         }
         return Mesh(parts)
     }

@@ -144,6 +144,7 @@ object MobLoader {
                 ib.position(0)
                 val tex = if (ti >= 0 && ti < names.size) texture(am, names[ti]) else 0
                 val p = Part(mat, fb, nv, ib, ni, tex)
+                p.gpu = true
                 if (cut != 0) p.cut = 0.5f
                 parts.add(p)
             }

@@ -126,6 +126,7 @@ class MainActivity : AppCompatActivity() {
         CuteChar.assets = assets
         ModStore.init(this)
         MobLoader.assets = assets
+        Flora.assets = assets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
