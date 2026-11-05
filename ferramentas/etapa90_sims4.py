@@ -15,20 +15,69 @@ def rd(f, grp=None):
             if grp and g!=grp: continue
             p=[x.split('/') for x in l.split()[1:]]; F.append([(int(a[0])-1,int(a[1])-1) for a in p])
     return np.array(V),np.array(T),F
+sys.path.insert(0,'/tmp/s4tools')
+import uvfix
+_TR=uvfix.train(['top','bottom','mens'])
+_FEM={}
+def uv0_for(objf):
+    # Etapa 90b: o OBJ só trouxe o UV1 (cilíndrico). O UV0 (atlas) vem das roupas de baixo padrão do TS4 (.package Softe):
+    # mesmo corpo da EA -> posição igual dá o UV0 exato (o UV1 desempata as costuras, onde há vértices duplicados).
+    # Mulher: o resto (pés) pelo vizinho em UV1. Homem: o tronco/braços vêm do corpo da mulher já resolvido
+    # (corpo do homem ajustado ao tamanho do dela; vizinho por posição + UV1, para não trocar frente/costas)
+    TP,T0,T1=_TR
+    V,T,_=rd(objf); u1=np.c_[T[:,0],1-T[:,1]]; V=V[:len(T)]
+    dp,ip=cKDTree(TP).query(V,k=6)
+    cost=np.where(dp<1e-4,np.linalg.norm(T1[ip]-u1[:,None],axis=2),1e9)
+    j=cost.argmin(1); ie=ip[np.arange(len(V)),j]; ex=cost.min(1)<1e8
+    if 'V' not in _FEM:
+        da,ia=cKDTree(T1).query(u1)
+        out=np.where(ex[:,None],T0[ie],T0[ia]); _FEM.update(V=V,U1=u1,U0=out)
+    else:
+        FV,FU1,FU0=_FEM['V'],_FEM['U1'],_FEM['U0']
+        W=V.copy()
+        lo,hi=V.min(0),V.max(0); flo,fhi=FV.min(0),FV.max(0)
+        W=(V-lo)/(hi-lo)*(fhi-flo)+flo
+        da,ia=cKDTree(np.c_[FV*4,FU1]).query(np.c_[W*4,u1])
+        out=np.where(ex[:,None],T0[ie],FU0[ia])
+    # pés: o .package não tem pés (vêm dos sapatos) -> cor lisa da pele do tornozelo
+    ft=(V[:,1]<0.13)&~ex
+    ok=np.where(~ft&(V[:,1]>0.25)&(V[:,1]<0.4))[0]
+    _,k=cKDTree(V[ok]).query(V[ft]); out[ft]=out[ok[k]]
+    # candidatos de UV0 nas costuras (mesma posição, ilhas diferentes): cada triângulo escolhe o da sua ilha
+    cand=[[out[t]] for t in range(len(V))]
+    for t in np.where(ex)[0]:
+        for jj in range(6):
+            if dp[t,jj]<1e-4:
+                c=T0[ip[t,jj]]
+                if all(np.abs(c-x).max()>1e-4 for x in cand[t]): cand[t].append(c)
+    if 'cand' not in _FEM: _FEM['cand']=cand
+    elif 'ia' in dir():
+        for t in np.where(~ex&~ft)[0]:
+            for c in _FEM['cand'][ia[t]]:
+                if all(np.abs(c-x).max()>1e-4 for x in cand[t]): cand[t].append(c)
+    print(objf[-25:],'exato',ex.sum(),'aprox',(~ex).sum(),'pés',ft.sum(),'costuras',sum(len(c)>1 for c in cand))
+    return cand
 def build(objs):
     # vertices únicos por (arquivo, v, vt); uv já no atlas (v de cima para baixo)
     P=[];UV=[];I=[];key={}
     for f,grp in objs:
         V,T,F=rd(f,grp)
         head = grp is not None
+        if not head: B0=uv0_for(f)
         for tri in F:
             if not head and min(V[vi][1] for vi,_ in tri) > 1.63: continue      # o corpo do TS4 traz uma cabeça simples: fica a cabeça detalhada
-            for vi,ti in tri:
-                k=(f,vi,ti)
+            if head: ch=[tuple((T[ti][0],1-T[ti][1])) for vi,ti in tri]
+            else:
+                import itertools
+                best=None
+                for combo in itertools.product(*[B0[ti] for vi,ti in tri]):
+                    c=np.array(combo); sp=np.ptp(c,axis=0).max()
+                    if best is None or sp<best[0]: best=(sp,combo)
+                ch=[tuple(np.round(x,6)) for x in best[1]]
+            for (vi,ti),uv in zip(tri,ch):
+                k=(f,vi,uv)
                 if k not in key:
-                    key[k]=len(P); P.append(V[vi])
-                    u,v=T[ti]
-                    UV.append((u, 1-v) if head else (u, 0.5+(1-v)*0.5))   # corpo: textura assada na metade de baixo do atlas (bake.py)
+                    key[k]=len(P); P.append(V[vi]); UV.append(uv)
                 I.append(key[k])
     return np.array(P),np.array(UV),np.array(I).reshape(-1,3)
 def eyes(head_obj):
@@ -154,10 +203,12 @@ def go(sexo, body, head, tex, src_grp, out_grp):
     v['uv']=UVs; v['col']=255; v['bi']=top; v['bw']=q
     assert len(v)<65535
     E.write_piece('/tmp/s4/p_body_%s5.bin'%out_grp, v, I.astype(np.uint16), fl, tail)
-    im=Image.open(U+tex).convert('RGB').resize((1024,2048),Image.LANCZOS)
-    im=bake(im, v, I, src_grp, U+tex)
+    A=np.asarray(Image.open(U+tex).convert('RGBA')).astype(float)
+    have=(A[...,3]>200)&(A[...,:3].sum(2)>60)   # fundo transparente/preto entre as ilhas vira a cor vizinha (sem linha nas costuras)
+    ii=ndimage.distance_transform_edt(~have,return_distances=False,return_indices=True)
+    im=Image.fromarray(A[...,:3][ii[0],ii[1]].astype(np.uint8)).resize((1024,2048),Image.LANCZOS)
     im.save('/tmp/s4/sk_s4%s.png'%sexo,optimize=True)
     print(out_grp,len(v),len(I),'escala',k)
     return Q,I
-go('m','d73f136a-MaleBodyMesh_OBJ.obj','a625f04d-MaleHeadMesh_OBJ.obj','9cfa0126-image.png','am','am')
-go('f','bff5d4f1-FemaleBodMesh_OBJ.obj','8e063fe5-FemaleHeadMesh_OBJ.obj','8231880d-image.png','af','af')
+go('f','b676d3f0-FemaleBodMesh_OBJ.obj','8e063fe5-FemaleHeadMesh_OBJ.obj','8231880d-image.png','af','af')
+go('m','9b0bb74c-MaleBodyMesh_OBJ.obj','a625f04d-MaleHeadMesh_OBJ.obj','9cfa0126-image.png','am','am')

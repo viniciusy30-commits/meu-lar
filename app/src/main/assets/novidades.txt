@@ -559,3 +559,4 @@
 - Menu principal polido: tipografia, subtítulo e botões com cantos arredondados
 
 Etapa 90 — Corpos base do The Sims 4 (teste): no criador, adulto → "Modelo: The Sims 4 (teste)" (homem e mulher). Usam o esqueleto e as animações atuais.
+Etapa 90b — Sims 4: o corpo agora usa a pele do próprio Sims 4 (atlas certo).
