@@ -4,6 +4,7 @@
 body|S_af0|p_body_af0.bin|sk_af.png|1.0002
 body|S_af1|p_body_af1.bin|sk_af.png|1.0002
 body|S_af3|p_body_af3.bin|sk_af.png|1.0002
+body|S_af5|p_body_af5.bin|sk_s4f.png|1.0002
 body|S_tf0|p_body_tf0.bin|sk_tf.png|1.0000
 body|S_tf1|p_body_tf1.bin|sk_tf.png|1.0000
 body|S_tf3|p_body_tf3.bin|sk_tf.png|1.0004
@@ -13,6 +14,7 @@ body|S_ef3|p_body_ef3.bin|sk_ef.png|0.9997
 body|S_am0|p_body_am0.bin|sk_am.png|0.9852
 body|S_am1|p_body_am1.bin|sk_am.png|0.9861
 body|S_am3|p_body_am3.bin|sk_am.png|0.9861
+body|S_am5|p_body_am5.bin|sk_s4m.png|0.9861
 body|S_tm0|p_body_tm0.bin|sk_tm.png|0.9858
 body|S_tm1|p_body_tm1.bin|sk_tm.png|0.9858
 body|S_tm3|p_body_tm3.bin|sk_tm.png|0.9861

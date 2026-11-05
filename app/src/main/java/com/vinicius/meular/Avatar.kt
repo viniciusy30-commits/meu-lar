@@ -132,6 +132,7 @@ class Avatar(
 
     /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
     fun simTypeFor(age: Int, t: Int): Int = when {
+        t == 5 -> if (age == 3) 5 else 1          // Etapa 90: corpo do The Sims 4 (teste), só adulto
         age == 0 -> 1
         age == 1 -> if (t == 3) 3 else 1
         else -> if (t == 0 || t == 3) t else 1
