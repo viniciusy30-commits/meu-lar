@@ -122,3 +122,9 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Não testado no aparelho; o app não foi compilado por inteiro aqui.
 - O cabelo da Etapa 62 foi mantido como estava (o pedido de "esquecer" o zip foi lido como "não é o foco agora").
 - Andar também trocado: male_Walking_3.fbx (corpos masculinos tm/am/em) e f_male_Walking_2.fbx (os demais, incl. criança/bebê). O masculino tinha deslocamento de raiz (1,8 m/s), retirado. Velocidade de andar do jogo 1,0 -> 1,7 m/s (WALK_SPEED, Renderer3D); duração de cada clipe ajustada a essa velocidade.
+
+## Etapa 64 — Cabelo Bernard (Sims 4, JohnnySims)
+- Mesh original (14 216 vértices, 2 UV) lido do .package V1 (GEOM v14, LOD0), textura preta recortada (metade esquerda do atlas, u*2), alpha-cut 0.45.
+- Ajustado por corpo (af, am, tf, tm, ef, em): escala não uniforme + inclinação (Nelder-Mead), elevação suave do topo e empurrão radial só onde o fio entra no crânio. Mesh não é refeita, só deformada suavemente.
+- Itens embutidos `bern1_<grupo>` (assets/cute/skate/*.cup/.png + thumbs). Registrados no ModStore.
+- Crianças (cu) e bebês (pu) também: o ajuste roda com a cabeça do corpo reduzida ao tamanho adulto e o cabelo volta à escala real. Tampa de couro cabeludo (0,4 cm acima do crânio, textura preta) tapa as falhas da nuca e do topo. V2 não incluído. Não testado no aparelho.

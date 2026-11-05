@@ -48,7 +48,10 @@ object ModStore {
             items.add(Item("cargo_$g", "Cargo baggy preta", "bottom", g, 0, true, false, true))
             items.add(Item("shoe_$g", "Jordan preto e branco", "feet", g, 0, true, false, true))
             items.add(Item("hair_$g", "Wolf cut preto", "hairBack", g, 0, true, true, true))
+            // Sims 4: Bernard Hair (JohnnySims), mesh original reajustado à cabeça de cada corpo
+            items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         }
+        for (g in listOf("cu", "pu")) items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
         for (g in listOf("am", "tm", "em")) {
             items.add(Item("singlet_white_$g", "Regata baggy branca", "top", g, 0, true, true, true))
