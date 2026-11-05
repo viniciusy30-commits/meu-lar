@@ -7,8 +7,8 @@ import kotlin.math.floor
 // Posição fina: os móveis andam de 25 em 25 cm, e não de metro em metro.
 fun snapQ(v: Float): Float = Math.round(v * 4f) / 4f
 
-/** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração */
-enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val mob: String? = null, val rug: Boolean = false) {
+/** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração, 4 Externo (só aparece na sala de testes) */
+enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val mob: String? = null, val rug: Boolean = false, val fl: String? = null) {
     CHAIR("Cadeira", 1, 1, 20, 1.0f, 2),
     TABLE("Mesa de jantar", 2, 1, 60, 1.25f, 2),
     BED("Cama", 1, 2, 120, 1.1f, 1),
@@ -72,7 +72,26 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
     MOB_TRINKET_DUCK("Patinho amarelo", 1, 1, 12, 0.13f, 3, mob = "trinket-duck"),
     MOB_TRINKET_WOODEN_BALL("Bola de madeira", 1, 1, 10, 0.15f, 3, mob = "trinket_wooden_ball"),
     MOB_PHOTO_FRAME01("Porta-retrato largo", 1, 1, 12, 0.16f, 3, mob = "photo-frame01"),
-    MOB_PHOTO_FRAME02("Porta-retrato alto", 1, 1, 12, 0.24f, 3, mob = "photo-frame02")
+    MOB_PHOTO_FRAME02("Porta-retrato alto", 1, 1, 12, 0.24f, 3, mob = "photo-frame02"),
+    // Etapa 70: itens do quintal, só na sala de testes (fl = id em assets/flora)
+    X_OAK_A("Carvalho", 6, 6, 0, 5.6f, 4, fl = "oak_a"),
+    X_OAK_B("Bordo", 7, 7, 0, 5.6f, 4, fl = "oak_b"),
+    X_CHERRY("Cerejeira", 6, 6, 0, 4.8f, 4, fl = "cherry_a"),
+    X_PINE("Pinheiro", 4, 4, 0, 4.8f, 4, fl = "pine_a"),
+    X_BUSH_A("Arbusto folhudo", 2, 2, 0, 1.0f, 4, fl = "bush_a"),
+    X_BUSH_B("Arbusto de bordo", 2, 2, 0, 1.1f, 4, fl = "bush_b"),
+    X_BUSH_PINK("Arbusto rosa", 2, 2, 0, 1.1f, 4, fl = "bush_pink"),
+    X_BUSH_WHITE("Arbusto branco", 2, 2, 0, 0.9f, 4, fl = "bush_white"),
+    X_HEDGE("Cerca-viva", 3, 2, 0, 1.2f, 4, fl = "hedge"),
+    X_FL_DAISY("Margaridas", 1, 1, 0, 0.5f, 4, fl = "fl_daisy"),
+    X_FL_TULIP("Tulipas", 1, 1, 0, 0.5f, 4, fl = "fl_tulip"),
+    X_FL_LAV("Lavanda", 1, 1, 0, 0.5f, 4, fl = "fl_lav"),
+    X_FL_POPPY("Papoulas", 1, 1, 0, 0.45f, 4, fl = "fl_poppy"),
+    X_FL_YELLOW("Flores amarelas", 1, 1, 0, 0.5f, 4, fl = "fl_yellow"),
+    X_FENCE("Painel de cerca", 2, 1, 0, 1.0f, 4, fl = "fence_panel"),
+    X_LAMP_POST("Poste de luz", 1, 1, 0, 2.1f, 4, fl = "lamp_post"),
+    X_BENCH("Banco de jardim", 2, 1, 0, 1.0f, 4, fl = "bench"),
+    X_MAILBOX("Caixa de correio", 1, 1, 0, 1.36f, 4, fl = "mailbox")
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -100,6 +119,51 @@ class GameState(ctx: Context) {
     var avatar = Avatar()
     var avatarSet = false
     val items = CopyOnWriteArrayList<Item>()
+
+    // Etapa 70: sala de testes. Guarda a casa de verdade, mostra uma sala grande com tudo do jogo e não grava nada enquanto está ligada.
+    var testRoom = false
+        private set
+    private var bkMoney = 0; private var bkGw = 6; private var bkGh = 5; private var bkFloor = 0; private var bkWall = 0
+    private val bkItems = ArrayList<Item>()
+
+    fun enterTest() {
+        if (testRoom) return
+        bkMoney = money; bkGw = gw; bkGh = gh; bkFloor = floorIdx; bkWall = wallIdx
+        bkItems.clear(); bkItems.addAll(items)
+        testRoom = true
+        items.clear()
+        gw = 26; gh = 30
+        val list = Type.values().filter { it.mob == null }.sortedBy { it.cat }
+        var cx = 0.4f; var cz = 0.4f; var rowH = 0f
+        var lastCat = -1
+        for (t in list) {
+            val b = Foot.box(t)
+            val big = t.cat == 4
+            val iw = if (big) t.w.toFloat() else (b[2] - b[0]) + 0.35f
+            val ih = if (big) t.h.toFloat() else (b[3] - b[1]) + 0.35f
+            if (t.cat != lastCat && lastCat != -1 && t.cat == 4) { cx = 0.4f; cz += rowH; rowH = 0f }
+            lastCat = t.cat
+            if (cx + iw > gw - 0.2f) { cx = 0.4f; cz += rowH; rowH = 0f }
+            val it = Item(t, 0, 0)
+            // posição do canto da área w x h; o corpo fica centrado nela
+            val tx = cx + (if (big) 0f else -b[0] + 0.1f)
+            val tz = cz + (if (big) 0f else -b[1] + 0.1f)
+            val p = placeAt(it, 0, tx, tz)
+            if (p != null) {
+                it.x = p[0].toInt(); it.y = p[1].toInt(); it.ox = p[2]; it.oz = p[3]
+                items.add(it)
+            }
+            cx += iw
+            if (ih > rowH) rowH = ih
+        }
+    }
+
+    fun exitTest() {
+        if (!testRoom) return
+        testRoom = false
+        money = bkMoney; gw = bkGw; gh = bkGh; floorIdx = bkFloor; wallIdx = bkWall
+        items.clear(); items.addAll(bkItems); bkItems.clear()
+    }
 
     init {
         floorIdx = prefs.getInt("floor", 0).coerceIn(0, Finish.floors.size - 1)
@@ -227,6 +291,7 @@ class GameState(ctx: Context) {
     }
 
     fun save() {
+        if (testRoom) return
         val s = items.joinToString(";") { "${it.type.name},${it.x},${it.y},${it.rot},${Math.round(it.ox * 100f)},${Math.round(it.oz * 100f)}" }
         prefs.edit()
             .putString("state", "$money|$gw|$gh|$s")

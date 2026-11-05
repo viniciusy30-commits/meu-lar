@@ -1,3 +1,9 @@
+#id 2026-11-06-b
+#titulo Sala de testes e árvores corrigidas
+- Nova "Sala de testes" em Configurações: uma sala grande com todos os móveis, plantas, árvores, arbustos, flores, cerca, poste, banco e caixa de correio do jogo, para mover e girar. Itens novos aparecem lá sozinhos. Nada do que você mexer ali é salvo e a sua casa fica intacta
+- Árvores: folhas agora ficam coladas nos galhos e as raízes entram na terra
+- Personagem sobe e desce a varanda, o degrau e o caminho; cortinas afastadas do lambri; sem os matos gigantes
+
 #id 2026-11-06-a
 #titulo Visual do jogo todo refeito: chão, céu, casa, quintal e piso
 - Texturas novas pintadas à mão: piso de tábuas finas (claro e escuro), porcelanato, pedra, caminho de pedras, grama de verdade, telhas e friso de madeira

@@ -24,7 +24,8 @@ def grow(A,bark,rng,p,d,L,r0,r1,depth,maxd,leafpts,P):
             grow(A,bark,rng,base,cd,L*P['shrink']*rng.uniform(0.8,1.1),rad[i]*0.72,rad[i]*0.72*0.45,depth+1,maxd,leafpts,P)
     else:
         leafpts.append(pts[-1].copy())
-        if m>=3: leafpts.append(pts[m//2+1].copy())
+        for fr in (0.35,0.55,0.75):
+            leafpts.append(pts[max(1,int(m*fr))].copy())
 
 def canopy(A,leafkey,leafpts,rng,ncards,size,P,fx=None):
     lp=np.array(leafpts); c0=lp.mean(0); R=np.linalg.norm(lp-c0,axis=1).max()+0.3
@@ -42,20 +43,24 @@ def canopy(A,leafkey,leafpts,rng,ncards,size,P,fx=None):
     return c0,R
 
 def roots(A,bark,rng,r,n=5):
+    # raízes que saem do tronco e entram na terra (antes ficavam deitadas acima do chão)
     for i in range(n):
-        a=i*2*math.pi/n+rng.uniform(-0.3,0.3); dd=np.array([math.cos(a),-0.35,math.sin(a)])
-        p0=np.array([0,0.30,0]); pts=[p0+np.array([math.cos(a)*r*0.55,0,math.sin(a)*r*0.55])]
-        for k in range(1,6): pts.append(pts[-1]+nrm(dd*np.array([1,1.9,1])+np.array([0,0.1*k,0]))*0.08*(1.0-0.1*k)+np.array([math.cos(a)*0.035,0,math.sin(a)*0.035]))
-        pts=[np.array([p[0],max(p[1],-0.04),p[2]]) for p in pts]
-        A.tube((bark,WD,0),pts,np.linspace(r*0.5,r*0.1,6),sides=6,vscale=1/0.55,col=lambda pt,t:(0.8,0.8,0.8,1))
+        a=i*2*math.pi/n+rng.uniform(-0.3,0.3); ca,sa=math.cos(a),math.sin(a)
+        pts=[]
+        for k in range(8):
+            sv=k/7; rad=r*(0.45+1.5*sv); y=0.46*(1-sv)**1.7-0.30*sv
+            pts.append(np.array([ca*rad,y,sa*rad]))
+        A.tube((bark,WD,0),pts,np.linspace(r*0.55,r*0.12,8),sides=6,vscale=1/0.55,col=lambda pt,t:(0.8,0.8,0.8,1))
+    # base do tronco alargada, enterrada no chão
+    A.lathe((bark,WD,0),(0,0,0),[(r*1.5,-0.3),(r*1.38,-0.04),(r*1.12,0.14),(r*0.98,0.34),(r*0.94,0.5)],sides=12,col=(0.78,0.78,0.78,1),uscale=1.0,vscale=1/0.55)
 
 def make_oak(name,seed,scale=1.0,leaf='leaf_oak.png',bark='bark_oak.png',ncards=380,csize=1.05,trunk_h=2.0,spread=1.0,tall=1.0,maxd=2,bmin=0.66,bgain=0.42):
     rng=np.random.default_rng(seed); A=Asset(name)
-    P=dict(wob=0.16,up=0.10,sag=0.35,kids=[4,3,3],ang=(0.45,0.95),shrink=0.62,spread=0.32*scale,bmin=bmin,bgain=bgain)
+    P=dict(wob=0.16,up=0.10,sag=0.35,kids=[4,3,3],ang=(0.45,0.95),shrink=0.62,spread=0.13*scale,bmin=bmin,bgain=bgain)
     # tronco
-    pts=[np.array([0,-0.05,0.0])]; d=np.array([0.04,1.0,0.02])
+    pts=[np.array([0,-0.3,0.0])]; d=np.array([0.04,1.0,0.02])
     for i in range(1,9):
-        d=nrm(d+rng.normal(size=3)*0.05+np.array([0,0.05,0])); pts.append(pts[-1]+d*trunk_h/8)
+        d=nrm(d+rng.normal(size=3)*0.05+np.array([0,0.05,0])); pts.append(pts[-1]+d*(trunk_h+0.3)/8)
     rad=np.linspace(0.26*scale,0.15*scale,9)
     A.tube((bark,WD,0),pts,rad,sides=10,vscale=1/0.55,col=lambda pt,t:(0.72+0.28*min(1,pt[1]/1.2),)*3+(1,))
     roots(A,bark,rng,0.26*scale)
@@ -76,7 +81,7 @@ def make_cherry(name,seed,scale=1.0):
 
 def make_pine(name,seed,scale=1.0):
     rng=np.random.default_rng(seed); A=Asset(name); bark='bark_pine.png'; H=4.6*scale
-    pts=[np.array([0,-0.05,0])+np.array([0.015*math.sin(i),i*H/10,0.015*math.cos(i)]) for i in range(11)]
+    pts=[np.array([0,-0.3,0])+np.array([0.015*math.sin(i),i*(H+0.3)/10,0.015*math.cos(i)]) for i in range(11)]
     A.tube((bark,WD,0),pts,np.linspace(0.14*scale,0.015,11),sides=8,vscale=1/0.55,col=lambda pt,t:(0.75+0.25*t,)*3+(1,))
     roots(A,bark,rng,0.13*scale,4)
     cen=[];

@@ -620,6 +620,22 @@ class MainActivity : AppCompatActivity() {
         st.save(); atualizarDinheiro(true); refreshShop()
     }
 
+    /** Etapa 70: liga/desliga a sala de testes (todos os móveis e decorações do jogo, sem mexer na sua casa). */
+    private fun alternarSalaTestes() {
+        game.selected = null
+        game.r.grabbed = null
+        val entrar = !st.testRoom
+        // roda na thread do OpenGL: montar a sala lê as malhas dos móveis (texturas)
+        game.queueEvent {
+            if (entrar) st.enterTest() else st.exitTest()
+            game.r.resetPlayer()
+            runOnUiThread {
+                msg(if (entrar) "Sala de testes: tudo do jogo está aqui. Nada do que você mexer aqui é salvo." else "Voltou para a sua casa.")
+                refreshShop()
+            }
+        }
+    }
+
     private fun ampliarCasa() {
         if (!st.podeAmpliar()) { msg("A casa já está no tamanho máximo."); return }
         val preco = st.precoAmpliar()
@@ -657,6 +673,7 @@ class MainActivity : AppCompatActivity() {
             linha(panel, Ic.REFRESH, "Verificar atualização", Tn.MINT) { dlg?.dismiss(); Updater.check(this, true) }
             linha(panel, Ic.PERSON, "Meu personagem", Tn.ROSE) { dlg?.dismiss(); abrirCriador() }
             linha(panel, Ic.INFO, "O que mudou", Tn.SKY) { dlg?.dismiss(); mostrarNovidades(true) }
+            linha(panel, Ic.HOME, if (st.testRoom) "Sair da sala de testes" else "Sala de testes", Tn.SUN) { dlg?.dismiss(); alternarSalaTestes() }
             var sens: TextView? = null
             sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}", Tn.SUN) {
                 st.sens = (st.sens + 1) % 3

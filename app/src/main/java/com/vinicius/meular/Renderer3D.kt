@@ -612,8 +612,25 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
     }
 
+    /** Altura do chão sob (x, z): varanda, degrau e caminho de pedras ficam acima da grama. */
+    private fun groundH(x: Float, z: Float): Float {
+        val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
+        val cx = abs(x - gw / 2f)
+        if (z > gh + 0.15f) {
+            if (cx < 1.4f && z < gh + 1.75f) return 0.09f
+            if (cx < 1.0f && z >= gh + 1.725f && z < gh + 2.175f) return 0.07f
+            if (cx < 0.75f && z >= gh + 2.1f && z < gh + 9.5f) return 0.02f
+        }
+        return 0f
+    }
+    private var baseY = 0f
+
+    /** Põe o personagem na porta da casa de novo (ao trocar de casa/sala de testes). */
+    fun resetPlayer() { posInit = false; baseY = 0f }
+
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
+        baseY += (groundH(px, pz) - baseY) * 0.3f
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
@@ -622,7 +639,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, px, py + up, pz)
+        Matrix.translateM(mdl, 0, px, py + up + baseY, pz)
         Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
         draw(m, mdl, 1f)
     }
@@ -908,7 +925,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (mode == 1 || (fp && third)) {
             val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, px - 0.5f, 0f, pz - 0.5f)
+            Matrix.translateM(mdl, 0, px - 0.5f, baseY + 0.02f, pz - 0.5f)
             draw(shm, mdl, 1f)
         }
         if (mode == 1 && path != null && !markX.isNaN()) {

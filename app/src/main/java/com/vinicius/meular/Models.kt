@@ -80,6 +80,13 @@ object Models {
 
     fun furniture(t: Type): Mesh {
         t.mob?.let { return MobLoader.load(it) }
+        t.fl?.let { id ->
+            val fb = Flora.Batch()
+            // a cerca nasce no canto (0..2 m em x); o resto é centrado na área do item
+            if (id == "fence_panel") fb.place(id, 0.0, 0.0, t.h / 2.0) else fb.place(id, t.w / 2.0, 0.0, t.h / 2.0)
+            val parts = fb.build()
+            if (parts.isNotEmpty()) return Mesh(parts)
+        }
         FURN[t]?.let { id ->
             val fb = Flora.Batch()
             fb.place(id, 0.0, 0.0, 0.0)
@@ -403,7 +410,7 @@ object Models {
                 val id = if (wn >= 175) "190" else if (wn >= 140) "160" else "125"
                 fl.place("win_$id", o.c, 0.0, 0.0)
                 val cc = if (o.c < len / 2) C("#D9786B") else C("#E4B25F")
-                fl.place("curt_$id", o.c, 0.0, 0.0, 1.0, 0.0,
+                fl.place("curt_$id", o.c, 0.0, 0.07, 1.0, 0.0,
                     Math.min(1.25f, android.graphics.Color.red(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.green(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.blue(cc) / 255f * 1.15f))
             }
         }
@@ -637,7 +644,7 @@ object Models {
             val rnd = java.util.Random(7)
             var k = 0
             var tries = 0
-            while (k < 360 && tries < 4000) {
+            while (k < 0 && tries < 4000) {
                 tries++
                 val gx = x0 + 1.0 + rnd.nextDouble() * (x1 - x0 - 2.0)
                 val gz = z0 + 1.0 + rnd.nextDouble() * (z1 - z0 - 2.0)

@@ -56,6 +56,14 @@ object Foot {
     // [x0, z0, x1, z1, altura] do móvel (sem girar), já com a escala, em metros na área de [Type.w] x [Type.h].
     fun box(t: Type): FloatArray {
         cache[t]?.let { return it }
+        if (t.cat == 4) {
+            // árvores e itens do quintal: só o pé (tronco/base) conta como corpo, a copa não bloqueia
+            val ex = when (t.fl) { "fence_panel" -> 1.0f; "hedge" -> 1.2f; "bench" -> 0.7f; "fl_lav", "bush_a", "bush_b", "bush_pink", "bush_white" -> 0.7f; else -> 0.35f }
+            val ez = when (t.fl) { "fence_panel" -> 0.1f; "hedge" -> 0.7f; "bench" -> 0.3f; "fl_lav", "bush_a", "bush_b", "bush_pink", "bush_white" -> 0.7f; else -> 0.35f }
+            val bb = floatArrayOf(t.w / 2f - ex, t.h / 2f - ez, t.w / 2f + ex, t.h / 2f + ez, t.alt)
+            cache[t] = bb
+            return bb
+        }
         val r = raw(t) ?: return floatArrayOf(0f, 0f, t.w.toFloat(), t.h.toFloat(), t.alt)
         val s = scale(t)
         val cx = t.w / 2f
