@@ -36,8 +36,10 @@ object Mt {
     const val RUG = 10
     const val METAL = 11
     const val GLASS = 12
-    const val COUNT = 13
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f)
+    const val SIDING = 13
+    const val ROOF = 14
+    const val COUNT = 15
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f)
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -295,13 +297,30 @@ object Tex {
         }.start()
     }
 
+    private val FILES = arrayOf(null, "mat_floor_l", "mat_floor_d", "mat_tile", "mat_stone", "mat_plaster",
+        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof")
+
+    /** Etapa 69: texturas de material pintadas (assets/flora/tex/mat_*.png); se faltar, usa a procedural. */
+    private fun fileTex(m: Int): Bitmap? {
+        val n = FILES.getOrNull(m) ?: return null
+        val am = Flora.assets ?: return null
+        return try {
+            val o = android.graphics.BitmapFactory.Options()
+            o.inPremultiplied = false
+            am.open("flora/tex/$n.png").use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
+        } catch (e: Exception) { null }
+    }
+
     fun init() {
         GLES20.glGenTextures(Mt.COUNT, ids, 0)
         for (m in 0 until Mt.COUNT) {
             val small = m == Mt.PLAIN || m == Mt.GLASS
             val sz = if (small) 4 else S
-            val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
-            val bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)
+            var bmp: Bitmap? = if (small) null else fileTex(m)
+            if (bmp == null) {
+                val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
+                bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)
+            }
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[m])
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
             if (!small) GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)

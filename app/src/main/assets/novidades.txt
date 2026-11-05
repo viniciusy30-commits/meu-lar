@@ -1,3 +1,13 @@
+#id 2026-11-06-a
+#titulo Visual do jogo todo refeito: chão, céu, casa, quintal e piso
+- Texturas novas pintadas à mão: piso de tábuas finas (claro e escuro), porcelanato, pedra, caminho de pedras, grama de verdade, telhas e friso de madeira
+- Chão do quintal com variação suave de cor, sem o xadrez repetido; tufos de grama bem menores
+- Céu com nuvens macias, brilho do sol e colinas com névoa ao longe
+- Casa por fora com revestimento claro, base de pedra, beiral branco e telhado de telhas; forro do interior claro
+- Poste de luz, banco de jardim e caixa de correio modelados; lanterna do portão agora fica em cima do poste
+- Pinheiro e cerca mais claros
+- Móveis do pack antigo saíram da loja: só os que fizemos juntos aparecem
+
 #id 2026-11-05-b
 #titulo Móveis e casa com visual novo, e jogo mais leve
 - Os 14 móveis básicos foram refeitos com mais forma e detalhe: cadeira com ripas e almofada, mesa com louça e flores, cama com cabeceira acolchoada e travesseiros, sofá com almofadas fofas, estante com livros e planta, TV com tela, geladeira inox, fogão com forno, abajur, criado-mudo, mesa de centro, guarda-roupa com painéis, tapete estampado e planta de vaso

@@ -103,7 +103,11 @@ object Flora {
         private val accs = LinkedHashMap<String, ArrayList<Acc>>()
 
         /** Põe uma instância de [id] em (x,y,z), com escala [s], giro [ry] (rad, em Y) e cor multiplicada (variação entre árvores). */
-        fun place(id: String, x: Double, y: Double, z: Double, s: Double = 1.0, ry: Double = 0.0, tr: Float = 1f, tg: Float = 1f, tb: Float = 1f) {
+        fun place(id: String, x: Double, y: Double, z: Double, s: Double = 1.0, ry: Double = 0.0, tr0: Float = 1f, tg0: Float = 1f, tb0: Float = 1f) {
+            // Etapa 69: pinheiro e cerca saíam escuros/acinzentados no jogo
+            val boost = if (id.startsWith("fence_")) 1.14f else 1f
+            val pg = if (id.startsWith("pine")) 1.2f else 1f
+            val tr = tr0 * boost * (if (pg > 1f) 1.1f else 1f); val tg = tg0 * boost * pg; val tb = tb0 * boost * (if (pg > 1f) 1.05f else 1f)
             val cs = cos(ry).toFloat(); val sn = sin(ry).toFloat(); val sc = s.toFloat()
             for (src in read(id)) {
                 val key = "${src.mat}|${src.tex}|${src.cut}"

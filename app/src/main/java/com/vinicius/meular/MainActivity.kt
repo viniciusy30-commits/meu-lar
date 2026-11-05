@@ -463,7 +463,7 @@ class MainActivity : AppCompatActivity() {
     private fun entries(tab: Int): List<Entry> {
         val out = ArrayList<Entry>()
         if (tab in 0..3) {
-            for (t in Type.values()) if (t.cat == tab) out.add(Entry(t.nome, "R$ ${t.preco}", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
+            for (t in Type.values()) if (t.cat == tab && t.mob == null) out.add(Entry(t.nome, "R$ ${t.preco}", t.ordinal, 0, st.money >= t.preco, t.mob) { comprar(t) })
         } else if (tab == 4) {
             Finish.floors.forEachIndexed { i, f ->
                 val own = (st.ownFloors shr i) and 1 == 1

@@ -14,3 +14,11 @@
 - **Casa**: `Models.wall()` agora põe janelas (`win_190/160/125`: batente, travessas, peitoril, verga, vidro com alfa), cortinas (`curt_*`, com dobras e cor pela tinta), porta (`door_110`, folha aberta 105° para FORA, não bloqueia a passagem) e lambri (`wain_1`, módulos de 1 m, menos na porta). O rodapé simples foi removido (o lambri já tem rodapé).
 - **Desempenho**: `Part.gpu` + `Part.upload()/release()` (Gfx.kt): peças estáticas vão para VBO/IBO (antes os vértices eram reenviados da memória do app a cada quadro). Ligado em `MB.toMesh(true)` (todas as malhas de `Models`), `MobLoader.load` e `Flora.Batch.build`. Personagem/avatar/cabelo continuam com matriz no cliente (mudam por quadro). `GlGen.gen` sobe em `onSurfaceCreated` (buffers antigos deixam de valer e são reenviados sozinhos). `rebuild()` libera os buffers da casa/quintal antigos.
 - Não testado no aparelho. Pontos a olhar: móveis aparecem com as texturas (madeira/tecido), TV com a tela de pôr do sol, porta aberta para fora, cortinas coloridas, nenhum buffer preto/quebrado depois de sair e voltar ao app.
+
+# Etapa 69 – Visual do jogo todo
+- Texturas de material em `assets/flora/tex/mat_*.png` (geradas por `ferramentas/ambiente/mat_tex.py`); `Tex.fileTex` carrega e cai na procedural se faltar. Novos materiais `SIDING` e `ROOF`.
+- Chão em malha de células com cor por vértice; colinas com degradê sem luz; nuvens em cartas (`cloud_a`) e halo do sol.
+- Props: `lamp_post`, `bench`, `mailbox`, `gate_lantern` (`yard_props.py`).
+- Forro sem luz (antes escurecia); telhado com fáscia clara e telhas.
+- Loja não lista mais os móveis do pack (`t.mob == null`); o enum fica por causa dos saves.
+- Nada disso foi testado em aparelho (só prévias em rasterizador próprio).
