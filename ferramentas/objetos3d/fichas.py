@@ -54,6 +54,80 @@ DESC = {
                    'na dobradiça. Antes de abrir, o jogo testa o caminho da peça: se bater na parede ou em outro móvel, abre só até onde dá.',
         estados='Cada peça: fechada / abrindo / aberta / fechando (progresso 0..1). Grava aberta/fechada de cada peça.',
         cancel='Tocar de novo durante o movimento inverte a partir de onde está (sem salto).'),
+    'int_sofa3': dict(
+        visual='Sofá de 3 lugares da mesma família da poltrona (anos 60): estrutura de carvalho com pernas torneadas que sobem até os braços, '
+               'travessas, dois pés centrais extras (sofá comprido não enverga), encosto com quatro montantes inclinados, travessa e ripas. '
+               'Três almofadas de assento soltas com vivo duplo e três almofadas de encosto inclinadas com botões, em linho mostarda. '
+               'Manta de tricô bege dobrada sobre o braço esquerdo, com espessura.',
+        variacoes='Outros tecidos e versão de 2 lugares na mesma família.',
+        interacoes='Sentar em qualquer um dos 3 lugares (o mais perto do personagem); só a almofada daquele lugar afunda. Mesma sequência e cancelamento da poltrona.',
+        estados='livre / ocupado por lugar. Não grava ocupação.',
+        cancel='Igual à poltrona.'),
+    'int_cama_casal': dict(
+        visual='Cama de casal: base de carvalho com saia, pés torneados, cabeceira estofada cinza-azulada com capitonê em losango e moldura de madeira, '
+               'colchão volumétrico com vivo, edredom azul com caimento nas laterais e no pé (com espessura, avesso modelado), dobra do lençol branco, '
+               'dois travesseiros deitados e duas almofadas apoiadas na cabeceira.',
+        variacoes='Cama de solteiro e beliche reaproveitam a família (estrutura + colchão + roupa de cama).',
+        interacoes='Deitar pelos dois lados: anda até o lado, vira de costas, senta na borda (animação de sentar), deita de costas com a cabeça no '
+                   'travesseiro (transição de 1,1 s, sem teletransporte) e fica deitado. Levantar faz o caminho inverso (deitado -> sentado -> em pé).',
+        estados='livre -> sentando -> deitando -> deitado -> sentando -> levantando -> livre. Não grava "deitado".',
+        cancel='Analógico ou Levantar em qualquer fase: indo, para; deitando/deitado, volta a sentar e levanta.'),
+    'int_geladeira': dict(
+        visual='Geladeira duplex branca: carcaça com espessura, interior branco-gelo, freezer em cima com gaveta de gelo e potes, divisória, '
+               'três prateleiras com borda, jarra, potes, frutas, queijo, gaveta de legumes transparente com legumes, porta com vedação, '
+               'prateleiras de porta com garrafas, caixa de leite e ovos, puxadores verticais de alumínio, grade do rodapé.',
+        variacoes='Inox, frost free de 2 portas lado a lado e frigobar no próximo lote de cozinha.',
+        interacoes='Abrir/fechar freezer e geladeira (dobradiça à direita, 110°, limitada se houver parede/móvel). A gaveta de legumes só pode ser aberta '
+                   'com a porta de baixo aberta. A luz interna acende com a porta de baixo aberta.',
+        estados='Cada porta/gaveta: fechada/abrindo/aberta/fechando. Grava aberta/fechada.',
+        cancel='Tocar de novo inverte do ponto em que está.'),
+    'int_fogao': dict(
+        visual='Fogão 4 bocas de inox: gabinete em chapas, mesa preta, queimadores com espalhador e tampa, grades de ferro com espessura (aro, braços e pés), '
+               'painel com 5 botões (com marca), porta do forno com visor escuro e puxador, cavidade do forno com grade, pés. Panela com tampa numa boca.',
+        variacoes='Cooktop separado e fogão de 5 bocas na família de eletrodomésticos.',
+        interacoes='Ligar/desligar de frente para o fogão: os botões giram e aparecem as chamas azuis (animadas) nas 4 bocas. Abrir/fechar a porta do forno '
+                   '(dobradiça embaixo, 85°).',
+        estados='desligado / ligado (gravado). Porta do forno: fechada/aberta (gravada).',
+        cancel='Desligar a qualquer momento apaga as chamas e volta os botões.'),
+    'int_pia': dict(
+        visual='Pia de cozinha: gabinete branco com rodapé recuado e divisória, tampo de granito escuro com rodabanca, cuba de inox rebaixada com paredes, '
+               'fundo e ralo, torneira cromada de bica alta com alavanca, sifão visível dentro, produtos de limpeza. Duas portas com puxadores de barra.',
+        variacoes='Bancada lateral e pia dupla na mesma família.',
+        interacoes='Abrir/fechar a torneira de frente para a pia: a alavanca gira e a água cai da bica até o ralo, com respingo, só enquanto aberta. '
+                   'Portas do gabinete com dobradiça e limite.',
+        estados='torneira fechada / aberta (gravado); portas abertas/fechadas (gravadas).',
+        cancel='Fechar a torneira a qualquer momento.'),
+    'int_cadeira_jantar': dict(
+        visual='Cadeira de jantar de nogueira: assento de tábua de 3 cm com borda arredondada e almofada fina de linho cru, pernas dianteiras '
+               'afuniladas (3,4 a 2,8 cm, nada fino demais), pernas traseiras que sobem e viram os montantes do encosto inclinados para trás, '
+               'encosto com travessa curva e duas ripas curvas (perfil retangular com espessura), travessas laterais baixas, travessa central em H '
+               'e travessas sob o assento. Acabada de todos os lados.',
+        variacoes='Versão estofada e banqueta alta na família de cadeiras/banquetas.',
+        interacoes='Sentar (ponto central, olhando para a frente = para a mesa): a cadeira desliza 35 cm para trás (puxar, 0,55 s, sem salto), '
+                   'o personagem chega pela lateral livre, entra entre a cadeira e a mesa, vira de costas e senta; sentado, a cadeira volta '
+                   '25 cm para a mesa levando o personagem junto (fica 10 cm fora do encaixe, joelhos sob o tampo). Para levantar: a cadeira '
+                   'afasta com ele, ele levanta e a cadeira volta ao encaixe. Arrastável no modo de edição.',
+        estados='livre -> puxada -> ocupada -> puxada -> livre. Não grava ocupação.',
+        cancel='Analógico ou Levantar: indo, para e a cadeira volta; sentando (antes de 35%), fica em pé; depois, afasta e levanta.'),
+    'int_mesa_jantar': dict(
+        visual='Mesa de jantar de nogueira para 4 cadeiras: tampo de 3,5 cm com borda arredondada e chanfro embaixo, saia recuada 6 cm '
+               '(joelhos livres abaixo de 0,505 m), pernas de seção quadrada arredondada afunilando com sapatas e cantoneiras de reforço.',
+        variacoes='Versões de 2, 6 e 8 lugares (mesma construção, comprimentos 0,8 / 1,6 / 2,0 m).',
+        interacoes='Nenhuma direta (o PDF pede os pontos de sentar nas cadeiras, não no tampo). Superfície para pratos e copos. '
+                   'O tampo não bloqueia o encaixe: a cadeira pode entrar embaixo sem atravessar as pernas; quatro vagas registradas nos metadados.',
+        estados='Sem estados.',
+        cancel='Não se aplica.'),
+    'int_guarda_roupa': dict(
+        visual='Guarda-roupa de 2 portas e 2 gavetas, laca off-white com interior em carvalho: laterais, topo, base, fundo, rodapé recuado, '
+               'moldura no topo, divisória. Lado esquerdo com 4 prateleiras e roupas dobradas; lado direito com cabideiro (tubo com suportes), '
+               '6 cabides com camisas e sapatos no fundo; caixa organizadora. Portas de 2,2 cm com almofadas em relevo, puxadores de latão e '
+               '3 dobradiças cada. Gavetas com caixa interna completa e roupas enroladas dentro.',
+        variacoes='Versões de 3 portas e com espelho na mesma família de armários.',
+        interacoes='Abrir/fechar a porta ou gaveta para onde o personagem olha: ele vira para a alça e faz a animação de interagir; a peça começa '
+                   'a se mexer quando a mão chega (0,55 s). Portas 105° na dobradiça, gavetas 30 cm no trilho, limitadas antes de tocar parede '
+                   'ou outro móvel. Porta aberta bloqueia a passagem, mas quem está dentro da área dela sempre consegue sair.',
+        estados='Cada peça: fechada / abrindo / aberta / fechando. Grava aberta/fechada.',
+        cancel='Mexer o analógico antes de a mão chegar cancela sem mexer a peça; tocar de novo inverte de onde está.'),
 }
 
 
@@ -199,5 +273,5 @@ if __name__ == '__main__':
         man.append(dict(id=meta['id'], nome=meta['nome'], categoria=meta['categoria'], classe=meta['classe'], arquivo='obj3d/' + fn,
                         miniatura='obj3d/thumb/' + meta['id'] + '.png', dimensoes=meta['dimensoes'], fisica=meta['fisica']['tipo'],
                         vertices=v[2]['vertices'], triangulos=v[2]['triangulos'], bytes=v[2]['bytes'], erros=v[0], avisos=v[1]))
-    json.dump(dict(lote='Etapa 1 (protótipo)', itens=man), open(os.path.join(dst, 'manifesto.json'), 'w'), ensure_ascii=False, indent=1)
+    json.dump(dict(lote='Etapa 1 do PDF (cadeira, mesa, guarda-roupa) + itens anteriores', itens=man), open(os.path.join(dst, 'manifesto.json'), 'w'), ensure_ascii=False, indent=1)
     print('\n'.join('%s %s erros=%d' % (m['id'], m['dimensoes'], len(m['erros'])) for m in man))

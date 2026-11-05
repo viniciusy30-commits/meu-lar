@@ -120,7 +120,28 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var sitYaw = 0f
     private var sitDY = 0f
     private var sitLift = 0f
-    private val sitWhere = FloatArray(3)        // onde o assento estava ao começar (se o móvel for mexido, a ação é cancelada)
+    private val sitWhere = FloatArray(3)
+    // Lote 2: vários assentos, deitar (cama)
+    private var nearSeat = ""
+    private var sitSeat = ""
+    private var sitPressed = false
+    private var lieMode = false
+    private var lieK = 0f
+    private var lieT = 0f
+    private val lieRoot = FloatArray(3)
+    private var lieYaw = 0f
+    private val plM = FloatArray(16)
+    // Etapa 86: puxar a cadeira (peça com gatilho "puxar") e usar peças com a animação de interagir
+    private var pullSlot = -1
+    private var pullTgt = 0f
+    private var pullPush = 0.7f
+    private val sitBase = FloatArray(2)
+    private var usePh = 0
+    private var useT = 0f
+    private var useItem: Item? = null
+    private var useK = -1
+    private var useDone = false
+    private var useYaw = 0f        // onde o assento estava ao começar (se o móvel for mexido, a ação é cancelada)
     // ---- Etapa 83: física e peças animadas
     private val statics = ArrayList<SBox>()
     private val partBoxes = ArrayList<FloatArray>()
@@ -618,6 +639,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
         if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; return }
         if (sitPh != 0) { jumpReq = false; updateSit(dt); return }
+        if (usePh != 0) { jumpReq = false; updateUse(dt); return }
         // pulo
         if (jumpReq && mode == 0) {
             jumpReq = false
@@ -697,14 +719,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
         CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
         val sp = sitPh
-        val cute = if (sp >= 3) CuteChar.frame(if (sp == 3) CuteChar.SIT_IN else if (sp == 4) CuteChar.SIT_LOOP else CuteChar.SIT_OUT, if (sp == 4) t else sitT)
+        val cute = if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
+                   else if (sp >= 3) CuteChar.frame(when (sp) {
+                       3 -> CuteChar.SIT_IN
+                       4 -> CuteChar.SIT_LOOP
+                       6, 8 -> if (lieK > 0.45f) CuteChar.IDLE else CuteChar.SIT_LOOP
+                       7 -> CuteChar.IDLE
+                       9 -> CuteChar.SIT_LOOP
+                       else -> CuteChar.SIT_OUT
+                   }, if (sp == 3 || sp == 5) sitT else t)
                    else if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
-        Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, px, py + up + baseY + sitLift, pz)
-        Matrix.rotateM(mdl, 0, pYaw, 0f, 1f, 0f)
+        playerMatrix(mdl, up)
         draw(m, mdl, 1f)
     }
 
@@ -963,6 +991,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 ex = px + mex * ecs + mez * esn
                 ez = pz - mex * esn + mez * ecs
                 ey = baseY + py + lift + sitLift + (if (CuteChar.fpEye[1] > 0.5f) CuteChar.fpEye[1] else 1.5f) - 0.03f * sin(dn)
+                if (lieK > 0.001f) {
+                    // deitado/deitando: o olho segue o corpo inclinado
+                    playerMatrix(plM, lift)
+                    val e0 = CuteChar.fpEye[0]; val e1 = CuteChar.fpEye[1]; val e2 = CuteChar.fpEye[2]
+                    ex = plM[0] * e0 + plM[4] * e1 + plM[8] * e2 + plM[12]
+                    ey = plM[1] * e0 + plM[5] * e1 + plM[9] * e2 + plM[13]
+                    ez = plM[2] * e0 + plM[6] * e1 + plM[10] * e2 + plM[14]
+                }
                 Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
@@ -1033,8 +1069,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 when (nearKind) {
                     1 -> doorOpen = !doorOpen
                     2 -> cloth.toggle(nearId)
-                    3 -> nearItem?.let { startSit(it) }
-                    4 -> nearItem?.let { togglePart(it, nearPart) }
+                    3 -> nearItem?.let { startSit(it, nearSeat, false) }
+                    6 -> nearItem?.let { startUse(it, -1) }
+                    7 -> nearItem?.let { startSit(it, nearSeat, true) }
+                    4 -> nearItem?.let { startUse(it, nearPart) }
                     5 -> sitCancel = true
                 }
             }
@@ -1252,6 +1290,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val cur = o.animCur!!; val tgt = o.animTgt!!; val lim = o.animLim!!
             for (k in 0 until na) {
                 val nd = g.nodes[g.animated[k]]
+                when (g.slotGatilho[k]) {
+                    "ligado" -> tgt[k] = if (o.on) 1f else 0f
+                    "ocupado" -> tgt[k] = if (sitItem === o && sitPressed && (g.slotAssento[k].isEmpty() || g.slotAssento[k] == sitSeat)) 1f else 0f
+                    "puxar" -> tgt[k] = if (sitItem === o) pullTgt else 0f
+                }
                 val goal = tgt[k] * lim[k]
                 val sp = dt / nd.aDur
                 val d = goal - cur[k]
@@ -1311,14 +1354,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             nearItem = null; nearPart = -1
             when (sitPh) {
                 1, 2 -> { nearKind = 5; nearLabel = "Cancelar" }
-                3, 4 -> { nearKind = 5; nearLabel = "Levantar" }
+                3, 4, 6, 7 -> { nearKind = 5; nearLabel = "Levantar" }
                 else -> nearKind = 0
             }
             return
         }
-        if (mode != 0) { nearKind = 0; return }
+        if (mode != 0 || usePh != 0) { nearKind = 0; return }
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
-        var best = Float.MAX_VALUE; var kind = 0; var lab = ""; var bi: Item? = null; var bp = -1; var bid = 0
+        var best = Float.MAX_VALUE; var kind = 0; var lab = ""; var bi: Item? = null; var bp = -1; var bid = 0; var seat = ""
         val ddx = px - gw / 2f; val ddz = pz - (gh - 0.3f)
         val dDoor = sqrt(ddx * ddx + ddz * ddz)
         if (dDoor < 1.6f) { best = dDoor; kind = 1; lab = if (doorOpen) "Fechar porta" else "Abrir porta" }
@@ -1331,14 +1374,36 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val g = Glb.get(gid) ?: continue
             val cx = o.x + o.ox + o.w / 2f; val cz = o.y + o.oz + o.h / 2f
             if (kotlin.math.hypot(cx - px, cz - pz) > 3f) continue
-            if (!o.busy) g.point("IP_sentar")?.let { ip ->
-                val w = toWorld(o, ip[0], ip[2])
+            if (!o.busy) {
+                for (ni in g.ips("IP_sentar")) {
+                    val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
+                    val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
+                    if (d < 1.4f && d * 0.9f < best) { best = d * 0.9f; kind = 3; lab = "Sentar"; bi = o; bp = -1; seat = g.nodes[ni].name }
+                }
+                for (ni in g.ips("IP_deitar")) {
+                    val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
+                    val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
+                    if (d < 1.5f && d * 0.9f < best) { best = d * 0.9f; kind = 7; lab = "Deitar"; bi = o; bp = -1; seat = g.nodes[ni].name }
+                }
+            }
+            for (ni in g.ips("IP_usar")) {
+                val ex = g.nodes[ni].ex ?: continue
+                if (ex.optString("acao") != "ligar") continue
+                val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
+                val dx = cx - px; val dz = cz - pz
                 val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
-                if (d < 1.4f && d * 0.9f < best) { best = d * 0.9f; kind = 3; lab = "Sentar"; bi = o; bp = -1 }
+                val dd = sqrt(dx * dx + dz * dz).coerceAtLeast(1e-3f)
+                val dot = (dx * fx + dz * fz) / dd
+                if (d < 1.0f && dot > 0.2f && d * 0.85f < best) {
+                    best = d * 0.85f; kind = 6; bi = o; bp = -1
+                    lab = if (o.on) ex.optString("rotulo_desligar", "Desligar") else ex.optString("rotulo_ligar", "Ligar")
+                }
             }
             for (k in g.animated.indices) {
                 val ni = g.animated[k]; val nd = g.nodes[ni]
-                if (nd.aType == 3) continue
+                if (nd.aType == 3 || g.slotGatilho[k].isNotEmpty()) continue
+                val pre = g.slotPrecisa[k]
+                if (pre >= 0 && (o.animCur?.getOrNull(pre) ?: 0f) < 0.6f) continue      // gaveta de dentro: só com a porta aberta
                 val al = nd.anim?.optJSONArray("alca") ?: continue
                 val lx = al.optDouble(0).toFloat() - g.rest[ni][12]
                 val ly = al.optDouble(1).toFloat() - g.rest[ni][13]
@@ -1359,7 +1424,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 }
             }
         }
-        nearItem = bi; nearPart = bp; nearId = bid
+        nearItem = bi; nearPart = bp; nearId = bid; nearSeat = seat
         nearLabel = if (msgT > 0f && kind != 0) msgText else lab
         nearKind = kind
     }
@@ -1385,8 +1450,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     if (o === item || o.type.rug || o.type.dyn) continue
                     val h = Foot.height(o.type)
                     if (h < 0.1f || wy > h) continue
-                    val r = o.rect()
-                    if (wx > r[0] && wx < r[2] && wz > r[1] && wz < r[3]) { hit = true; break }
+                    // colisores separados (pernas da mesa) contam um a um; senão, o retângulo do móvel
+                    val rs = Foot.blockRects(o.type, o.rot, o.x, o.y, o.ox, o.oz) ?: listOf(o.rect())
+                    if (rs.any { r -> wx > r[0] && wx < r[2] && wz > r[1] && wz < r[3] }) { hit = true; break }
                 }
                 if (hit) break
             }
@@ -1443,17 +1509,75 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             n.local(gmL, n.value(u))
             val pw = if (n.parent >= 0 && n.parent < i) nodeW[n.parent] else baseM
             Matrix.multiplyMM(nodeW[i], 0, pw, 0, gmL, 0)
+            val ef = g.effect[i]
+            if (ef != 0) {
+                val w = g.effectWhen[i]
+                val active = if (w < 0) item.on else (cur?.getOrNull(w) ?: 0f) > 0.08f
+                if (!active) continue
+                val tt = (now / 1_000_000L % 100000L) / 1000f
+                if (ef == 1) Matrix.scaleM(nodeW[i], 0, 1f, 0.82f + 0.18f * sin(tt * 23f) * sin(tt * 7.3f + item.x) + 0.12f * sin(tt * 41f), 1f)
+                if (ef == 2) Matrix.scaleM(nodeW[i], 0, 1f + 0.08f * sin(tt * 37f), 1f, 1f + 0.08f * cos(tt * 29f))
+            }
             n.mesh?.let { draw(it, nodeW[i], 1f) }
         }
     }
 
     // ---------------------------------------------------------------- sentar
-    private fun startSit(o: Item) {
+    /** deslocamento no mundo (x, z) da cadeira puxada no progresso [u] */
+    private fun pullOff(o: Item, g: GModel, u: Float): FloatArray {
+        if (pullSlot < 0) return floatArrayOf(0f, 0f)
+        val nd = g.nodes[g.animated[pullSlot]]
+        val v = nd.value(u)
+        val a = toWorld(o, nd.ax[0] * v, nd.ax[2] * v); val b = toWorld(o, 0f, 0f)
+        return floatArrayOf(a[0] - b[0], a[1] - b[1])
+    }
+
+    // ---------------------------------------------------------------- usar (abrir/fechar peça, ligar aparelho) com a animação de interagir
+    private fun startUse(o: Item, k: Int) {
+        if (!CuteChar.hasInteract()) { applyUse(o, k); return }
+        // vira para a alça (ou para o aparelho)
+        var tx = o.x + o.ox + o.w / 2f; var tz = o.y + o.oz + o.h / 2f
+        val g = o.type.glb?.let { Glb.get(it) }
+        if (g != null && k >= 0) {
+            val ni = g.animated[k]; val al = g.nodes[ni].anim?.optJSONArray("alca")
+            if (al != null) {
+                nodeWorld(o, g, ni, k, o.animCur?.getOrNull(k) ?: 0f, gmA)
+                val lx = al.optDouble(0).toFloat() - g.rest[ni][12]; val ly = al.optDouble(1).toFloat() - g.rest[ni][13]; val lz = al.optDouble(2).toFloat() - g.rest[ni][14]
+                tx = gmA[0] * lx + gmA[4] * ly + gmA[8] * lz + gmA[12]; tz = gmA[2] * lx + gmA[6] * ly + gmA[10] * lz + gmA[14]
+            }
+        }
+        useYaw = Math.toDegrees(atan2((tx - px).toDouble(), (tz - pz).toDouble())).toFloat()
+        useItem = o; useK = k; useT = 0f; useDone = false; usePh = 1
+        jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+    }
+
+    private fun applyUse(o: Item, k: Int) {
+        if (k >= 0) togglePart(o, k) else { o.on = !o.on; saveReq = true }
+    }
+
+    private fun updateUse(dt: Float) {
+        val o = useItem
+        if (o == null || !st.items.contains(o)) { usePh = 0; return }
+        val mag2 = moveX * moveX + moveY * moveY
+        pMoving = false; pRun = false
+        if (mag2 > 0.09f || (mode == 1 && path != null)) { usePh = 0; return }     // cancelou: se ainda não mexeu na peça, nada muda
+        var dl = useYaw - pYaw
+        while (dl > 180f) dl -= 360f
+        while (dl < -180f) dl += 360f
+        pYaw += dl.coerceIn(-480f * dt, 480f * dt)
+        useT += dt
+        // a mão chega na alça por volta de 0,55 s: aí a peça começa a se mexer
+        if (!useDone && useT >= 0.55f) { useDone = true; applyUse(o, useK) }
+        if (useT >= 1.6f) usePh = 0
+    }
+
+    private fun startSit(o: Item, seat: String, lie: Boolean) {
         val g = Glb.get(o.type.glb ?: return) ?: return
-        val ip = g.point("IP_sentar") ?: return
-        val ap = g.extraPoint("IP_sentar", "aproximacao") ?: return
-        val ini = g.extraPoint("IP_sentar", "inicio") ?: return
-        val sy = g.extraFloat("IP_sentar", "assento_y", 0.34f)
+        val nm = if (seat.isNotEmpty()) seat else (g.ips(if (lie) "IP_deitar" else "IP_sentar").firstOrNull()?.let { g.nodes[it].name } ?: return)
+        val ip = g.point(nm) ?: return
+        val ap = g.extraPoint(nm, "aproximacao") ?: return
+        val ini = g.extraPoint(nm, "inicio") ?: return
+        val sy = g.extraFloat(nm, "assento_y", 0.34f)
         if (o.busy) return
         if (!CuteChar.hasSit()) {
             // sem os clipes de sentar (clips_<g>.bin com 8 clipes) ou corpo sem esqueleto do Sims: avisa em vez de sumir com o botão
@@ -1463,32 +1587,89 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         val w0 = toWorld(o, ip[0], ip[2]); sitPt[0] = w0[0]; sitPt[1] = w0[1]
         val w1 = toWorld(o, ini[0], ini[2]); sitPt[2] = w1[0]; sitPt[3] = w1[1]
-        val w2 = toWorld(o, ap[0], ap[2])
+        var w2 = toWorld(o, ap[0], ap[2])
+        // cadeira: puxada para trás antes de sentar; os pontos de início/chegada valem com ela puxada
+        pullSlot = g.animated.indices.firstOrNull { g.slotGatilho[it] == "puxar" } ?: -1
+        sitBase[0] = w0[0]; sitBase[1] = w0[1]
+        if (pullSlot >= 0 && openLimit(o, g, pullSlot) < 0.99f) {
+            // parede ou móvel atrás: não dá para puxar a cadeira inteira (o PDF manda nunca atravessar)
+            pullSlot = -1; msgText = "Sem espaço para puxar a cadeira"; msgT = 1.6f; return
+        }
+        if (pullSlot >= 0) {
+            val pn = g.nodes[g.animated[pullSlot]]
+            pullPush = (pn.anim?.optDouble("empurrada", 0.7) ?: 0.7).toFloat().coerceIn(0f, 1f)
+            val off = pullOff(o, g, 1f)
+            sitPt[0] += off[0]; sitPt[1] += off[1]; sitPt[2] += off[0]; sitPt[3] += off[1]
+            // chega pelo lado livre (esquerdo ou direito da cadeira)
+            val wl = toWorld(o, ap[0], ap[2]); val wr = toWorld(o, -ap[0], ap[2])
+            val cl = floatArrayOf(wl[0] + off[0], wl[1] + off[1]); val cr = floatArrayOf(wr[0] + off[0], wr[1] + off[1])
+            val okl = !blockedAt(cl[0], cl[1]); val okr = !blockedAt(cr[0], cr[1])
+            w2 = if (okl && (!okr || kotlin.math.hypot(px - cl[0], pz - cl[1]) <= kotlin.math.hypot(px - cr[0], pz - cr[1]))) cl else if (okr) cr else cl
+            pullTgt = 1f
+        }
         sitYaw = o.rot * 90f + Math.toDegrees(ip[3].toDouble()).toFloat()
         sitDY = (sy - CuteChar.sitSeat()).coerceIn(-0.015f, 0.25f)
+        lieMode = false
+        if (lie) {
+            val dp = g.extraPoint(nm, "deitado") ?: return
+            // deitado de costas: a cabeça no travesseiro (z da cabeça), os pés para o pé da cama
+            val hsz = CuteChar.bodyTop()
+            val wr = toWorld(o, dp[0], dp[2] + hsz)
+            lieRoot[0] = wr[0]; lieRoot[1] = dp[1] + 0.105f; lieRoot[2] = wr[1]   // as costas do corpo ficam ~10 cm atrás da linha da raiz
+            lieYaw = o.rot * 90f
+            lieMode = true
+        }
         val pth: ArrayList<FloatArray> = if (kotlin.math.hypot(px - w2[0], pz - w2[1]) < 0.12f) ArrayList()
             else (planPath(w2[0], w2[1]) ?: run { msgText = "Não dá para chegar"; msgT = 1.4f; return })
         val sp = floatArrayOf(w1[0], w1[1])
         pth.add(sp)
         sitStartPt = sp
-        sitPath = pth; sitItem = o; sitT = 0f; sitStuck = 0f; sitCancel = false
+        sitPath = pth; sitItem = o; sitSeat = nm; sitT = 0f; sitStuck = 0f; sitCancel = false; sitPressed = false
+        lieK = 0f; lieT = 0f
         sitWhere[0] = o.x + o.ox; sitWhere[1] = o.y + o.oz; sitWhere[2] = o.rot.toFloat()
         jumping = false; py = 0f; vy = 0f
         path = null; markX = Float.NaN
         sitPh = 1
     }
 
-    private fun occ(o: Item?, v: Float) {
-        val g = o?.type?.glb?.let { Glb.get(it) } ?: return
-        val k = g.occSlot
-        val t = o.animTgt ?: return
-        if (k in t.indices) t[k] = v
+    private fun occ(o: Item?, v: Float) { if (o != null && o === sitItem) sitPressed = v > 0.5f }
+
+    /** matriz do personagem: posição e giro; deitando, também a inclinação para trás até ficar de costas na cama */
+    private fun playerMatrix(out: FloatArray, up: Float) {
+        Matrix.setIdentityM(out, 0)
+        if (lieK <= 0.001f) {
+            Matrix.translateM(out, 0, px, py + up + baseY + sitLift, pz)
+            Matrix.rotateM(out, 0, pYaw, 0f, 1f, 0f)
+            return
+        }
+        val k = smooth(lieK)
+        val x = px + (lieRoot[0] - px) * k
+        val y = (py + up + baseY + sitLift) * (1f - k) + lieRoot[1] * k + 0.08f * sin(Math.PI.toFloat() * k)
+        val z = pz + (lieRoot[2] - pz) * k
+        Matrix.translateM(out, 0, x, y, z)
+        // rotação: slerp entre Ry(pYaw) (sentado) e Ry(lieYaw)*Rx(-90°) (deitado de costas)
+        val a = Math.toRadians(pYaw.toDouble()) / 2
+        val q0y = Math.sin(a); val q0w = Math.cos(a)
+        val b = Math.toRadians(lieYaw.toDouble()) / 2; val c = Math.toRadians(-90.0) / 2
+        var q1w = Math.cos(b) * Math.cos(c); var q1x = Math.cos(b) * Math.sin(c); var q1y = Math.sin(b) * Math.cos(c); var q1z = -Math.sin(b) * Math.sin(c)
+        var dot = q0y * q1y + q0w * q1w
+        if (dot < 0) { dot = -dot; q1x = -q1x; q1y = -q1y; q1z = -q1z; q1w = -q1w }
+        val om = Math.acos(dot.coerceIn(-1.0, 1.0)); val so = Math.sin(om)
+        val w0 = if (so < 1e-6) 1 - k.toDouble() else Math.sin((1 - k) * om) / so
+        val w1 = if (so < 1e-6) k.toDouble() else Math.sin(k * om) / so
+        val qx = w1 * q1x; val qy = w0 * q0y + w1 * q1y; val qz = w1 * q1z; val qw = w0 * q0w + w1 * q1w
+        val l = Math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+        val cw = (qw / l).coerceIn(-1.0, 1.0)
+        val ang = 2 * Math.acos(cw)
+        val sn = Math.sqrt(1 - cw * cw)
+        if (sn > 1e-6) Matrix.rotateM(out, 0, Math.toDegrees(ang).toFloat(), (qx / l / sn).toFloat(), (qy / l / sn).toFloat(), (qz / l / sn).toFloat())
     }
 
     private fun sitAbort() {
         sitItem?.busy = false
-        occ(sitItem, 0f)
-        sitItem = null; sitPh = 0; sitLift = 0f; sitPath = null; pMoving = false
+        sitPressed = false
+        pullTgt = 0f
+        sitItem = null; sitPh = 0; sitLift = 0f; sitPath = null; pMoving = false; lieK = 0f; lieMode = false
     }
 
     private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
@@ -1542,7 +1723,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 val st_ = 330f * dt
                 pYaw += dl.coerceIn(-st_, st_)
                 px += (sitPt[2] - px) * min(1f, dt * 10f); pz += (sitPt[3] - pz) * min(1f, dt * 10f)
-                if (abs(dl) < 1.5f) {
+                val pulled = pullSlot < 0 || (o.animCur?.getOrNull(pullSlot) ?: 1f) > 0.97f
+                if (abs(dl) < 1.5f && pulled) {
                     pYaw = sitYaw; px = sitPt[2]; pz = sitPt[3]
                     o.busy = true; sitPh = 3; sitT = 0f
                 }
@@ -1560,11 +1742,45 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     if (u < 0.35f) { sitAbort(); return }
                     sitPh = 5; sitT = 0f; return
                 }
-                if (u >= 1f) { sitPh = 4; sitT = 0f }
+                if (u >= 1f) { sitT = 0f; sitPh = if (lieMode) 6 else 4; lieT = 0f; if (pullSlot >= 0) pullTgt = pullPush }
+            }
+            6 -> {
+                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY
+                lieT += dt; lieK = (lieT / 1.1f).coerceAtMost(1f)
+                if (out) { sitPh = 8; lieT = lieK * 1.0f; return }
+                if (lieK >= 1f) sitPh = 7
+            }
+            7 -> {
+                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY; lieK = 1f
+                if (out) { sitPh = 8; lieT = 1.0f }
+            }
+            8 -> {
+                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY
+                lieT -= dt; lieK = (lieT / 1.0f).coerceIn(0f, 1f)
+                if (lieK <= 0f) { sitPh = 5; sitT = 0f }
             }
             4 -> {
-                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY
-                if (out) { sitPh = 5; sitT = 0f }
+                pMoving = false; pYaw = sitYaw; sitLift = sitDY
+                if (pullSlot >= 0) {
+                    // sentado, a cadeira volta para a mesa levando o personagem junto
+                    val g = Glb.get(o.type.glb ?: "")
+                    val cur = o.animCur?.getOrNull(pullSlot) ?: 1f
+                    val off = if (g != null) pullOff(o, g, cur) else floatArrayOf(0f, 0f)
+                    px = sitBase[0] + off[0]; pz = sitBase[1] + off[1]
+                    if (out) { sitPh = 9; pullTgt = 1f }
+                } else {
+                    px = sitPt[0]; pz = sitPt[1]
+                    if (out) { sitPh = 5; sitT = 0f }
+                }
+            }
+            9 -> {
+                // afasta a cadeira da mesa (com o personagem) antes de levantar
+                pMoving = false; pYaw = sitYaw; sitLift = sitDY
+                val g = Glb.get(o.type.glb ?: "")
+                val cur = o.animCur?.getOrNull(pullSlot) ?: 1f
+                val off = if (g != null) pullOff(o, g, cur) else floatArrayOf(0f, 0f)
+                px = sitBase[0] + off[0]; pz = sitBase[1] + off[1]
+                if (cur > 0.97f) { sitPt[0] = px; sitPt[1] = pz; sitPh = 5; sitT = 0f }
             }
             5 -> {
                 pMoving = false; pYaw = sitYaw

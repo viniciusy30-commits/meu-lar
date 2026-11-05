@@ -209,10 +209,10 @@ def poltrona():
         g.tube(OAK, [a, (a + b2) / 2, b2], [0.017, 0.018, 0.016], sides=10, col=lambda p, t: OAKC + (1,), vscale=1.6)
     top = V(0, 0.22 + 0.53 * math.cos(lean), -0.245 - 0.53 * math.sin(lean))
     tmp = Geo(); rbox(tmp, OAK, (0, 0, 0), (0.62, 0.05, 0.024), r=0.008, col=OAKC, uv=2.0)
-    add_xf(g, tmp, rot_x(lean), top)
+    add_xf(g, tmp, rot_x(-lean), top)
     for hh in (0.30, 0.44):
         tmp = Geo(); rbox(tmp, OAK, (0, 0, 0), (0.58, 0.035, 0.016), r=0.006, col=OAKD, uv=2.0)
-        add_xf(g, tmp, rot_x(lean), V(0, 0.22 + hh * math.cos(lean), -0.245 - hh * math.sin(lean) - 0.004))
+        add_xf(g, tmp, rot_x(-lean), V(0, 0.22 + hh * math.cos(lean), -0.245 - hh * math.sin(lean) - 0.004))
     # ---- almofada do assento (nó próprio: afunda quando ocupada)
     fab = (0.47, 0.57, 0.60); pip = (0.36, 0.44, 0.47)
     cu = M.node('almofada_assento', (0, 0.244, 0.06), extras=dict(anim=dict(tipo='escala', eixo=[0, 1, 0], min=1.0, max=0.88, dur=0.6,
@@ -231,7 +231,7 @@ def poltrona():
         sphere(tmp, LIN, (bx, by, 0.019 + 0.0), 0.012, tuple(np.array(fab) * 0.8), seg=8, sy=0.6)
     tmp2 = Geo()
     # pregas que saem dos botões (pequenas depressões desenhadas como faixas mais escuras)
-    add_xf(gb, tmp, rot_x(lean), V(0, 0.345, -0.108))
+    add_xf(gb, tmp, rot_x(-lean), V(0, 0.345, -0.108))
     # ---- colisores, superfícies e ponto de sentar
     M.empty('COL_base', (0, 0.18, -0.005), extras=dict(shape='box', size=[0.72, 0.36, 0.57], bloqueia=True, camada='movel'))
     for sx in (-1, 1):

@@ -1,5 +1,5 @@
 {
- "lote": "Etapa 1 (protótipo)",
+ "lote": "Etapa 1 do PDF (cadeira, mesa, guarda-roupa) + itens anteriores",
  "itens": [
   {
    "id": "decor_vaso_costela",
@@ -78,6 +78,139 @@
    "avisos": []
   },
   {
+   "id": "int_cadeira_jantar",
+   "nome": "Cadeira de jantar",
+   "categoria": "cozinha",
+   "classe": "interativo",
+   "arquivo": "obj3d/int_cadeira_jantar.glb",
+   "miniatura": "obj3d/thumb/int_cadeira_jantar.png",
+   "dimensoes": {
+    "largura": 0.42,
+    "altura": 0.7796,
+    "profundidade": 0.4537
+   },
+   "fisica": "estatico",
+   "vertices": 862,
+   "triangulos": 1148,
+   "bytes": 251460,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_cama_casal",
+   "nome": "Cama de casal",
+   "categoria": "quarto",
+   "classe": "interativo",
+   "arquivo": "obj3d/int_cama_casal.glb",
+   "miniatura": "obj3d/thumb/int_cama_casal.png",
+   "dimensoes": {
+    "largura": 1.32,
+    "altura": 0.99,
+    "profundidade": 1.765
+   },
+   "fisica": "estatico",
+   "vertices": 8134,
+   "triangulos": 12840,
+   "bytes": 583512,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_fogao",
+   "nome": "Fogão 4 bocas com forno",
+   "categoria": "cozinha",
+   "classe": "funcional",
+   "arquivo": "obj3d/int_fogao.glb",
+   "miniatura": "obj3d/thumb/int_fogao.png",
+   "dimensoes": {
+    "largura": 0.57,
+    "altura": 0.91,
+    "profundidade": 0.5939
+   },
+   "fisica": "estatico",
+   "vertices": 5420,
+   "triangulos": 6224,
+   "bytes": 248076,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_geladeira",
+   "nome": "Geladeira duplex",
+   "categoria": "cozinha",
+   "classe": "funcional",
+   "arquivo": "obj3d/int_geladeira.glb",
+   "miniatura": "obj3d/thumb/int_geladeira.png",
+   "dimensoes": {
+    "largura": 0.62,
+    "altura": 1.475,
+    "profundidade": 0.6358
+   },
+   "fisica": "estatico",
+   "vertices": 8475,
+   "triangulos": 10924,
+   "bytes": 396068,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_guarda_roupa",
+   "nome": "Guarda-roupa",
+   "categoria": "quarto",
+   "classe": "funcional",
+   "arquivo": "obj3d/int_guarda_roupa.glb",
+   "miniatura": "obj3d/thumb/int_guarda_roupa.png",
+   "dimensoes": {
+    "largura": 1.13,
+    "altura": 1.644,
+    "profundidade": 0.5395
+   },
+   "fisica": "estatico",
+   "vertices": 12346,
+   "triangulos": 15304,
+   "bytes": 765932,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_mesa_jantar",
+   "nome": "Mesa de jantar",
+   "categoria": "cozinha",
+   "classe": "apoio",
+   "arquivo": "obj3d/int_mesa_jantar.glb",
+   "miniatura": "obj3d/thumb/int_mesa_jantar.png",
+   "dimensoes": {
+    "largura": 1.2,
+    "altura": 0.6,
+    "profundidade": 0.74
+   },
+   "fisica": "estatico",
+   "vertices": 1790,
+   "triangulos": 2284,
+   "bytes": 229972,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_pia",
+   "nome": "Pia de cozinha com gabinete",
+   "categoria": "cozinha",
+   "classe": "funcional",
+   "arquivo": "obj3d/int_pia.glb",
+   "miniatura": "obj3d/thumb/int_pia.png",
+   "dimensoes": {
+    "largura": 0.92,
+    "altura": 1.1618,
+    "profundidade": 0.5057
+   },
+   "fisica": "estatico",
+   "vertices": 3273,
+   "triangulos": 4010,
+   "bytes": 154872,
+   "erros": [],
+   "avisos": []
+  },
+  {
    "id": "int_poltrona",
    "nome": "Poltrona de linho",
    "categoria": "sala",
@@ -86,13 +219,32 @@
    "miniatura": "obj3d/thumb/int_poltrona.png",
    "dimensoes": {
     "largura": 0.744,
-    "altura": 0.7927,
+    "altura": 0.7723,
     "profundidade": 0.6503
    },
    "fisica": "estatico",
    "vertices": 3952,
    "triangulos": 5452,
-   "bytes": 390904,
+   "bytes": 390908,
+   "erros": [],
+   "avisos": []
+  },
+  {
+   "id": "int_sofa3",
+   "nome": "Sofá de 3 lugares",
+   "categoria": "sala",
+   "classe": "interativo",
+   "arquivo": "obj3d/int_sofa3.glb",
+   "miniatura": "obj3d/thumb/int_sofa3.png",
+   "dimensoes": {
+    "largura": 1.7988,
+    "altura": 0.7724,
+    "profundidade": 0.6503
+   },
+   "fisica": "estatico",
+   "vertices": 7705,
+   "triangulos": 11492,
+   "bytes": 567588,
    "erros": [],
    "avisos": []
   }

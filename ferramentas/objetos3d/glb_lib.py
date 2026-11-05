@@ -144,7 +144,7 @@ class Model:
             m['pbrMetallicRoughness']['baseColorTexture'] = dict(index=ti)
             if cut: m['alphaMode'] = 'MASK'; m['alphaCutoff'] = 0.5; m['doubleSided'] = True
             elif mt == 12: m['alphaMode'] = 'BLEND'
-            if emit: m['emissiveFactor'] = [1, 1, 1]; m['emissiveTexture'] = dict(index=ti)
+            if emit: m['emissiveFactor'] = [1, 1, 1]; m['emissiveTexture'] = dict(index=ti); m['doubleSided'] = True
             m['extras'] = dict(mt=int(mt), cut=int(cut), emit=int(emit), tex=tex)
             mats.append(m); matidx[kk] = len(mats) - 1; return matidx[kk]
 

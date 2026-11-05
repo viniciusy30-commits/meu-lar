@@ -48,7 +48,17 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
     G_APARADOR("Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador"),
     G_VASO("Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela"),
     G_CAIXA("Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true),
-    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true)
+    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true),
+    // ETAPA 1 do Plano Mestre (protótipo exigido pelo PDF): cadeira, mesa e armário com porta e gaveta
+    G_CADEIRA("Cadeira de jantar", 1, 1, 0, 0.78f, 2, glb = "int_cadeira_jantar"),
+    G_MESA("Mesa de jantar", 2, 1, 0, 0.60f, 2, glb = "int_mesa_jantar"),
+    G_GUARDA_ROUPA("Guarda-roupa", 2, 1, 0, 1.64f, 1, glb = "int_guarda_roupa"),
+    // Lote 2
+    G_SOFA3("Sofá de 3 lugares", 2, 1, 0, 0.77f, 0, glb = "int_sofa3"),
+    G_CAMA("Cama de casal", 2, 2, 0, 0.99f, 1, glb = "int_cama_casal"),
+    G_GELADEIRA("Geladeira duplex", 1, 1, 0, 1.48f, 2, glb = "int_geladeira"),
+    G_FOGAO("Fogão 4 bocas", 1, 1, 0, 0.91f, 2, glb = "int_fogao"),
+    G_PIA("Pia com gabinete", 1, 1, 0, 1.16f, 2, glb = "int_pia")
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -74,10 +84,13 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
     var animLim: FloatArray? = null
     /** ocupado (alguém sentado) */
     var busy = false
+    /** Lote 2: aparelho ligado (fogão aceso, torneira aberta) */
+    var on = false
 
     fun encodeState(): String {
         val sb = StringBuilder(st)
         animTgt?.let { a -> if (a.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("a="); sb.append(a.joinToString(":") { if (it > 0.5f) "1" else "0" }) } }
+        if (on) { if (sb.isNotEmpty()) sb.append('~'); sb.append("on=1") }
         return sb.toString()
     }
 
@@ -87,7 +100,8 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
             if (kv.startsWith("a=")) {
                 val v = kv.substring(2).split(':').map { if (it == "1") 1f else 0f }.toFloatArray()
                 animTgt = v; animCur = v.copyOf()
-            } else if (kv.isNotEmpty()) keep.add(kv)
+            } else if (kv == "on=1") on = true
+            else if (kv.isNotEmpty()) keep.add(kv)
         }
         st = keep.joinToString("~")
     }
@@ -206,10 +220,12 @@ class GameState(ctx: Context) {
         val r = Foot.rect(item.type, rot, nx, ny, ox, oz)
         if (r[0] < -0.001f || r[1] < -0.001f || r[2] > gw + 0.001f || r[3] > gh + 0.001f) return false
         if (item.type.rug || item.type.dyn) return true      // objeto solto: a física resolve onde ele fica
+        val mine = Foot.blockRects(item.type, rot, nx, ny, ox, oz) ?: listOf(r)
         return items.none { o ->
             if (o === item || o.type.rug || o.type.dyn) return@none false
-            val b = o.rect()
-            r[0] < b[2] - 0.01f && r[2] > b[0] + 0.01f && r[1] < b[3] - 0.01f && r[3] > b[1] + 0.01f
+            // Etapa 86: com colisores separados (pernas da mesa), a cadeira pode entrar embaixo do tampo
+            val theirs = Foot.blockRects(o.type, o.rot, o.x, o.y, o.ox, o.oz) ?: listOf(o.rect())
+            mine.any { a -> theirs.any { b -> a[0] < b[2] - 0.01f && a[2] > b[0] + 0.01f && a[1] < b[3] - 0.01f && a[3] > b[1] + 0.01f } }
         }
     }
 

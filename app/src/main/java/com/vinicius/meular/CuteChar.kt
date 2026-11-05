@@ -33,6 +33,8 @@ object CuteChar {
     const val SIT_IN = 5
     const val SIT_LOOP = 6
     const val SIT_OUT = 7
+    /** Etapa 86: interagir (estica o braço e mexe na peça), clipe 8 */
+    const val INTERACT = 8
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -759,6 +761,8 @@ object CuteChar {
 
     /** Etapa 83: o corpo atual tem os clipes de sentar? */
     fun hasSit(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 8
+    /** Etapa 86: o corpo atual tem o clipe de interagir? */
+    fun hasInteract(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 9
 
     private val sitSeats = HashMap<String, Float>()
     /** Etapa 83: altura (m) do assento que este personagem precisa sentado (traseiro), já com a altura do slider. */
@@ -853,7 +857,7 @@ object CuteChar {
             slotT0[sl] = t
         }
         val isJ = c == JUMP || c == RUNJUMP
-        val once = isJ || ((c == SIT_IN || c == SIT_OUT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
+        val once = isJ || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
         var lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
         if (once && lt > len) lt = len
         if (!once) {

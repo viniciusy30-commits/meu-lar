@@ -8,8 +8,8 @@ Poltrona estilo anos 60: estrutura de carvalho com pernas torneadas inclinadas q
 **Variações reais previstas:** Outros tecidos (mostarda, terracota, bouclé) e versão de couro no próximo lote; mesma família de construção para o sofá de 3 lugares.
 
 ## Medidas e escala
-- Largura (X) 0.744 m · altura (Y) 0.793 m · profundidade (Z) 0.650 m
-- Escala do jogo: adulto ~1.45 m; o objeto tem 55% da altura do personagem.
+- Largura (X) 0.744 m · altura (Y) 0.772 m · profundidade (Z) 0.650 m
+- Escala do jogo: adulto ~1.45 m; o objeto tem 53% da altura do personagem.
 - Área ocupada no chão (colisores): 0.74 x 0.62 m. Grade do jogo: 1x1 casa(s).
 - Altura de uso: assento a 0.342 m (afundado); traseiro do personagem adulto sentado a 0,33–0,36 m (medido na animação).
 - Eixos: Y para cima, frente = +Z, origem no centro do piso do objeto, metros.

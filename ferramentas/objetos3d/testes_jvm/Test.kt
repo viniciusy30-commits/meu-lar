@@ -4,7 +4,7 @@ import kotlin.math.*
 
 fun main() {
     Glb.assets = AssetManager("/home/claude/work/merged/app/src/main/assets")
-    for (id in listOf("decor_vaso_costela", "fis_caixa_papelao", "fis_bola", "int_poltrona", "int_aparador")) {
+    for (id in listOf("decor_vaso_costela", "fis_caixa_papelao", "fis_bola", "int_poltrona", "int_aparador", "int_sofa3", "int_cama_casal", "int_geladeira", "int_fogao", "int_pia", "int_cadeira_jantar", "int_mesa_jantar", "int_guarda_roupa")) {
         val g = Glb.get(id)!!
         g.ensureGl()
         println("== $id: ${g.nodes.size} nós, animados=${g.animated.toList()} occ=${g.occSlot} cols=${g.cols.map { it.name + "(" + it.shape + ")" }}")
@@ -12,6 +12,9 @@ fun main() {
         println("   meta.nome=${g.meta.optString("nome")} fisica=${g.meta.optJSONObject("fisica")?.optString("tipo")} massa=${g.meta.optJSONObject("fisica")?.optDouble("massa", -1.0)}")
         for (k in g.animated) { val n = g.nodes[k]; println("   anim ${n.name}: tipo=${n.aType} eixo=${n.ax.toList()} ${n.aMin}..${n.aMax} dur=${n.aDur} bb=${n.bb.map { "%.3f".format(it) }} v(0)=${n.value(0f)} v(1)=${n.value(1f)} alca=${n.anim?.optJSONArray("alca")?.let { a -> (0 until a.length()).map { a.optDouble(it) } }}") }
         g.point("IP_sentar")?.let { println("   IP_sentar=${it.toList()} aprox=${g.extraPoint("IP_sentar", "aproximacao")?.toList()} inicio=${g.extraPoint("IP_sentar", "inicio")?.toList()} assento=${g.extraFloat("IP_sentar", "assento_y", -1f)}") }
+        println("   gatilhos=${g.slotGatilho.toList()} assentos=${g.slotAssento.toList()} precisa=${g.slotPrecisa.toList()}")
+        println("   efeitos=${g.nodes.indices.filter { g.effect[it] != 0 }.map { g.nodes[it].name + ":" + g.effect[it] + "@" + g.effectWhen[it] }} sentar=${g.ips("IP_sentar").size} deitar=${g.ips("IP_deitar").map { g.nodes[it].name + " yaw=" + g.point(g.nodes[it].name)!![3] + " deitado=" + g.extraPoint(g.nodes[it].name, "deitado")?.toList() }} usar=${g.ips("IP_usar").map { g.nodes[it].ex?.optString("rotulo_ligar") }}")
+        println("   ocupa(IP_sentar_1)=${g.occSlots("IP_sentar_1")}")
         val tex = g.nodes.sumOf { it.mesh?.parts?.size ?: 0 }
         println("   partes GL=$tex vértices=${g.nodes.sumOf { n -> n.prims.sumOf { it.nv } }}")
         val sm = g.staticMesh(0.5f, 0.5f); println("   staticMesh partes=${sm.parts.size}")

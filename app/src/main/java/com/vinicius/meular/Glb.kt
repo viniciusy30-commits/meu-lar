@@ -124,6 +124,31 @@ class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, priva
     val animSlot: IntArray = IntArray(nodes.size).also { a -> a.fill(-1); for ((k, i) in animated.withIndex()) a[i] = k }
     /** peça que reage a "ocupado" (almofada que afunda), -1 = nenhuma */
     val occSlot: Int = animated.indexOfFirst { nodes[it].anim?.optString("gatilho") == "ocupado" }
+    /** Lote 2: gatilho de cada peça animada ("" = interação direta, "ligado", "ocupado") */
+    val slotGatilho: Array<String> = Array(animated.size) { nodes[animated[it]].anim?.optString("gatilho", "") ?: "" }
+    /** almofada de qual assento (gatilho "ocupado"); "" = qualquer */
+    val slotAssento: Array<String> = Array(animated.size) { nodes[animated[it]].anim?.optString("assento", "") ?: "" }
+    /** peça que precisa estar aberta antes (gaveta dentro da porta da geladeira); -1 = nenhuma */
+    val slotPrecisa: IntArray = IntArray(animated.size) { k ->
+        val nm = nodes[animated[k]].anim?.optString("precisa", "") ?: ""
+        val i = if (nm.isEmpty()) -1 else nodes.indexOfFirst { it.name == nm }
+        if (i < 0) -1 else animSlot[i]
+    }
+    /** efeito visual de cada nó: 0 nenhum, 1 chama, 2 água, 3 luz */
+    val effect: IntArray = IntArray(nodes.size) { i ->
+        when (nodes[i].ex?.optJSONObject("efeito")?.optString("tipo")) { "chama" -> 1; "agua" -> 2; "luz" -> 3; else -> 0 }
+    }
+    /** quando o efeito aparece: -1 = aparelho ligado; senão a peça animada (slot) que precisa estar aberta */
+    val effectWhen: IntArray = IntArray(nodes.size) { i ->
+        val q = nodes[i].ex?.optJSONObject("efeito")?.optString("quando", "ligado") ?: "ligado"
+        if (q == "ligado") -1 else { val j = nodes.indexOfFirst { it.name == q }; if (j < 0) -1 else animSlot[j] }
+    }
+
+    /** nós cujo nome começa com [prefix] (ex.: "IP_sentar") */
+    fun ips(prefix: String): List<Int> = nodes.indices.filter { nodes[it].name.startsWith(prefix) }
+
+    /** peças que afundam quando o assento [seat] está ocupado */
+    fun occSlots(seat: String): List<Int> = animated.indices.filter { slotGatilho[it] == "ocupado" && (slotAssento[it].isEmpty() || slotAssento[it] == seat) }
 
     fun index(name: String): Int = nodes.indexOfFirst { it.name == name }
 

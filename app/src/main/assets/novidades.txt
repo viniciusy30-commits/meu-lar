@@ -1,3 +1,19 @@
+#id 2026-11-08-f
+#titulo Etapa 1 do Plano Mestre: cadeira, mesa e guarda-roupa
+- Cadeira de jantar: o personagem puxa a cadeira, entra, senta e é empurrado junto para a mesa; para levantar, afasta a cadeira e ela volta para o lugar
+- Mesa de jantar para 4: a cadeira encaixa embaixo do tampo sem atravessar as pernas
+- Guarda-roupa com 2 portas e 2 gavetas: prateleiras, cabideiro com camisas, roupas dobradas e sapatos por dentro
+- Abrir portas e gavetas (e ligar aparelhos) agora tem a animação do personagem esticando o braço
+
+#id 2026-11-08-e
+#titulo Lote 2: sofá, cama, geladeira, fogão e pia
+- Sofá de 3 lugares: senta em qualquer lugar e só aquela almofada afunda
+- Cama de casal: senta na borda e deita com a cabeça no travesseiro; levanta pelo mesmo caminho
+- Geladeira: freezer e geladeira abrem, gaveta de legumes desliza, luz acende por dentro
+- Fogão: ligar acende as chamas e gira os botões; porta do forno abre para baixo
+- Pia: abrir a torneira solta a água na cuba; portas do gabinete abrem
+- Poltrona: almofada do encosto agora inclina para trás (estava torta para a frente)
+
 #id 2026-11-08-d
 #titulo Cabelo novo: Low fade texturizado
 - Degradê baixo nas laterais e na nuca (pele, fios curtinhos e denso), com costeletas e contorno da orelha

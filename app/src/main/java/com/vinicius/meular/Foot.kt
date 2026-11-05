@@ -66,6 +66,24 @@ object Foot {
 
     fun height(t: Type): Float = box(t)[4]
 
+    /** Etapa 86: retângulos [x0, z0, x1, z1] de cada colisor que bloqueia (pernas da mesa, assento da cadeira...), já girados,
+     *  para encaixar uma cadeira embaixo da mesa sem bater no tampo. null = usar o retângulo inteiro. */
+    fun blockRects(t: Type, rot: Int, x: Int, y: Int, ox: Float, oz: Float): List<FloatArray>? {
+        val g = t.glb?.let { Glb.get(it) } ?: return null
+        val bl = g.cols.filter { it.blocks }
+        if (bl.size < 2) return null
+        val odd = rot % 2 != 0
+        val w = if (odd) t.h else t.w
+        val h = if (odd) t.w else t.h
+        val cx = x + ox + w / 2f; val cz = y + oz + h / 2f
+        val q = ((rot % 4) + 4) % 4
+        return bl.map { c ->
+            val (wx, wz) = when (q) { 1 -> Pair(c.cz, -c.cx); 2 -> Pair(-c.cx, -c.cz); 3 -> Pair(-c.cz, c.cx); else -> Pair(c.cx, c.cz) }
+            val sx = if (odd) c.sz else c.sx; val sz = if (odd) c.sx else c.sz
+            floatArrayOf(cx + wx - sx / 2f, cz + wz - sz / 2f, cx + wx + sx / 2f, cz + wz + sz / 2f)
+        }
+    }
+
     // Retângulo que o móvel ocupa no mundo, já girado: [x0, z0, x1, z1].
     fun rect(t: Type, rot: Int, x: Int, y: Int, ox: Float, oz: Float): FloatArray {
         val b = box(t)
