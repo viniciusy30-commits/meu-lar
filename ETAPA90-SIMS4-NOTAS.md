@@ -39,3 +39,8 @@
 - Andar/correr do Bandai trocados (estilo exagerado) por capturas naturais da LAFAN1 (Ubisoft), iguais para homem e mulher.
 - Pulo parado, pulo correndo e agachado parado vindos da LAFAN1; andar agachado montado com IK (sem captura limpa disponível).
 - Retarget genérico com calibração na T-pose (ferramentas/etapa90h_lafan.py). Licença não comercial. Ver ferramentas/sims4/bvh_lafan/LEIA.txt.
+
+## 90j — caminhadas escolhidas pelo usuário
+- Homem: Bandai dataset-2 walk_normal_001 (quadros 73-106). Mulher: walk_normal_004 (65-98). Escolhidas em vídeo (opções A e B).
+- Retarget com pernas por IK (tornozelo relativo ao centro da pelve, pés nunca cruzam a linha do meio).
+- Regra nova: animação só entra no jogo depois de aprovada em vídeo.

@@ -75,6 +75,25 @@ def retarget(path,k,grp,F0,F1,old_clip,loop=True,mode='inplace',fps_out=60,warp=
         if mode=='jump': rp[1]=min(rp[1],0.0)          # o jogo faz o voo; o clipe só agacha/encolhe
         P[0]=np.array([rp[0]*kk*0.5, J[0][1]+rp[1]*kk, rp[2]*kk*(0.5 if loop else 0.0)])
         for b in range(1,55): P[b]=P[GP[b]]+Rb[GP[b]].apply(J[b]-J[GP[b]])
+        # pernas por IK: tornozelo na mesma posição da captura RELATIVA ao centro da pelve (escalada pela altura),
+        # joelho apontando como o da captura -> sem pernas cruzando nem pés escorregando por diferença de quadril
+        sd=SK[k]
+        for side,th,ca,ft_,to in (('L',17,18,19,20),('R',21,22,23,24)):
+            d=sd[side]; aH=Wp[f,H]; aK=Wp[f,ix[d['ca']]]; aA=Wp[f,ix[d['ft']]]; aT=Wp[f,ix[d['th']]]
+            tgt=P[0]+(aA-aH)*kk
+            sg=1 if side=='L' else -1
+            if sg*(tgt[0]-P[0][0])<6.0: tgt[0]=P[0][0]+sg*6.0   # pés nunca cruzam a linha do meio
+            hip=P[th]; l1=np.linalg.norm(J[ca]-J[th]); l2=np.linalg.norm(J[ft_]-J[ca])
+            dv=tgt-hip; Ln=np.linalg.norm(dv); dn=dv/Ln; Lc=np.clip(Ln,1e-3,(l1+l2)*0.999); tgt=hip+dn*Lc
+            a=np.arccos(np.clip((l1*l1+Lc*Lc-l2*l2)/(2*l1*Lc),-1,1))
+            pole=(aK-aT)-dn*((aK-aT)@dn)
+            if np.linalg.norm(pole)<1e-6: pole=np.array([0,0,1.0])-dn*dn[2]
+            pole/=np.linalg.norm(pole)
+            knee=hip+dn*np.cos(a)*l1+pole*np.sin(a)*l1
+            # rotações: alinhar direção mantendo o giro da captura
+            Rb[th]=arc(Rb[th].apply(J[ca]-J[th]),knee-hip)*Rb[th]
+            Rb[ca]=arc(Rb[ca].apply(J[ft_]-J[ca]),tgt-knee)*Rb[ca]
+            P[ca]=knee; P[ft_]=tgt; P[to]=tgt+Rb[ft_].apply(J[to]-J[ft_])
         out.append((Rb,P))
     if mode!='jump':
         lo=np.array([[o[1][20][1],o[1][24][1]] for o in out]).min()
