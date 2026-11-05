@@ -19,7 +19,25 @@ def rd(f, grp=None):
 sys.path.insert(0,'/tmp/s4tools')
 import uvfix
 _TR=uvfix.train(['top','bottom','mens'])
+_BN,_BW=uvfix.train_w(['top','bottom','mens'])
+# Etapa 90d: ossos originais do TS4 (nomes achados pelo hash FNV dos GEOM) -> ossos do esqueleto do app (55)
+_APP={'b__Pelvis__':0,'b__Spine0__':3,'b__Spine1__':4,'b__Spine2__':5,'b__Neck__':6,'b__Head__':8,'b__CAS_L_Breast__':4,'b__CAS_R_Breast__':4,'b__ROOT_bind__':0,'b__ROOT__':0}
+for _s,_o,_f in (('L',0,25),('R',4,40)):
+    _APP.update({'b__%s_Clavicle__'%_s:9+_o,'b__%s_UpperArm__'%_s:10+_o,'b__%s_ShoulderTwist__'%_s:10+_o,'b__%s_Elbow__'%_s:11+_o,
+                 'b__%s_ForeArmTwist__'%_s:11+_o,'b__%s_Forearm__'%_s:11+_o,'b__%s_Hand__'%_s:12+_o})
+    _l=17 if _s=='L' else 21
+    _APP.update({'b__%s_Thigh__'%_s:_l,'b__%s_ThighTwist__'%_s:_l,'b__%s_Calf__'%_s:_l+1,'b__%s_Foot__'%_s:_l+2,'b__%s_Toe__'%_s:_l+3})
+    for _k,_fn in enumerate(['Index','Mid','Ring','Pinky','Thumb']):
+        for _j in range(3): _APP['b__%s_%s%d__'%(_s,_fn,_j)]=_f+_k*3+_j
+_APP_R={12:16}  # (mão direita = 16)
+def _w55(t):
+    w=np.zeros(55)
+    for n,x in zip(_BN[t],_BW[t]):
+        if x>0 and n in _APP: w[_APP[n]]+=x
+    return w/w.sum() if w.sum()>0 else None
+_VW=[]
 _FEM={}
+_VWOBJ={}
 def uv0_for(objf):
     # Etapa 90b: o OBJ só trouxe o UV1 (cilíndrico). O UV0 (atlas) vem das roupas de baixo padrão do TS4 (.package Softe):
     # mesmo corpo da EA -> posição igual dá o UV0 exato (o UV1 desempata as costuras, onde há vértices duplicados).
@@ -30,6 +48,7 @@ def uv0_for(objf):
     dp,ip=cKDTree(TP).query(V,k=6)
     cost=np.where(dp<1e-4,np.linalg.norm(T1[ip]-u1[:,None],axis=2),1e9)
     j=cost.argmin(1); ie=ip[np.arange(len(V)),j]; ex=cost.min(1)<1e8
+    VW=[_w55(ie[t]) if ex[t] else None for t in range(len(V))]
     if 'V' not in _FEM:
         da,ia=cKDTree(T1).query(u1)
         out=np.where(ex[:,None],T0[ie],T0[ia]); _FEM.update(V=V,U1=u1,U0=out)
@@ -55,11 +74,14 @@ def uv0_for(objf):
             if dp[t,jj]<1e-4:
                 c=T0[ip[t,jj]]
                 if all(np.abs(c-x).max()>1e-4 for x in cand[t]): cand[t].append(c)
-    if 'cand' not in _FEM: _FEM['cand']=cand
-    elif 'ia' in dir():
+    if 'cand' not in _FEM: _FEM['cand']=cand; _FEM['VW']=VW
+    else:
         for t in np.where(~ex&~ft)[0]:
             for c in _FEM['cand'][ia[t]]:
                 if all(np.abs(c-x).max()>1e-4 for x in cand[t]): cand[t].append(c)
+        for t in np.where(~ex)[0]:
+            if V[t,1]>0.2: VW[t]=_FEM['VW'][ia[t]]   # homem: tronco/braços com os pesos da mulher no mesmo ponto
+    _VWOBJ[objf]=VW
     print(objf[-25:],'exato',ex.sum(),'aprox',(~ex).sum(),'pés',ft.sum(),'costuras',sum(len(c)>1 for c in cand))
     return cand
 _ORIG=[]
@@ -106,7 +128,7 @@ def _head_ring(hf, bodyf):
     ks={raw[k] for k in np.where(keep)[0]}
     return lambda t: t not in ks
 def build(objs):
-    _ORIG.clear()
+    _ORIG.clear(); _VW.clear()
     # vertices únicos por (arquivo, v, vt); uv já no atlas (v de cima para baixo)
     P=[];UV=[];I=[];key={}
     for f,grp in objs:
@@ -130,7 +152,7 @@ def build(objs):
             for (vi,ti),uv in zip(tri,ch):
                 k=(f,vi,uv)
                 if k not in key:
-                    key[k]=len(P); P.append(V[vi]); UV.append(uv); _ORIG.append(1 if head else 0)
+                    key[k]=len(P); P.append(V[vi]); UV.append(uv); _ORIG.append(1 if head else 0); _VW.append(None if head else _VWOBJ[f][vi])
                 I.append(key[k])
     return np.array(P),np.array(UV),np.array(I).reshape(-1,3)
 def eyes(head_obj):
@@ -304,6 +326,11 @@ def go(sexo, body, head, tex, src_grp, out_grp):
     for j in range(8):
         wj=1/(d[:,j]+0.3)**2 * np.clip((N*sn[nb[:,j]]).sum(1)+0.3,0.05,1.3)
         for c in range(4): np.add.at(W,(np.arange(len(Q)),bi[nb[:,j],c]),wj*bw[nb[:,j],c])
+    # pesos originais da EA (roupas de baixo do TS4) onde existem
+    W=W/W.sum(1,keepdims=True); n4=0
+    for i_,w_ in enumerate(_VW):
+        if w_ is not None: W[i_]=0; W[i_,:55]=w_; n4+=1
+    print('vértices com pesos originais do TS4:',n4,'de',len(_VW))
     # suaviza os pesos no espaço (cabeça e pescoço do corpo, costuras): vértices vizinhos deformam igual -> sem abrir fresta na nuca
     nbr=cKDTree(Q).query_ball_point(Q,r=2.5)
     W=W/W.sum(1,keepdims=True)
