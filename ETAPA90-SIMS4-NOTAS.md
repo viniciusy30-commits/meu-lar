@@ -44,3 +44,7 @@
 - Homem: Bandai dataset-2 walk_normal_001 (quadros 73-106). Mulher: walk_normal_004 (65-98). Escolhidas em vídeo (opções A e B).
 - Retarget com pernas por IK (tornozelo relativo ao centro da pelve, pés nunca cruzam a linha do meio).
 - Regra nova: animação só entra no jogo depois de aprovada em vídeo.
+
+## 90k — correr e pulo correndo escolhidos
+- Correr: homem Bandai run_normal_001 (11-34), mulher run_normal_004 (30-53).
+- Pulo correndo: CMU 127_21 (homem e mulher). Pulo parado: mantido o atual (escolha do usuário).

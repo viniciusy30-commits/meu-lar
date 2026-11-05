@@ -3,7 +3,10 @@ import sys, numpy as np
 sys.path.insert(0,'/tmp/s4/anim'); import bvh
 from scipy.spatial.transform import Rotation as R, Slerp
 exec(open('/tmp/s4/anim/s4clips.py').read().split("if __name__")[0])
-SK={'lafan':dict(H='Hips',S=('Spine','Spine1','Spine2'),N='Neck',Hd='Head',
+SK={'cmu':dict(H='Hips',S=('Spine','Spine1','Spine1'),N='Neck',Hd='Head',
+        L=dict(sh='LeftShoulder',ua='LeftArm',fa='LeftForeArm',h='LeftHand',th='LeftUpLeg',ca='LeftLeg',ft='LeftFoot',to='LeftToeBase'),
+        R=dict(sh='RightShoulder',ua='RightArm',fa='RightForeArm',h='RightHand',th='RightUpLeg',ca='RightLeg',ft='RightFoot',to='RightToeBase')),
+    'lafan':dict(H='Hips',S=('Spine','Spine1','Spine2'),N='Neck',Hd='Head',
         L=dict(sh='LeftShoulder',ua='LeftArm',fa='LeftForeArm',h='LeftHand',th='LeftUpLeg',ca='LeftLeg',ft='LeftFoot',to='LeftToe'),
         R=dict(sh='RightShoulder',ua='RightArm',fa='RightForeArm',h='RightHand',th='RightUpLeg',ca='RightLeg',ft='RightFoot',to='RightToe')),
     'bandai':dict(H='Hips',S=('Spine','Chest','Chest'),N='Neck',Hd='Head',
@@ -21,6 +24,7 @@ def maps(k):
         CH.update({9+o:10+o,10+o:11+o,11+o:12+o,l0:l0+1,l0+1:l0+2,l0+2:l0+3})
     return MAP,CH
 def arc(a,b):
+    if np.linalg.norm(a)<1e-6 or np.linalg.norm(b)<1e-6: return R.identity()
     a=a/np.linalg.norm(a); b=b/np.linalg.norm(b); v=np.cross(a,b); c=a@b
     if np.linalg.norm(v)<1e-8: return R.identity()
     return R.from_rotvec(v/np.linalg.norm(v)*np.arctan2(np.linalg.norm(v),c))
