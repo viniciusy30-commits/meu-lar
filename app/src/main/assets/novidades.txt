@@ -1,3 +1,11 @@
+#id 2026-11-09-b
+#titulo Interação nova: mira que abraça o alvo, botões novos e agachar
+- Mira de verdade: aponte para a porta, gaveta, botão do fogão, torneira, assento ou cortina; os cantos da mira deslizam e envolvem o que você vai usar
+- Botão de usar no canto de baixo à direita, com ícone e a ação certa ("Abrir porta da geladeira", "Acender boca da frente esquerda"...), só quando há alvo
+- Pular no centro do canto direito, botão de agachar ao lado (andar agachado tem animação própria; pular levanta)
+- Câmera, mercado e ajustes subiram para o canto de cima à direita, com visual novo; o dinheiro saiu da tela e fica dentro do mercado
+- Mão da animação de interagir consertada: punho reto, palma para baixo e dedos relaxados (antes torcia e entortava)
+
 #id 2026-11-09-a
 #titulo Plano Mestre v4: só móveis do PDF, nada flutuando e Etapa 2
 - Saíram do jogo todos os móveis feitos antes do PDF (loja, casa inicial e sala de testes); a casa nova começa com cama, mesa e 2 cadeiras

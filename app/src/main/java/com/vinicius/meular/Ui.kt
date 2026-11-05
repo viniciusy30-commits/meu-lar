@@ -218,6 +218,11 @@ object Ic {
     const val CAM1P = 132
     const val CAMAIR = 133
     const val AVATAR = 134
+    /** Etapa 88: botões de ação */
+    const val CROUCH = 135
+    const val HAND = 136
+    const val SEAT = 137
+    const val BED = 138
 }
 
 
@@ -352,6 +357,37 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
         val w = color
         val a = accent
         when (kind) {
+            Ic.CROUCH -> {
+                // pessoa agachada (cabeça, tronco inclinado, joelhos dobrados) + seta para baixo
+                fill(w); c.drawCircle(46f, 20f, 10f, p)
+                stroke(w, 11f)
+                path.reset(); path.moveTo(44f, 34f); path.lineTo(52f, 58f); c.drawPath(path, p)
+                path.reset(); path.moveTo(52f, 58f); path.lineTo(70f, 62f); path.lineTo(66f, 86f); c.drawPath(path, p)
+                path.reset(); path.moveTo(52f, 58f); path.lineTo(36f, 72f); path.lineTo(46f, 88f); c.drawPath(path, p)
+                path.reset(); path.moveTo(46f, 40f); path.lineTo(64f, 48f); c.drawPath(path, p)
+                stroke(a, 6f); path.reset(); path.moveTo(84f, 30f); path.lineTo(84f, 56f); path.moveTo(76f, 48f); path.lineTo(84f, 57f); path.lineTo(92f, 48f); c.drawPath(path, p)
+            }
+            Ic.HAND -> {
+                // mão aberta (palma) para "usar"
+                fill(w)
+                rr(c, 30f, 44f, 76f, 90f, 18f)
+                rr(c, 31f, 18f, 41f, 56f, 5f); rr(c, 43f, 10f, 53f, 52f, 5f); rr(c, 55f, 13f, 65f, 52f, 5f); rr(c, 67f, 22f, 76f, 56f, 4.5f)
+                c.save(); c.rotate(-38f, 28f, 62f); rr(c, 14f, 54f, 26f, 80f, 6f); c.restore()
+                stroke(a, 3.5f); c.drawLine(42f, 72f, 62f, 70f, p)
+            }
+            Ic.SEAT -> {
+                // cadeira de lado
+                stroke(w, 9f)
+                path.reset(); path.moveTo(30f, 12f); path.lineTo(30f, 90f); c.drawPath(path, p)
+                path.reset(); path.moveTo(30f, 54f); path.lineTo(74f, 54f); path.lineTo(74f, 90f); c.drawPath(path, p)
+                fill(w); rr(c, 26f, 48f, 80f, 60f, 5f)
+            }
+            Ic.BED -> {
+                // cama com travesseiro
+                fill(w); rr(c, 8f, 52f, 92f, 72f, 6f); rr(c, 8f, 28f, 18f, 88f, 4f); rr(c, 84f, 58f, 92f, 88f, 4f)
+                rr(c, 22f, 40f, 44f, 52f, 6f)
+                fill(a); rr(c, 48f, 44f, 88f, 54f, 5f)
+            }
             Ic.GEAR -> {
                 fill(w)
                 for (i in 0 until 8) { c.save(); c.rotate(i * 45f, 50f, 50f); rr(c, 43f, 6f, 57f, 26f, 4f); c.restore() }
@@ -649,6 +685,16 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
     private val d = ctx.resources.displayMetrics.density
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rf = RectF()
+    private val path = android.graphics.Path()
+    private var lastMs = 0L
+    private var aimInit = false
+    private var ax0 = 0f; private var ay0 = 0f; private var ax1 = 0f; private var ay1 = 0f; private var onK = 0f
+
+    private fun blend(a: Int, b: Int, t: Float): Int {
+        val u = t.coerceIn(0f, 1f)
+        return Color.argb((Color.alpha(a) + (Color.alpha(b) - Color.alpha(a)) * u).toInt(), (Color.red(a) + (Color.red(b) - Color.red(a)) * u).toInt(),
+            (Color.green(a) + (Color.green(b) - Color.green(a)) * u).toInt(), (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * u).toInt())
+    }
     private val t0 = SystemClock.uptimeMillis()
 
     init {
@@ -679,19 +725,62 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
             val g = game.r.grabbed != null
             val cx = w / 2
             val cy = h / 2
-            p.style = Paint.Style.STROKE
-            p.strokeWidth = 2.4f * d
-            val rad = (if (f != null) 10f else 5f) * d
-            p.color = Color.argb(110, 0, 0, 0)
-            c.drawCircle(cx, cy, rad + d, p)
-            p.strokeWidth = 1.8f * d
-            p.color = if (g) Color.parseColor("#5CE08A") else if (f != null) Color.parseColor("#FFE066") else Color.argb(230, 255, 255, 255)
-            c.drawCircle(cx, cy, rad, p)
-            if (f == null) { p.style = Paint.Style.FILL; c.drawCircle(cx, cy, 1.4f * d, p) }
-            if (f != null) {
-                val txt = if (g) "Carregando: ${f.type.nome}" else f.type.nome
-                label(c, txt, cx, cy + 28f * d, 12f, Color.parseColor("#E62A2046"), Pal.TEXT)
+            // Etapa 88: mira que "abraça" o alvo. Sem alvo: anel pequeno no centro. Com alvo (porta, gaveta, botão, assento...):
+            // os quatro cantos deslizam suavemente até envolver a caixa da peça projetada na tela.
+            val now = SystemClock.uptimeMillis()
+            val dt = if (lastMs == 0L) 0.016f else ((now - lastMs) / 1000f).coerceIn(0f, 0.1f)
+            lastMs = now
+            val on = game.r.aimOn && !g
+            val base = 11f * d
+            var tx0 = cx - base; var ty0 = cy - base; var tx1 = cx + base; var ty1 = cy + base
+            if (on) {
+                val ar = game.r.aimRect
+                val pad = 7f * d
+                tx0 = ar[0] * w - pad; ty0 = ar[1] * h - pad; tx1 = ar[2] * w + pad; ty1 = ar[3] * h + pad
+                // alvo muito grande (porta de perto): limita para não virar a tela inteira
+                val mx = w * 0.42f; val my = h * 0.42f
+                if (tx1 - tx0 > 2 * mx) { val c = (tx0 + tx1) / 2; tx0 = c - mx; tx1 = c + mx }
+                if (ty1 - ty0 > 2 * my) { val c = (ty0 + ty1) / 2; ty0 = c - my; ty1 = c + my }
+                if (tx1 - tx0 < 2 * base) { val c = (tx0 + tx1) / 2; tx0 = c - base; tx1 = c + base }
+                if (ty1 - ty0 < 2 * base) { val c = (ty0 + ty1) / 2; ty0 = c - base; ty1 = c + base }
             }
+            if (!aimInit) { ax0 = tx0; ay0 = ty0; ax1 = tx1; ay1 = ty1; aimInit = true }
+            val k = 1f - Math.exp((-dt * 13f).toDouble()).toFloat()
+            ax0 += (tx0 - ax0) * k; ay0 += (ty0 - ay0) * k; ax1 += (tx1 - ax1) * k; ay1 += (ty1 - ay1) * k
+            onK += ((if (on) 1f else 0f) - onK) * k
+            val col = if (g) Color.parseColor("#5CE08A") else Color.argb(240, 255, 255, 255)
+            val acc = Color.parseColor("#7FD8FF")
+            // brilho suave dentro do alvo
+            if (onK > 0.02f) {
+                val pulse = 0.5f + 0.5f * kotlin.math.sin(now / 260.0).toFloat()
+                p.style = Paint.Style.FILL
+                p.color = Color.argb((26 * onK + 14 * onK * pulse).toInt(), 127, 216, 255)
+                rf.set(ax0, ay0, ax1, ay1); c.drawRoundRect(rf, 12f * d, 12f * d, p)
+            }
+            // cantos (sombra + traço), arredondados
+            val bw = ax1 - ax0; val bh = ay1 - ay0
+            val L = (minOf(bw, bh) * 0.32f).coerceIn(6f * d, 26f * d)
+            val rr = minOf(8f * d, L * 0.6f)
+            for (pass in 0..1) {
+                p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
+                p.strokeWidth = (if (pass == 0) 4.6f else 2.4f) * d
+                p.color = if (pass == 0) Color.argb(90, 0, 0, 0) else blend(col, acc, onK)
+                for (q in 0 until 4) {
+                    val x = if (q % 2 == 0) ax0 else ax1; val y = if (q < 2) ay0 else ay1
+                    val sx = if (q % 2 == 0) 1f else -1f; val sy = if (q < 2) 1f else -1f
+                    path.reset()
+                    path.moveTo(x, y + sy * L)
+                    path.lineTo(x, y + sy * rr)
+                    path.quadTo(x, y, x + sx * rr, y)
+                    path.lineTo(x + sx * L, y)
+                    c.drawPath(path, p)
+                }
+            }
+            // ponto central (some quando abraça um alvo)
+            p.style = Paint.Style.FILL
+            p.color = Color.argb((230 * (1f - onK * 0.7f)).toInt(), 255, 255, 255)
+            c.drawCircle(cx, cy, 1.8f * d, p)
+            if (g && f != null) label(c, "Carregando: ${f.type.nome}", cx, cy + 34f * d, 12f, Color.parseColor("#E62A2046"), Pal.TEXT)
 
             val r = game.joyR
             if (game.joyActive) {

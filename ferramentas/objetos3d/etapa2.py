@@ -104,7 +104,8 @@ def sofa():
     for i in range(3):
         cx = -Wi / 2 + sw * (i + 0.5)
         M.empty('IP_sentar_%d' % i, (cx, 0, SIT_Z), extras=dict(acao='sentar', aproximacao=[cx, 0, SIT_Z + 0.42], inicio=[cx, 0, SIT_Z + 0.12],
-                assento_y=seat_top - SEAT_SIT, olhar='+Z', almofada='almofada_assento_%d' % i))
+                assento_y=seat_top - SEAT_SIT, olhar='+Z', almofada='almofada_assento_%d' % i,
+                alvo=[cx, (0.1 + seat_top + 0.03) / 2, (zbk + D / 2) / 2, sw, seat_top - 0.07, D / 2 - zbk]))
     M.bake_ao(maxd=0.22, strength=0.55)
     return finish(M)
 
@@ -246,7 +247,7 @@ def cama():
         M.empty(nm, (sit_x, 0, 0.12), yaw=(math.pi / 2 if sx > 0 else -math.pi / 2),
                 extras=dict(acao='deitar', dormir=True, lado=('direito' if sx > 0 else 'esquerdo'), aproximacao=[edge + sx * 0.6, 0, 0.12],
                             inicio=[edge + sx * 0.27, 0, 0.12], assento_y=duvet_top - 0.012, deitado=[sx * 0.28, duvet_top + 0.005, -ML / 2 + 0.13],
-                            olhar=('+X' if sx > 0 else '-X'),
+                            olhar=('+X' if sx > 0 else '-X'), alvo=[sx * MW / 4, (0.2 + duvet_top + 0.02) / 2, 0.1, MW / 2, duvet_top - 0.18, ML - 0.3],
                             sequencia=['aproximar pelo lado', 'alinhar (virar de costas)', 'sentar na borda', 'deitar (1 s)', 'deitado', 'dormir',
                                        'despertar', 'sentar', 'levantar']))
     M.bake_ao(maxd=0.25, strength=0.5)
@@ -689,6 +690,7 @@ def pia():
     M.empty('COL_corpo', (0, ytop / 2, 0.0125), extras=dict(shape='box', size=[W + 0.02, ytop, D + 0.025], bloqueia=True, camada='movel'))
     M.empty('SURF_tampo', (0, ytop, zs), extras=dict(shape='box', size=[W, 0, D], recebe='louça, objetos', exceto='furo da cuba'))
     M.empty('IP_lavar', (0, 0, zF + 0.30), extras=dict(acao='lavar', olhar='-Z', alavanca='alavanca', duracao=3.5, rotulo='Lavar as mãos',
+            alvo=[0, ytop - 0.055, zs, 2 * hxs + 0.06, 0.21, 2 * hzs + 0.06],
             sequencia=['ir até a frente da cuba', 'virar para a pia', 'abrir a torneira (interagir)', 'lavar (água correndo)', 'fechar a torneira (interagir)']))
     M.bake_ao(maxd=0.2, strength=0.5)
     return finish(M)

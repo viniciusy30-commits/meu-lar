@@ -39,7 +39,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var hud: LinearLayout
     private lateinit var bottom: LinearLayout
     private lateinit var jumpBtn: FrameLayout
-    private lateinit var useBtn: TextView
+    private lateinit var useBtn: LinearLayout
+    private lateinit var useTxt: TextView
+    private lateinit var useIc: IconView
+    private lateinit var crouchBtn: FrameLayout
+    private lateinit var crouchIc: IconView
+    private lateinit var actBox: FrameLayout
     private lateinit var dockR: LinearLayout
     private lateinit var creator: CreatorUi
     private var prevMode = 0
@@ -145,6 +150,27 @@ class MainActivity : AppCompatActivity() {
         return f
     }
 
+    /** Etapa 88: botão do canto superior direito (vidro colorido com brilho e borda branca); devolve o ícone. */
+    private fun topBtn(icon: Int, tone: Tone, acao: () -> Unit): Pair<FrameLayout, IconView> {
+        val f = FrameLayout(this)
+        f.background = Ui.chunky(tone, dpf(16f), dpf(3f), true, 0xFFFFFFFF.toInt(), dpf(1.8f))
+        f.setPadding(0, 0, 0, dp(3))
+        f.elevation = dpf(5f)
+        val ic = IconView(this, icon, Color.WHITE, tone.edge).fancy(0x99FFFFFF.toInt())
+        f.addView(ic, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(46), dp(48)).also { it.leftMargin = dp(8) }
+        press(f, acao)
+        return Pair(f, ic)
+    }
+
+    private var crouchOn = false
+    /** Etapa 88: botão de agachar aceso (amarelo) quando o personagem está agachado */
+    private fun atualizarAgachar() {
+        crouchOn = game.r.crouch
+        crouchBtn.background = if (crouchOn) Ui.frost(0f, 0xFFB52E, 0xF0, 0xC0, dpf(2f), oval = true, edge = 0xFFFFFFFF.toInt())
+            else Ui.frost(0f, 0x3A4A66, 0xC8, 0x90, dpf(1.6f), oval = true, edge = 0xCCFFFFFF.toInt())
+    }
+
     /** Segmento da barra inferior direita; devolve o ícone para poder trocá-lo. */
     private fun dockSeg(icon: Int, tint: Int, acao: () -> Unit): Pair<FrameLayout, IconView> {
         val f = FrameLayout(this)
@@ -200,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         moneyTv = tvShadow(tv("", 22f, Color.WHITE, true))
         casaTv = tvShadow(tv("", 15f, Color.WHITE, true))
         movTv = tvShadow(tv("", 15f, Color.WHITE, true))
-        hud.addView(statPill(Ic.COIN, Tn.SUN, moneyTv, null, { loja(0) }))
+        // Etapa 88: o dinheiro saiu da tela (fica dentro do mercado)
         root.addView(hud, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
         // canto superior esquerdo: retrato do personagem + coluna de atalhos
@@ -251,47 +277,83 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(bottom, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
 
-        // barra de ícones no canto inferior direito (azul / azul / roxo / verde), como no The Sims
+        // Etapa 88: canto superior direito — câmera, mercado e ajustes em botões de vidro colorido com brilho
         dockR = LinearLayout(this)
-        dockR.orientation = LinearLayout.VERTICAL
-        val frame = LinearLayout(this)
-        frame.orientation = LinearLayout.HORIZONTAL
-        frame.setPadding(dp(3), dp(3), dp(3), dp(3))
-        frame.background = Ui.frost(dpf(25f), DARK, 0x80, 0x55, dpf(1.4f), edge = 0xBBFFFFFF.toInt())
-        val dv = dockSeg(Ic.CAM3P, 0x2FA8F0) { alternarVista() }
+        dockR.orientation = LinearLayout.HORIZONTAL
+        dockR.gravity = Gravity.CENTER_VERTICAL
+        val dv = topBtn(Ic.CAM3P, Tn.SKY) { alternarVista() }
         viewIcon = dv.second
-        frame.addView(dv.first)
-        frame.addView(dockSeg(Ic.CART, 0x9B5CF0) { loja(0) }.first)
-        frame.addView(dockSeg(Ic.DOTS, 0x3CD68A) { config() }.first)
-        dockR.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(10)) })
+        dockR.addView(dv.first)
+        dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
+        dockR.addView(topBtn(Ic.GEAR, Tn.MINT) { config() }.first)
+        root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(8), dp(10), 0) })
 
-        // botão de pular (só na primeira pessoa)
+        // Etapa 88: canto inferior direito — pular no centro, agachar ao lado e o botão de usar logo acima (só com alvo na mira)
+        actBox = FrameLayout(this)
+        actBox.clipChildren = false; actBox.clipToPadding = false
         jumpBtn = FrameLayout(this)
-        jumpBtn.background = Ui.frost(0f, 0x2FA8F0, 0xB8, 0x72, dpf(1.5f), oval = true)
-        jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+        jumpBtn.background = Ui.frost(0f, 0x2FA8F0, 0xD8, 0x96, dpf(2f), oval = true, edge = 0xEEFFFFFF.toInt())
+        jumpBtn.elevation = dpf(6f)
+        jumpBtn.addView(IconView(this, Ic.JUMP, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
         press(jumpBtn) { if (game.mode == 0) game.r.jumpReq = true }
-        root.addView(jumpBtn, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(18), dp(72)) })
-
-        // botão de interação: aparece só quando há porta ou cortina ao alcance
-        useBtn = TextView(this)
-        useBtn.setTextColor(Color.WHITE); useBtn.textSize = 15f
-        useBtn.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        useBtn.gravity = Gravity.CENTER
-        useBtn.setPadding(dp(22), dp(11), dp(22), dp(11))
-        useBtn.background = Ui.frost(dpf(24f), 0x2FA8F0, 0xC8, 0x8A, dpf(1.5f))
+        actBox.addView(jumpBtn, FrameLayout.LayoutParams(dp(72), dp(72), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(40), dp(28)) })
+        crouchBtn = FrameLayout(this)
+        crouchBtn.background = Ui.frost(0f, 0x3A4A66, 0xC8, 0x90, dpf(1.6f), oval = true, edge = 0xCCFFFFFF.toInt())
+        crouchBtn.elevation = dpf(5f)
+        crouchIc = IconView(this, Ic.CROUCH, Color.WHITE, 0xFFFFD45C.toInt()).fancy(0x99FFFFFF.toInt())
+        crouchBtn.addView(crouchIc, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER))
+        press(crouchBtn) {
+            if (game.mode == 0) {
+                game.r.crouch = !game.r.crouch
+                if (game.r.crouch && !CuteChar.hasCrouch()) msg("Este corpo não tem a animação de agachar")
+                atualizarAgachar()
+            }
+        }
+        actBox.addView(crouchBtn, FrameLayout.LayoutParams(dp(54), dp(54), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(128), dp(14)) })
+        // botão de usar: pílula com ícone + ação ("Abrir porta da geladeira"); aparece com uma animação curta
+        useBtn = LinearLayout(this)
+        useBtn.orientation = LinearLayout.HORIZONTAL
+        useBtn.gravity = Gravity.CENTER_VERTICAL
+        useBtn.setPadding(dp(5), dp(5), dp(16), dp(5))
+        useBtn.background = Ui.chunky(Tn.SIMS_GREEN, dpf(26f), dpf(3f), true, 0xFFFFFFFF.toInt(), dpf(1.8f))
+        useBtn.elevation = dpf(6f)
+        val useDisc = FrameLayout(this)
+        useDisc.background = Ui.frost(0f, 0x17805B, 0xF0, 0xD0, dpf(1.4f), oval = true, edge = 0xFFFFFFFF.toInt())
+        useIc = IconView(this, Ic.HAND, Color.WHITE, Tn.SIMS_GREEN.edge)
+        useDisc.addView(useIc, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        useBtn.addView(useDisc, LinearLayout.LayoutParams(dp(40), dp(40)).also { it.rightMargin = dp(9) })
+        useTxt = tvShadow(tv("", 15f, Color.WHITE, true))
+        useTxt.maxWidth = dp(200)
+        useBtn.addView(useTxt)
         useBtn.visibility = View.GONE
         press(useBtn) { game.r.interact() }
-        root.addView(useBtn, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.setMargins(0, 0, 0, dp(96)) })
+        actBox.addView(useBtn, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(116)) })
+        root.addView(actBox, FrameLayout.LayoutParams(dp(300), dp(220), Gravity.BOTTOM or Gravity.END))
+        var lastUseKey = ""
         val useTick = object : Runnable {
             override fun run() {
                 val k = game.r.nearKind
                 if (game.r.saveReq) { game.r.saveReq = false; st.save() }   // Etapa 83: objeto com física parou (grava a posição)
-                if ((game.mode == 0 || k == 5) && k != 0) {
-                    useBtn.text = game.r.nearLabel
-                    if (useBtn.visibility != View.VISIBLE) useBtn.visibility = View.VISIBLE
-                } else if (useBtn.visibility != View.GONE) useBtn.visibility = View.GONE
-                useBtn.postDelayed(this, 150)
+                if ((game.mode == 0 || k == 5) && k != 0 && game.mode != 2) {
+                    val lab = game.r.nearLabel
+                    if (useTxt.text.toString() != lab) useTxt.text = lab
+                    val ic = when (k) { 3 -> Ic.SEAT; 7, 8 -> Ic.BED; 5 -> Ic.BACK; else -> Ic.HAND }
+                    if (useIc.kind != ic) useIc.set(ic)
+                    val key = "$k|$lab"
+                    if (useBtn.visibility != View.VISIBLE) {
+                        useBtn.visibility = View.VISIBLE
+                        useBtn.scaleX = 0.6f; useBtn.scaleY = 0.6f; useBtn.alpha = 0f
+                        useBtn.pivotX = useBtn.width.toFloat().coerceAtLeast(dpf(120f)); useBtn.pivotY = dpf(25f)
+                        useBtn.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(160).start()
+                    } else if (key != lastUseKey) {
+                        useBtn.animate().cancel()
+                        useBtn.scaleX = 0.92f; useBtn.scaleY = 0.92f
+                        useBtn.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                    }
+                    lastUseKey = key
+                } else if (useBtn.visibility != View.GONE) { useBtn.visibility = View.GONE; lastUseKey = "" }
+                if (crouchOn != game.r.crouch) atualizarAgachar()
+                useBtn.postDelayed(this, 80)
             }
         }
         useBtn.post(useTick)
@@ -306,13 +368,13 @@ class MainActivity : AppCompatActivity() {
             val b = ins.getInsets(WindowInsetsCompat.Type.systemBars())
             hud.setPadding(dp(12) + b.left, b.top + dp(6), dp(12) + b.right, dp(4))
             bottom.setPadding(0, 0, 0, b.bottom + dp(8))
-            (jumpBtn.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(18) + b.right, dp(72) + b.bottom)
+            (actBox.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, b.right, b.bottom)
             (portrait.layoutParams as FrameLayout.LayoutParams).setMargins(dp(12) + b.left, b.top + dp(8), 0, 0)
             (sideCol.layoutParams as FrameLayout.LayoutParams).setMargins(dp(17) + b.left, b.top + dp(76), 0, 0)
             portrait.requestLayout(); sideCol.requestLayout()
-            (dockR.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(14) + b.right, dp(10) + b.bottom)
+            (dockR.layoutParams as FrameLayout.LayoutParams).setMargins(0, b.top + dp(8), dp(10) + b.right, 0)
             dockR.requestLayout()
-            jumpBtn.requestLayout()
+            actBox.requestLayout()
             bottomInset = b.bottom
             val cb = ins.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             creator.setInsets(cb.left, cb.top, cb.right, cb.bottom)
@@ -399,6 +461,7 @@ class MainActivity : AppCompatActivity() {
         portrait.visibility = View.GONE
         sideCol.visibility = View.GONE
         jumpBtn.visibility = View.GONE
+        crouchBtn.visibility = View.GONE
         creator.visibility = View.VISIBLE
         creator.open()
     }
@@ -415,6 +478,7 @@ class MainActivity : AppCompatActivity() {
         sideCol.visibility = View.VISIBLE
         game.mode = prevMode
         jumpBtn.visibility = if (prevMode == 0) View.VISIBLE else View.GONE
+        crouchBtn.visibility = jumpBtn.visibility
         viewIcon.set(iconeCamera(prevMode, game.third))
     }
 
@@ -435,6 +499,8 @@ class MainActivity : AppCompatActivity() {
         else { game.third = true; game.mode = 0; msgTxt = "3ª pessoa" }
         viewIcon.set(iconeCamera(game.mode, game.third))
         jumpBtn.visibility = if (game.mode == 0) View.VISIBLE else View.GONE
+        crouchBtn.visibility = jumpBtn.visibility
+        if (game.mode != 0) { game.r.crouch = false; atualizarAgachar() }
         editBar.visibility = View.GONE
         if (game.mode == 1) st.save()
         msg(msgTxt)

@@ -130,7 +130,7 @@ def cadeira():
     M.empty('COL_assento', (0, Y / 2 + 0.01, (zf + zb) / 2), parent=ch, extras=dict(shape='box', size=[SW, Y + 0.03, SD], bloqueia=True, camada='movel'))
     M.empty('COL_encosto', (0, Y + 0.24, zb - 0.03), parent=ch, extras=dict(shape='box', size=[SW - 0.02, 0.46, 0.07], bloqueia=True, camada='movel'))
     M.empty('IP_sentar', (0, 0, sit_z), extras=dict(acao='sentar', inicio=[0, 0, sit_z + 0.12], aproximacao=[-0.62, 0, sit_z + 0.12],
-            assento_y=Y + 0.026 - 0.013, olhar='+Z', puxar='cadeira',
+            assento_y=Y + 0.026 - 0.013, olhar='+Z', puxar='cadeira', alvo=[0, (Y + 0.05) / 2, (zf + zb) / 2, SW, Y + 0.05, SD],
             sequencia=['puxar a cadeira (0,55 s)', 'andar até a lateral', 'entrar entre a cadeira e a mesa', 'virar de costas', 'sentar',
                        'empurrar para a mesa junto com o personagem', 'sentado', 'afastar', 'levantar', 'empurrar a cadeira de volta']))
     M.bake_ao(maxd=0.18, strength=0.5)

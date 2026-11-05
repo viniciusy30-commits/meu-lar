@@ -35,6 +35,9 @@ object CuteChar {
     const val SIT_OUT = 7
     /** Etapa 86: interagir (estica o braço e mexe na peça), clipe 8 */
     const val INTERACT = 8
+    /** Etapa 88: agachado parado e andando agachado (Crouch_Idle_Loop / Crouch_Fwd_Loop da UAL), clipes 9 e 10 */
+    const val CROUCH = 9
+    const val CROUCH_WALK = 10
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -763,6 +766,8 @@ object CuteChar {
     fun hasSit(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 8
     /** Etapa 86: o corpo atual tem o clipe de interagir? */
     fun hasInteract(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 9
+    /** Etapa 88: o corpo atual tem os clipes de agachar? */
+    fun hasCrouch(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 11
 
     private val sitSeats = HashMap<String, Float>()
     /** Etapa 83: altura (m) do assento que este personagem precisa sentado (traseiro), já com a altura do slider. */
