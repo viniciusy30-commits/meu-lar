@@ -121,11 +121,13 @@ class Avatar(
     /** Etapa 44: corpo do Sims 3. Idade 0 bebê, 1 criança, 2 jovem, 3 adulto, 4 idoso; tipo 0 magro, 1 normal, 3 gordo; cabelo (jovem/adulto/idoso). */
     var simAge: Int = 3,
     var simType: Int = 1,
-    var simHair: Boolean = true
+    var simHair: Boolean = true,
+    /** Etapa 65: sliders do The Sims 3 (SimSliders), -100..100, índice = id da tabela; 0 = original. */
+    var ss: IntArray = IntArray(SimSliders.NS)
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.take(BodyMorph.NB_OLD)).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).plus(bs.drop(BodyMorph.NB_OLD)).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.take(BodyMorph.NB_OLD)).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).plus(bs.drop(BodyMorph.NB_OLD)).plus(ss.toList()).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
@@ -293,6 +295,9 @@ class Avatar(
                         val ix = ex0 + (k - BodyMorph.NB_OLD)
                         if (ix < p.size) av.bs[k] = p[ix].coerceIn(-100, 100)
                     }
+                    // Etapa 65: sliders do Sims 3 (SimSliders.NS valores no fim; saves antigos ficam em 0)
+                    val ex1 = ex0 + (BodyMorph.NB - BodyMorph.NB_OLD)
+                    for (k in 0 until SimSliders.NS) if (ex1 + k < p.size) av.ss[k] = p[ex1 + k].coerceIn(-100, 100)
                 }
             } catch (e: Exception) {
                 null

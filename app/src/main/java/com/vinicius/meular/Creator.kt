@@ -284,7 +284,7 @@ class CreatorUi(
         CuteColor.setColors(av.cc)
         if (s.sl == 1) {
             for (i in av.bs.indices) av.bs[i] = rnd.nextInt(81) - 40
-            CuteChar.setShape(av.bs, av.fs, av.masc)
+            CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
         }
         st.save()
         refresh(true)
@@ -583,6 +583,7 @@ class CreatorUi(
     private fun sliders(kind: Int) {
         if (kind != 1) return   // o rosto vem do Sims 3 (sem sliders); os sliders de corpo valem para o corpo do Sims 3
         val av = st.avatar
+        if (CuteChar.simSlidersAvailable()) { simSlidersUi(); return }   // Etapa 65: sliders reais do Sims 3
         val names = if (kind == 1) BodyMorph.BODY_NAMES else BodyMorph.FACE_NAMES
         val arr = if (kind == 1) av.bs else av.fs
         if (false) {
@@ -603,7 +604,7 @@ class CreatorUi(
                     if (av.masc != m || av.julie) {
                         av.masc = m
                         if (av.julie) { av.julie = false; CuteChar.setWear(av.wearKeys()) }   // Etapa 43: sair da Julie
-                        CuteChar.setShape(av.bs, av.fs, av.masc)
+                        CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
                         st.save()
                         refresh(true)
                     }
@@ -622,7 +623,7 @@ class CreatorUi(
         reset.background = pillBg(false, dpf(15f))
         reset.setOnClickListener {
             java.util.Arrays.fill(arr, 0)
-            CuteChar.setShape(av.bs, av.fs, av.masc)
+            CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
             st.save()
             refresh(true)
         }
@@ -667,13 +668,110 @@ class CreatorUi(
                     if (v in -4..4) { v = 0; s?.progress = 100 }   // ímã no zero
                     arr[i] = v
                     value.text = pct(v)
-                    CuteChar.setShape(av.bs, av.fs, av.masc)
+                    CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) { s?.parent?.requestDisallowInterceptTouchEvent(true) }
                 override fun onStopTrackingTouch(s: SeekBar?) { st.save() }
             })
             body.addView(sb, LinearLayout.LayoutParams(-1, dp(36)))
         }
+    }
+
+
+    private val openCats = HashSet<String>()
+    private val BODY_CATS = listOf("Tronco e postura", "Ombros", "Busto", "Quadril e bumbum", "Pernas", "Braços", "Mãos", "Pés", "Pescoço")
+    private val FACE_CATS = listOf("Cabeça", "Olhos", "Sobrancelhas", "Bochechas", "Nariz", "Boca", "Mandíbula e queixo", "Orelhas")
+
+    /** Uma linha "nome ........ valor" + barra -100..100 (ímã no zero). */
+    private fun seekRow(label: String, cur: Int, onChange: (Int) -> Unit) {
+        val head = LinearLayout(context)
+        head.orientation = LinearLayout.HORIZONTAL
+        head.gravity = Gravity.CENTER_VERTICAL
+        val lab = TextView(context)
+        lab.text = label
+        lab.textSize = 13f
+        lab.typeface = Ui.BOLD
+        lab.setTextColor(TXT)
+        head.addView(lab, LinearLayout.LayoutParams(0, -2, 1f))
+        val value = TextView(context)
+        value.text = pct(cur)
+        value.textSize = 12f
+        value.typeface = Ui.MED
+        value.setTextColor(SUB2)
+        head.addView(value, LinearLayout.LayoutParams(-2, -2))
+        body.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(10); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        val sb = SeekBar(context)
+        sb.max = 200
+        sb.progress = cur + 100
+        sb.progressTintList = ColorStateList.valueOf(0xFF35B5E0.toInt())
+        sb.progressBackgroundTintList = ColorStateList.valueOf(0xFFBFD6E0.toInt())
+        sb.thumbTintList = ColorStateList.valueOf(0xFF2E9BD1.toInt())
+        sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                var v = p - 100
+                if (v in -4..4) { v = 0; s?.progress = 100 }
+                value.text = pct(v)
+                onChange(v)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) { s?.parent?.requestDisallowInterceptTouchEvent(true) }
+            override fun onStopTrackingTouch(s: SeekBar?) { st.save() }
+        })
+        body.addView(sb, LinearLayout.LayoutParams(-1, dp(36)))
+    }
+
+    /** Etapa 65: os sliders de corpo e rosto do The Sims 3, agrupados e recolhíveis. */
+    private fun simSlidersUi() {
+        val av = st.avatar
+        val reset = TextView(context)
+        reset.text = "Zerar tudo"
+        reset.textSize = 12f
+        reset.typeface = Ui.BOLD
+        reset.setTextColor(TXT)
+        reset.gravity = Gravity.CENTER
+        reset.setPadding(dp(14), 0, dp(14), dp(2))
+        reset.background = pillBg(false, dpf(15f))
+        reset.setOnClickListener {
+            java.util.Arrays.fill(av.ss, 0)
+            java.util.Arrays.fill(av.bs, 0)
+            CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
+            st.save()
+            refresh(true)
+        }
+        body.addView(reset, LinearLayout.LayoutParams(-2, dp(34)).also { it.topMargin = dp(6); it.leftMargin = dp(4) })
+        fun title(t: String, size: Float, top: Int) {
+            val gh = TextView(context)
+            gh.text = t
+            gh.textSize = size
+            gh.typeface = Ui.BOLD
+            gh.setTextColor(TXT)
+            body.addView(gh, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(top); it.leftMargin = dp(4) })
+        }
+        title("Geral", 15f, 18)
+        seekRow("Altura", av.bs[0]) { v -> av.bs[0] = v; CuteChar.setShape(av.bs, av.fs, av.masc, av.ss) }
+        fun cats(titulo: String, face: Boolean, names: List<String>) {
+            title(titulo, 17f, 24)
+            for (c in names) {
+                val list = SimSliders.sliders.filter { it.face == face && it.cat == c }
+                if (list.isEmpty()) continue
+                val open = c in openCats
+                val used = list.count { av.ss[it.id] != 0 }
+                val h = TextView(context)
+                h.text = (if (open) "▾  " else "▸  ") + c + "  (" + list.size + ")" + (if (used > 0) "  •  $used alterado(s)" else "")
+                h.textSize = 14f
+                h.typeface = Ui.BOLD
+                h.setTextColor(TXT)
+                h.setPadding(dp(10), 0, dp(10), 0)
+                h.gravity = Gravity.CENTER_VERTICAL
+                h.background = pillBg(open, dpf(14f)).also { }
+                h.setTextColor(if (open) Color.WHITE else TXT)
+                h.setOnClickListener { if (open) openCats.remove(c) else openCats.add(c); refresh(true) }
+                body.addView(h, LinearLayout.LayoutParams(-1, dp(42)).also { it.topMargin = dp(8); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+                if (open) for (sl in list) seekRow(sl.name, av.ss[sl.id]) { v -> av.ss[sl.id] = v; CuteChar.setShape(av.bs, av.fs, av.masc, av.ss) }
+            }
+        }
+        cats("Corpo", false, BODY_CATS)
+        cats("Rosto", true, FACE_CATS)
     }
 
     private var exprSel = -1
@@ -709,7 +807,7 @@ class CreatorUi(
         val av = st.avatar
         av.simType = av.simTypeFor(av.simAge, av.simType)
         CuteChar.setWear(av.wearKeys())
-        CuteChar.setShape(av.bs, av.fs, av.masc)
+        CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
         st.save()
         refresh(true)
     }

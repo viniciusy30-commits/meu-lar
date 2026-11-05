@@ -142,7 +142,18 @@ object CuteChar {
     }
 
     /** Etapa 7: controles do criador (inteiros -100..100): [body] na ordem de BodyMorph.BODY_NAMES, [face] na de FACE_NAMES. */
-    fun setShape(body: IntArray, face: IntArray, masc: Boolean = false) {
+    @Volatile private var simV = FloatArray(SimSliders.NS)   // Etapa 65: sliders do Sims 3 (-1..1)
+    @Volatile private var simSlidersOn = false
+
+    /** Etapa 65: o grupo do corpo do Sims 3 em uso ("af", "cu"...) ou null; usado pelo criador para saber se mostra os sliders do Sims. */
+    fun simSlidersAvailable(): Boolean = simOn && SimSliders.ready
+
+    fun setShape(body: IntArray, face: IntArray, masc: Boolean = false, ss: IntArray? = null) {
+        if (ss != null) {
+            val v = FloatArray(SimSliders.NS) { i -> if (i < ss.size) ss[i].coerceIn(-100, 100) / 100f else 0f }
+            simV = v
+            simSlidersOn = SimSliders.any(v)
+        }
         val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
@@ -543,6 +554,7 @@ object CuteChar {
     /** Etapa 50: bodyrig.txt, uma linha por corpo: chave|23 valores (cm). Se faltar, os sliders novos não deformam nada. */
     private fun loadRigs(am: AssetManager) {
         rigs.clear()
+        try { if (!SimSliders.ready) SimSliders.load(am.open("cute/simsliders.txt").bufferedReader(Charsets.UTF_8).use { it.readText() }) } catch (e: Throwable) { }
         try {
             am.open("cute/bodyrig.txt").bufferedReader(Charsets.UTF_8).use { rd ->
                 for (raw in rd.readLines()) {
@@ -617,7 +629,11 @@ object CuteChar {
             }
         }
         val rg = if (simOn) rigs[simKey] else null
-        if (simOn && rg != null) BodyMorph.warpSim(src, s.pos, s.nv, bp, rg)   // Etapa 50: sliders do corpo do Sims 3
+        if (simOn && rg != null) {
+            // Etapa 65: sliders reais do Sims 3 (ajustes de osso do BOND); sem eles o corpo fica exatamente como o original
+            val k = rg[19] / SimSliders.neckY(simKey.substring(0, 2))
+            if (!SimSliders.warp(src, s.pos, s.nv, simV, simKey.substring(0, 2), k, s.pos0)) System.arraycopy(src, 0, s.pos, 0, s.nv * 3)
+        }
         else BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
         BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver

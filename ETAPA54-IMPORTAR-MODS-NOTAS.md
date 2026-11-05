@@ -128,3 +128,4 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Ajustado por corpo (af, am, tf, tm, ef, em): escala não uniforme + inclinação (Nelder-Mead), elevação suave do topo e empurrão radial só onde o fio entra no crânio. Mesh não é refeita, só deformada suavemente.
 - Itens embutidos `bern1_<grupo>` (assets/cute/skate/*.cup/.png + thumbs). Registrados no ModStore.
 - Crianças (cu) e bebês (pu) também: o ajuste roda com a cabeça do corpo reduzida ao tamanho adulto e o cabelo volta à escala real. Tampa de couro cabeludo (0,4 cm acima do crânio, textura preta) tapa as falhas da nuca e do topo. V2 não incluído. Não testado no aparelho.
+- Viseira: as mechas que saíam 12 cm à frente da testa são comprimidas e caem sobre a testa (drape).
