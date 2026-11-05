@@ -29,3 +29,8 @@
 - ferramentas/etapa90f_clipes_s4.py: clips_am5.bin / clips_af5.bin = os 11 clipes do app refeitos com as juntas do esqueleto original do TS4 (mesma rotação por osso, posições por cinemática direta com os comprimentos do TS4).
 - CuteChar: corpo "body/S_<g>5" carrega clips_<g>5.bin. bodyrig am5/af5 = juntas do TS4.
 - Próximo: andar/correr novos (captura de movimento Bandai Namco, uso não comercial).
+
+## 90g — andar e correr de captura de movimento (corpo do TS4)
+- ferramentas/etapa90g_bandai.py: BVH do Bandai Namco -> 55 ossos com as juntas do TS4 (direção de cada osso copiada, giro a partir de um quadro de calibração, tronco/cabeça mantêm a postura do TS4, um passo completo esq+dir detectado pelo cruzamento dos pés, no lugar, pé no chão, laço costurado).
+- Homem: walk_normal + run_masculinity. Mulher: walk_feminine + run_feminine. Substituem os clipes 1 (andar) e 3 (correr) de clips_am5/af5.
+- Licença: CC BY-NC-ND (não comercial).

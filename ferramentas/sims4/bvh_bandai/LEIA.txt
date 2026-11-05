@@ -1,0 +1,2 @@
+Capturas de movimento do Bandai Namco Research Motion Dataset (github.com/BandaiNamcoResearchInc/Bandai-Namco-Research-Motiondataset).
+Licença CC BY-NC-ND 4.0: só uso NÃO comercial. Se o jogo for vendido um dia, trocar por outra fonte (ex.: CMU).
