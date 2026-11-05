@@ -795,3 +795,72 @@ def lixeira(cor=(0.85, 0.85, 0.85), h=0.24, r=0.09):
     g.lathe(MET, (0, h - 0.0005, 0), [(r * 1.04, 0), (r * 1.04, 0.008), (r * 0.8, 0.026), (0, 0.032)], sides=26, col=C4(_shade(cor, 1.05)))
     g.tube(PLN, [V(-0.02, h + 0.004, -r - 0.004), V(0.02, h + 0.004, -r - 0.004)], [0.005, 0.005], sides=8, col=lambda p, t: C4((0.12, 0.12, 0.13)))
     return g, dict(altura=h + 0.032)
+
+
+# ================================================================================================ LOUÇA E MESA (aparador)
+def prato(r=0.11, cor=(0.97, 0.97, 0.95), borda=(0.25, 0.40, 0.60)):
+    """prato raso: pé (anel), fundo, aba levantada e friso colorido na borda"""
+    g = Geo()
+    prof = [(0, 0.004), (r * 0.42, 0.004), (r * 0.44, 0.0), (r * 0.5, 0.0), (r * 0.52, 0.004), (r * 0.62, 0.005), (r * 0.9, 0.014), (r, 0.018),
+            (r * 0.99, 0.02), (r * 0.88, 0.0165), (r * 0.6, 0.0085), (0, 0.0085)]
+    g.lathe(GLZ, (0, 0, 0), prof, sides=32, col=C4(cor))
+    g.lathe(GLZ, (0, 0, 0), [(r * 0.93, 0.0175), (r * 0.965, 0.0195)], sides=32, col=C4(borda))
+    return g, dict(altura=0.009)
+
+
+def tigela(r=0.07, h=0.05, cor=(0.86, 0.58, 0.42)):
+    """tigela de cerâmica com pé e borda arredondada"""
+    g = Geo()
+    g.lathe(GLZ, (0, 0, 0), [(0, 0.004), (r * 0.42, 0.004), (r * 0.45, 0.0), (r * 0.55, 0.0), (r * 0.6, 0.006), (r * 0.9, h * 0.6), (r, h), (r * 0.97, h + 0.003),
+                             (r * 0.92, h), (r * 0.82, h * 0.6), (r * 0.5, h * 0.25), (0, h * 0.22)], sides=28, col=C4(cor))
+    return g, dict(altura=h + 0.003)
+
+
+def xicara(cor=(0.95, 0.95, 0.93), r=0.032, h=0.05):
+    """xícara com alça (de lado) apoiada no pires"""
+    g = Geo()
+    g.lathe(GLZ, (0, 0, 0), [(0, 0.003), (0.03, 0.003), (0.032, 0.0), (0.05, 0.0), (0.062, 0.008), (0.06, 0.01), (0.03, 0.007), (0, 0.007)], sides=26, col=C4(cor))
+    y0 = 0.007 - 0.0005
+    g.lathe(GLZ, (0, y0, 0), [(0, 0.002), (r * 0.6, 0.002), (r * 0.62, 0.0), (r * 0.8, 0.0), (r * 0.95, h * 0.4), (r, h), (r * 0.95, h), (r * 0.88, h * 0.4), (0, h * 0.1)],
+            sides=24, col=C4(cor))
+    pts = [V(r * 0.97, y0 + h * 0.8, 0), V(r + 0.016, y0 + h * 0.78, 0), V(r + 0.02, y0 + h * 0.5, 0), V(r + 0.012, y0 + h * 0.25, 0), V(r * 0.9, y0 + h * 0.25, 0)]
+    g.tube(GLZ, pts, [0.0035] * len(pts), sides=7, col=lambda p, t: C4(cor))
+    return g, dict(altura=y0 + h)
+
+
+def organizador_talheres(cor=(0.82, 0.66, 0.46)):
+    """organizador de madeira com divisórias, garfos, facas e colheres deitados nos compartimentos"""
+    g = Geo(); w, d, h = 0.26, 0.30, 0.04
+    rbox(g, OAK, (0, 0.003, 0), (w, 0.006, d), r=0.002, col=cor, uv=2)
+    for sx in (-1, 1): rbox(g, OAK, (sx * (w / 2 - 0.004), h / 2, 0), (0.008, h, d), r=0.002, col=cor, uv=2)
+    for sz in (-1, 1): rbox(g, OAK, (0, h / 2, sz * (d / 2 - 0.004)), (w, h, 0.008), r=0.002, col=cor, uv=2)
+    cw = (w - 0.008) / 4
+    for k in range(1, 4): rbox(g, OAK, (-w / 2 + 0.004 + k * cw, h * 0.45, 0), (0.005, h * 0.9, d - 0.008), r=0.0015, col=cor, uv=2)
+    st = CHROME
+    for k, kind in enumerate(('garfo', 'faca', 'colher', 'colher')):
+        xc = -w / 2 + 0.004 + cw * (k + 0.5)
+        for n in range(3):
+            x = xc + (n - 1) * 0.012; y = 0.006 + 0.0025 + n * 0.0012
+            # cabo
+            g.tube(MET, [V(x, y, -0.12), V(x, y, 0.02)], [0.0035, 0.003], sides=6, col=lambda p, t: C4(st))
+            if kind == 'faca':
+                rbox(g, MET, (x, y, 0.07), (0.012, 0.0015, 0.1), r=0.0006, col=st, uv=2)
+            elif kind == 'garfo':
+                rbox(g, MET, (x, y, 0.04), (0.014, 0.0015, 0.04), r=0.0006, col=st, uv=2)
+                for tq in range(4):
+                    rbox(g, MET, (x - 0.0055 + tq * 0.0037, y, 0.075), (0.0018, 0.0015, 0.032), r=0.0005, col=st, uv=2)
+            else:
+                tmp = Geo(); tmp.lathe(MET, (0, 0, 0), [(0, 0), (0.016, 0.0015), (0.017, 0.004), (0, 0.0012)], sides=14, col=C4(st))
+                add_xf(g, tmp, np.diag([0.75, 1, 1.1]), (x, y - 0.0018, 0.06))
+    return g, dict(altura=h)
+
+
+def castical_vela(cor_vela=(0.95, 0.92, 0.82)):
+    """castiçal de latão (base, haste torneada, copinho) com vela, pavio e um pingo de cera"""
+    g = Geo()
+    g.lathe(MET, (0, 0, 0), [(0, 0), (0.035, 0), (0.036, 0.004), (0.022, 0.012), (0.008, 0.02), (0.012, 0.05), (0.007, 0.08), (0.016, 0.1), (0.018, 0.108),
+                             (0.012, 0.11), (0, 0.11)], sides=22, col=C4(BRASS))
+    g.lathe(PLN, (0, 0.105, 0), [(0, 0), (0.0105, 0), (0.0105, 0.13), (0.008, 0.134), (0, 0.135)], sides=16, col=C4(cor_vela))
+    g.tube(PLN, [V(0, 0.233, 0), V(0.001, 0.248, 0)], [0.0012, 0.0009], sides=4, col=lambda p, t: C4((0.12, 0.10, 0.08)))
+    g.tube(PLN, [V(0.0103, 0.236, 0), V(0.0108, 0.215, 0.001), V(0.0106, 0.2, 0.0)], [0.0018, 0.0016, 0.0011], sides=5, col=lambda p, t: C4(cor_vela))
+    return g, dict(altura=0.248)

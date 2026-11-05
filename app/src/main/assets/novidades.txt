@@ -1,3 +1,10 @@
+#id 2026-11-09-c
+#titulo Jogo mais leve + protótipos de volta
+- Desempenho: o 3D agora usa um shader mais leve (sem descarte de pixels nos objetos opacos, precisão média), não desenha o que está fora da câmera e ajusta a resolução sozinho para manter o jogo liso
+- Configurações: "Contador de FPS" mostra quantos quadros por segundo o jogo está rodando
+- Voltaram poltrona, aparador, vaso com costela-de-adão, caixa de papelão e bola, revisados sem nenhuma peça flutuando; o aparador ganhou pratos, tigelas, xícaras, toalhas, talheres no organizador e castiçais com velas
+- O personagem não levanta mais a mão para interagir: a porta, gaveta ou botão responde na hora
+
 #id 2026-11-09-b
 #titulo Interação nova: mira que abraça o alvo, botões novos e agachar
 - Mira de verdade: aponte para a porta, gaveta, botão do fogão, torneira, assento ou cortina; os cantos da mira deslizam e envolvem o que você vai usar

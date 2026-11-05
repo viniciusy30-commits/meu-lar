@@ -718,6 +718,11 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
     }
 
     override fun onDraw(c: Canvas) {
+        if (game.r.showFps) {
+            val f = game.r.fpsAvg
+            label(c, "%d FPS".format(Math.round(f)), width / 2f, 30f * d + rootWindowInsets.let { it?.systemWindowInsetTop ?: 0 }, 11f,
+                if (f >= 50f) Color.argb(200, 30, 120, 70) else if (f >= 30f) Color.argb(200, 150, 110, 20) else Color.argb(200, 160, 40, 40), Color.WHITE)
+        }
         if (game.r.mode == 0) {
             val w = width.toFloat()
             val h = height.toFloat()

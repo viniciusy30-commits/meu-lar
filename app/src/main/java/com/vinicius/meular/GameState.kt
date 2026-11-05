@@ -25,6 +25,12 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
     X_FL_LAV("Lavanda", 1, 1, 0, 0.5f, 4, fl = "fl_lav"),
     X_FL_POPPY("Papoulas", 1, 1, 0, 0.45f, 4, fl = "fl_poppy"),
     X_FL_YELLOW("Flores amarelas", 1, 1, 0, 0.5f, 4, fl = "fl_yellow"),
+    // Protótipos da biblioteca 3D (Etapa 0/83), revisados pelas regras v4: vaso, caixa e bola com física, poltrona e aparador
+    G_POLTRONA("Poltrona de linho", 1, 1, 0, 0.77f, 0, glb = "int_poltrona"),
+    G_APARADOR("Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador"),
+    G_VASO("Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela"),
+    G_CAIXA("Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true),
+    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true),
     // Etapa 87: o jogo só tem o que vem do Plano Mestre (os móveis anteriores ao PDF foram retirados; saves antigos ignoram esses itens).
     // ETAPA 1 do Plano Mestre: cadeira, mesa e armário com porta e gaveta
     G_CADEIRA("Cadeira de jantar", 1, 1, 0, 0.78f, 2, glb = "int_cadeira_jantar"),

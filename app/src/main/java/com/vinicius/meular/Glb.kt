@@ -157,7 +157,8 @@ class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, priva
     }
 
     /** nós cujo nome começa com [prefix] (ex.: "IP_sentar") */
-    fun ips(prefix: String): List<Int> = nodes.indices.filter { nodes[it].name.startsWith(prefix) }
+    fun ips(prefix: String): List<Int> = ipCache.getOrPut(prefix) { nodes.indices.filter { nodes[it].name.startsWith(prefix) } }
+    private val ipCache = java.util.concurrent.ConcurrentHashMap<String, List<Int>>()
 
     /** peças que afundam quando o assento [seat] está ocupado */
     fun occSlots(seat: String): List<Int> = animated.indices.filter { slotGatilho[it] == "ocupado" && (slotAssento[it].isEmpty() || slotAssento[it] == seat) }

@@ -163,6 +163,27 @@ class MainActivity : AppCompatActivity() {
         return Pair(f, ic)
     }
 
+    private var rScale = 0f
+    private var rW = 0
+    private var rH = 0
+    private fun ajustarResolucao() {
+        val w = game.width; val h = game.height
+        if (w <= 0 || h <= 0 || game.mode == 2) return
+        val short = minOf(w, h).toFloat()
+        val maxS = minOf(1f, 900f / short); val minS = minOf(maxS, 380f / short)
+        var ns = rScale
+        if (w != rW || h != rH || rScale == 0f) { rW = w; rH = h; ns = minOf(maxS, 720f / short) }
+        else {
+            val f = game.r.fpsAvg
+            if (f < 45f) ns = maxOf(minS, rScale * 0.85f)
+            else if (f > 58f) ns = minOf(maxS, rScale * 1.08f)
+        }
+        if (Math.abs(ns - rScale) > 0.02f || rScale == 0f) {
+            rScale = ns
+            game.holder.setFixedSize(Math.max(1, (w * ns).toInt()), Math.max(1, (h * ns).toInt()))
+        }
+    }
+
     private var crouchOn = false
     /** Etapa 88: botão de agachar aceso (amarelo) quando o personagem está agachado */
     private fun atualizarAgachar() {
@@ -381,6 +402,13 @@ class MainActivity : AppCompatActivity() {
             (msgTv.layoutParams as FrameLayout.LayoutParams).topMargin = b.top + dp(56)
             ins
         }
+
+        // Etapa 89: resolução dinâmica — o 3D é desenhado numa resolução menor que a da tela (a imagem é ampliada pelo sistema)
+        // e ela se ajusta sozinha para manter o jogo liso: cai se o FPS ficar abaixo de 45 e sobe de novo se sobrar folga.
+        game.r.showFps = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("fps", false)
+        game.post(object : Runnable {
+            override fun run() { ajustarResolucao(); game.postDelayed(this, 1200) }
+        })
 
         game.onFocus = { item, grabbed -> aoMudarFoco(item, grabbed) }
         game.onChanged = { st.save() }
@@ -848,6 +876,12 @@ class MainActivity : AppCompatActivity() {
             linha(panel, Ic.PERSON, "Meu personagem", Tn.ROSE) { dlg?.dismiss(); abrirCriador() }
             linha(panel, Ic.INFO, "O que mudou", Tn.SKY) { dlg?.dismiss(); mostrarNovidades(true) }
             linha(panel, Ic.HOME, if (st.testRoom) "Sair da sala de testes" else "Sala de testes", Tn.SUN) { dlg?.dismiss(); alternarSalaTestes() }
+            var fpsT: TextView? = null
+            fpsT = linha(panel, Ic.INFO, if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado", Tn.MINT) {
+                game.r.showFps = !game.r.showFps
+                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("fps", game.r.showFps).apply()
+                fpsT?.text = if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado"
+            }
             var sens: TextView? = null
             sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}", Tn.SUN) {
                 st.sens = (st.sens + 1) % 3

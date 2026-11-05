@@ -19,7 +19,9 @@ import kotlin.math.sqrt
 private const val JUMP_PRE = 0.14f   // agachada antes do pulo parado (= trecho pré-decolagem do clipe 2)
 private const val WALK_SPEED = 1.7f   // Etapa 63: casado com o passo dos clipes de andar novos (Mixamo)
 private const val RUN_SPEED = 3.2f
-private const val CROUCH_SPEED = 0.85f  // Etapa 88: andando agachado (Crouch_Fwd_Loop)   // Etapa 63: casado com o passo da corrida nova (Mixamo Running_1)
+private const val CROUCH_SPEED = 0.85f
+/** Etapa 89: animação de interagir (braço esticado) desligada; o clipe 8 continua nos arquivos */
+private const val USE_ANIM = false  // Etapa 88: andando agachado (Crouch_Fwd_Loop)   // Etapa 63: casado com o passo da corrida nova (Mixamo Running_1)
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
@@ -55,6 +57,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var third = true
     /** pedido de pulo (botão na tela) */
     @Volatile var jumpReq = false
+    /** Etapa 89: quadros por segundo (média móvel) */
+    @Volatile var fpsAvg = 60f
+    @Volatile var showFps = false
     /** Etapa 88: agachado (botão de agachar); pular levanta */
     @Volatile var crouch = false
     private var crouchK = 0f
@@ -252,17 +257,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     """.trimIndent()
 
     private val FS = """
-        #ifdef GL_FRAGMENT_PRECISION_HIGH
-        precision highp float;
-        #else
         precision mediump float;
-        #endif
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
         uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec; uniform float uCut;
         uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight; uniform float uSoft;
         void main() {
             vec4 t = texture2D(uTex, vUV);
-            if (t.a < uCut) discard;
+            CUT_LINE
             vec3 base = t.rgb * vCol.rgb;
             float a = t.a * vCol.a * uAlpha;
             if (length(vN) < 0.1) { gl_FragColor = vec4(base, a); return; }
@@ -297,6 +298,46 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
     """.trimIndent()
 
+    // Etapa 89: dois programas — opaco (sem "discard", o que deixa a GPU do celular descartar pixels escondidos antes de
+    // pintar) e recorte (folhas, cabelo). O programa ativo troca só quando a peça pede; os uniformes do quadro são reaplicados.
+    private class Loc { var prog = 0; var uMVP = 0; var uModel = 0; var uAlpha = 0; var uTex = 0; var uCut = 0; var uSpec = 0; var uPush = 0
+        var uEye = 0; var uRoom = 0; var uLight = 0; var uSoft = 0 }
+    private val locs = arrayOf(Loc(), Loc())
+    private var curProg = 0
+    private val frameU = FloatArray(8)       // olho (3), sala (2), luz (3)
+
+    private fun buildProg(l: Loc, fs: String) {
+        l.prog = GLES20.glCreateProgram()
+        GLES20.glAttachShader(l.prog, sh(GLES20.GL_VERTEX_SHADER, VS))
+        GLES20.glAttachShader(l.prog, sh(GLES20.GL_FRAGMENT_SHADER, fs))
+        GLES20.glBindAttribLocation(l.prog, 0, "aPos"); GLES20.glBindAttribLocation(l.prog, 1, "aNor")
+        GLES20.glBindAttribLocation(l.prog, 2, "aCol"); GLES20.glBindAttribLocation(l.prog, 3, "aUV")
+        GLES20.glLinkProgram(l.prog)
+        l.uMVP = GLES20.glGetUniformLocation(l.prog, "uMVP"); l.uModel = GLES20.glGetUniformLocation(l.prog, "uModel")
+        l.uAlpha = GLES20.glGetUniformLocation(l.prog, "uAlpha"); l.uTex = GLES20.glGetUniformLocation(l.prog, "uTex")
+        l.uCut = GLES20.glGetUniformLocation(l.prog, "uCut"); l.uSpec = GLES20.glGetUniformLocation(l.prog, "uSpec")
+        l.uPush = GLES20.glGetUniformLocation(l.prog, "uPush"); l.uEye = GLES20.glGetUniformLocation(l.prog, "uEye")
+        l.uRoom = GLES20.glGetUniformLocation(l.prog, "uRoom"); l.uLight = GLES20.glGetUniformLocation(l.prog, "uLight")
+        l.uSoft = GLES20.glGetUniformLocation(l.prog, "uSoft")
+    }
+
+    private fun useProg(i: Int) {
+        curProg = i
+        val l = locs[i]
+        GLES20.glUseProgram(l.prog)
+        prog = l.prog; uMVP = l.uMVP; uModel = l.uModel; uAlpha = l.uAlpha; uTex = l.uTex; uCut = l.uCut; uSpec = l.uSpec; uPush = l.uPush
+        uEye = l.uEye; uRoom = l.uRoom; uLight = l.uLight; uSoft = l.uSoft
+        GLES20.glUniform3f(uEye, frameU[0], frameU[1], frameU[2])
+        GLES20.glUniform2f(uRoom, frameU[3], frameU[4])
+        GLES20.glUniform3f(uLight, frameU[5], frameU[6], frameU[7])
+    }
+
+    /** uniformes do quadro (olho, tamanho da sala, luz do teto): guardados para valer nos dois programas */
+    private fun frameUniforms(exx: Float, eyy: Float, ezz: Float, rw: Float, rh: Float, lx: Float, ly: Float, lz: Float) {
+        frameU[0] = exx; frameU[1] = eyy; frameU[2] = ezz; frameU[3] = rw; frameU[4] = rh; frameU[5] = lx; frameU[6] = ly; frameU[7] = lz
+        GLES20.glUniform3f(uEye, exx, eyy, ezz); GLES20.glUniform2f(uRoom, rw, rh); GLES20.glUniform3f(uLight, lx, ly, lz)
+    }
+
     private fun sh(type: Int, src: String): Int {
         val s = GLES20.glCreateShader(type)
         GLES20.glShaderSource(s, src)
@@ -310,26 +351,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        prog = GLES20.glCreateProgram()
-        GLES20.glAttachShader(prog, sh(GLES20.GL_VERTEX_SHADER, VS))
-        GLES20.glAttachShader(prog, sh(GLES20.GL_FRAGMENT_SHADER, FS))
-        GLES20.glLinkProgram(prog)
-        aPos = GLES20.glGetAttribLocation(prog, "aPos")
-        aNor = GLES20.glGetAttribLocation(prog, "aNor")
-        aCol = GLES20.glGetAttribLocation(prog, "aCol")
-        aUV = GLES20.glGetAttribLocation(prog, "aUV")
-        uMVP = GLES20.glGetUniformLocation(prog, "uMVP")
-        uModel = GLES20.glGetUniformLocation(prog, "uModel")
-        uAlpha = GLES20.glGetUniformLocation(prog, "uAlpha")
-        uTex = GLES20.glGetUniformLocation(prog, "uTex")
-        uCut = GLES20.glGetUniformLocation(prog, "uCut")
-        uSpec = GLES20.glGetUniformLocation(prog, "uSpec")
-        uPush = GLES20.glGetUniformLocation(prog, "uPush")
-        uEye = GLES20.glGetUniformLocation(prog, "uEye")
-        uRoom = GLES20.glGetUniformLocation(prog, "uRoom")
-        uLight = GLES20.glGetUniformLocation(prog, "uLight")
-        uSoft = GLES20.glGetUniformLocation(prog, "uSoft")
-        GLES20.glUseProgram(prog)
+        buildProg(locs[0], FS.replace("CUT_LINE", ""))
+        buildProg(locs[1], FS.replace("CUT_LINE", "if (t.a < uCut) discard;"))
+        aPos = 0; aNor = 1; aCol = 2; aUV = 3
+        useProg(0)
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glEnableVertexAttribArray(aNor)
         GLES20.glEnableVertexAttribArray(aCol)
@@ -357,6 +382,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glUniform1f(uAlpha, alpha)
         for (p in m.parts) {
             if ((p.mat == Mt.GLASS) != glass) continue
+            val want = if (p.cut > 0f) 1 else 0
+            if (want != curProg) {
+                useProg(want)
+                GLES20.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
+                GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0)
+                GLES20.glUniform1f(uAlpha, alpha)
+            }
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (p.tex != 0) p.tex else Tex.ids[p.mat])
             GLES20.glUniform1i(uTex, 0)
@@ -735,8 +767,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
         CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
         val sp = sitPh
-        val cute = if (washPh == 3 || washPh == 5) CuteChar.frame(CuteChar.INTERACT, washT)
-                   else if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
+        val cute = if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
                    else if (sp >= 3) CuteChar.frame(when (sp) {
                        3 -> CuteChar.SIT_IN
                        4 -> CuteChar.SIT_LOOP
@@ -796,9 +827,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.multiplyMM(pv, 0, pj, 0, vw, 0)
             val saved = vp.copyOf()
             System.arraycopy(pv, 0, vp, 0, 16)
-            GLES20.glUniform3f(uEye, STX, cyH, STZ + dist)
-            GLES20.glUniform2f(uRoom, 0f, 0f)
-            GLES20.glUniform3f(uLight, STX + 0.6f, cyH + 0.9f, STZ + 1.6f)
+            frameUniforms(STX, cyH, STZ + dist, 0f, 0f, STX + 0.6f, cyH + 0.9f, STZ + 1.6f)
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, STX, 0.082f + CuteChar.lift(2), STZ)
             draw(cute, mdl, 1f)
@@ -821,9 +850,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun drawCreator(now: Long) {
         GLES20.glClearColor(0.40f, 0.74f, 0.93f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-        GLES20.glUniform3f(uEye, ex, ey, ez)
-        GLES20.glUniform2f(uRoom, 0f, 0f)
-        GLES20.glUniform3f(uLight, STX + 0.9f, 2.4f, STZ + 1.7f)
+        frameUniforms(ex, ey, ez, 0f, 0f, STX + 0.9f, 2.4f, STZ + 1.7f)
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, STX, 0f, STZ)
         stageM?.let { draw(it, mdl, 1f) }
@@ -931,6 +958,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val now = System.nanoTime()
         var dt = if (lastT == 0L) 0.016f else (now - lastT) / 1e9f
         lastT = now
+        if (dt > 0.0001f && dt < 1f) fpsAvg += (1f / dt - fpsAvg) * 0.05f      // Etapa 89: FPS médio (resolução dinâmica e contador)
         if (dt > 0.05f) dt = 0.05f
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()
@@ -1050,9 +1078,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         GLES20.glClearColor(0.66f, 0.85f, 0.94f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
-        GLES20.glUniform3f(uEye, ex, ey, ez)
-        GLES20.glUniform2f(uRoom, gw.toFloat(), gh.toFloat())
-        GLES20.glUniform3f(uLight, cx, 2.1f, cz)
+        frameUniforms(ex, ey, ez, gw.toFloat(), gh.toFloat(), cx, 2.1f, cz)
 
         // céu
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
@@ -1130,6 +1156,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         glassQ.clear(); lateQ.clear()
         for (item in items) {
             val t = item.type
+            // Etapa 89: fora do campo de visão não desenha (caixa do item contra os planos da câmera)
+            if (item.body == null) {
+                val rc = item.rect()
+                if (!boxVisible(rc[0] - 0.3f, 0f, rc[1] - 0.3f, rc[2] + 0.3f, Foot.height(t) + 0.3f, rc[3] + 0.3f)) continue
+            }
             if (t.glb != null) { drawGlbItem(item, now); continue }
             val mesh = fm.getOrPut(t) { Models.furniture(t) }
             val age = if (item.born == 0L) 99f else (now - item.born) / 1e9f
@@ -1631,6 +1662,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
     }
 
+    /** Etapa 89: a caixa (mundo) aparece na tela? false só se os 8 cantos estão todos do mesmo lado de fora de um plano. */
+    private fun boxVisible(x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float): Boolean {
+        var l = 0; var r = 0; var b = 0; var t = 0; var n = 0
+        for (c in 0 until 8) {
+            val x = if (c and 1 != 0) x1 else x0; val y = if (c and 2 != 0) y1 else y0; val z = if (c and 4 != 0) z1 else z0
+            val cx = vp[0] * x + vp[4] * y + vp[8] * z + vp[12]
+            val cy = vp[1] * x + vp[5] * y + vp[9] * z + vp[13]
+            val cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15]
+            if (cx < -cw) l++; if (cx > cw) r++; if (cy < -cw) b++; if (cy > cw) t++; if (cw < 0.05f) n++
+        }
+        return !(l == 8 || r == 8 || b == 8 || t == 8 || n == 8)
+    }
+
     /** Etapa 87: partes de vidro (prateleiras da geladeira, visor do forno, gelo) e efeitos translúcidos dos GLB, desenhados por último */
     private val glassQ = ArrayList<Pair<Mesh, FloatArray>>()
     private val lateQ = ArrayList<Pair<Mesh, FloatArray>>()
@@ -1647,7 +1691,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     // ---------------------------------------------------------------- usar (abrir/fechar peça, ligar aparelho) com a animação de interagir
     private fun startUse(o: Item, k: Int) {
-        if (!CuteChar.hasInteract()) { applyUse(o, k); return }
+        // Etapa 89: sem a animação de levantar a mão (pedido do jogador): a peça responde na hora
+        if (USE_ANIM.not() || !CuteChar.hasInteract()) { applyUse(o, k); return }
         // vira para a alça (ou para o aparelho)
         var tx = o.x + o.ox + o.w / 2f; var tz = o.y + o.oz + o.h / 2f
         val g = o.type.glb?.let { Glb.get(it) }
@@ -1825,19 +1870,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 pYaw += dl.coerceIn(-330f * dt, 330f * dt)
                 if (abs(dl) < 1.5f) { pYaw = washYaw; washPh = 3; washT = 0f }
             }
-            3 -> {   // estica a mão e abre a torneira
-                pMoving = false; washT += dt
-                if (washT >= 0.55f) lever(true)
-                if (washT >= 1.6f) { washPh = 4; washT = 0f }
+            3 -> {   // abre a torneira (sem levantar a mão)
+                pMoving = false; lever(true); washPh = 4; washT = 0f
             }
             4 -> {   // lavando: água correndo na cuba
                 pMoving = false; washT += dt
                 if (washT >= washDur) { washPh = 5; washT = 0f }
             }
             5 -> {   // fecha a torneira
-                pMoving = false; washT += dt
-                if (washT >= 0.55f) lever(false)
-                if (washT >= 1.6f) washPh = 0
+                pMoving = false; lever(false); washPh = 0
             }
         }
     }
