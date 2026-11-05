@@ -1067,7 +1067,7 @@ object CuteChar {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
             var x = 0f; var y = 0f; var z = 0f
-            var X = 0f; var Y = 0f; var Z = 0f
+            var snx = 0f; var sny = 0f; var snz = 0f
             for (k in 0 until 4) {
                 val w = bw[v * 4 + k]
                 if (w <= 0f) continue
@@ -1075,18 +1075,18 @@ object CuteChar {
                 x += w * (mm[bo] * px + mm[bo + 1] * py + mm[bo + 2] * pz + mm[bo + 3])
                 y += w * (mm[bo + 4] * px + mm[bo + 5] * py + mm[bo + 6] * pz + mm[bo + 7])
                 z += w * (mm[bo + 8] * px + mm[bo + 9] * py + mm[bo + 10] * pz + mm[bo + 11])
-                X += w * (mm[bo] * nx + mm[bo + 1] * ny + mm[bo + 2] * nz)
-                Y += w * (mm[bo + 4] * nx + mm[bo + 5] * ny + mm[bo + 6] * nz)
-                Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
+                snx += w * (mm[bo] * nx + mm[bo + 1] * ny + mm[bo + 2] * nz)
+                sny += w * (mm[bo + 4] * nx + mm[bo + 5] * ny + mm[bo + 6] * nz)
+                snz += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
             if (base && y * hs > topMax) topMax = y * hs
-            val X = x * hs; val Y = y * hs; val Z = z * hs
-            if (r2 > 0f && X * X + (Y - eyeY) * (Y - eyeY) + (Z - FP_FWD) * (Z - FP_FWD) < r2) { out[o] = 0f; out[o + 1] = eyeY; out[o + 2] = FP_FWD }
-            else { out[o] = X; out[o + 1] = Y; out[o + 2] = Z }
-            val nl = Math.sqrt((X * X + Y * Y + Z * Z).toDouble()).toFloat()
+            val vwx = x * hs; val vwy = y * hs; val vwz = z * hs
+            if (r2 > 0f && vwx * vwx + (vwy - eyeY) * (vwy - eyeY) + (vwz - FP_FWD) * (vwz - FP_FWD) < r2) { out[o] = 0f; out[o + 1] = eyeY; out[o + 2] = FP_FWD }
+            else { out[o] = vwx; out[o + 1] = vwy; out[o + 2] = vwz }
+            val nl = Math.sqrt((snx * snx + sny * sny + snz * snz).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
-            out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv
+            out[o + 3] = snx * inv; out[o + 4] = if (nl > 1e-9f) sny * inv else 1f; out[o + 5] = snz * inv
         }
         if (base && topMax > 0.8f) topObs = topMax
         val buf = s.fb
