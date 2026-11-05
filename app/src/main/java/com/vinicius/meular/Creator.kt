@@ -126,7 +126,7 @@ class CreatorUi(
     init {
         // fundo: o 3D já vem azul; aqui entram os brilhos azul/verde do The Sims 4
         addView(CasBgView(ctx), LayoutParams(-1, -1))
-        addView(rings, LayoutParams(-1, -1))
+        // (sem círculos ao redor do personagem)
 
         // topo esquerdo: só a seta de voltar
         backBtn.background = Ui.frost(0f, 0x35B5E0, 0xFF, 0xDC, dpf(2f), oval = true, edge = 0xFFFFFFFF.toInt())

@@ -206,6 +206,19 @@ class MainActivity : AppCompatActivity() {
         portrait = FrameLayout(this)
         portrait.background = Ui.frost(0f, 0xBFE6FA, 0xF0, 0xCC, dpf(2.4f), oval = true, edge = 0xFFFFFFFF.toInt())
         portrait.addView(IconView(this, Ic.AVATAR, Color.WHITE, Color.WHITE), FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER))
+        // rosto real do personagem (renderizado pelo jogo); o desenho fica por baixo até a foto ficar pronta
+        val face = ImageView(this)
+        face.scaleType = ImageView.ScaleType.CENTER_CROP
+        face.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(v: View, o: android.graphics.Outline) { o.setOval(0, 0, v.width, v.height) }
+        }
+        face.clipToOutline = true
+        portrait.addView(face, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
+        game.r.onPortrait = { bmp -> runOnUiThread { face.setImageBitmap(bmp) } }
+        game.r.portraitReq = true
+        val hh = android.os.Handler(android.os.Looper.getMainLooper())
+        hh.postDelayed({ game.r.portraitReq = true }, 1500)
+        hh.postDelayed({ game.r.portraitReq = true }, 4000)
         press(portrait) { abrirCriador() }
         root.addView(portrait, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
         sideCol = LinearLayout(this)
@@ -396,6 +409,7 @@ class MainActivity : AppCompatActivity() {
         bottom.visibility = View.VISIBLE
         dockR.visibility = View.VISIBLE
         portrait.visibility = View.VISIBLE
+        game.r.portraitReq = true
         sideCol.visibility = View.VISIBLE
         game.mode = prevMode
         jumpBtn.visibility = if (prevMode == 0) View.VISIBLE else View.GONE

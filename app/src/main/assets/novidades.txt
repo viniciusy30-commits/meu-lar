@@ -1,3 +1,10 @@
+#id 2026-11-08-b
+#titulo Criador mais limpo, ícones novos e rosto no HUD
+- Círculos brancos ao redor do personagem no criador removidos
+- Ícones de Base e Rosto redesenhados no mesmo estilo dos outros
+- O retrato do HUD agora mostra o rosto real do seu personagem
+- Câmera em 1ª pessoa corrigida de verdade: o olho estava ~10 m acima da cabeça
+
 #id 2026-11-08-a
 #titulo Móveis refeitos com muito mais detalhe
 - Os 14 móveis foram refeitos: pés torneados, capitonê com botões, frisos e cornijas, painéis em relevo, puxadores de latão, talheres, copos, frutas, livros, globo, abajur plissado e mais

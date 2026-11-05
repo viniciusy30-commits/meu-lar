@@ -1117,14 +1117,17 @@ object CuteChar {
                     }
                     if (cn > 0) {
                         fpRing[0] = sx / cn; fpRing[1] = sy / cn; fpRing[2] = sz / cn; fpRingOk = true
-                        val tm = rtop * hs
-                        val tx = fpRing[0]; val ty = fpRing[1] + 0.058f * tm; val tz = fpRing[2] + 0.085f
+                        // rtop está em cm (pose de repouso); a malha de saída está em metros. A altura em metros vem da escala do osso raiz.
+                        var us = mm[0] * hs
+                        if (us < 0.004f || us > 0.02f) us = 0.0082f * hs
+                        val tm = rtop * us
+                        val tx = fpRing[0]; val ty = fpRing[1] + 0.068f * tm; val tz = fpRing[2] + 0.060f * tm
                         if (!fpEyeInit) { fpEye[0] = tx; fpEye[1] = ty; fpEye[2] = tz; fpEyeInit = true }
                         else { fpEye[0] += (tx - fpEye[0]) * 0.5f; fpEye[1] += (ty - fpEye[1]) * 0.5f; fpEye[2] += (tz - fpEye[2]) * 0.5f }
                     }
                 }
                 val ex = fpEye[0]; val ey = fpEye[1]; val ez = fpEye[2] + fpAdjF
-                val rr2 = 0.17f * 0.17f
+                val rr2 = 0.12f * 0.12f
                 val rx = fpRing[0]; val ry = fpRing[1]; val rz = fpRing[2]
                 for (v in 0 until s.nv) {
                     val o = v * STRIDE
