@@ -8,3 +8,8 @@
 - Ferramentas: ferramentas/sims4/dbpf.py (lê .package do TS4), geom.py (lê GEOM), uvfix.py.
 - Pés: o pacote não tem pés (vêm dos sapatos) -> cor lisa de pele.
 - A pele Mercuria (.package) não foi usada: o atlas enviado já tem a pele.
+
+## 90c — acabamento (pescoço, nuca, ombros, pés)
+- Pescoço/nuca: o corpo é cortado exatamente na volta de vértices onde a cabeça detalhada encaixa (antes sobravam triângulos sobrepostos: anel escuro e fresta na nuca). Pesos suavizados só na cabeça/pescoço.
+- Ombros: atlas sem a linha escura das bordas das ilhas; triângulos entre duas ilhas recebem cor lisa (sem faixa esticada). Normais soldadas nas costuras.
+- Pés: ganham o tamanho/posição do pé do Sims 3 (não atravessam mais os sapatos), cor lisa com degradê no tornozelo.

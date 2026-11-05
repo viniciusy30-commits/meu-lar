@@ -1,3 +1,4 @@
+NECK_TINT=False
 import sys, numpy as np, struct
 sys.path.insert(0,'/tmp/ml/ferramentas'); sys.argv=['x','/tmp/ml/app/src/main/assets/cute']
 import etapa48_jovem as E
@@ -40,9 +41,13 @@ def uv0_for(objf):
         da,ia=cKDTree(np.c_[FV*4,FU1]).query(np.c_[W*4,u1])
         out=np.where(ex[:,None],T0[ie],FU0[ia])
     # pés: o .package não tem pés (vêm dos sapatos) -> cor lisa da pele do tornozelo
-    ft=(V[:,1]<0.13)&~ex
-    ok=np.where(~ft&(V[:,1]>0.25)&(V[:,1]<0.4))[0]
-    _,k=cKDTree(V[ok]).query(V[ft]); out[ft]=out[ok[k]]
+    ft=(V[:,1]<0.205)   # pé + tornozelo (o atlas desenha linhas no tornozelo que viram faixa)
+    ok=np.where(~ft&(V[:,1]>0.25)&(V[:,1]<0.4)&ex)[0]
+    for side in (1,-1):
+        fs=ft&(np.sign(V[:,0])==side); cs=ok[np.sign(V[ok,0])==side]
+        if fs.any() and len(cs):
+            # uma cor só por pé (o meio da panturrilha, na frente) -> sem listras
+            c=cs[np.argmax(V[cs,2]-np.abs(V[cs,1]-0.32))]; out[fs]=out[c]
     # candidatos de UV0 nas costuras (mesma posição, ilhas diferentes): cada triângulo escolhe o da sua ilha
     cand=[[out[t]] for t in range(len(V))]
     for t in np.where(ex)[0]:
@@ -57,15 +62,61 @@ def uv0_for(objf):
                 if all(np.abs(c-x).max()>1e-4 for x in cand[t]): cand[t].append(c)
     print(objf[-25:],'exato',ex.sum(),'aprox',(~ex).sum(),'pés',ft.sum(),'costuras',sum(len(c)>1 for c in cand))
     return cand
+_ORIG=[]
+import glob as _g
+def _head_ring(hf, bodyf):
+    # Etapa 90c: o corpo traz uma cabeça simples. A borda de baixo da cabeça detalhada coincide com uma volta de vértices do
+    # pescoço do corpo: corta o corpo exatamente nessa volta (triângulos alcançáveis a partir dos pés sem cruzar a volta)
+    from collections import Counter, defaultdict
+    HV,_,HF=rd(hf,'TS4Head_lod0'); c=Counter()
+    for t in HF:
+        ids=[vi for vi,_ in t]
+        for a_,b_ in ((ids[0],ids[1]),(ids[1],ids[2]),(ids[2],ids[0])): c[tuple(sorted((a_,b_)))]+=1
+    hb=np.unique([k for k,n in c.items() if n==1]); hb=hb[HV[hb,1]<1.7]
+    V,_,F=rd(bodyf)
+    d,_i=cKDTree(HV[hb]).query(V); onring=d<1e-5
+    _,pid=np.unique(np.round(V,5),axis=0,return_inverse=True); pid=pid.ravel()   # solda por posição (o OBJ vem em pedaços)
+    onp=np.zeros(pid.max()+1,bool); onp[pid[onring]]=True
+    raw=[tuple(vi for vi,_ in t) for t in F]
+    tris=[tuple(pid[x] for x in t) for t in raw]
+    onring=onp
+    em=defaultdict(list)
+    for k,t in enumerate(tris):
+        for a_,b_ in ((t[0],t[1]),(t[1],t[2]),(t[2],t[0])): em[tuple(sorted((a_,b_)))].append(k)
+    start=int(np.argmin([min(V[x,1] for x in t) for t in raw]))
+    keep=np.zeros(len(tris),bool); keep[start]=True; st=[start]
+    while st:
+        k=st.pop(); t=tris[k]
+        for a_,b_ in ((t[0],t[1]),(t[1],t[2]),(t[2],t[0])):
+            if onring[a_] and onring[b_]: continue
+            for k2 in em[tuple(sorted((a_,b_)))]:
+                if not keep[k2]: keep[k2]=True; st.append(k2)
+    print('corpo: triângulos mantidos',keep.sum(),'de',len(tris),'volta',onring.sum())
+    # pedaços soltos (sem ligação com os pés): mantém se estiverem abaixo da volta
+    ry=V[d<1e-5,1].max()
+    for k in range(len(raw)):
+        if not keep[k] and max(V[x,1] for x in raw[k])<ry-0.03: keep[k]=True
+    # o que sobrou da cabeça simples encostada na cabeça detalhada (queixo): fora
+    hv=np.unique([vi for t in HF for vi,_ in t]); kd=cKDTree(HV[hv]); y0=V[d<1e-5,1].min(); zc_=V[d<1e-5,2].mean()
+    for k in np.where(keep)[0]:
+        cen=V[list(raw[k])].mean(0)
+        if cen[2]>zc_+0.02 and cen[1]>y0+0.004 and kd.query(cen)[0]<0.015 and not all(onring[pid[x]] for x in raw[k]):
+            if sum(onring[pid[x]] for x in raw[k])<2: keep[k]=False
+    print('corpo: triângulos mantidos',keep.sum(),'de',len(tris))
+    ks={raw[k] for k in np.where(keep)[0]}
+    return lambda t: t not in ks
 def build(objs):
+    _ORIG.clear()
     # vertices únicos por (arquivo, v, vt); uv já no atlas (v de cima para baixo)
     P=[];UV=[];I=[];key={}
     for f,grp in objs:
         V,T,F=rd(f,grp)
         head = grp is not None
-        if not head: B0=uv0_for(f)
+        if not head:
+            B0=uv0_for(f)
+            ring=_head_ring(U+('8e063fe5-FemaleHeadMesh_OBJ.obj' if 'Female' in f else 'a625f04d-MaleHeadMesh_OBJ.obj'), f)
         for tri in F:
-            if not head and min(V[vi][1] for vi,_ in tri) > 1.63: continue      # o corpo do TS4 traz uma cabeça simples: fica a cabeça detalhada
+            if not head and ring(tuple(vi for vi,_ in tri)): continue   # o corpo traz uma cabeça simples: corta exatamente na borda de baixo da cabeça detalhada
             if head: ch=[tuple((T[ti][0],1-T[ti][1])) for vi,ti in tri]
             else:
                 import itertools
@@ -74,10 +125,12 @@ def build(objs):
                     c=np.array(combo); sp=np.ptp(c,axis=0).max()
                     if best is None or sp<best[0]: best=(sp,combo)
                 ch=[tuple(np.round(x,6)) for x in best[1]]
+                if best[0]>0.1:   # triângulo entre duas ilhas do atlas (ombro): cor lisa de um canto, sem faixa esticada
+                    ys=[V[vi][1] for vi,_ in tri]; c0=ch[int(np.argmin(ys))]; ch=[c0,c0,c0]
             for (vi,ti),uv in zip(tri,ch):
                 k=(f,vi,uv)
                 if k not in key:
-                    key[k]=len(P); P.append(V[vi]); UV.append(uv)
+                    key[k]=len(P); P.append(V[vi]); UV.append(uv); _ORIG.append(1 if head else 0)
                 I.append(key[k])
     return np.array(P),np.array(UV),np.array(I).reshape(-1,3)
 def eyes(head_obj):
@@ -176,6 +229,49 @@ def bake(atlas, v, I, grp, texpath, S=1024):
     A[H//2:]=Image.fromarray(out.astype(np.uint8)).resize((1024,H//2))
     return Image.fromarray(A.astype(np.uint8))
 
+def neck_tone(im,Q,UV,I,O):
+    # a parte de baixo da cabeça (pescoço) tem outro tom que o pescoço do corpo: degradê no atlas até o tom do corpo
+    A=np.asarray(im).astype(float); H,Wd=A.shape[:2]
+    hy=Q[O==1,1]; y0=hy.min(); y1=y0+(hy.max()-y0)*0.15
+    def samp(m):
+        uv=UV[m]; return A[np.clip((uv[:,1]*H).astype(int),0,H-1),np.clip((uv[:,0]*Wd).astype(int),0,Wd-1)]
+    bodyc=samp((O==0)&(Q[:,1]>y0-6)&(Q[:,1]<y0+2)).mean(0)
+    headc=samp((O==1)&(Q[:,1]<y0+3)).mean(0)
+    gain=bodyc/np.maximum(headc,1)
+    F=np.ones((H,Wd)); done=np.zeros((H,Wd),bool)
+    for tri in I[(O[I]==1).all(1)]:
+        if Q[tri,1].min()>y1: continue
+        u=UV[tri,0]*Wd; w=UV[tri,1]*H; yy=Q[tri,1]
+        x0,x1=int(max(0,u.min()-1)),int(min(Wd-1,u.max()+1)); r0,r1=int(max(0,w.min()-1)),int(min(H-1,w.max()+1))
+        gx,gy=np.meshgrid(np.arange(x0,x1+1)+.5,np.arange(r0,r1+1)+.5)
+        d=(w[1]-w[2])*(u[0]-u[2])+(u[2]-u[1])*(w[0]-w[2])
+        if abs(d)<1e-9: continue
+        l0=((w[1]-w[2])*(gx-u[2])+(u[2]-u[1])*(gy-w[2]))/d; l1=((w[2]-w[0])*(gx-u[2])+(u[0]-u[2])*(gy-w[2]))/d; l2=1-l0-l1
+        m=(l0>=-0.02)&(l1>=-0.02)&(l2>=-0.02)
+        yv=l0*yy[0]+l1*yy[1]+l2*yy[2]; t=np.clip((y1-yv)/(y1-y0),0,1)
+        F[r0:r1+1,x0:x1+1][m]=t[m]; done[r0:r1+1,x0:x1+1][m]=True
+    F=ndimage.gaussian_filter(F,3)
+    G=1+(gain[None,None,:]-1)*F[...,None]
+    print('pescoço: ganho',gain.round(3))
+    return Image.fromarray(np.clip(A*G,0,255).astype(np.uint8))
+def tint(im,Q,UV,O):
+    # cor por vértice (o shader multiplica a textura por ela): o pescoço do corpo escurece em degradê até o tom da
+    # parte de baixo da cabeça (sem anel na emenda) e os pés recebem o tom do tornozelo
+    A=np.asarray(im.resize((1024,2048))).astype(float); H,Wd=A.shape[:2]
+    def samp(m):
+        uv=UV[m]; return A[np.clip((uv[:,1]*H).astype(int),0,H-1),np.clip((uv[:,0]*Wd).astype(int),0,Wd-1)]
+    C=np.ones((len(Q),3))
+    y0=Q[O==1,1].min()
+    headc=np.median(samp((O==1)&(Q[:,1]<y0+3)),0); bodyc=np.median(samp((O==0)&(Q[:,1]>y0-4)),0)
+    g=np.clip(headc/np.maximum(bodyc,1),0.6,1)
+    t=np.clip((Q[:,1]-(y0-14))/14,0,1)[:,None]*(O==0)[:,None]
+    C=C*(1-t)+g*t if NECK_TINT else C
+    yb=Q[:,1].min(); h=Q[:,1].max()-yb
+    ank=(O==0)&(Q[:,1]>yb+h*0.11)&(Q[:,1]<yb+h*0.14); ft=(O==0)&(Q[:,1]<yb+h*0.105)
+    if ank.any() and ft.any():
+        gf=np.clip(np.median(samp(ank),0)/np.maximum(np.median(samp(ft),0),1),0.5,1); s_=np.clip((yb+h*0.105-Q[ft,1])/(h*0.03),0,1)[:,None]; C[ft]=1-(1-gf)*s_
+    print('pescoço',g.round(3))
+    return np.round(C*255).astype(np.uint8)
 def go(sexo, body, head, tex, src_grp, out_grp):
     P,UVs,I=build([(U+body,None),(U+head,'TS4Head_lod0')])
     EP,EU,EI=eyes(U+head); I=np.vstack([I,EI+len(P)]); P=np.vstack([P,EP]); UVs=np.vstack([UVs,EU])
@@ -188,6 +284,17 @@ def go(sexo, body, head, tex, src_grp, out_grp):
         # alinha pelo tronco (y entre 40% e 70% da altura)
         h0,h1=np.percentile(sp[:,1],[40,70]); ms=(sp[:,1]>h0)&(sp[:,1]<h1); mq=(Q[:,1]>h0)&(Q[:,1]<h1)
         Q[:,ax]+=np.median(sp[ms,ax])-np.median(Q[mq,ax])
+    O=np.r_[np.array(_ORIG),np.full(len(Q)-len(_ORIG),2)]   # 0 corpo, 1 cabeça, 2 olhos
+    # pés: o pé do TS4 é maior que o do Sims 3 e atravessava os sapatos -> cada pé ganha o tamanho/posição do pé do Sims 3
+    ya=sp[:,1].min()+(sp[:,1].max()-sp[:,1].min())*0.075
+    for side in (1,-1):
+        ms=(sp[:,1]<ya)&(np.sign(sp[:,0])==side); mq=(Q[:,1]<ya*1.6)&(np.sign(Q[:,0])==side)&(O==0)
+        qf=(Q[:,1]<ya)&mq
+        if ms.sum()<5 or qf.sum()<5: continue
+        s0,s1=sp[ms].min(0),sp[ms].max(0); q0,q1=Q[qf].min(0),Q[qf].max(0)
+        tgt=(Q[mq]-q0)/(q1-q0)*(s1-s0)+s0; tgt[:,1]=Q[mq,1]*0+ (Q[mq,1]-q0[1])/(q1[1]-q0[1])*(s1[1]-s0[1])+s0[1]
+        t=np.clip((ya*1.6-Q[mq,1])/(ya*0.6),0,1)[:,None]   # transição suave até a canela
+        Q[mq]=Q[mq]*(1-t)+tgt*t
     # olhos: bordas abertas da cabeça (furos dos olhos) -> globos oculares texturizados com o olho do atlas
     N=normals(Q,I)
     # pesos: média dos 6 vizinhos mais próximos no corpo do Sims (peso por distância e por normal parecida)
@@ -197,16 +304,25 @@ def go(sexo, body, head, tex, src_grp, out_grp):
     for j in range(8):
         wj=1/(d[:,j]+0.3)**2 * np.clip((N*sn[nb[:,j]]).sum(1)+0.3,0.05,1.3)
         for c in range(4): np.add.at(W,(np.arange(len(Q)),bi[nb[:,j],c]),wj*bw[nb[:,j],c])
+    # suaviza os pesos no espaço (cabeça e pescoço do corpo, costuras): vértices vizinhos deformam igual -> sem abrir fresta na nuca
+    nbr=cKDTree(Q).query_ball_point(Q,r=2.5)
+    W=W/W.sum(1,keepdims=True)
+    W2=np.array([W[n_].mean(0) for n_ in nbr]); nk_=(O!=2)&(Q[:,1]>Q[O==1,1].min()-10)   # só cabeça/pescoço (mãos e dedos ficam como estão)
+    W=np.where(nk_[:,None],W2,W)
     top=np.argsort(-W,axis=1)[:,:4]; tw=np.take_along_axis(W,top,1); tw/=tw.sum(1,keepdims=True)
     q=np.round(tw*255).astype(int); q[:,0]+=255-q.sum(1)
-    v=np.zeros(len(Q),E.DT); v['pos']=Q; v['nor']=N
-    v['uv']=UVs; v['col']=255; v['bi']=top; v['bw']=q
-    assert len(v)<65535
-    E.write_piece('/tmp/s4/p_body_%s5.bin'%out_grp, v, I.astype(np.uint16), fl, tail)
     A=np.asarray(Image.open(U+tex).convert('RGBA')).astype(float)
     have=(A[...,3]>200)&(A[...,:3].sum(2)>60)   # fundo transparente/preto entre as ilhas vira a cor vizinha (sem linha nas costuras)
+    have=ndimage.binary_erosion(have,iterations=4)   # as bordas das ilhas do atlas têm linha escura
     ii=ndimage.distance_transform_edt(~have,return_distances=False,return_indices=True)
     im=Image.fromarray(A[...,:3][ii[0],ii[1]].astype(np.uint8)).resize((1024,2048),Image.LANCZOS)
+    # normais iguais em vértices na mesma posição (costuras de UV e emenda cabeça/corpo): sem linha de luz
+    grp_=cKDTree(Q).query_ball_point(Q,r=0.35)
+    N=np.array([N[[j for j in g_ if (O[j]==2)==(O[i]==2)]].sum(0) for i,g_ in enumerate(grp_)]); N/=np.linalg.norm(N,axis=1,keepdims=True)+1e-12
+    v=np.zeros(len(Q),E.DT); v['pos']=Q; v['nor']=N
+    v['uv']=UVs; v['col']=255; v['col'][:,:3]=tint(im,Q,UVs,O); v['bi']=top; v['bw']=q
+    assert len(v)<65535
+    E.write_piece('/tmp/s4/p_body_%s5.bin'%out_grp, v, I.astype(np.uint16), fl, tail)
     im.save('/tmp/s4/sk_s4%s.png'%sexo,optimize=True)
     print(out_grp,len(v),len(I),'escala',k)
     return Q,I
