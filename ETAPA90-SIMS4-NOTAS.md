@@ -34,3 +34,8 @@
 - ferramentas/etapa90g_bandai.py: BVH do Bandai Namco -> 55 ossos com as juntas do TS4 (direção de cada osso copiada, giro a partir de um quadro de calibração, tronco/cabeça mantêm a postura do TS4, um passo completo esq+dir detectado pelo cruzamento dos pés, no lugar, pé no chão, laço costurado).
 - Homem: walk_normal + run_masculinity. Mulher: walk_feminine + run_feminine. Substituem os clipes 1 (andar) e 3 (correr) de clips_am5/af5.
 - Licença: CC BY-NC-ND (não comercial).
+
+## 90h — andar, correr, pulos e agachar novos (LAFAN1)
+- Andar/correr do Bandai trocados (estilo exagerado) por capturas naturais da LAFAN1 (Ubisoft), iguais para homem e mulher.
+- Pulo parado, pulo correndo e agachado parado vindos da LAFAN1; andar agachado montado com IK (sem captura limpa disponível).
+- Retarget genérico com calibração na T-pose (ferramentas/etapa90h_lafan.py). Licença não comercial. Ver ferramentas/sims4/bvh_lafan/LEIA.txt.

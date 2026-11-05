@@ -1,0 +1,7 @@
+LAFAN1 (Ubisoft La Forge), github.com/ubisoft/ubisoft-laforge-animation-dataset — licença CC BY-NC-ND 4.0 (só uso não comercial).
+Trechos usados (arquivo, quadros; calibração no quadro 0 = T-pose):
+- andar: walk2_subject4 4865-4911   - correr: run2_subject1 1175-1199
+- pular: jumps1_subject1 505-550    - pular correndo: jumps1_subject1 1520-1560
+- agachado parado: aiming1_subject1 3160-3200 (braços soltos, menos inclinação)
+- andar agachado: pernas do andar com IK, pelve/tronco do agachado parado (etapa90h_agachar.py)
+O zip (144 MB) não foi guardado no repositório; baixar de media.githubusercontent.com/media/ubisoft/ubisoft-laforge-animation-dataset/master/lafan1/lafan1.zip

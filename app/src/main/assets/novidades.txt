@@ -563,4 +563,4 @@ Etapa 90b — Sims 4: o corpo agora usa a pele do próprio Sims 4 (atlas certo).
 Etapa 90c — Sims 4: pescoço, nuca, ombros e pés sem defeitos visuais.
 Etapa 90d — Sims 4: o corpo usa os ossos e pesos originais da EA (dobra mais natural).
 Etapa 90f — Sims 4: o corpo dobra nas juntas do esqueleto original do Sims 4.
-Etapa 90g — Sims 4: andar e correr novos, de captura de movimento real (braços naturais).
+Etapa 90h — Sims 4: andar, correr, pulo, pulo correndo e agachar novos, de captura de movimento natural.
