@@ -86,6 +86,19 @@ object CuteChar {
     @Volatile private var faceP = FloatArray(BodyMorph.NF)
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
+    /** Etapa 74 (1ª pessoa): tudo acima desta altura (m) é recolhido num ponto no pescoço, para a cabeça não tapar a câmera. NaN = desligado. */
+    @Volatile var hideAbove = Float.NaN
+    private var topRef = 0f
+    /** Altura do corpo-base (m, já com a escala do personagem): topo da cabeça na pose de referência. */
+    fun bodyTop(): Float {
+        val bs = baseSkin ?: return 1.7f * heightS
+        if (topRef <= 0f) {
+            var m = 0f
+            for (v in 0 until bs.nv) { val y = bs.pos[v * 3 + 1]; if (y > m) m = y }
+            topRef = if (m > 0.5f && m < 3f) m else 1.7f
+        }
+        return topRef * heightS
+    }
     @Volatile private var simOn = false       // Etapa 44
     @Volatile private var simH = 1f
     private val simRatio = HashMap<String, Float>()
@@ -977,6 +990,7 @@ object CuteChar {
         val bw = s.bw
         val out = s.out
         val hs = heightS
+        val cutY = hideAbove.let { if (it.isNaN()) Float.MAX_VALUE else it }
         for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
@@ -994,7 +1008,7 @@ object CuteChar {
                 Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
-            out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs
+            if (y * hs > cutY) { out[o] = 0f; out[o + 1] = cutY; out[o + 2] = 0f } else { out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs }
             val nl = Math.sqrt((X * X + Y * Y + Z * Z).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv

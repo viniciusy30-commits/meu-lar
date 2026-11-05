@@ -593,6 +593,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val mx = moveX
         val my = moveY
         val mag2 = mx * mx + my * my
+        if (!third) {
+            // 1ª pessoa: o corpo vira junto com o olhar
+            pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
+        }
         if (mag2 > 0.0004f) {
             val mag = sqrt(mag2)
             // histerese: corre com o analógico quase no limite; solta abaixo disso e volta a andar
@@ -612,7 +616,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             var dl = dir - pYaw
             while (dl > 180f) dl -= 360f
             while (dl < -180f) dl += 360f
-            pYaw += dl * min(1f, dt * 12f)
+            if (third) pYaw += dl * min(1f, dt * 12f)
         }
     }
 
@@ -638,8 +642,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
+        CuteChar.hideAbove = if (mode == 0 && !third && CuteChar.ready) 0.865f * CuteChar.bodyTop() else Float.NaN
         val cute = if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
+        CuteChar.hideAbove = Float.NaN
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão
         Matrix.setIdentityM(mdl, 0)
@@ -830,8 +836,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 Matrix.perspectiveM(proj, 0, 60f, aspect, 0.08f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
-                ex = px; ey = 1.62f + py; ez = pz
-                Matrix.perspectiveM(proj, 0, 68f, aspect, 0.08f, 260f)
+                // 1ª pessoa: a câmera fica no olho do personagem (um pouco à frente do pescoço); o corpo aparece ao olhar para baixo
+                val bt = CuteChar.bodyTop()
+                val lift = if (CuteChar.ready) CuteChar.lift(0) else 0f
+                val fwx = sin(fyaw); val fwz = -cos(fyaw)
+                ex = px + fwx * 0.075f * bt; ez = pz + fwz * 0.075f * bt
+                ey = baseY + py + lift + 0.935f * bt
+                Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
         } else {
@@ -929,7 +940,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(mesh, mdl, 1f)
         }
 
-        if (mode == 1 || (fp && third)) drawPlayer(now)
+        if (mode == 1 || fp) drawPlayer(now)
 
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f
@@ -943,7 +954,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f, 0f, (rc[1] + rc[3]) / 2f)
             draw(shm, mdl, 1f)
         }
-        if (mode == 1 || (fp && third)) {
+        if (mode == 1 || fp) {
             val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, px - 0.5f, baseY + 0.02f, pz - 0.5f)

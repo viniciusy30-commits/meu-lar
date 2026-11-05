@@ -214,6 +214,9 @@ object Ic {
     const val PLUS = 128
     const val CASE = 129
     const val BACK = 130
+    const val CAM3P = 131
+    const val CAM1P = 132
+    const val CAMAIR = 133
 }
 
 /** Ícones desenhados em vetor (grade 100x100). Móveis usam o ordinal do Type (0..13). */
@@ -426,6 +429,46 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
             Ic.SPARK -> {
                 fill(w); path.reset(); path.moveTo(50f, 2f); path.quadTo(54f, 46f, 98f, 50f); path.quadTo(54f, 54f, 50f, 98f)
                 path.quadTo(46f, 54f, 2f, 50f); path.quadTo(46f, 46f, 50f, 2f); path.close(); c.drawPath(path, p)
+            }
+            Ic.CAM3P -> {
+                // 3ª pessoa: visor de câmera com o personagem visto de trás
+                stroke(w, 6f)
+                for (sx in 0..1) for (sy in 0..1) {
+                    val x0 = if (sx == 0) 10f else 90f; val y0 = if (sy == 0) 10f else 90f
+                    val dx = if (sx == 0) 16f else -16f; val dy = if (sy == 0) 16f else -16f
+                    path.reset(); path.moveTo(x0, y0 + dy); path.lineTo(x0, y0); path.lineTo(x0 + dx, y0); c.drawPath(path, p)
+                }
+                fill(w); c.drawCircle(50f, 34f, 11f, p)
+                path.reset(); path.moveTo(26f, 84f); path.cubicTo(26f, 56f, 36f, 49f, 50f, 49f); path.cubicTo(64f, 49f, 74f, 56f, 74f, 84f); path.close(); c.drawPath(path, p)
+                fill(a); rr(c, 46f, 56f, 54f, 84f, 3f)
+                fill(0xFFFF5A5A.toInt()); c.drawCircle(80f, 22f, 4.2f, p)
+            }
+            Ic.CAM1P -> {
+                // 1ª pessoa: olho dentro do visor
+                stroke(w, 6f)
+                for (sx in 0..1) for (sy in 0..1) {
+                    val x0 = if (sx == 0) 10f else 90f; val y0 = if (sy == 0) 10f else 90f
+                    val dx = if (sx == 0) 16f else -16f; val dy = if (sy == 0) 16f else -16f
+                    path.reset(); path.moveTo(x0, y0 + dy); path.lineTo(x0, y0); path.lineTo(x0 + dx, y0); c.drawPath(path, p)
+                }
+                fill(w)
+                path.reset(); path.moveTo(16f, 50f); path.quadTo(50f, 18f, 84f, 50f); path.quadTo(50f, 82f, 16f, 50f); path.close(); c.drawPath(path, p)
+                fill(a); c.drawCircle(50f, 50f, 15f, p)
+                fill(w); c.drawCircle(50f, 50f, 8f, p)
+                fill(a); c.drawCircle(50f, 50f, 4.6f, p)
+                fill(w); c.drawCircle(45f, 45f, 2.6f, p)
+                stroke(w, 4f); c.drawLine(30f, 28f, 25f, 20f, p); c.drawLine(50f, 24f, 50f, 15f, p); c.drawLine(70f, 28f, 75f, 20f, p)
+            }
+            Ic.CAMAIR -> {
+                // vista aérea: casa vista de cima com o cone da câmera
+                fill(w)
+                path.reset(); path.moveTo(50f, 8f); path.lineTo(70f, 36f); path.lineTo(30f, 36f); path.close()
+                p.alpha = 150; c.drawPath(path, p); p.alpha = 255
+                fill(w); c.drawCircle(50f, 11f, 5f, p)
+                stroke(w, 4f); p.pathEffect = android.graphics.DashPathEffect(floatArrayOf(5f, 5f), 0f)
+                rf.set(8f, 58f, 92f, 92f); c.drawOval(rf, p); p.pathEffect = null
+                fill(w); poly(c, 50f, 42f, 74f, 62f, 68f, 62f, 68f, 82f, 32f, 82f, 32f, 62f, 26f, 62f)
+                fill(a); rr(c, 44f, 68f, 56f, 82f, 3f)
             }
             Ic.BACK -> {
                 stroke(w, 12f)

@@ -50,6 +50,11 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
             r.mode = v
         }
 
+    /** true = 3ª pessoa, false = 1ª pessoa (olho do personagem); só vale na câmera de perto. */
+    var third: Boolean
+        get() = r.third
+        set(v) { r.third = v }
+
     var selected: Item?
         get() = r.selected
         set(v) { r.selected = v }
@@ -109,7 +114,7 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
                         else { r.moveX = dx / joyR; r.moveY = -dy / joyR }
                     } else if (id == lookId) {
                         r.fyaw = r.fyaw + (x - lx) * sens
-                        r.fpitch = (r.fpitch - (y - ly) * sens).coerceIn(-1.3f, 1.3f)
+                        r.fpitch = (r.fpitch - (y - ly) * sens).coerceIn(-1.45f, 1.3f)
                         lx = x; ly = y
                     }
                 }

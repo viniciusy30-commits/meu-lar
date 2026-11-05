@@ -1,3 +1,9 @@
+#id 2026-11-07-b
+#titulo Câmera em 1ª pessoa
+- Agora são 3 câmeras: 3ª pessoa, 1ª pessoa e vista aérea. O botão da câmera no canto inferior troca entre elas, e cada uma tem um ícone próprio
+- Na 1ª pessoa você vê pelos olhos do personagem: ao olhar para baixo aparecem o corpo, as roupas e os pés, e o corpo vira junto com o olhar
+- A cabeça e o cabelo ficam escondidos só nessa câmera, para não tapar a visão
+
 #id 2026-11-07-a
 #titulo Criador de personagem no estilo The Sims 4
 - Tela do criador redesenhada: fundo azul-turquesa com brilhos, aba "Olá, meu nome é…" com o plumbob, coluna de sexo/idade/corpo à esquerda, categorias em medalhões ao lado do painel e botão verde de confirmar

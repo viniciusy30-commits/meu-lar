@@ -251,7 +251,7 @@ class MainActivity : AppCompatActivity() {
         frame.orientation = LinearLayout.HORIZONTAL
         frame.setPadding(dp(4), dp(4), dp(4), dp(4))
         frame.background = Ui.frost(dpf(27f), DARK, 0x90, 0x60, dpf(1.5f), edge = 0xCCFFFFFF.toInt())
-        val dv = dockSeg(Ic.HOME, 0x2FA8F0) { alternarVista() }
+        val dv = dockSeg(Ic.CAM3P, 0x2FA8F0) { alternarVista() }
         viewIcon = dv.second
         frame.addView(dv.first)
         frame.addView(dockSeg(Ic.PERSON, 0x2FA8F0) { abrirCriador() }.first)
@@ -389,7 +389,7 @@ class MainActivity : AppCompatActivity() {
         sideCol.visibility = View.VISIBLE
         game.mode = prevMode
         jumpBtn.visibility = if (prevMode == 0) View.VISIBLE else View.GONE
-        viewIcon.set(if (prevMode == 0) Ic.HOME else Ic.EYE)
+        viewIcon.set(iconeCamera(prevMode, game.third))
     }
 
     @Deprecated("Deprecated in Java")
@@ -397,15 +397,21 @@ class MainActivity : AppCompatActivity() {
         if (game.mode == 2) fecharCriador() else super.onBackPressed()
     }
 
+    /** Ícone da câmera atual: 3ª pessoa, 1ª pessoa (olho do personagem) ou vista aérea. */
+    private fun iconeCamera(mode: Int, third: Boolean) = if (mode == 1) Ic.CAMAIR else if (third) Ic.CAM3P else Ic.CAM1P
+
     private fun alternarVista() {
         if (game.mode == 2) return
-        val novo = if (game.mode == 0) 1 else 0
-        game.mode = novo
-        viewIcon.set(if (novo == 0) Ic.HOME else Ic.EYE)
-        jumpBtn.visibility = if (novo == 0) View.VISIBLE else View.GONE
+        // ciclo: 3ª pessoa -> 1ª pessoa -> vista aérea -> 3ª pessoa
+        val msgTxt: String
+        if (game.mode == 0 && game.third) { game.third = false; msgTxt = "1ª pessoa: você vê pelos olhos do personagem" }
+        else if (game.mode == 0) { game.mode = 1; msgTxt = "Vista aérea: toque no chão para andar, arraste os móveis" }
+        else { game.third = true; game.mode = 0; msgTxt = "3ª pessoa" }
+        viewIcon.set(iconeCamera(game.mode, game.third))
+        jumpBtn.visibility = if (game.mode == 0) View.VISIBLE else View.GONE
         editBar.visibility = View.GONE
-        if (novo == 1) st.save()
-        msg(if (novo == 0) "Primeira pessoa" else "Vista aérea: toque no chão para andar, arraste os móveis")
+        if (game.mode == 1) st.save()
+        msg(msgTxt)
     }
 
     private fun trabalhar() {
