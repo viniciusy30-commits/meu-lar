@@ -1,3 +1,9 @@
+#id 2026-11-08-d
+#titulo Cabelo novo: Low fade texturizado
+- Degradê baixo nas laterais e na nuca (pele, fios curtinhos e denso), com costeletas e contorno da orelha
+- Topo curto texturizado com mechas em 3D penteadas para a frente e franja leve
+- Disponível para todos os corpos (adulto, jovem, idoso, criança e bebê), em Cabelo
+
 #id 2026-11-08-c
 #titulo Biblioteca 3D: primeiros objetos com física e interação
 - Novo na loja: Poltrona de linho (dá para sentar e levantar; a almofada afunda), Aparador de carvalho (gavetas e portas abrem de verdade), Vaso com costela-de-adão, Caixa de papelão e Bola de borracha

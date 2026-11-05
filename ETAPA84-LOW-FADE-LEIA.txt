@@ -1,0 +1,1 @@
+Etapa 84 - cabelo Low fade texturizado (fade1_<grupo>): malha em assets/cute/skate, miniaturas em assets/cute/thumbs, registrado no ModStore. Gerador: ferramentas/sk_fade.py.

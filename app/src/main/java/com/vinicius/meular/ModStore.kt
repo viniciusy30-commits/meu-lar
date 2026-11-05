@@ -55,6 +55,8 @@ object ModStore {
             items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         }
         for (g in listOf("cu", "pu")) items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
+        // Etapa 84: low fade com topo texturizado curto (original do jogo, ferramentas/sk_fade.py), todos os corpos
+        for (g in listOf("af", "am", "tf", "tm", "ef", "em", "cu", "pu")) items.add(Item("fade1_$g", "Low fade texturizado", "hairBack", g, 0, true, true, true))
         // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
         for (g in listOf("am", "tm", "em")) {
             items.add(Item("singlet_white_$g", "Regata baggy branca", "top", g, 0, true, true, true))
