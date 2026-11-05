@@ -32,8 +32,9 @@ from etapa11_base import GP, K
 BONES = R.BONES; BI = R.BI
 GROUPS_ALL = ['tf', 'tm', 'af', 'am', 'ef', 'em', 'cu', 'pu']
 # clipe -> (animacao da UAL, quadros por segundo gravados)
-CLIPS = [('Idle_Loop', 30), ('Walk_Loop', 60), ('Jump_Combo', 60), ('Jog_Fwd_Loop', 60)]
-IDLE, WALK, JUMP, RUN = 0, 1, 2, 3
+CLIPS = [('Idle_Loop', 30), ('Walk_Loop', 60), ('Jump_Combo', 60), ('Jog_Fwd_Loop', 60), ('RunJump', 60)]
+IDLE, WALK, JUMP, RUN, RUNJUMP = 0, 1, 2, 3, 4
+AIR = 0.71      # tempo no ar do pulo do app (2*3.9/11)
 
 # --- ajustes finos ---------------------------------------------------------------------------------------------
 FINGER_GAIN = 1.0            # multiplica a flexao dos dedos medida na UAL
@@ -52,6 +53,9 @@ PARAMS = {
     3: dict(sx=1.0, sz=0.5, sb=0.45, pgain=0.8, trunk=10.0, head=3.0, abd=(14.0, 0.5), sag=(-14.0, 0.5), rate=0.9, elb=0.55),
     2: dict(sx=1.0, sz=1.0, sb=0.55, pgain=0.6, trunk=0.0, head=0.0, abd=(18.0, 0.45), sag=(None, 0.8), rate=1.0),
 }
+# Etapa 63: parado, correr, pulo e pulo correndo vem dos FBX do Mixamo enviados pelo usuario (ferramentas/anim_fbx), sem ajuste de estilo
+_ID = dict(sx=1.0, sz=1.0, sb=1.0, pgain=1.0, trunk=0.0, head=0.0, abd=(None, 1.0), sag=(None, 1.0), rate=1.0)
+for _k in (0, 2, 3, 4): PARAMS[_k] = dict(_ID)
 
 # ------------------------------------------------------------------------------------------------ utilidades 3D
 def unit(v):
@@ -324,15 +328,10 @@ def run_group(src, grp, ratios, outdir):
     for ci, c in enumerate(CLIPS):
         if c is None: continue
         anim, fps = c
-        if ci == JUMP: sx_ = JumpSource(src)
-        else: sx_ = None
-        sx_ = sx_ if sx_ is not None else globals().get('RUN_SRC') if (ci == RUN and globals().get('RUN_SRC') is not None) else src   # correr pode vir de um FBX Mixamo (RUN_FBX)
+        sx_ = MIX.get(ci, src)
         rt = Retarget(sx_, body, PARAMS[ci], anim, fps)
         cl = build_clip(sx_, rt, body, anim, fps, sole_ids, bi, bw, rest_m)
         clips[ci] = (cl, rt)
-    # pulo = pose do parado (primeiro quadro)
-    idle_cl = clips[IDLE][0]
-    jump_M = idle_cl['M'][:1].copy()
     # altura do chao: sola mais baixa de cada clipe = y 0 (o app so sobe, nunca desce)
     final = []
     for ci in range(len(CLIPS)):
@@ -357,10 +356,22 @@ if __name__ == '__main__':
     groups = [a for a in rest_args if not a.startswith('--')] or GROUPS_ALL
     os.makedirs(out, exist_ok=True)
     ratios = read_ratios(); src = Source(UAL)
-    if os.environ.get('RUN_FBX'):
-        from mixamo_src import MixSource
-        RUN_SRC = MixSource(os.environ['RUN_FBX'])
+    from mixamo_src import MixClip, air_window
+    FB = os.path.join(_here, 'anim_fbx') + '/'
+    MIX = {}
+    MIX[IDLE] = MixClip(FB + 'Idle.fbx')
+    MIX[RUN] = MixClip(FB + 'Running_1.fbx')
+    for ci_, fn, pre, tail, base in ((JUMP, 'Jump_1.fbx', 0.14, 0.75, 1.034), (RUNJUMP, 'Running_Jump.fbx', 0.0, None, 0.859)):
+        t_off, t_land, low_, tend = air_window(FB + fn)
+        a_ = pre + AIR; segs = []
+        if pre > 0: segs.append((0.0, pre, t_off - pre, t_off))
+        segs.append((pre, a_, t_off, t_land))
+        t_end = min(t_land + tail, tend) if tail else tend
+        segs.append((a_, a_ + (t_end - t_land), t_land, t_end))
+        MIX[ci_] = MixClip(FB + fn, segs=segs, lift_base=base)
+        print('[mixamo] %s: decola %.3f, pousa %.3f, ar %.2f s -> %.2f s; clipe %.2f s' % (fn, t_off, t_land, t_land - t_off, AIR, MIX[ci_].period))
     for g in groups:
         r = run_group(src, g, ratios, out)
+        print('   k perna %.3f -> corrida: pe de apoio ~ %.2f m/s no jogo' % (r['clips'][RUN][1].k, r['clips'][RUN][1].k * 3.3))
         for ci, rep in r['report'].items():
             print('   clipe %d: %.3f s, %d quadros, fecha laco (dif max %.4f), subida da sola no ciclo %.1f cm' % (ci, rep['dur'], rep['frames'], rep['gap'], rep['lift_range'] * 100))

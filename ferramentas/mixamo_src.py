@@ -62,3 +62,51 @@ class MixSource:
                 p[n] = p[n] * (1 - w) + p2[n] * w
                 r = Rot.from_matrix(np.stack([D[n], D2[n]])); D[n] = Slerp([0, 1], r)([w]).as_matrix()[0]
         return p, D
+
+
+class MixClip(MixSource):
+    """Etapa 63: um clipe Mixamo (FBX) como esta, sem procurar ciclo.
+    segs: lista de (u0, u1, s0, s1) -- tempo do clipe [u0,u1] <- tempo do FBX [s0,s1] (linear; permite esticar o trecho no ar).
+    lift_base: se dado, a subida do quadril acima desta altura (m) e' retirada de todo o corpo (quem sobe e' o jogo, pela fisica do pulo)."""
+    def __init__(self, path, segs=None, lift_base=None, fps=60):
+        self.a = Anim(path); a = self.a
+        Wr = a.world(0, False)
+        self.pr = {n: Wr[v][1] * self.SC for n, v in MAP.items()}
+        self.Rr = {n: Wr[v][0] for n, v in MAP.items()}
+        self.nm = {n: i for i, n in enumerate(MAP)}
+        self.rig = _Rig(self)
+        self.segs = segs or [(0.0, a.t1 - a.t0, a.t0, a.t1)]
+        self.period = self.segs[-1][1]
+        self.lift_base = lift_base
+        self.ov = 0.0
+
+    def src_t(self, u):
+        for (u0, u1, s0, s1) in self.segs:
+            if u <= u1 or (u0, u1, s0, s1) == self.segs[-1]:
+                return s0 + (s1 - s0) * min(max((u - u0) / (u1 - u0), 0.0), 1.0)
+
+    def lift_at(self, s):
+        if self.lift_base is None: return 0.0
+        return max(0.0, self.a.world(s)['Hips'][1][1] * self.SC - self.lift_base)
+
+    def pose(self, anim, u):
+        s = self.src_t(u)
+        p, D = self._raw(s)
+        lf = self.lift_at(s)
+        if lf: p = {n: v - np.array([0.0, lf, 0.0]) for n, v in p.items()}
+        return p, D
+
+
+def air_window(path, thr=0.02, fps=240):
+    """(decolagem, pouso) em s do FBX: primeiro/ultimo instante em que o pe mais baixo esta acima do chao + thr."""
+    a = Anim(path); W0 = a.world(a.t0)
+    g = min(W0['LeftFoot'][1][1], W0['RightFoot'][1][1]) * 0.01
+    T = np.arange(a.t0, a.t1, 1.0 / fps); up = []
+    for t in T:
+        W = a.world(t); up.append(min(W['LeftFoot'][1][1], W['RightFoot'][1][1]) * 0.01 > g + thr + 0.0)
+    up = np.array(up)
+    # chao de referencia: o mais baixo do clipe
+    low = min(min(a.world(t)['LeftFoot'][1][1], a.world(t)['RightFoot'][1][1]) for t in T[::8]) * 0.01
+    up = np.array([min(a.world(t)['LeftFoot'][1][1], a.world(t)['RightFoot'][1][1]) * 0.01 > low + 0.03 for t in T])
+    idx = np.nonzero(up)[0]
+    return float(T[idx[0]]), float(T[idx[-1]]), float(low), float(a.t1)

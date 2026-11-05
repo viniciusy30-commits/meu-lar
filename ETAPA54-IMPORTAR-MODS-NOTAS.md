@@ -108,3 +108,16 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Cabelo (sk_hair4.py): mechas 3D (tubos achatados e afilados) em camadas: base longa, camada do meio wolf cut com pontas para fora, volume bagunçado no topo, franja bagunçada até as sobrancelhas e mechas laterais emoldurando o rosto. Capacete colado no couro cabeludo (sem "disco" liso no topo). Textura com brilho ao longo da mecha.
 - Jordan (sk_jordan.py): perfil mais baixo; cada parte (cabedal, sola, língua, cadarço, gola) com atlas próprio (antes a projeção sobreposta borrava a pintura); biqueira, gola, calcanhar e painel dos cadarços pretos, faixa lateral em arco, cadarços brancos, sola branca com borracha escura.
 - Calça (sk_cargo2.py): eixo da perna reto (sem dobra no joelho), raio mais uniforme na coxa; atrás e nos lados a barra passa POR FORA do tênis e cai até ~2 cm do chão; na frente assenta no peito do pé.
+
+## Etapa 62 — Correção do cabelo (prints do jogo)
+- Buraco/redemoinho no topo: a cúpula do cabelo agora é mais grossa no topo (colada no couro cabeludo + até 2 cm), com UV planar e textura isotrópica (sem o redemoinho do mapeamento por azimute), e foram adicionadas mechas que sobem dos lados até a coroa e mechas de raiz alta cobrindo a cúpula.
+- Franja: pontas acima dos olhos (centro ~176,8; laterais ~173,5); antes cobria os olhos.
+- Camadas do meio e da base saem acima da cúpula (offsets maiores). Gerador: ferramentas/skate/sk_hair4.py.
+
+## Etapa 63 - animações novas (Mixamo enviadas pelo usuário)
+- Parado (Idle.fbx), Correr (Running_1.fbx), Pulo (Jump_1.fbx) e Pulo correndo (Running_Jump.fbx, clipe novo nº 4) substituem os anteriores; Andar continua o da UAL (não foi enviado).
+- `ferramentas/anim_fbx/*.fbx` + `mixamo_src.py` (MixClip, air_window) + `etapa53_animacoes_ual.py` regeneram `assets/cute/clips_*.bin` (5 clipes: 0 parado, 1 andar, 2 pulo, 3 correr, 4 pulo correndo).
+- Pulos: a subida do quadril é retirada do clipe (quem sobe é a física do jogo); o trecho no ar é esticado para 0,71 s (tempo do pulo do app).
+- Renderer3D: pulo parado tem agachada de 0,14 s antes de sair do chão; pulo correndo se estava correndo; a recuperação do pouso toca até o fim (ou corta se o jogador andar). RUN_SPEED 2,1 -> 3,2 m/s (passo do clipe novo). CuteChar: RUNJUMP=4 (sem corpo do Sims cai em JUMP).
+- Não testado no aparelho; o app não foi compilado por inteiro aqui.
+- O cabelo da Etapa 62 foi mantido como estava (o pedido de "esquecer" o zip foi lido como "não é o foco agora").

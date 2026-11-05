@@ -16,7 +16,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Etapa 11: velocidade da corrida (m/s); é a velocidade natural do clipe Slow_Run.fbx (medida: pé de apoio recua a 2,44 m/s), sem o pé deslizar. */
-private const val RUN_SPEED = 2.1f
+private const val JUMP_PRE = 0.14f   // agachada antes do pulo parado (= trecho pré-decolagem do clipe 2)
+private const val RUN_SPEED = 3.2f   // Etapa 63: casado com o passo da corrida nova (Mixamo Running_1)
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
@@ -59,6 +60,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var pYaw = 0f
     private var pMoving = false
     private var jumpT = 0f
+    private var jumping = false
+    private var jumpLaunched = false
+    private var jumpRun = false
+    private var jumpPre = 0f
 
     // vista aérea
     @Volatile var yaw = 0.75f
@@ -534,17 +539,27 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (stopReq) { stopReq = false; path = null; markX = Float.NaN }
         val req = walkReq
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
-        if (mode != 0 && mode != 1) { jumpReq = false; return }
+        if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; return }
         // pulo
         if (jumpReq && mode == 0) {
             jumpReq = false
-            if (py <= 0.001f && vy <= 0f) { vy = 3.9f; jumpT = 0f }
+            if (!jumping && py <= 0.001f && vy <= 0f) {
+                jumping = true; jumpLaunched = false; jumpT = 0f
+                jumpRun = pRun && pMoving
+                jumpPre = if (jumpRun) 0f else JUMP_PRE   // pulo parado: agacha um instante antes de sair do chão
+            }
         } else jumpReq = false
-        if (py > 0f || vy > 0f) {
-            vy -= 11f * dt
+        if (jumping) {
             jumpT += dt
-            py += vy * dt
-            if (py <= 0f) { py = 0f; vy = 0f }
+            if (!jumpLaunched && jumpT >= jumpPre) { jumpLaunched = true; vy = 3.9f }
+            if (jumpLaunched) {
+                vy -= 11f * dt
+                py += vy * dt
+                if (py <= 0f) { py = 0f; vy = 0f }
+            }
+            val clipLen = CuteChar.clipSeconds(if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP)
+            // depois de pousar, termina a recuperação do clipe; se o jogador andar, volta logo ao andar/correr
+            if (jumpLaunched && py <= 0f && (jumpT >= clipLen * 0.999f || (pMoving && jumpT > jumpPre + 0.8f))) jumping = false
         }
         if (mode == 1) { followPath(dt); return }
         if (path != null) { path = null; markX = Float.NaN }   // câmera de perto: o analógico manda
@@ -579,8 +594,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
         val t = (now / 1_000_000L % 100000L) / 1000f
-        val air = py > 0.02f
-        val cute = if (air) CuteChar.frame(CuteChar.JUMP, minOf(jumpT, CuteChar.clipSeconds(CuteChar.JUMP) * 0.999f))
+        val air = jumping
+        val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
+        val cute = if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão

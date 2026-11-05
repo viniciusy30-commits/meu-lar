@@ -27,6 +27,7 @@ object CuteChar {
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
+    const val RUNJUMP = 4   // Etapa 63: pulo correndo (só nos corpos do Sims; sem eles vira JUMP)
     const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
@@ -760,7 +761,8 @@ object CuteChar {
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
         val cset = clipSet
-        val c0 = clip.coerceIn(0, cset.data.size - 1)
+        val clipR = if (clip == RUNJUMP && (simGrp.isEmpty() || cset.data.size < 5)) JUMP else clip
+        val c0 = clipR.coerceIn(0, cset.data.size - 1)
         val c = if (MALE_CLIPS && mascV && cset.data.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = cset.frames[c]
@@ -775,12 +777,13 @@ object CuteChar {
         slotNs[sl] = now
 
         if (slotClip[sl] != c) {
-            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP) 0.06f else 0.25f
+            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP || c == RUNJUMP) 0.06f else 0.25f
             slotClip[sl] = c
             slotT0[sl] = t
         }
-        var lt = if (c == JUMP) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
-        if (c != JUMP) {
+        val isJ = c == JUMP || c == RUNJUMP
+        var lt = if (isJ) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
+        if (!isJ) {
             lt %= len
             if (lt < 0f) lt += len
         } else if (lt < 0f) lt = 0f
@@ -795,7 +798,7 @@ object CuteChar {
 
         val prev = slotLast[sl]
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
-            val dur = if (c == JUMP) 0.06f else 0.25f
+            val dur = if (isJ) 0.06f else 0.25f
             val k = smooth01(1f - slotBlend[sl] / dur)
             for (j in 0 until n12) bone[j] = prev[j] + (bone[j] - prev[j]) * k
             slotBlend[sl] -= dt
@@ -815,7 +818,7 @@ object CuteChar {
         val sv = shapeVer
         val bp = bodyP
         val fp0 = faceP
-        if (sl == 0) exprAuto = if (c == JUMP) 4 else 0
+        if (sl == 0) exprAuto = if (isJ) 4 else 0
         exprWeights(now, exprAuto)
         var exprChanged = false
         for (i in 0 until EXPR_N) if (exprCur[i] != exprApplied[i]) { exprChanged = true; break }
