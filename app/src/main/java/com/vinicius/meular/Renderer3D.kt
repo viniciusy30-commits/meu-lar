@@ -159,6 +159,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var yardM: Mesh? = null
     private var floorM: Mesh? = null
     private var ceilM: Mesh? = null
+    private var doorM: Mesh? = null
+    private var doorAng = 0f
+    private var doorT = 0L
     private val walls = arrayOfNulls<Mesh>(4)
     private var bw = -1
     private var bh = -1
@@ -338,10 +341,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val gh = st.gh
         val fl = Finish.floors[st.floorIdx]
         val wl = Finish.walls[st.wallIdx]
-        yardM?.release(); floorM?.release(); ceilM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
+        yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh)
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)
+        doorM = Models.doorLeaf()
         val W = gw.toDouble()
         val H = gh.toDouble()
         walls[0] = Models.wall(W, listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
@@ -647,7 +651,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // ------------------------------------------------------------ personagem
 
     private fun drawCreator(now: Long) {
-        GLES20.glClearColor(0.70f, 0.88f, 0.93f, 1f)
+        GLES20.glClearColor(0.40f, 0.74f, 0.93f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUniform3f(uEye, ex, ey, ez)
         GLES20.glUniform2f(uRoom, 0f, 0f)
@@ -881,6 +885,23 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (i in 0..3) if (shown[i]) {
             wallModel(i, gw.toFloat(), gh.toFloat())
             walls[i]?.let { draw(it, mdl, 1f) }
+        }
+        // porta animada: abre sozinha quando o personagem chega perto e fecha quando ele se afasta
+        doorM?.let { dm ->
+            val now2 = System.nanoTime()
+            val dtd = ((now2 - doorT) / 1e9f).coerceIn(0f, 0.1f)
+            doorT = now2
+            val dx = px - gw / 2f; val dz = pz - gh.toFloat()
+            val near = dx * dx + dz * dz < 2.3f * 2.3f
+            val tgt = if (near) 100f else 0f
+            doorAng += (tgt - doorAng) * Math.min(1f, dtd * 5f)
+            if (Math.abs(tgt - doorAng) < 0.3f) doorAng = tgt
+            if (shown[1]) {
+                wallModel(1, gw.toFloat(), gh.toFloat())
+                Matrix.translateM(mdl, 0, gw / 2f - 0.49f, 0f, -0.04f)
+                Matrix.rotateM(mdl, 0, doorAng, 0f, 1f, 0f)
+                draw(dm, mdl, 1f)
+            }
         }
         if (fp) {
             Matrix.setIdentityM(mdl, 0)

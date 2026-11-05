@@ -1,3 +1,23 @@
+#id 2026-11-07-a
+#titulo Criador de personagem no estilo The Sims 4
+- Tela do criador redesenhada: fundo azul-turquesa com brilhos, aba "Olá, meu nome é…" com o plumbob, coluna de sexo/idade/corpo à esquerda, categorias em medalhões ao lado do painel e botão verde de confirmar
+- Painel de peças com 2 colunas de cards maiores e paleta de cores no topo; barra inferior com Sortear e Zerar aba, setas de girar maiores e zoom
+- A plataforma redonda sob o personagem foi removida
+
+#id 2026-11-06-d
+#titulo HUD e criador de personagem refeitos
+- HUD novo no estilo do The Sims: pílulas de status no topo (dinheiro, tamanho da casa, quantidade de móveis), retrato do personagem e coluna de atalhos à esquerda (Trabalhar, Novidades, Sala de testes) e barra colorida embaixo (Vista, Personagem, Loja, Mais)
+- Criador de personagem: as categorias agora ficam numa faixa com nomes dentro do painel e aparecem logo ao abrir (antes só apareciam depois de tocar num corpo)
+- Novos botões no criador: Sortear, Zerar a aba atual e Pronto; zoom + e - ao lado do personagem
+
+#id 2026-11-06-c
+#titulo Porta que abre, cortinas de verdade, telhado e novo visual dos menus
+- Porta nova: batente com guarnição, folha com painéis em relevo, dobradiças e maçaneta de alavanca dos dois lados. Ela abre sozinha quando o personagem chega perto e fecha quando ele se afasta
+- Cortinas franzidas, presas de lado com amarrilho, coladas na parede e ao lado do caixilho (sem passar pelo peitoril); barra com suportes na parede
+- Lambri removido das paredes
+- Telhado de quatro águas com telhas, beirais, fáscia e cumeeira
+- Menus: Configurações agora rola, e as cores do HUD e dos menus foram refeitas em azul-marinho com brilho azul-claro, inspiradas no The Sims 4
+
 #id 2026-11-06-b
 #titulo Sala de testes e árvores corrigidas
 - Nova "Sala de testes" em Configurações: uma sala grande com todos os móveis, plantas, árvores, arbustos, flores, cerca, poste, banco e caixa de correio do jogo, para mover e girar. Itens novos aparecem lá sozinhos. Nada do que você mexer ali é salvo e a sua casa fica intacta

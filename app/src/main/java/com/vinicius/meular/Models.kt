@@ -400,7 +400,7 @@ object Models {
             val ww = o.w
             if (o.door) {
                 // porta modelada: batente, soleira e folha aberta para fora (Etapa 68)
-                fl.place("door_110", o.c, 0.0, 0.0)
+                fl.place("door_frame_110", o.c, 0.0, 0.0)
                 b.m(Mt.METAL)
                 b.rbox(o.c + ww / 2 + 0.45, 1.75, -0.2, 0.08, 0.14, 0.06, 0.02, C("#2B3036"), true, 1)
                 b.m(Mt.PLAIN)
@@ -410,17 +410,9 @@ object Models {
                 val id = if (wn >= 175) "190" else if (wn >= 140) "160" else "125"
                 fl.place("win_$id", o.c, 0.0, 0.0)
                 val cc = if (o.c < len / 2) C("#D9786B") else C("#E4B25F")
-                fl.place("curt_$id", o.c, 0.0, 0.07, 1.0, 0.0,
+                fl.place("curt_$id", o.c, 0.0, 0.0, 1.0, 0.0,
                     Math.min(1.25f, android.graphics.Color.red(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.green(cc) / 255f * 1.15f), Math.min(1.25f, android.graphics.Color.blue(cc) / 255f * 1.15f))
             }
-        }
-
-        // lambri (Etapa 68): módulos de 1 m, menos na porta
-        for (i in 0 until Math.floor(len).toInt()) {
-            val x0m = i.toDouble(); val x1m = i + 1.0
-            var skip = false
-            for (o in sorted) if (o.door && x1m > o.c - o.w / 2 - 0.02 && x0m < o.c + o.w / 2 + 0.02) skip = true
-            if (!skip) fl.place("wain_1", x0m, 0.0, 0.0)
         }
 
         // rodapé, moldura de teto e platibanda externa
@@ -443,6 +435,77 @@ object Models {
         return Mesh(wm.parts + fl.build())
     }
 
+    /** Folha da porta (origem na dobradiça), animada pelo Renderer3D. */
+    fun doorLeaf(): Mesh {
+        val fb = Flora.Batch()
+        fb.place("door_leaf_110", 0.0, 0.0, 0.0)
+        return Mesh(fb.build())
+    }
+
+    // telhado de quatro águas (Etapa 70)
+    private fun roofTri(b: MB, ax: Double, ay: Double, az: Double, bx: Double, by: Double, bz: Double, cx: Double, cy: Double, cz: Double, col: Int) {
+        var ux = bx - ax; var uy = by - ay; var uz = bz - az
+        var vx = cx - ax; var vy = cy - ay; var vz = cz - az
+        var nx = uy * vz - uz * vy; var ny = uz * vx - ux * vz; var nz = ux * vy - uy * vx
+        val l = Math.sqrt(nx * nx + ny * ny + nz * nz)
+        nx /= l; ny /= l; nz /= l
+        if (ny < 0) { nx = -nx; ny = -ny; nz = -nz }
+        fun p(x: Double, y: Double, z: Double) = b.v(x.toFloat(), y.toFloat(), z.toFloat(), nx.toFloat(), ny.toFloat(), nz.toFloat(), col, x.toFloat(), (z + y * 1.6).toFloat())
+        p(ax, ay, az); p(bx, by, bz); p(cx, cy, cz)
+    }
+
+    private fun roofQuad(b: MB, p: Array<DoubleArray>, col: Int) {
+        roofTri(b, p[0][0], p[0][1], p[0][2], p[1][0], p[1][1], p[1][2], p[2][0], p[2][1], p[2][2], col)
+        roofTri(b, p[0][0], p[0][1], p[0][2], p[2][0], p[2][1], p[2][2], p[3][0], p[3][1], p[3][2], col)
+    }
+
+    private fun roof(b: MB, W: Double, H: Double) {
+        val o = 0.6
+        val ye = HH + 0.2
+        val hw = (Math.min(W, H) + 2 * o) / 2
+        val rise = hw * 0.52
+        val yr = ye + rise
+        val x0 = -o; val x1 = W + o; val z0 = -o; val z1 = H + o
+        val white = C("#FFFFFF")
+        b.m(Mt.ROOF, 0.5f)
+        val e0 = doubleArrayOf(x0, ye, z0); val e1 = doubleArrayOf(x1, ye, z0); val e2 = doubleArrayOf(x1, ye, z1); val e3 = doubleArrayOf(x0, ye, z1)
+        val r0: DoubleArray; val r1: DoubleArray
+        if (W >= H) {
+            r0 = doubleArrayOf(x0 + hw, yr, H / 2); r1 = doubleArrayOf(x1 - hw, yr, H / 2)
+            roofQuad(b, arrayOf(e0, e1, r1, r0), white)
+            roofQuad(b, arrayOf(e2, e3, r0, r1), white)
+            roofTri(b, e0[0], e0[1], e0[2], e3[0], e3[1], e3[2], r0[0], r0[1], r0[2], white)
+            roofTri(b, e1[0], e1[1], e1[2], e2[0], e2[1], e2[2], r1[0], r1[1], r1[2], white)
+        } else {
+            r0 = doubleArrayOf(W / 2, yr, z0 + hw); r1 = doubleArrayOf(W / 2, yr, z1 - hw)
+            roofQuad(b, arrayOf(e0, e3, r1, r0), white)
+            roofQuad(b, arrayOf(e1, e2, r1, r0), white)
+            roofTri(b, e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r0[0], r0[1], r0[2], white)
+            roofTri(b, e3[0], e3[1], e3[2], e2[0], e2[1], e2[2], r1[0], r1[1], r1[2], white)
+        }
+        // beirais: fáscia clara em volta e forro do beiral por baixo
+        b.m(Mt.PLASTER, 0.5f)
+        val fc = C("#F6F1E7")
+        b.rbox((x0 + x1) / 2, ye - 0.09, z0, x1 - x0 + 0.06, 0.2, 0.07, 0.02, fc, true, 1)
+        b.rbox((x0 + x1) / 2, ye - 0.09, z1, x1 - x0 + 0.06, 0.2, 0.07, 0.02, fc, true, 1)
+        b.rbox(x0, ye - 0.09, (z0 + z1) / 2, 0.07, 0.2, z1 - z0, 0.02, fc, true, 1)
+        b.rbox(x1, ye - 0.09, (z0 + z1) / 2, 0.07, 0.2, z1 - z0, 0.02, fc, true, 1)
+        b.plane(x0, z0, x1, z1, HH + 0.02, C("#EFE8DB"), false)
+        // cumeeira e cantos
+        b.m(Mt.ROOF, 0.5f)
+        val rc = C("#D9DCE6")
+        fun cap(ax: DoubleArray, bx: DoubleArray) {
+            val n = 6
+            for (i in 0 until n) {
+                val t0 = i.toDouble() / n; val t1 = (i + 1.0) / n
+                val sx = ax[0] + (bx[0] - ax[0]) * t0; val sy = ax[1] + (bx[1] - ax[1]) * t0 + 0.03; val sz = ax[2] + (bx[2] - ax[2]) * t0
+                val ex = ax[0] + (bx[0] - ax[0]) * t1; val ey = ax[1] + (bx[1] - ax[1]) * t1 + 0.03; val ez = ax[2] + (bx[2] - ax[2]) * t1
+                b.rbox((sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, Math.abs(ex - sx) + 0.09, 0.09, Math.abs(ez - sz) + 0.09, 0.03, rc, true, 1)
+            }
+        }
+        if (W >= H) { if (r1[0] > r0[0] + 0.05) cap(r0, r1) } else { if (r1[2] > r0[2] + 0.05) cap(r0, r1) }
+    }
+
     fun ceiling(gw: Int, gh: Int): Mesh {
         val b = MB()
         val W = gw.toDouble(); val H = gh.toDouble()
@@ -456,11 +519,7 @@ object Models {
         b.m(Mt.PLAIN)
         b.lathe(cx, HH - 0.55, cz, floatArrayOf(0.34f, 0f, 0.1f, 0.27f), C("#F4F1EA"), true, 28)
         b.sphere(cx, HH - 0.5, cz, 0.09, C("#FFF3C8"), 0.09, 8, false)
-        // laje do telhado: fascia clara + telhas por cima (Etapa 69)
-        b.m(Mt.PLASTER, 0.5f)
-        b.rbox(W / 2, HH + 0.11, H / 2, W + 0.7, 0.2, H + 0.7, 0.04, C("#F3EEE4"), true, 2)
-        b.m(Mt.ROOF, 0.55f)
-        b.rbox(W / 2, HH + 0.245, H / 2, W + 0.5, 0.07, H + 0.5, 0.025, C("#FFFFFF"), true, 2)
+        roof(b, W, H)
         return b.toMesh(true)
     }
 

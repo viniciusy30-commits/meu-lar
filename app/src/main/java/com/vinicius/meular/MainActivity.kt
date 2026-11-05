@@ -26,6 +26,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var st: GameState
     private lateinit var game: GameView
     private lateinit var moneyTv: TextView
+    private lateinit var casaTv: TextView
+    private lateinit var movTv: TextView
+    private lateinit var sideCol: LinearLayout
+    private lateinit var portrait: FrameLayout
     private lateinit var workBar: PillBar
     private lateinit var editBar: LinearLayout
     private lateinit var moveIcon: IconView
@@ -104,6 +108,55 @@ class MainActivity : AppCompatActivity() {
         return f
     }
 
+
+    /** Pílula de status do topo (como no Sims): medalhão colorido com ícone + valor (+ botão de mais). */
+    private fun statPill(icon: Int, tone: Tone, value: TextView, plus: (() -> Unit)?, tap: (() -> Unit)?): LinearLayout {
+        val chip = LinearLayout(this)
+        chip.orientation = LinearLayout.HORIZONTAL
+        chip.gravity = Gravity.CENTER_VERTICAL
+        chip.setPadding(dp(3), dp(3), dp(plus?.let { 3 } ?: 12), dp(3))
+        chip.background = Ui.frost(dpf(22f), 0x0B1624, 0xB8, 0x86, dpf(1.4f), edge = 0xCCFFFFFF.toInt())
+        val med = FrameLayout(this)
+        med.background = Ui.chunky(tone, dpf(32f), dpf(2f), true, 0xFFFFFFFF.toInt(), dpf(1.6f))
+        med.setPadding(0, 0, 0, dp(2))
+        med.addView(IconView(this, icon, Color.WHITE, tone.edge), FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER))
+        chip.addView(med, LinearLayout.LayoutParams(dp(32), dp(32)))
+        value.setPadding(dp(9), 0, dp(plus?.let { 9 } ?: 0), 0)
+        chip.addView(value)
+        if (plus != null) {
+            val p = FrameLayout(this)
+            p.background = Ui.chunky(Tn.SIMS_GREEN, dpf(26f), dpf(2f), true, 0xFFFFFFFF.toInt(), dpf(1.4f))
+            p.setPadding(0, 0, 0, dp(2))
+            p.addView(IconView(this, Ic.PLUS, Color.WHITE, Tn.SIMS_GREEN.edge), FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER))
+            press(p) { plus() }
+            chip.addView(p, LinearLayout.LayoutParams(dp(26), dp(26)))
+        }
+        if (tap != null) press(chip) { tap() }
+        return chip
+    }
+
+    /** Botão quadrado arredondado da coluna da esquerda (rosa, âmbar, verde-água...). */
+    private fun sideTile(icon: Int, tone: Tone, acao: () -> Unit): FrameLayout {
+        val f = FrameLayout(this)
+        f.background = Ui.chunky(tone, dpf(17f), dpf(3.5f), true, 0xFFFFFFFF.toInt(), dpf(2f))
+        f.setPadding(0, 0, 0, dp(3))
+        f.addView(IconView(this, icon, Color.WHITE, tone.edge).fancy(0x88FFFFFF.toInt()), FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(50), dp(54)).also { it.topMargin = dp(9) }
+        press(f, acao)
+        return f
+    }
+
+    /** Segmento da barra inferior direita; devolve o ícone para poder trocá-lo. */
+    private fun dockSeg(icon: Int, tint: Int, acao: () -> Unit): Pair<FrameLayout, IconView> {
+        val f = FrameLayout(this)
+        f.background = Ui.frost(dpf(19f), tint, 0xD0, 0x8A, dpf(1.5f), edge = 0xDDFFFFFF.toInt())
+        val ic = IconView(this, icon, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt())
+        f.addView(ic, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).also { it.setMargins(dp(3), dp(3), dp(3), dp(3)) }
+        press(f, acao)
+        return Pair(f, ic)
+    }
+
     private fun editBtn(icon: Int, label: String, tone: Tone, acao: () -> Unit): Triple<LinearLayout, IconView, TextView> {
         val l = LinearLayout(this)
         l.orientation = LinearLayout.VERTICAL
@@ -140,32 +193,31 @@ class MainActivity : AppCompatActivity() {
         root.addView(game, FrameLayout.LayoutParams(-1, -1))
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
 
-        // topo: painel de dinheiro (esquerda) + botões pequenos (direita), como no The Sims
+        // topo: pílulas de status no centro (dinheiro, casa, móveis), como no The Sims
         hud = LinearLayout(this)
         hud.orientation = LinearLayout.HORIZONTAL
-        hud.gravity = Gravity.CENTER_VERTICAL
+        hud.gravity = Gravity.CENTER
         hud.setPadding(dp(12), dp(8), dp(12), dp(4))
-        val chip = LinearLayout(this)
-        chip.orientation = LinearLayout.HORIZONTAL
-        chip.gravity = Gravity.CENTER_VERTICAL
-        chip.setPadding(dp(7), dp(5), dp(7), dp(5))
-        chip.background = Ui.frost(dpf(24f), DARK, 0x8C, 0x5C, dpf(1.3f))
-        chip.addView(IconView(this, Ic.COIN).fancy(0x99FFC94D.toInt()), LinearLayout.LayoutParams(dp(30), dp(30)).also { it.rightMargin = dp(8) })
-        moneyTv = tvShadow(tv("", 16f, Color.WHITE, true))
-        chip.addView(moneyTv)
-        val plus = FrameLayout(this)
-        plus.background = Ui.frost(0f, 0x3CD68A, 0xD0, 0x90, dpf(1.2f), oval = true)
-        plus.addView(IconView(this, Ic.PLUS, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
-        plus.layoutParams = LinearLayout.LayoutParams(dp(26), dp(26)).also { it.leftMargin = dp(10) }
-        press(plus) { loja(0) }
-        chip.addView(plus)
-        hud.addView(chip)
-        hud.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        val vb = glassBtn(Ic.HOME, 44) { alternarVista() }
-        viewIcon = vb.second
-        hud.addView(vb.first)
-        hud.addView(glassBtn(Ic.PERSON, 44) { abrirCriador() }.first)
+        moneyTv = tvShadow(tv("", 15f, Color.WHITE, true))
+        casaTv = tvShadow(tv("", 15f, Color.WHITE, true))
+        movTv = tvShadow(tv("", 15f, Color.WHITE, true))
+        hud.addView(statPill(Ic.COIN, Tn.SUN, moneyTv, { loja(0) }, null), LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) })
+        hud.addView(statPill(Ic.HOME, Tn.SIMS_BLUE, casaTv, null, { loja(5) }), LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) })
+        hud.addView(statPill(Ic.SHOP, Tn.SIMS_PURPLE, movTv, null, { loja(0) }), LinearLayout.LayoutParams(-2, -2))
         root.addView(hud, FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+
+        // canto superior esquerdo: retrato do personagem + coluna de atalhos
+        portrait = FrameLayout(this)
+        portrait.background = Ui.frost(0f, 0x0B1624, 0xCC, 0x99, dpf(2.2f), oval = true, edge = 0xFFFFFFFF.toInt())
+        portrait.addView(IconView(this, Ic.PERSON, Color.WHITE, SOFT_ACC).fancy(0xAAFFFFFF.toInt()), FrameLayout.LayoutParams(dp(36), dp(36), Gravity.CENTER))
+        press(portrait) { abrirCriador() }
+        root.addView(portrait, FrameLayout.LayoutParams(dp(60), dp(60), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
+        sideCol = LinearLayout(this)
+        sideCol.orientation = LinearLayout.VERTICAL
+        sideCol.addView(sideTile(Ic.CASE, Tn.ROSE) { trabalhar() })
+        sideCol.addView(sideTile(Ic.SPARK, Tn.SIMS_GREEN) { mostrarNovidades(true) })
+        sideCol.addView(sideTile(Ic.PLUMB, Tn.SUN) { alternarSalaTestes() })
+        root.addView(sideCol, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).also { it.setMargins(dp(17), dp(76), 0, 0) })
 
         msgTv = tvShadow(tv("", 13f, Pal.TEXT, true))
         msgTv.gravity = Gravity.CENTER
@@ -192,16 +244,19 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(bottom, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
 
-        // barra de ícones no canto inferior direito (azul / roxo / verde), como no The Sims
+        // barra de ícones no canto inferior direito (azul / azul / roxo / verde), como no The Sims
         dockR = LinearLayout(this)
         dockR.orientation = LinearLayout.VERTICAL
         val frame = LinearLayout(this)
         frame.orientation = LinearLayout.HORIZONTAL
         frame.setPadding(dp(4), dp(4), dp(4), dp(4))
-        frame.background = Ui.frost(dpf(27f), DARK, 0x80, 0x52, dpf(1.3f))
-        frame.addView(simsSeg(Ic.CASE, 0x2FA8F0) { trabalhar() })
-        frame.addView(simsSeg(Ic.CART, 0x9B5CF0) { loja(0) })
-        frame.addView(simsSeg(Ic.DOTS, 0x3CD68A) { config() })
+        frame.background = Ui.frost(dpf(27f), DARK, 0x90, 0x60, dpf(1.5f), edge = 0xCCFFFFFF.toInt())
+        val dv = dockSeg(Ic.HOME, 0x2FA8F0) { alternarVista() }
+        viewIcon = dv.second
+        frame.addView(dv.first)
+        frame.addView(dockSeg(Ic.PERSON, 0x2FA8F0) { abrirCriador() }.first)
+        frame.addView(dockSeg(Ic.CART, 0x9B5CF0) { loja(0) }.first)
+        frame.addView(dockSeg(Ic.DOTS, 0x3CD68A) { config() }.first)
         dockR.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         workBar = PillBar(this)
         dockR.addView(workBar, LinearLayout.LayoutParams(-1, dp(9)).also { it.topMargin = dp(7); it.leftMargin = dp(8); it.rightMargin = dp(8) })
@@ -225,6 +280,9 @@ class MainActivity : AppCompatActivity() {
             hud.setPadding(dp(12) + b.left, b.top + dp(6), dp(12) + b.right, dp(4))
             bottom.setPadding(0, 0, 0, b.bottom + dp(8))
             (jumpBtn.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(78) + b.right, dp(108) + b.bottom)
+            (portrait.layoutParams as FrameLayout.LayoutParams).setMargins(dp(12) + b.left, b.top + dp(8), 0, 0)
+            (sideCol.layoutParams as FrameLayout.LayoutParams).setMargins(dp(17) + b.left, b.top + dp(76), 0, 0)
+            portrait.requestLayout(); sideCol.requestLayout()
             (dockR.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, dp(14) + b.right, dp(10) + b.bottom)
             dockR.requestLayout()
             jumpBtn.requestLayout()
@@ -276,6 +334,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun atualizarDinheiro(pulso: Boolean) {
         moneyTv.text = "R$ ${st.money}"
+        casaTv.text = "${st.gw}x${st.gh}"
+        movTv.text = "${st.items.size}"
         if (pulso) moneyTv.animate().scaleX(1.25f).scaleY(1.25f).setDuration(120).withEndAction {
             moneyTv.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
         }.start()
@@ -311,6 +371,8 @@ class MainActivity : AppCompatActivity() {
         hud.visibility = View.GONE
         bottom.visibility = View.GONE
         dockR.visibility = View.GONE
+        portrait.visibility = View.GONE
+        sideCol.visibility = View.GONE
         jumpBtn.visibility = View.GONE
         creator.visibility = View.VISIBLE
         creator.open()
@@ -323,6 +385,8 @@ class MainActivity : AppCompatActivity() {
         hud.visibility = View.VISIBLE
         bottom.visibility = View.VISIBLE
         dockR.visibility = View.VISIBLE
+        portrait.visibility = View.VISIBLE
+        sideCol.visibility = View.VISIBLE
         game.mode = prevMode
         jumpBtn.visibility = if (prevMode == 0) View.VISIBLE else View.GONE
         viewIcon.set(if (prevMode == 0) Ic.HOME else Ic.EYE)
@@ -497,7 +561,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sheet(titulo: String, ic: Int = -1, tone: Tone = Tn.LAV, build: (LinearLayout) -> Unit): Dialog {
+    private fun sheet(titulo: String, ic: Int = -1, tone: Tone = Tn.LAV, rolavel: Boolean = true, build: (LinearLayout) -> Unit): Dialog {
         val d = Dialog(this)
         d.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val panel = LinearLayout(this)
@@ -506,7 +570,7 @@ class MainActivity : AppCompatActivity() {
         panel.setPadding(dp(16), dp(14), dp(16), dp(16) + bottomInset)
         // alça no topo
         val grip = View(this)
-        grip.background = Ui.bg(0x556A5A9C, dpf(3f))
+        grip.background = Ui.bg(0x555CB4E4, dpf(3f))
         panel.addView(grip, LinearLayout.LayoutParams(dp(44), dp(5)).also { it.gravity = Gravity.CENTER_HORIZONTAL; it.bottomMargin = dp(10) })
         val head = LinearLayout(this)
         head.orientation = LinearLayout.HORIZONTAL
@@ -526,7 +590,18 @@ class MainActivity : AppCompatActivity() {
         press(x) { d.dismiss() }
         head.addView(x, LinearLayout.LayoutParams(dp(40), dp(40)))
         panel.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(12) })
-        build(panel)
+        // conteúdo com rolagem: antes as opções passavam do fim da tela e não dava para descer
+        val rolar = object : android.widget.ScrollView(this) {
+            override fun onMeasure(w: Int, h: Int) {
+                super.onMeasure(w, View.MeasureSpec.makeMeasureSpec((resources.displayMetrics.heightPixels * 0.62f).toInt(), View.MeasureSpec.AT_MOST))
+            }
+        }
+        rolar.isVerticalScrollBarEnabled = false
+        rolar.overScrollMode = View.OVER_SCROLL_NEVER
+        val corpo = LinearLayout(this)
+        corpo.orientation = LinearLayout.VERTICAL
+        rolar.addView(corpo, ViewGroup.LayoutParams(-1, -2))
+        if (rolavel) { panel.addView(rolar, LinearLayout.LayoutParams(-1, -2)); build(corpo) } else build(panel)
         d.setContentView(panel)
         d.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -542,7 +617,7 @@ class MainActivity : AppCompatActivity() {
         tabViews = ArrayList()
         val adapter = ShopAdapter()
         shopAdapter = adapter
-        val d = sheet("Loja", Ic.SHOP, Tn.MINT) { panel ->
+        val d = sheet("Loja", Ic.SHOP, Tn.MINT, false) { panel ->
             val money = tvShadow(tv("R$ ${st.money}", 16f, Pal.GOLD, true))
             shopMoney = money
             val moneyChip = LinearLayout(this)
@@ -630,6 +705,7 @@ class MainActivity : AppCompatActivity() {
             if (entrar) st.enterTest() else st.exitTest()
             game.r.resetPlayer()
             runOnUiThread {
+                atualizarDinheiro(false)
                 msg(if (entrar) "Sala de testes: tudo do jogo está aqui. Nada do que você mexer aqui é salvo." else "Voltou para a sua casa.")
                 refreshShop()
             }
