@@ -18,3 +18,9 @@
 - Os GEOM das roupas de baixo trazem a lista de ossos (hash FNV-32 do nome em minúsculas) e os pesos de cada vértice. Os 58 hashes foram identificados (b__Pelvis__, b__Spine0..2__, b__L_UpperArm__, b__L_ShoulderTwist__, dedos 0..2, etc.).
 - O corpo do TS4 agora usa esses pesos originais da EA (mulher: exatos; homem: cueca exata + tronco/braços pela mulher), ligados por nome aos 55 ossos do app. Pés e cabeça continuam com os pesos transferidos.
 - Ainda falta o RIG do TS4 (posições/orientação dos ossos): nenhum dos downloads do celular funcionou. Sem ele não dá para tocar animações próprias do TS4.
+
+## 90e — esqueleto ORIGINAL do TS4
+- Achado no pacote "necrodog Wings MOD" (MediaFire): recurso RIG 0x8EAF13DE com os 178 ossos do adulto do TS4 (165 da EA + 13 das asas), versão 3.1.
+- ferramentas/sims4/rig.py lê o RIG (posição/quaternion locais, pai, nome, hash); assets/cute/skel_s4.txt guarda tudo (mundo + local).
+- Conferido: as juntas caem exatamente no corpo do TS4 (mesmo referencial em metros; L = +x). O pacote também traz 4 CLIPs (animações das asas) para testar a leitura do formato de animação do TS4.
+- Ainda não usado pelo jogo: próximo passo é o corpo do TS4 deformar neste esqueleto e as animações serem passadas para ele.
