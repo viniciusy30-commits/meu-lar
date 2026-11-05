@@ -10,7 +10,7 @@ from PIL import Image
 IR.OUT = PV.FL.OUT; IR.tex_cache = PV.FL.tex_cache
 
 def thumb(glb, out, yaw=0.62, pitch=0.42, S=320):
-    arrs, gj = PV.load_posed(glb, {})
+    arrs, gj = PV.load_posed(glb, {}, skip_fx=True)
     A = PV.asset_from(arrs, yaw, pitch)
     IR.preview_rgba(A, '/tmp/_t.png', size=(S, S))
     im = Image.open('/tmp/_t.png').convert('RGBA')

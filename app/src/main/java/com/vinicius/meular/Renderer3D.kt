@@ -230,6 +230,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var bh = -1
     private var bf = -1
     private var bwl = -1
+    private var bTest = false
 
     private val VS = """
         attribute vec3 aPos; attribute vec3 aNor; attribute vec4 aCol; attribute vec2 aUV;
@@ -405,7 +406,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val fl = Finish.floors[st.floorIdx]
         val wl = Finish.walls[st.wallIdx]
         yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
-        yardM = Models.yard(gw, gh)
+        yardM = Models.yard(gw, gh, st.testRoom)
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)
         doorM = Models.doorLeaf()
@@ -415,7 +416,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         walls[1] = Models.wall(W, listOf(Opening(W / 2, 1.1, true), Opening(W * 0.22, 1.25, false), Opening(W * 0.78, 1.25, false)), wl.cor, true, false)
         walls[2] = Models.wall(H, listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
         walls[3] = Models.wall(H, emptyList(), wl.cor, false, true)
-        bw = gw; bh = gh; bf = st.floorIdx; bwl = st.wallIdx
+        bw = gw; bh = gh; bf = st.floorIdx; bwl = st.wallIdx; bTest = st.testRoom
         // cortinas simuladas (uma por janela; a cor segue a regra antiga: rosada na metade esquerda, dourada na direita)
         cloth.clear()
         fun cur(wall: Int, c: Double, w: Double, len: Double) =
@@ -634,11 +635,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             posInit = true
             pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
         }
+        if (!sleepChecked && CuteChar.ready) {
+            sleepChecked = true
+            if (sitPh == 0) st.items.firstOrNull { it.sleep.isNotEmpty() }?.let { o ->
+                val seat = o.sleep; o.sleep = ""
+                startSit(o, seat, true, true)
+                if (sitPh == 10) o.sleep = seat
+            }
+        }
         if (stopReq) { stopReq = false; path = null; markX = Float.NaN }
         val req = walkReq
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
         if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; return }
         if (sitPh != 0) { jumpReq = false; updateSit(dt); return }
+        if (washPh != 0) { jumpReq = false; updateWash(dt); return }
         if (usePh != 0) { jumpReq = false; updateUse(dt); return }
         // pulo
         if (jumpReq && mode == 0) {
@@ -709,7 +719,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var baseY = 0f
 
     /** Põe o personagem na porta da casa de novo (ao trocar de casa/sala de testes). */
-    fun resetPlayer() { posInit = false; baseY = 0f }
+    fun resetPlayer() { posInit = false; baseY = 0f; sleepChecked = false }
+    private var sleepChecked = false
 
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
@@ -719,12 +730,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
         CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
         val sp = sitPh
-        val cute = if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
+        val cute = if (washPh == 3 || washPh == 5) CuteChar.frame(CuteChar.INTERACT, washT)
+                   else if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
                    else if (sp >= 3) CuteChar.frame(when (sp) {
                        3 -> CuteChar.SIT_IN
                        4 -> CuteChar.SIT_LOOP
                        6, 8 -> if (lieK > 0.45f) CuteChar.IDLE else CuteChar.SIT_LOOP
-                       7 -> CuteChar.IDLE
+                       7, 10 -> CuteChar.IDLE
                        9 -> CuteChar.SIT_LOOP
                        else -> CuteChar.SIT_OUT
                    }, if (sp == 3 || sp == 5) sitT else t)
@@ -915,7 +927,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         lastT = now
         if (dt > 0.05f) dt = 0.05f
 
-        if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl) rebuild()
+        if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()
         updateFP(dt)
 
         val gw = st.gw
@@ -1073,7 +1085,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     6 -> nearItem?.let { startUse(it, -1) }
                     7 -> nearItem?.let { startSit(it, nearSeat, true) }
                     4 -> nearItem?.let { startUse(it, nearPart) }
-                    5 -> sitCancel = true
+                    5 -> { sitCancel = true; if (washPh != 0) washPh = 0 }
+                    8 -> sitItem?.let { o ->
+                        // Etapa 87: dormir / acordar (o sono fica gravado no save)
+                        if (sitPh == 7) { sitPh = 10; o.sleep = sitSeat; saveReq = true }
+                        else if (sitPh == 10) { sitPh = 7; o.sleep = ""; saveReq = true }
+                    }
+                    9 -> nearItem?.let { startWash(it, nearSeat) }
                 }
             }
             for (pn in cloth.panels) if (shown[pn.wall]) {
@@ -1102,6 +1120,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
 
         val items = st.items
+        glassQ.clear(); lateQ.clear()
         for (item in items) {
             val t = item.type
             if (t.glb != null) { drawGlbItem(item, now); continue }
@@ -1164,6 +1183,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(rg, mdl, 0.7f + 0.3f * sin(tt * 5f))
         }
         // vidros por último
+        for ((m, mx) in glassQ) draw(m, mx, 1f, true)
+        for ((m, mx) in lateQ) draw(m, mx, 1f)
         for (i in 0..3) if (shown[i]) {
             wallModel(i, gw.toFloat(), gh.toFloat())
             walls[i]?.let { draw(it, mdl, 1f, true) }
@@ -1352,13 +1373,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (msgT > 0f) msgT -= dt
         if (sitPh != 0) {
             nearItem = null; nearPart = -1
+            val canSleep = sitItem?.type?.glb?.let { Glb.get(it) }?.let { g -> g.nodes.getOrNull(g.index(sitSeat))?.ex?.optBoolean("dormir", false) } ?: false
             when (sitPh) {
                 1, 2 -> { nearKind = 5; nearLabel = "Cancelar" }
-                3, 4, 6, 7 -> { nearKind = 5; nearLabel = "Levantar" }
+                7 -> if (canSleep) { nearKind = 8; nearLabel = "Dormir" } else { nearKind = 5; nearLabel = "Levantar" }
+                10 -> { nearKind = 8; nearLabel = "Acordar" }
+                3, 4, 6 -> { nearKind = 5; nearLabel = "Levantar" }
                 else -> nearKind = 0
             }
             return
         }
+        if (washPh != 0) { nearItem = null; nearPart = -1; nearKind = 5; nearLabel = "Parar"; return }
         if (mode != 0 || usePh != 0) { nearKind = 0; return }
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
         var best = Float.MAX_VALUE; var kind = 0; var lab = ""; var bi: Item? = null; var bp = -1; var bid = 0; var seat = ""
@@ -1374,17 +1399,24 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val g = Glb.get(gid) ?: continue
             val cx = o.x + o.ox + o.w / 2f; val cz = o.y + o.oz + o.h / 2f
             if (kotlin.math.hypot(cx - px, cz - pz) > 3f) continue
-            if (!o.busy) {
+            run {
                 for (ni in g.ips("IP_sentar")) {
+                    if (g.nodes[ni].name in o.occ) continue
                     val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
                     val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
                     if (d < 1.4f && d * 0.9f < best) { best = d * 0.9f; kind = 3; lab = "Sentar"; bi = o; bp = -1; seat = g.nodes[ni].name }
                 }
                 for (ni in g.ips("IP_deitar")) {
+                    if (g.nodes[ni].name in o.occ) continue
                     val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
                     val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
                     if (d < 1.5f && d * 0.9f < best) { best = d * 0.9f; kind = 7; lab = "Deitar"; bi = o; bp = -1; seat = g.nodes[ni].name }
                 }
+            }
+            for (ni in g.ips("IP_lavar")) {
+                val w = toWorld(o, g.rest[ni][12], g.rest[ni][14])
+                val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
+                if (d < 1.2f && d * 0.95f < best) { best = d * 0.95f; kind = 9; lab = g.nodes[ni].ex?.optString("rotulo", "Lavar as mãos") ?: "Lavar as mãos"; bi = o; bp = -1; seat = g.nodes[ni].name }
             }
             for (ni in g.ips("IP_usar")) {
                 val ex = g.nodes[ni].ex ?: continue
@@ -1420,7 +1452,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (sc < best) {
                     best = sc; kind = 4; bi = o; bp = k
                     val open = (o.animTgt?.getOrNull(k) ?: 0f) > 0.5f
-                    lab = (if (open) "Fechar " else "Abrir ") + (nd.anim?.optString("rotulo", "peça") ?: "peça")
+                    val vb = g.slotVerbs[k]
+                    lab = (if (vb != null) (if (open) vb[1] else vb[0]) else (if (open) "Fechar" else "Abrir")) + " " + (nd.anim?.optString("rotulo", "peça") ?: "peça")
                 }
             }
         }
@@ -1509,6 +1542,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             n.local(gmL, n.value(u))
             val pw = if (n.parent >= 0 && n.parent < i) nodeW[n.parent] else baseM
             Matrix.multiplyMM(nodeW[i], 0, pw, 0, gmL, 0)
+            val sw = g.showWhen[i]
+            if (sw != null && sw.none { (cur?.getOrNull(it) ?: 0f) > 0.02f }) continue      // conteúdo interno com tudo fechado: não desenha
             val ef = g.effect[i]
             if (ef != 0) {
                 val w = g.effectWhen[i]
@@ -1518,9 +1553,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (ef == 1) Matrix.scaleM(nodeW[i], 0, 1f, 0.82f + 0.18f * sin(tt * 23f) * sin(tt * 7.3f + item.x) + 0.12f * sin(tt * 41f), 1f)
                 if (ef == 2) Matrix.scaleM(nodeW[i], 0, 1f + 0.08f * sin(tt * 37f), 1f, 1f + 0.08f * cos(tt * 29f))
             }
-            n.mesh?.let { draw(it, nodeW[i], 1f) }
+            val ms = n.mesh ?: continue
+            // Etapa 87: água e vapor são translúcidos: vão para o fim do quadro (sem gravar profundidade), junto com os vidros
+            if (ef == 2 || ef == 4) { lateQ.add(Pair(ms, nodeW[i].copyOf())); continue }
+            draw(ms, nodeW[i], 1f)
+            if (ms.parts.any { it.mat == Mt.GLASS }) glassQ.add(Pair(ms, nodeW[i].copyOf()))
         }
     }
+
+    /** Etapa 87: partes de vidro (prateleiras da geladeira, visor do forno, gelo) e efeitos translúcidos dos GLB, desenhados por último */
+    private val glassQ = ArrayList<Pair<Mesh, FloatArray>>()
+    private val lateQ = ArrayList<Pair<Mesh, FloatArray>>()
 
     // ---------------------------------------------------------------- sentar
     /** deslocamento no mundo (x, z) da cadeira puxada no progresso [u] */
@@ -1571,14 +1614,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (useT >= 1.6f) usePh = 0
     }
 
-    private fun startSit(o: Item, seat: String, lie: Boolean) {
+    private fun startSit(o: Item, seat: String, lie: Boolean, instant: Boolean = false) {
         val g = Glb.get(o.type.glb ?: return) ?: return
         val nm = if (seat.isNotEmpty()) seat else (g.ips(if (lie) "IP_deitar" else "IP_sentar").firstOrNull()?.let { g.nodes[it].name } ?: return)
         val ip = g.point(nm) ?: return
         val ap = g.extraPoint(nm, "aproximacao") ?: return
         val ini = g.extraPoint(nm, "inicio") ?: return
         val sy = g.extraFloat(nm, "assento_y", 0.34f)
-        if (o.busy) return
+        if (nm in o.occ) return          // Etapa 87: ocupação por lugar/lado
         if (!CuteChar.hasSit()) {
             // sem os clipes de sentar (clips_<g>.bin com 8 clipes) ou corpo sem esqueleto do Sims: avisa em vez de sumir com o botão
             msgText = if (CuteChar.bodyGroup() == null) "Este corpo não tem animação de sentar" else "Falta a animação de sentar (etapa83-clipes.zip)"
@@ -1619,6 +1662,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             lieYaw = o.rot * 90f
             lieMode = true
         }
+        if (instant) {
+            // Etapa 87: volta dormindo na cama (estado salvo): sem caminho nem animação de entrada
+            sitItem = o; sitSeat = nm; o.occ.add(nm); o.busy = true; sitPath = null; sitCancel = false; sitPressed = true
+            px = sitPt[0]; pz = sitPt[1]; pYaw = sitYaw; sitLift = sitDY; lieK = 1f; lieT = 1f
+            sitWhere[0] = o.x + o.ox; sitWhere[1] = o.y + o.oz; sitWhere[2] = o.rot.toFloat()
+            jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+            sitPh = 10
+            return
+        }
         val pth: ArrayList<FloatArray> = if (kotlin.math.hypot(px - w2[0], pz - w2[1]) < 0.12f) ArrayList()
             else (planPath(w2[0], w2[1]) ?: run { msgText = "Não dá para chegar"; msgT = 1.4f; return })
         val sp = floatArrayOf(w1[0], w1[1])
@@ -1630,6 +1682,93 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         jumping = false; py = 0f; vy = 0f
         path = null; markX = Float.NaN
         sitPh = 1
+    }
+
+    // ---------------------------------------------------------------- Etapa 87: lavar as mãos na pia (IP_lavar)
+    private var washPh = 0
+    private var washT = 0f
+    private var washItem: Item? = null
+    private var washK = -1
+    private var washYaw = 0f
+    private var washDur = 3.5f
+    private var washPath: ArrayList<FloatArray>? = null
+    private var washStuck = 0f
+
+    private fun startWash(o: Item, nm: String) {
+        val g = Glb.get(o.type.glb ?: return) ?: return
+        val ip = g.point(nm) ?: return
+        val lvName = g.nodes[g.index(nm)].ex?.optString("alavanca", "") ?: ""
+        val li = g.index(lvName)
+        washK = if (li >= 0) g.animSlot[li] else -1
+        washDur = g.extraFloat(nm, "duracao", 3.5f)
+        val w = toWorld(o, ip[0], ip[2])
+        washYaw = o.rot * 90f + Math.toDegrees(ip[3].toDouble()).toFloat() + 180f      // olhar -Z: virado para a pia
+        val pth = if (kotlin.math.hypot(px - w[0], pz - w[1]) < 0.1f) ArrayList() else (planPath(w[0], w[1]) ?: run { msgText = "Não dá para chegar"; msgT = 1.4f; return })
+        pth.add(floatArrayOf(w[0], w[1]))
+        washPath = pth; washItem = o; washT = 0f; washStuck = 0f
+        jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+        washPh = 1
+    }
+
+    private fun updateWash(dt: Float) {
+        val o = washItem
+        if (o == null || !st.items.contains(o)) { washPh = 0; return }
+        val mag2 = moveX * moveX + moveY * moveY
+        pRun = false
+        if (mag2 > 0.09f || (mode == 1 && path != null)) { washPh = 0; pMoving = false; return }
+        val tgt = o.animTgt
+        fun lever(on: Boolean) { if (washK >= 0 && tgt != null && washK < tgt.size && (tgt[washK] > 0.5f) != on) togglePart(o, washK) }
+        when (washPh) {
+            1 -> {
+                val pth = washPath
+                if (pth == null || pth.isEmpty()) { washPh = 2; pMoving = false; return }
+                var budget = WALK_SPEED * dt
+                val bx = px; val bz = pz
+                while (budget > 0f && pth.isNotEmpty()) {
+                    val wpt = pth[0]
+                    val dx = wpt[0] - px; val dz = wpt[1] - pz
+                    val d = sqrt(dx * dx + dz * dz)
+                    if (d < 0.02f) { pth.removeAt(0); continue }
+                    val s2 = min(d, budget)
+                    val mx = dx / d * s2; val mz = dz / d * s2
+                    if (walkable(px + mx, pz, px, pz)) px += mx
+                    if (walkable(px, pz + mz, px, pz)) pz += mz
+                    val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+                    var dl = dir - pYaw
+                    while (dl > 180f) dl -= 360f
+                    while (dl < -180f) dl += 360f
+                    pYaw += dl * min(1f, dt * 12f)
+                    budget -= s2
+                    if (s2 < d) break
+                }
+                pMoving = true
+                if (kotlin.math.hypot(px - bx, pz - bz) < 0.0005f && pth.isNotEmpty()) washStuck += dt else washStuck = 0f
+                if (washStuck > 1.0f) { msgText = "Não dá para chegar"; msgT = 1.4f; washPh = 0; pMoving = false; return }
+                if (pth.isEmpty()) { washPh = 2; pMoving = false }
+            }
+            2 -> {
+                pMoving = false
+                var dl = washYaw - pYaw
+                while (dl > 180f) dl -= 360f
+                while (dl < -180f) dl += 360f
+                pYaw += dl.coerceIn(-330f * dt, 330f * dt)
+                if (abs(dl) < 1.5f) { pYaw = washYaw; washPh = 3; washT = 0f }
+            }
+            3 -> {   // estica a mão e abre a torneira
+                pMoving = false; washT += dt
+                if (washT >= 0.55f) lever(true)
+                if (washT >= 1.6f) { washPh = 4; washT = 0f }
+            }
+            4 -> {   // lavando: água correndo na cuba
+                pMoving = false; washT += dt
+                if (washT >= washDur) { washPh = 5; washT = 0f }
+            }
+            5 -> {   // fecha a torneira
+                pMoving = false; washT += dt
+                if (washT >= 0.55f) lever(false)
+                if (washT >= 1.6f) washPh = 0
+            }
+        }
     }
 
     private fun occ(o: Item?, v: Float) { if (o != null && o === sitItem) sitPressed = v > 0.5f }
@@ -1666,7 +1805,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     }
 
     private fun sitAbort() {
-        sitItem?.busy = false
+        sitItem?.let { it.occ.remove(sitSeat); it.busy = it.occ.isNotEmpty(); if (it.sleep.isNotEmpty()) { it.sleep = ""; saveReq = true } }
         sitPressed = false
         pullTgt = 0f
         sitItem = null; sitPh = 0; sitLift = 0f; sitPath = null; pMoving = false; lieK = 0f; lieMode = false
@@ -1726,7 +1865,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 val pulled = pullSlot < 0 || (o.animCur?.getOrNull(pullSlot) ?: 1f) > 0.97f
                 if (abs(dl) < 1.5f && pulled) {
                     pYaw = sitYaw; px = sitPt[2]; pz = sitPt[3]
-                    o.busy = true; sitPh = 3; sitT = 0f
+                    o.busy = true; o.occ.add(sitSeat); sitPh = 3; sitT = 0f
                 }
             }
             3 -> {
@@ -1753,6 +1892,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             7 -> {
                 pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY; lieK = 1f
                 if (out) { sitPh = 8; lieT = 1.0f }
+            }
+            10 -> {
+                // Etapa 87: dormindo (botão Acordar volta para deitado; mexer o controle acorda e levanta)
+                pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY; lieK = 1f
+                if (out) { o.sleep = ""; saveReq = true; sitPh = 8; lieT = 1.0f }
             }
             8 -> {
                 pMoving = false; pYaw = sitYaw; px = sitPt[0]; pz = sitPt[1]; sitLift = sitDY

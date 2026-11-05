@@ -11,20 +11,6 @@ fun snapQ(v: Float): Float = Math.round(v * 4f) / 4f
 enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val rug: Boolean = false, val fl: String? = null,
                 /** Etapa 83: modelo da biblioteca 3D (assets/obj3d/<glb>.glb) */ val glb: String? = null,
                 /** Etapa 83: objeto solto com física (caixa, bola...) */ val dyn: Boolean = false) {
-    CHAIR("Cadeira", 1, 1, 20, 1.0f, 2),
-    TABLE("Mesa de jantar", 2, 1, 60, 1.25f, 2),
-    BED("Cama", 1, 2, 120, 1.1f, 1),
-    SOFA("Sofá", 2, 1, 150, 1.05f, 0),
-    SHELF("Estante", 2, 1, 100, 1.9f, 0),
-    PLANT("Planta", 1, 1, 30, 1.5f, 3),
-    RUG("Tapete", 2, 2, 40, 0.07f, 3),
-    TV("TV com rack", 2, 1, 250, 1.4f, 0),
-    FRIDGE("Geladeira", 1, 1, 300, 1.9f, 2),
-    STOVE("Fogão", 1, 1, 220, 1.2f, 2),
-    LAMP("Abajur de chão", 1, 1, 35, 1.6f, 3),
-    NIGHT("Criado-mudo", 1, 1, 45, 0.9f, 1),
-    COFFEE("Mesa de centro", 2, 1, 70, 0.55f, 0),
-    WARDROBE("Guarda-roupa", 2, 1, 180, 2.1f, 1),
     X_OAK_A("Carvalho", 6, 6, 0, 5.6f, 4, fl = "oak_a"),
     X_OAK_B("Bordo", 7, 7, 0, 5.6f, 4, fl = "oak_b"),
     X_CHERRY("Cerejeira", 6, 6, 0, 4.8f, 4, fl = "cherry_a"),
@@ -39,26 +25,17 @@ enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val al
     X_FL_LAV("Lavanda", 1, 1, 0, 0.5f, 4, fl = "fl_lav"),
     X_FL_POPPY("Papoulas", 1, 1, 0, 0.45f, 4, fl = "fl_poppy"),
     X_FL_YELLOW("Flores amarelas", 1, 1, 0, 0.5f, 4, fl = "fl_yellow"),
-    X_FENCE("Painel de cerca", 2, 1, 0, 1.0f, 4, fl = "fence_panel"),
-    X_LAMP_POST("Poste de luz", 1, 1, 0, 2.1f, 4, fl = "lamp_post"),
-    X_BENCH("Banco de jardim", 2, 1, 0, 1.0f, 4, fl = "bench"),
-    X_MAILBOX("Caixa de correio", 1, 1, 0, 1.36f, 4, fl = "mailbox"),
-    // Etapa 83: protótipos da biblioteca 3D (GLB com peças, colisores, física e interação)
-    G_POLTRONA("Poltrona de linho", 1, 1, 0, 0.79f, 0, glb = "int_poltrona"),
-    G_APARADOR("Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador"),
-    G_VASO("Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela"),
-    G_CAIXA("Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true),
-    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true),
-    // ETAPA 1 do Plano Mestre (protótipo exigido pelo PDF): cadeira, mesa e armário com porta e gaveta
+    // Etapa 87: o jogo só tem o que vem do Plano Mestre (os móveis anteriores ao PDF foram retirados; saves antigos ignoram esses itens).
+    // ETAPA 1 do Plano Mestre: cadeira, mesa e armário com porta e gaveta
     G_CADEIRA("Cadeira de jantar", 1, 1, 0, 0.78f, 2, glb = "int_cadeira_jantar"),
     G_MESA("Mesa de jantar", 2, 1, 0, 0.60f, 2, glb = "int_mesa_jantar"),
     G_GUARDA_ROUPA("Guarda-roupa", 2, 1, 0, 1.64f, 1, glb = "int_guarda_roupa"),
-    // Lote 2
-    G_SOFA3("Sofá de 3 lugares", 2, 1, 0, 0.77f, 0, glb = "int_sofa3"),
-    G_CAMA("Cama de casal", 2, 2, 0, 0.99f, 1, glb = "int_cama_casal"),
-    G_GELADEIRA("Geladeira duplex", 1, 1, 0, 1.48f, 2, glb = "int_geladeira"),
-    G_FOGAO("Fogão 4 bocas", 1, 1, 0, 0.91f, 2, glb = "int_fogao"),
-    G_PIA("Pia com gabinete", 1, 1, 0, 1.16f, 2, glb = "int_pia")
+    // ETAPA 2 do Plano Mestre: cama, sofá, geladeira, fogão e pia (refeitos pelas fichas e pelas regras v4)
+    G_SOFA3("Sofá de 3 lugares", 2, 1, 0, 0.76f, 0, glb = "int_sofa3"),
+    G_CAMA("Cama de casal", 2, 2, 0, 0.97f, 1, glb = "int_cama_casal"),
+    G_GELADEIRA("Geladeira duplex", 1, 1, 0, 1.51f, 2, glb = "int_geladeira"),
+    G_FOGAO("Fogão 4 bocas com forno", 1, 1, 0, 0.84f, 2, glb = "int_fogao"),
+    G_PIA("Pia com gabinete", 1, 1, 0, 1.05f, 2, glb = "int_pia")
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -84,6 +61,10 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
     var animLim: FloatArray? = null
     /** ocupado (alguém sentado) */
     var busy = false
+    /** Etapa 87: lugares ocupados (IP_sentar_N / IP_deitar_E...): o sofá e a cama têm ocupação por lugar/lado */
+    val occ = HashSet<String>()
+    /** Etapa 87: lado da cama em que o personagem está dormindo ("" = ninguém); gravado no save */
+    var sleep = ""
     /** Lote 2: aparelho ligado (fogão aceso, torneira aberta) */
     var on = false
 
@@ -91,6 +72,7 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
         val sb = StringBuilder(st)
         animTgt?.let { a -> if (a.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("a="); sb.append(a.joinToString(":") { if (it > 0.5f) "1" else "0" }) } }
         if (on) { if (sb.isNotEmpty()) sb.append('~'); sb.append("on=1") }
+        if (sleep.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("sono="); sb.append(sleep) }
         return sb.toString()
     }
 
@@ -101,6 +83,7 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
                 val v = kv.substring(2).split(':').map { if (it == "1") 1f else 0f }.toFloatArray()
                 animTgt = v; animCur = v.copyOf()
             } else if (kv == "on=1") on = true
+            else if (kv.startsWith("sono=")) sleep = kv.substring(5)
             else if (kv.isNotEmpty()) keep.add(kv)
         }
         st = keep.joinToString("~")
@@ -137,7 +120,8 @@ class GameState(ctx: Context) {
         testRoom = true
         items.clear()
         gw = 26; gh = 30
-        val list = Type.values().sortedBy { it.cat }
+        // Etapa 87: plantas e árvores (cat 4) ficam do lado de fora da casa, no quintal (Models.yard com vitrine); dentro só os móveis do PDF
+        val list = Type.values().filter { it.cat != 4 }.sortedBy { it.cat }
         var cx = 0.4f; var cz = 0.4f; var rowH = 0f
         var lastCat = -1
         for (t in list) {
@@ -202,9 +186,11 @@ class GameState(ctx: Context) {
             }
         }
         if (!ok) {
-            items.add(Item(Type.BED, 0, 0))
-            items.add(Item(Type.TABLE, 3, 2))
-            items.add(Item(Type.CHAIR, 2, 2))
+            // casa inicial só com móveis do Plano Mestre: cama de casal, mesa de jantar e duas cadeiras viradas para a mesa
+            items.add(Item(Type.G_CAMA, 0, 0))
+            items.add(Item(Type.G_MESA, 3, 3))
+            items.add(Item(Type.G_CADEIRA, 3, 2))
+            items.add(Item(Type.G_CADEIRA, 4, 2))
             save()
         }
     }

@@ -134,14 +134,26 @@ class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, priva
         val i = if (nm.isEmpty()) -1 else nodes.indexOfFirst { it.name == nm }
         if (i < 0) -1 else animSlot[i]
     }
-    /** efeito visual de cada nó: 0 nenhum, 1 chama, 2 água, 3 luz */
+    /** efeito visual de cada nó: 0 nenhum, 1 chama, 2 água, 3 luz, 4 vapor (Etapa 87) */
     val effect: IntArray = IntArray(nodes.size) { i ->
-        when (nodes[i].ex?.optJSONObject("efeito")?.optString("tipo")) { "chama" -> 1; "agua" -> 2; "luz" -> 3; else -> 0 }
+        when (nodes[i].ex?.optJSONObject("efeito")?.optString("tipo")) { "chama" -> 1; "agua" -> 2; "luz" -> 3; "vapor" -> 4; else -> 0 }
+    }
+    /** Etapa 87: texto do botão de cada peça animada ["Acender", "Apagar"]; null = Abrir/Fechar */
+    val slotVerbs: Array<Array<String>?> = Array(animated.size) { k ->
+        val a = nodes[animated[k]].anim?.optJSONArray("verbos")
+        if (a != null && a.length() >= 2) arrayOf(a.optString(0), a.optString(1)) else null
     }
     /** quando o efeito aparece: -1 = aparelho ligado; senão a peça animada (slot) que precisa estar aberta */
     val effectWhen: IntArray = IntArray(nodes.size) { i ->
         val q = nodes[i].ex?.optJSONObject("efeito")?.optString("quando", "ligado") ?: "ligado"
         if (q == "ligado") -1 else { val j = nodes.indexOfFirst { it.name == q }; if (j < 0) -1 else animSlot[j] }
+    }
+
+    /** Etapa 87 (Plano Mestre v4): conteúdo interno só é desenhado quando uma das peças listadas em extras.mostrar_quando
+     *  (porta/gaveta) está aberta. null = sempre desenhado. */
+    val showWhen: Array<IntArray?> = Array(nodes.size) { i ->
+        val arr = nodes[i].ex?.optJSONArray("mostrar_quando") ?: return@Array null
+        IntArray(arr.length()) { k -> val j = nodes.indexOfFirst { it.name == arr.optString(k) }; if (j < 0) -1 else animSlot[j] }.filter { it >= 0 }.toIntArray()
     }
 
     /** nós cujo nome começa com [prefix] (ex.: "IP_sentar") */

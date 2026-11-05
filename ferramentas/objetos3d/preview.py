@@ -30,7 +30,7 @@ def render(path, out, views=((0.6, 0.42), (-0.6, 0.42), (math.pi - 0.5, 0.35)), 
     S = Image.new('RGB', (size * len(ims), size)); [S.paste(im, (i * size, 0)) for i, im in enumerate(ims)]; S.save(out)
 
 
-def load_posed(path, anim):
+def load_posed(path, anim, skip_fx=False):
     """relê o GLB aplicando valores de animação {nó: valor} (dobradiça = ângulo, trilho = deslocamento, escala)."""
     gj, bin_ = G.read_glb(path)
     for i, nd in enumerate(gj['nodes']):
@@ -46,6 +46,7 @@ def load_posed(path, anim):
     W = G.world_mats(gj); out = []
     for i, nd in enumerate(gj['nodes']):
         if 'mesh' not in nd: continue
+        if skip_fx and ('efeito' in nd.get('extras', {}) or 'mostrar_quando' in nd.get('extras', {})): continue
         for pr in gj['meshes'][nd['mesh']]['primitives']:
             at = pr['attributes']; m = gj['materials'][pr['material']]
             P = G.accessor(gj, bin_, at['POSITION']).astype(float); N = G.accessor(gj, bin_, at['NORMAL']).astype(float)

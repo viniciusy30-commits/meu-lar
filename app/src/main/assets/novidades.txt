@@ -1,3 +1,10 @@
+#id 2026-11-09-a
+#titulo Plano Mestre v4: só móveis do PDF, nada flutuando e Etapa 2
+- Saíram do jogo todos os móveis feitos antes do PDF (loja, casa inicial e sala de testes); a casa nova começa com cama, mesa e 2 cadeiras
+- Sala de testes: plantas e árvores ficam do lado de fora da casa
+- Cadeira, mesa e guarda-roupa refeitos sem nenhuma peça flutuando (verificado peça por peça) e com roupas detalhadas por dentro (camisas e vestido nos cabides, jeans, suéteres, toalhas, tênis, meias e roupa íntima nas gavetas)
+- Etapa 2 refeita pela ficha: cama com dois lados (deitar, dormir e acordar; o sono fica salvo), sofá com ocupação por lugar, geladeira cheia de comida detalhada e luz, fogão com cada boca no seu botão (vapor na panela quando cozinha) e forno com vidro, pia com sifão e "Lavar as mãos"
+
 #id 2026-11-08-f
 #titulo Etapa 1 do Plano Mestre: cadeira, mesa e guarda-roupa
 - Cadeira de jantar: o personagem puxa a cadeira, entra, senta e é empurrado junto para a mesa; para levantar, afasta a cadeira e ela volta para o lugar
