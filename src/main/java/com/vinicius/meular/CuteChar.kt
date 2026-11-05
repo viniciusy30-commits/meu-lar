@@ -1,5 +1,5 @@
 package com.vinicius.meular
-// versao etapa17-fix3 (se esta linha aparece no GitHub, o zip fix3 foi aplicado)
+// versao etapa45-esqueleto-sims (etapa20-pes-no-chao) (codigo vivo do object CuteChar; se esta linha aparece no GitHub, este zip foi aplicado)
 
 import android.content.res.AssetManager
 import android.graphics.BitmapFactory
@@ -22,21 +22,25 @@ import java.nio.ShortBuffer
  */
 object CuteChar {
     const val ENABLED = true
+    /** Etapa 21: a pele recua 7 mm na profundidade para a roupa sempre ganhar (acaba o pisca-pisca/pele aparecendo no tecido). */
+    private const val SKIN_PUSH = 0f
     const val IDLE = 0
     const val WALK = 1
     const val JUMP = 2
+    const val RUNJUMP = 4   // Etapa 63: pulo correndo (só nos corpos do Sims; sem eles vira JUMP)
     const val RUN = 3   // Etapa 11: corrida (Slow_Run.fbx do Mixamo, ferramentas/etapa11_retarget.py)
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
-    private const val WALK_RATE = 0.96f
+    private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
-    private const val MALE_CLIPS = false
+    private const val MALE_CLIPS = true   // Etapa 23: parado e andar masculinos novos (clipes 4 e 5); correr continua o clipe 3
     // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
     // Graus que o braço inteiro (ombro para baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; 12 encosta no quadril.
-    private const val MALE_ARM_IN = 4f
+    private const val MALE_ARM_IN = 0f
     // Graus extras só do antebraço e da mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa.
-    private const val MALE_FOREARM_IN = 6f
+    private const val MALE_FOREARM_IN = 3f
     private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
     private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
+    private val slotFist = FloatArray(3)   // 0..1: mão fechando ao correr
     private val slotArm = FloatArray(3)   // 0..1: suaviza a entrada/saída do ajuste dos braços (ex.: pulo)
 
     @Volatile var assets: AssetManager? = null
@@ -68,6 +72,9 @@ object CuteChar {
         val pos0: FloatArray = pos.copyOf()   // Etapa 7: posições originais de repouso (pos = pos0 com rosto/proporções aplicados)
         val nor0: FloatArray = nor.copyOf()   // Etapa 13: normais originais (nor = nor0 corrigida pela deformação)
         var warpVer = -1
+        var foot: IntArray? = null   // Etapa 20: vértices da região do pé/sola (para apoiar a sola no chão)
+        var mod = false              // peça importada de .package (Sims 2/3/4)
+        var modAlpha = false         // textura com recorte (cabelo)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -80,7 +87,32 @@ object CuteChar {
     @Volatile private var faceP = FloatArray(BodyMorph.NF)
     @Volatile private var shapeVer = 0
     @Volatile private var heightS = 1f
+    /** Etapa 74 (1ª pessoa): tudo acima desta altura (m) é recolhido num ponto no pescoço, para a cabeça não tapar a câmera. NaN = desligado. */
+    @Volatile var hideAbove = Float.NaN
+    private var topRef = 0f
+    /** Distância (m) do olho à frente do eixo do corpo na 1ª pessoa (a câmera fica um pouco adiante do rosto). */
+    const val FP_FWD = 0.13f
+    @Volatile private var topObs = 0f   // topo da cabeça medido no último quadro (já com pose e escala)
+    private val HEAD_SLOTS = setOf("hairBack", "hairFront", "hat", "glasses", "beard", "headAcc")
+    /** Altura do corpo-base (m, já com a escala do personagem): topo da cabeça na pose de referência. */
+    fun bodyTop(): Float {
+        if (topObs > 0.8f) return topObs
+        val bs = baseSkin ?: return 1.6f * heightS
+        if (topRef <= 0f) {
+            var m = 0f
+            for (v in 0 until bs.nv) { val y = bs.pos[v * 3 + 1]; if (y > m) m = y }
+            topRef = if (m > 0.5f && m < 3f) m else 1.7f
+        }
+        return topRef * heightS
+    }
+    @Volatile private var simOn = false       // Etapa 44
+    @Volatile private var simH = 1f
+    private val simRatio = HashMap<String, Float>()
+    @Volatile private var texPending = false
     @Volatile private var mascV = false   // Etapa 13: corpo masculino
+    // Etapa 50: tabela de pontos do esqueleto de cada corpo do Sims 3 (bodyrig.txt) e a tabela do corpo em uso
+    private val rigs = HashMap<String, FloatArray>()
+    @Volatile private var simKey = ""
     private var faceTmp = FloatArray(0)
 
     // Etapa 8: piscar e expressões (canais dinâmicos 13..17 do morph.bin; só rosto, não mexem nas animações)
@@ -129,7 +161,18 @@ object CuteChar {
     }
 
     /** Etapa 7: controles do criador (inteiros -100..100): [body] na ordem de BodyMorph.BODY_NAMES, [face] na de FACE_NAMES. */
-    fun setShape(body: IntArray, face: IntArray, masc: Boolean = false) {
+    @Volatile private var simV = FloatArray(SimSliders.NS)   // Etapa 65: sliders do Sims 3 (-1..1)
+    @Volatile private var simSlidersOn = false
+
+    /** Etapa 65: o grupo do corpo do Sims 3 em uso ("af", "cu"...) ou null; usado pelo criador para saber se mostra os sliders do Sims. */
+    fun simSlidersAvailable(): Boolean = simOn && SimSliders.ready
+
+    fun setShape(body: IntArray, face: IntArray, masc: Boolean = false, ss: IntArray? = null) {
+        if (ss != null) {
+            val v = FloatArray(SimSliders.NS) { i -> if (i < ss.size) ss[i].coerceIn(-100, 100) / 100f else 0f }
+            simV = v
+            simSlidersOn = SimSliders.any(v)
+        }
         val b = FloatArray(BodyMorph.NB) { i -> if (i < body.size) body[i].coerceIn(-100, 100) / 100f else 0f }
         val f = FloatArray(BodyMorph.NF) { i ->
             var v = if (i < face.size) face[i].coerceIn(-100, 100) / 100f else 0f
@@ -137,16 +180,26 @@ object CuteChar {
             v * BodyMorph.FACE_GAIN[i]
         }
         mascV = masc
-        heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
-        bodyP = b
-        faceP = f
+        if (simOn) {   // Etapa 44: corpo do Sims 3; a altura vem da idade/sexo. Etapa 50: os 27 sliders de corpo valem aqui
+            heightS = simH * BodyMorph.heightScale(b[0])
+            bodyP = b
+            faceP = FloatArray(BodyMorph.NF)
+        } else {
+            heightS = BodyMorph.heightScale(b[0]) * (if (masc) BodyMorph.M_ALTURA else 1f)
+            bodyP = b
+            faceP = f
+        }
         shapeVer++
     }
 
     private var nb = 0
-    private var clipLen = FloatArray(0)
-    private var clipFrames = IntArray(0)
-    private var clipData = arrayOfNulls<FloatArray>(0) // frames * nb * 12
+    // Etapa 45: conjunto de clipes trocado de uma vez (o corpo do Sims 3 tem esqueleto proprio, um conjunto por estagio+sexo)
+    private class ClipSet(val len: FloatArray, val frames: IntArray, val data: Array<FloatArray?>)   // data: frames * nb * 12
+    @Volatile private var clipSet = ClipSet(FloatArray(0), IntArray(0), arrayOfNulls(0))
+    private var bozoClips: ClipSet? = null
+    @Volatile private var simGrp = ""
+    @Volatile private var simWant = ""      // Etapa 53: grupo desejado; frame() tenta de novo se os assets ainda não estavam prontos em setWear
+    @Volatile private var simFail = false
     private var baseSkin: Skin? = null
     private val library = LinkedHashMap<String, Skin>()   // todas as peças conhecidas, na ordem do manifesto
     @Volatile private var wanted: List<String> = emptyList()
@@ -157,8 +210,9 @@ object CuteChar {
     private var atlasTex = 0
     private var hairTex = 0
     private var extra2Tex = 0
+    private var skateTex = 0
     @Volatile private var wear: Set<String>? = null   // null = roupa padrão do manifesto (a Mary)
-    private val MANAGED = setOf("hairBack", "hairFront", "top", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
+    private val MANAGED = setOf("body", "hairBack", "hairFront", "top", "jacket", "bottom", "overall", "feet", "gloves", "hat", "glasses", "beard", "headAcc")
 
     /** Chaves ("slot/id") de todas as peças disponíveis. */
     fun available(): List<String> = library.keys.toList()
@@ -173,9 +227,68 @@ object CuteChar {
     }
 
     /** Etapas 3 e 4: peças escolhidas no criador (chaves "slot/id" de cabelo, blusa, calça/saia, vestido e roupa de baixo). */
+    @Volatile private var wearBodyKey: String? = null
     fun setWear(keys: List<String>) {
         wear = keys.toSet()
+        wearBodyKey = keys.firstOrNull { it.startsWith("body/S_") }
+        applySimState()
         rebuildActive()
+    }
+
+    /**
+     * Etapa 44/45/50: estado do corpo do Sims 3 (altura, clipes de animação, tabela do esqueleto).
+     * Corrige o T-pose ao abrir o jogo: o setWear do save rodava ANTES do initGl (sem clipes/alturas carregados),
+     * então os clipes falhavam e o boneco ficava parado na pose original até o jogador escolher um corpo no criador.
+     * Agora o initGl chama isto de novo, quando tudo já está carregado.
+     */
+    private fun applySimState() {
+        val bk = wearBodyKey
+        simOn = bk != null
+        simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
+        simWant = if (bk != null && bk.length >= 9) bk.substring(7, 9) else ""
+        simFail = false
+        simTryNs = 0L
+        useSimClips(simWant)   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
+        simKey = if (bk != null && bk.length >= 10) bk.substring(7) else ""   // Etapa 50: "body/S_af1" -> "af1"
+        if (simOn) { heightS = simH * BodyMorph.heightScale(bodyP[0]); faceP = FloatArray(BodyMorph.NF); shapeVer++ }
+    }
+    @Volatile private var simTryNs = 0L
+
+    /** Etapa 45: carrega clips_<grupo>.bin (CLP1: nb, nc, clipes) do esqueleto do Sims 3; "" volta aos clipes do base.bin. Falhando, mantém os atuais. */
+    private fun useSimClips(grp: String) {
+        if (grp == simGrp) return
+        if (grp.isNotEmpty() && (assets == null || nb == 0 || !loaded)) return   // ainda não carregou: frame()/initGl tentam de novo
+        try {
+            if (grp.isEmpty()) {
+                bozoClips?.let { clipSet = it }
+                simGrp = ""
+                return
+            }
+            val am = assets ?: return
+            val raw = am.open("cute/clips_$grp.bin").use { it.readBytes() }
+            val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
+            require(b.get().toInt() == 'C'.code && b.get().toInt() == 'L'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
+            val nb2 = b.int
+            val nc = b.int
+            require(nb2 == nb && nc > 0)
+            val len = FloatArray(nc)
+            val fr = IntArray(nc)
+            val data = arrayOfNulls<FloatArray>(nc)
+            for (c in 0 until nc) {
+                len[c] = b.float
+                val nf = b.int
+                fr[c] = nf
+                val d = FloatArray(nf * nb * 12)
+                b.asFloatBuffer().get(d)
+                b.position(b.position() + d.size * 4)
+                data[c] = d
+            }
+            clipSet = ClipSet(len, fr, data)
+            simGrp = grp
+        } catch (e: Throwable) {
+            simFail = true
+            android.util.Log.e("CuteChar", "clips_$grp.bin falhou", e)
+        }
     }
 
     private fun rebuildActive() {
@@ -190,7 +303,8 @@ object CuteChar {
             val slot = k.substringBefore('/')
             val on = if (w != null && slot in MANAGED) k in w else k in wanted
             if (!on) continue
-            val p = s.part ?: continue
+            val p = s.part
+            if (p == null) { if (s.tex.startsWith("sk_")) texPending = true; continue }   // Etapa 44: textura ainda não subiu (próximo quadro)
             act.add(s)
             parts.add(p)
             s.hide?.let { h ->
@@ -212,10 +326,150 @@ object CuteChar {
             }
             ib.position(0)
             body = Part(Mt.PLAIN, bs.fb, bs.nv, ib, keep * 3, bp.tex)
+            body.push = SKIN_PUSH
         }
         parts.add(0, body)
+        // peças importadas: esconde os triângulos do corpo do Sims que ficam por baixo do tecido
+        val sims = act.firstOrNull { it.key.startsWith("body/S_") }
+        val simsPart = sims?.part
+        if (sims != null && simsPart != null) {
+            val mk = BooleanArray(sims.ni / 3)
+            var any = false
+            var bidx: IntArray? = null
+            for (m in act) {
+                if (!m.mod || m.modAlpha) continue
+                val sl = m.key.substringBefore('/')
+                if (sl != "top" && sl != "jacket" && sl != "bottom" && sl != "overall" && sl != "feet") continue
+                val ck = m.key + "@" + sims.key
+                val cv = coverCache.getOrPut(ck) {
+                    val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
+                    val r = BooleanArray(sims.ni / 3)
+                    val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
+                    val lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
+                    com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lim)
+                    r
+                }
+                for (i in cv.indices) if (cv[i]) { mk[i] = true; any = true }
+            }
+            val at = parts.indexOf(simsPart)
+            if (any && at >= 0) {
+                var keep = 0
+                for (h in mk) if (!h) keep++
+                val ib = ByteBuffer.allocateDirect(keep * 3 * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+                for (t in mk.indices) {
+                    if (mk[t]) continue
+                    ib.put(sims.idx[t * 3]); ib.put(sims.idx[t * 3 + 1]); ib.put(sims.idx[t * 3 + 2])
+                }
+                ib.position(0)
+                parts[at] = Part(Mt.PLAIN, sims.fb, sims.nv, ib, keep * 3, simsPart.tex).also { it.soft = simsPart.soft; it.push = simsPart.push }
+            }
+        }
+        // jaqueta vestida: some a manga da blusa/roupa de baixo (fica só o tronco, o resto da manga atravessaria a jaqueta)
+        if (act.any { it.mod && it.key.startsWith("jacket/") }) {
+            val rg = rigs[simKey]
+            if (rg != null && rg.size >= 6) {
+                val ux0 = rg[3] - rg[0]; val uy0 = rg[4] - rg[1]; val uz0 = rg[5] - rg[2]
+                val ul = Math.sqrt((ux0 * ux0 + uy0 * uy0 + uz0 * uz0).toDouble()).toFloat().coerceAtLeast(1e-3f)
+                val ux = ux0 / ul; val uy = uy0 / ul; val uz = uz0 / ul
+                for (m in act) {
+                    if (!m.mod || m.modAlpha) continue
+                    val sl = m.key.substringBefore('/')
+                    if (sl != "top" && sl != "overall") continue
+                    val mp = m.part ?: continue
+                    val at = parts.indexOf(mp)
+                    if (at < 0) continue
+                    val nt = m.ni / 3
+                    val gone = BooleanArray(nt)
+                    var keep = 0
+                    for (t in 0 until nt) {
+                        val a = m.idx[t * 3].toInt() and 0xFFFF; val b = m.idx[t * 3 + 1].toInt() and 0xFFFF; val c = m.idx[t * 3 + 2].toInt() and 0xFFFF
+                        val cx = Math.abs(m.pos0[a * 3] + m.pos0[b * 3] + m.pos0[c * 3]) / 3f - rg[0]
+                        val cy = (m.pos0[a * 3 + 1] + m.pos0[b * 3 + 1] + m.pos0[c * 3 + 1]) / 3f - rg[1]
+                        val cz = (m.pos0[a * 3 + 2] + m.pos0[b * 3 + 2] + m.pos0[c * 3 + 2]) / 3f - rg[2]
+                        val tt = cx * ux + cy * uy + cz * uz
+                        val px = cx - tt * ux; val py = cy - tt * uy; val pz = cz - tt * uz
+                        val perp = Math.sqrt((px * px + py * py + pz * pz).toDouble()).toFloat()
+                        gone[t] = tt > 2f && tt < ul * 1.15f && perp < 14.5f
+                        if (!gone[t]) keep++
+                    }
+                    val ib = ByteBuffer.allocateDirect(keep * 3 * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+                    for (t in 0 until nt) {
+                        if (gone[t]) continue
+                        ib.put(m.idx[t * 3]); ib.put(m.idx[t * 3 + 1]); ib.put(m.idx[t * 3 + 2])
+                    }
+                    ib.position(0)
+                    parts[at] = Part(Mt.PLAIN, m.fb, m.nv, ib, keep * 3, mp.tex).also { np -> np.cut = mp.cut; np.cull = mp.cull; np.solid = mp.solid; np.soft = mp.soft; np.push = mp.push }
+                }
+            }
+        }
         cur = Active(act, Mesh(parts))
     }
+
+    // ---- peças importadas de .package (ModStore) ----
+    private class ModJob(val key: String, val cup: ByteArray?, val bmp: android.graphics.Bitmap?, val alpha: Boolean)
+    private val modJobs = java.util.concurrent.ConcurrentLinkedQueue<ModJob>()
+    private val coverCache = HashMap<String, BooleanArray>()
+
+    /** Chamar de qualquer thread: coloca (ou troca) a peça importada [key]; cup == null remove. A GL cuida do resto no próximo quadro. */
+    fun enqueueMod(key: String, cup: ByteArray?, bmp: android.graphics.Bitmap?, alpha: Boolean) {
+        modJobs.add(ModJob(key, cup, bmp, alpha))
+    }
+
+    private fun runModJobs() {
+        if (!loaded || baseSkin == null) return
+        var changed = false
+        while (true) {
+            val j = modJobs.poll() ?: break
+            try {
+                val old = library.remove(j.key)
+                if (old != null) {
+                    val tid = texIds.remove(old.tex)
+                    if (tid != null) GLES20.glDeleteTextures(1, intArrayOf(tid), 0)
+                    coverCache.keys.removeAll { it.startsWith(j.key + "@") }
+                    changed = true
+                }
+                if (j.cup == null || j.bmp == null) continue
+                val tname = "mod:" + j.key
+                val sk = readPieceBytes(j.cup, j.key, tname)
+                sk.mod = true
+                sk.modAlpha = j.alpha
+                val ids = IntArray(1)
+                GLES20.glGenTextures(1, ids, 0)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, j.bmp, 0)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+                if (j.alpha) {
+                    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+                }
+                texIds[tname] = ids[0]
+                sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = false; p.solid = true } }
+                library[j.key] = sk
+                j.bmp.recycle()
+                changed = true
+            } catch (e: Throwable) {
+                android.util.Log.e("CuteChar", "peça importada falhou: " + j.key, e)
+            }
+        }
+        if (changed) rebuildActive()
+    }
+
+    /** Corpo do Sims em uso (tipo "normal" do grupo idade+sexo) como molde para encaixar peças importadas; null se não houver corpo do Sims. */
+    fun bodyRef(): com.vinicius.meular.mods.BodyRef? {
+        val grp = bodyGroup() ?: return null
+        val key = "body/S_" + grp + "1"
+        val sk = library[key] ?: return null
+        val idx = IntArray(sk.ni) { sk.idx[it].toInt() and 0xFFFF }
+        val rg = rigs[grp + "1"]
+        val ratio = simRatio[key] ?: 1f
+        return com.vinicius.meular.mods.BodyRef(sk.pos0.copyOf(), sk.nor0.copyOf(), sk.bi.copyOf(), sk.bw.copyOf(), idx, rg, 96.8f / ratio)
+    }
+
+    /** "af", "am", "tf", "cu", "pu"... do corpo atual (idade+sexo) ou null. */
+    fun bodyGroup(): String? = if (simOn && simKey.length >= 2) simKey.substring(0, 2) else null
 
     /** Chamar na thread GL (onSurfaceCreated): carrega o modelo e cria as texturas. */
     fun initGl() {
@@ -224,18 +478,26 @@ object CuteChar {
         try {
             if (!loaded && !failed) load(am)
             if (loaded) {
+                library.entries.removeAll { it.value.mod }   // peças importadas sobem de novo (ModStore.requeue) depois
+                coverCache.clear()
                 texIds.clear()
                 val names = LinkedHashSet<String>()
                 baseSkin?.let { names.add(it.tex) }
                 for (s in library.values) names.add(s.tex)
-                for (n in names) texIds[n] = uploadTexture(am, n)
-                baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0) }
-                for (s in library.values) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0)
+                // contexto GL novo (ex.: voltou do seletor de arquivos): as texturas de pele antigas morreram, sobem de novo sob demanda
+                for (s in library.values) if (s.tex.startsWith("sk_")) s.part = null
+                texPending = true
+                for (n in names) if (!n.startsWith("sk_")) texIds[n] = uploadTexture(am, n)   // Etapa 44: atlas de pele do Sims 3 sobem só quando usados
+                baseSkin?.let { it.part = Part(Mt.PLAIN, it.fb, it.nv, it.ib, it.ni, texIds[it.tex] ?: 0).also { p -> p.push = SKIN_PUSH } }
+                for (s in library.values) if (!s.tex.startsWith("sk_")) s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, texIds[s.tex] ?: 0).also { p -> if (isAlphaHair(s.tex)) { p.cut = 0.45f; p.cull = true; p.solid = true } }   // Etapa 41: mechas com alfa
+                applySimState()
                 rebuildActive()
                 atlasTex = texIds["textures.png"] ?: 0
                 hairTex = texIds["extra.png"] ?: 0
                 extra2Tex = texIds["extra2.png"] ?: 0
+                skateTex = texIds["skatetee.png"] ?: 0
                 CuteColor.start(am)   // Etapa 2: cores escolhidas (carrega em segundo plano e sobe a textura recolorida)
+                ModStore.requeue()
             }
         } catch (e: Throwable) {
             failed = true
@@ -244,16 +506,25 @@ object CuteChar {
         }
     }
 
+    /** Etapa 42: cabelos de mod com mechas em alfa (Faye, Heartbeat): recorte opaco, culling, sem pré-multiplicar e com mipmaps. */
+    private fun isAlphaHair(name: String) = name == "faye.png" || name == "heartbeat.png"
+
     private fun uploadTexture(am: AssetManager, name: String): Int {
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0)
-        val bmp = am.open("cute/$name").use { BitmapFactory.decodeStream(it) }
+        val opts = BitmapFactory.Options()
+        if (isAlphaHair(name)) opts.inPremultiplied = false   // Etapa 41: sem pré-multiplicar (senão o fundo transparente vira preto nas bordas das mechas)
+        val bmp = am.open("cute/$name").use { BitmapFactory.decodeStream(it, null, opts) }!!
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
         GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        if (isAlphaHair(name)) {   // Etapa 41/42: mipmaps (mechas finas sem chiado)
+            GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+        }
         bmp.recycle()
         return ids[0]
     }
@@ -269,7 +540,7 @@ object CuteChar {
             wanted = emptyList()
             morphIdx = emptyArray()
             morphDel = emptyArray()
-            clipData = arrayOfNulls(0)
+            clipSet = ClipSet(FloatArray(0), IntArray(0), arrayOfNulls(0))
             modular = false
             loadLegacy(am)
         }
@@ -279,6 +550,7 @@ object CuteChar {
     private fun loadModular(am: AssetManager) {
         baseSkin = readBase(am, "cute/base.bin", "base", "textures.png")
         loadMorph(am, baseSkin!!.nv)
+        loadRigs(am)
         library.clear()
         var outfit: List<String> = emptyList()
         val lines = am.open("cute/pieces.txt").bufferedReader(Charsets.UTF_8).use { it.readLines() }
@@ -293,8 +565,29 @@ object CuteChar {
             require(f.size >= 4)
             val key = f[0] + "/" + f[1]
             library[key] = readPiece(am, "cute/" + f[2], key, f[3])
+            if (f.size >= 5) f[4].toFloatOrNull()?.let { simRatio[key] = it }
         }
         wanted = outfit
+    }
+
+    /** Etapa 50: bodyrig.txt, uma linha por corpo: chave|23 valores (cm). Se faltar, os sliders novos não deformam nada. */
+    private fun loadRigs(am: AssetManager) {
+        rigs.clear()
+        try { if (!SimSliders.ready) SimSliders.load(am.open("cute/simsliders.txt").bufferedReader(Charsets.UTF_8).use { it.readText() }) } catch (e: Throwable) { }
+        try {
+            am.open("cute/bodyrig.txt").bufferedReader(Charsets.UTF_8).use { rd ->
+                for (raw in rd.readLines()) {
+                    val ln = raw.trim()
+                    if (ln.isEmpty()) continue
+                    val f = ln.split('|')
+                    if (f.size < 2) continue
+                    val v = f[1].split(',').map { it.trim().toFloat() }
+                    if (v.size >= BodyMorph.RIG_N) rigs[f[0].trim()] = v.toFloatArray()
+                }
+            }
+        } catch (e: Throwable) {
+            rigs.clear()
+        }
     }
 
     /** CMF1: "CMF1", nCanais, e por canal: n, n x (índice do vértice do base.bin, dx, dy, dz). Se faltar, o rosto fica sem controles. */
@@ -354,7 +647,13 @@ object CuteChar {
                 src = faceTmp
             }
         }
-        BodyMorph.warp(src, s.pos, s.nv, bp, mascV)
+        val rg = if (simOn) rigs[simKey] else null
+        if (simOn && rg != null) {
+            // Etapa 65: sliders reais do Sims 3 (ajustes de osso do BOND); sem eles o corpo fica exatamente como o original
+            val k = rg[19] / SimSliders.neckY(simKey.substring(0, 2))
+            if (!SimSliders.warp(src, s.pos, s.nv, simV, simKey.substring(0, 2), k, s.pos0)) System.arraycopy(src, 0, s.pos, 0, s.nv * 3)
+        }
+        else BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
         BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver
     }
@@ -375,23 +674,28 @@ object CuteChar {
         nb = b.int
         val nc = b.int
         val sk = readSkin(b, key, tex, nv, ni)
-        clipLen = FloatArray(nc)
-        clipFrames = IntArray(nc)
-        clipData = arrayOfNulls(nc)
+        val cLen = FloatArray(nc)
+        val cFrames = IntArray(nc)
+        val cData = arrayOfNulls<FloatArray>(nc)
         for (c in 0 until nc) {
-            clipLen[c] = b.float
+            cLen[c] = b.float
             val nf = b.int
-            clipFrames[c] = nf
+            cFrames[c] = nf
             val d = FloatArray(nf * nb * 12)
             for (i in d.indices) d[i] = b.float
-            clipData[c] = d
+            cData[c] = d
         }
+        clipSet = ClipSet(cLen, cFrames, cData)
+        bozoClips = clipSet
+        simGrp = ""
         return sk
     }
 
     /** CUP1: "CUP1", nv, ni, flags, vértices (44 bytes), índices locais (uint16) e, se flags&1, nHide + nHide ids (uint16) de triângulos do corpo cobertos. */
-    private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin {
-        val raw = am.open(path).use { it.readBytes() }
+    private fun readPiece(am: AssetManager, path: String, key: String, tex: String): Skin =
+        readPieceBytes(am.open(path).use { it.readBytes() }, key, tex)
+
+    private fun readPieceBytes(raw: ByteArray, key: String, tex: String): Skin {
         val b = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN)
         require(b.get().toInt() == 'C'.code && b.get().toInt() == 'U'.code && b.get().toInt() == 'P'.code && b.get().toInt() == '1'.code)
         val nv = b.int
@@ -441,7 +745,7 @@ object CuteChar {
 
     /** Duração (s) do clip. */
     fun clipSeconds(clip: Int): Float =
-        if (loaded && clip in clipLen.indices) clipLen[clip] else 1f
+        clipSet.let { if (loaded && clip in it.len.indices) it.len[clip] else 1f }
 
     // estado por "slot" (0 = jogador, 1 = avatar da casa, 2 = criador): fase do laço e transição suave
     private val slotClip = IntArray(3) { -1 }
@@ -461,18 +765,44 @@ object CuteChar {
      * Nos clips em laço (parado/andar) a fase recomeça do zero quando o clip muda, e a troca
      * de clip é suavizada (≈0,15 s), sem "pulo" de pose. [slot] separa quem está desenhando.
      */
+    /** Etapa 44: sobe (na thread GL) a textura de pele do Sims 3 das peças em uso e refaz o conjunto ativo. */
+    private fun loadPendingTex() {
+        val am = assets ?: return
+        texPending = false
+        val w = wear ?: return
+        var any = false
+        try {
+            for ((k, s) in library) {
+                if (s.part != null || !s.tex.startsWith("sk_") || k !in w) continue
+                val id = texIds.getOrPut(s.tex) { uploadTexture(am, s.tex) }
+                s.part = Part(Mt.PLAIN, s.fb, s.nv, s.ib, s.ni, id).also { p -> p.soft = true }   // Etapa 47: pele sem estourar
+                any = true
+            }
+        } catch (e: Throwable) {
+        }
+        if (any) rebuildActive()
+    }
+
     fun frame(clip: Int, t: Float, slot: Int = 0): Mesh? {
+        if (texPending) loadPendingTex()
+        if (!modJobs.isEmpty()) runModJobs()
+        if (simWant != simGrp && assets != null) {
+            val nowT = System.nanoTime()
+            if (!simFail || nowT - simTryNs > 1_500_000_000L) { simTryNs = nowT; useSimClips(simWant) }
+        }
         val cs = cur ?: return null
-        CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex)
+        CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
         val bs = baseSkin ?: return null
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin
-        val c0 = clip.coerceIn(0, clipData.size - 1)
-        val c = if (MALE_CLIPS && mascV && clipData.size >= 7 && (c0 == IDLE || c0 == WALK || c0 == RUN)) (if (c0 == IDLE) 4 else if (c0 == WALK) 5 else 6) else c0
+        val cset = clipSet
+        val clipR = if (clip == RUNJUMP && (simGrp.isEmpty() || cset.data.size < 5)) JUMP else clip
+        val c0 = clipR.coerceIn(0, cset.data.size - 1)
+        val c = if (MALE_CLIPS && mascV && cset.data.size >= 7 && (c0 == IDLE || c0 == WALK)) (if (c0 == IDLE) 4 else 5) else c0
         val sl = slot.coerceIn(0, slotClip.size - 1)
-        val nf = clipFrames[c]
-        val len = clipLen[c].coerceAtLeast(0.001f)
-        val d = clipData[c] ?: return null
+        val nf = cset.frames[c]
+        val len = cset.len[c].coerceAtLeast(0.001f)
+        val d = cset.data[c] ?: return null
         val n12 = nb * 12
         if (bone.size != n12) bone = FloatArray(n12)
 
@@ -482,12 +812,13 @@ object CuteChar {
         slotNs[sl] = now
 
         if (slotClip[sl] != c) {
-            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP) 0.06f else 0.25f
+            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP || c == RUNJUMP) 0.06f else 0.25f
             slotClip[sl] = c
             slotT0[sl] = t
         }
-        var lt = if (c == JUMP) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
-        if (c != JUMP) {
+        val isJ = c == JUMP || c == RUNJUMP
+        var lt = if (isJ) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
+        if (!isJ) {
             lt %= len
             if (lt < 0f) lt += len
         } else if (lt < 0f) lt = 0f
@@ -502,7 +833,7 @@ object CuteChar {
 
         val prev = slotLast[sl]
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
-            val dur = if (c == JUMP) 0.06f else 0.25f
+            val dur = if (isJ) 0.06f else 0.25f
             val k = smooth01(1f - slotBlend[sl] / dur)
             for (j in 0 until n12) bone[j] = prev[j] + (bone[j] - prev[j]) * k
             slotBlend[sl] -= dt
@@ -513,16 +844,20 @@ object CuteChar {
         System.arraycopy(bone, 0, keep, 0, n12)
 
         // Etapa 17: braços do masculino mais para dentro (depois do keep, para não acumular na mistura entre clipes)
-        val armTarget = if (!mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
+        val armTarget = if (simOn || !mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
         slotArm[sl] += (armTarget - slotArm[sl]) * (dt * 10f).coerceAtMost(1f)
         if (slotArm[sl] > 0.01f) armIn(bone, MALE_ARM_IN * slotArm[sl], MALE_FOREARM_IN * slotArm[sl])
+        // mãos fechadas só na corrida (andar e parado seguem com a mão solta)
+        val fistT = if (c0 == RUN || clip == RUNJUMP) 1f else 0f
+        slotFist[sl] += (fistT - slotFist[sl]) * (dt * 14f).coerceAtMost(1f)
+        if (slotFist[sl] > 0.01f) fistHands(bone, slotFist[sl])
 
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
         // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
         val sv = shapeVer
         val bp = bodyP
         val fp0 = faceP
-        if (sl == 0) exprAuto = if (c == JUMP) 4 else 0
+        if (sl == 0) exprAuto = if (isJ) 4 else 0
         exprWeights(now, exprAuto)
         var exprChanged = false
         for (i in 0 until EXPR_N) if (exprCur[i] != exprApplied[i]) { exprChanged = true; break }
@@ -534,12 +869,93 @@ object CuteChar {
             System.arraycopy(exprCur, 0, exprApplied, 0, EXPR_N)
             refit(bs, true, sv, bp, fp)   // só o corpo-base tem o rosto
         } else if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
-        skinInto(bs, bone)
+        skinInto(bs, bone, !simOn)
         for (s in cs.skins) {
             if (s.warpVer != sv) refit(s, false, sv, bp, fp)
-            skinInto(s, bone)
+            skinInto(s, bone, s.key.startsWith("body/"))
         }
+        updateLift(sl, c, cs, bs, sv, dt)
         return cs.mesh
+    }
+
+    // ---- Etapa 20: sola apoiada no chão ----
+    // A sola dos sapatos (All Star, chinelo, botas...) fica 1 a 3 cm ABAIXO do y=0 do corpo-base, então afundava no piso.
+    // Para cada clip medimos o ponto mais baixo (corpo-base + sapato) e o personagem sobe essa distância ao ser desenhado.
+    private var liftFor: Active? = null
+    private var liftSv = -1
+    private val liftClip = FloatArray(16) { Float.NaN }   // metros (já com a altura do personagem), um por clip
+    private val slotLift = FloatArray(3)
+    private val slotLiftOk = BooleanArray(3)
+
+    /** Quanto (em metros) o personagem do slot [slot] deve subir no eixo Y para a sola ficar em cima do chão. Chamar logo depois de [frame]. */
+    fun lift(slot: Int = 0): Float = slotLift[slot.coerceIn(0, slotLift.size - 1)]
+
+    private fun updateLift(sl: Int, c: Int, cs: Active, bs: Skin, sv: Int, dt: Float) {
+        try {
+            if (liftFor !== cs || liftSv != sv) {
+                java.util.Arrays.fill(liftClip, Float.NaN)
+                liftFor = cs
+                liftSv = sv
+            }
+            val known = c in liftClip.indices
+            var target = if (known) liftClip[c] else Float.NaN
+            if (target.isNaN()) {
+                target = computeLift(c, cs, bs)
+                if (known) liftClip[c] = target
+            }
+            if (!slotLiftOk[sl]) {
+                slotLift[sl] = target
+                slotLiftOk[sl] = true
+            } else {
+                slotLift[sl] += (target - slotLift[sl]) * (dt * 12f).coerceAtMost(1f)
+            }
+        } catch (e: Throwable) {
+            slotLift[sl] = 0f
+            slotLiftOk[sl] = true
+        }
+    }
+
+    /** Vértices de repouso com y < 8 (sola, calcanhar, biqueira): só eles podem ser o ponto mais baixo. */
+    private fun footIdx(s: Skin): IntArray {
+        s.foot?.let { return it }
+        var n = 0
+        for (v in 0 until s.nv) if (s.pos0[v * 3 + 1] < 8f) n++
+        val r = IntArray(n)
+        var k = 0
+        for (v in 0 until s.nv) if (s.pos0[v * 3 + 1] < 8f) r[k++] = v
+        s.foot = r
+        return r
+    }
+
+    /** Menor y (m) do corpo-base e dos sapatos em todos os quadros do clip; devolve a subida necessária (m), com folga de 1,5 mm. */
+    private fun computeLift(c: Int, cs: Active, bs: Skin): Float {
+        val cset = clipSet
+        val d = cset.data.getOrNull(c) ?: return 0f
+        val nf = cset.frames[c]
+        val n12 = nb * 12
+        var low = 0f
+        fun scan(s: Skin) {
+            val ids = footIdx(s)
+            val pos = s.pos
+            for (f in 0 until nf) {
+                val o = f * n12
+                for (v in ids) {
+                    val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
+                    var y = 0f
+                    for (k in 0 until 4) {
+                        val w = s.bw[v * 4 + k]
+                        if (w <= 0f) continue
+                        val bo = o + s.bi[v * 4 + k] * 12
+                        y += w * (d[bo + 4] * px + d[bo + 5] * py + d[bo + 6] * pz + d[bo + 7])
+                    }
+                    if (y < low) low = y
+                }
+            }
+        }
+        if (!simOn) scan(bs)
+        for (s in cs.skins) if (s.key.startsWith("feet/") || s.key.startsWith("body/S_")) scan(s)
+        val up = -low * heightS + 0.0015f
+        return up.coerceIn(0f, 0.06f)
     }
 
     // Postura masculina dos braços, no plano frente (X/Y): deg gira o braço inteiro em torno do ombro e
@@ -552,6 +968,63 @@ object CuteChar {
             rotArm(mm, bones, 0, 0, sx * 13.3f, 142.5f, -2.9f, -sx * Math.toRadians(deg.toDouble()))
             // cotovelo: usa a matriz do antebraço já com o giro do ombro
             rotArm(mm, bones, 1, 1, sx * 32.1f, 122.0f, 0f, -sx * Math.toRadians(deg2.toDouble()))
+        }
+    }
+
+
+    // ---- Etapa 77: mão fechada ao correr ----
+    // Ossos dos dedos da mão esquerda (a direita é +15): indicador 25-27, médio 28-30, anelar 31-33, mindinho 34-36, polegar 37-39.
+    // Juntas (x,y em cm, pose de repouso) medidas no malha da mão: nós, meio e ponta de cada dedo. Os dedos se espalham em Z e
+    // apontam para baixo/fora; a palma olha para o corpo, então o fechar é um giro em torno do eixo Z do repouso.
+    private val FIST_BONES = arrayOf(intArrayOf(25, 26, 27), intArrayOf(28, 29, 30), intArrayOf(31, 32, 33), intArrayOf(34, 35, 36), intArrayOf(37, 38, 39))
+    private val FIST_J = arrayOf(
+        floatArrayOf(64.7f, 100.5f, 66.7f, 98.45f, 68.6f, 96.5f),
+        floatArrayOf(65.05f, 100.35f, 67.15f, 98.05f, 69.15f, 96.05f),
+        floatArrayOf(64.7f, 100.15f, 66.9f, 98.05f, 68.8f, 96.3f),
+        floatArrayOf(64.55f, 100.45f, 66.85f, 98.35f, 68.8f, 96.6f),
+        floatArrayOf(59.35f, 103.5f, 60.25f, 101.1f, 62.65f, 99.65f))
+    private val FIST_ANG = arrayOf(
+        floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
+        floatArrayOf(18f, 28f, 18f))
+
+    /** Fecha a mão: cada junta gira em torno do seu pivô (no espaço de repouso) e a matriz do osso recebe esse giro antes da pose da animação. */
+    private fun fistHands(mm: FloatArray, k: Float) {
+        val rc = FloatArray(9); val tc = FloatArray(3); val rn = FloatArray(9); val tn = FloatArray(3)
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val off = if (side == 0) 0 else 15
+            for (f in 0 until 5) {
+                val bones = FIST_BONES[f]; val j = FIST_J[f]; val a = FIST_ANG[f]
+                // acumulado = identidade
+                rc[0] = 1f; rc[1] = 0f; rc[2] = 0f; rc[3] = 0f; rc[4] = 1f; rc[5] = 0f; rc[6] = 0f; rc[7] = 0f; rc[8] = 1f
+                tc[0] = 0f; tc[1] = 0f; tc[2] = 0f
+                for (jt in 0 until 3) {
+                    val ang = -sx * Math.toRadians((a[jt] * k).toDouble())
+                    val cs = Math.cos(ang).toFloat(); val sn = Math.sin(ang).toFloat()
+                    val px = sx * j[jt * 2]; val py = j[jt * 2 + 1]
+                    // C = giro em Z em torno do pivô: R = [[c,-s,0],[s,c,0],[0,0,1]], t = P - R*P
+                    val tx = px - (cs * px - sn * py)
+                    val ty = py - (sn * px + cs * py)
+                    // novo = acumulado * C
+                    for (r in 0..2) {
+                        val a0 = rc[r * 3]; val a1 = rc[r * 3 + 1]; val a2 = rc[r * 3 + 2]
+                        rn[r * 3] = a0 * cs + a1 * sn
+                        rn[r * 3 + 1] = -a0 * sn + a1 * cs
+                        rn[r * 3 + 2] = a2
+                        tn[r] = a0 * tx + a1 * ty + tc[r]
+                    }
+                    System.arraycopy(rn, 0, rc, 0, 9); System.arraycopy(tn, 0, tc, 0, 3)
+                    // aplica na matriz do osso desta junta: M = M * acumulado
+                    val o = (bones[jt] + off) * 12
+                    for (r in 0..2) {
+                        val m0 = mm[o + r * 4]; val m1 = mm[o + r * 4 + 1]; val m2 = mm[o + r * 4 + 2]; val mt = mm[o + r * 4 + 3]
+                        mm[o + r * 4] = m0 * rc[0] + m1 * rc[3] + m2 * rc[6]
+                        mm[o + r * 4 + 1] = m0 * rc[1] + m1 * rc[4] + m2 * rc[7]
+                        mm[o + r * 4 + 2] = m0 * rc[2] + m1 * rc[5] + m2 * rc[8]
+                        mm[o + r * 4 + 3] = m0 * tc[0] + m1 * tc[1] + m2 * tc[2] + mt
+                    }
+                }
+            }
         }
     }
 
@@ -577,13 +1050,19 @@ object CuteChar {
         }
     }
 
-    private fun skinInto(s: Skin, mm: FloatArray) {
+    private fun skinInto(s: Skin, mm: FloatArray, base: Boolean = false) {
         val pos = s.pos
         val nor = s.nor
         val bi = s.bi
         val bw = s.bw
         val out = s.out
         val hs = heightS
+        // 1ª pessoa (hideAbove = altura do olho no espaço do modelo): o que ficaria colado na câmera (rosto, franja, chapéu,
+        // armação de óculos) é levado para o ponto do olho; todo triângulo que passa pelo olho é visto "de lado" e não tampa nada.
+        val eyeY = hideAbove
+        val clearOn = !eyeY.isNaN()
+        val r2 = if (!clearOn) 0f else if (base) 0.16f * 0.16f else if (s.key.substringBefore('/') in HEAD_SLOTS) 0.30f * 0.30f else 0f
+        var topMax = 0f
         for (v in 0 until s.nv) {
             val px = pos[v * 3]; val py = pos[v * 3 + 1]; val pz = pos[v * 3 + 2]
             val nx = nor[v * 3]; val ny = nor[v * 3 + 1]; val nz = nor[v * 3 + 2]
@@ -601,11 +1080,15 @@ object CuteChar {
                 Z += w * (mm[bo + 8] * nx + mm[bo + 9] * ny + mm[bo + 10] * nz)
             }
             val o = v * STRIDE
-            out[o] = x * hs; out[o + 1] = y * hs; out[o + 2] = z * hs
+            if (base && y * hs > topMax) topMax = y * hs
+            val wx = x * hs; val wy = y * hs; val wz = z * hs
+            if (r2 > 0f && wx * wx + (wy - eyeY) * (wy - eyeY) + (wz - FP_FWD) * (wz - FP_FWD) < r2) { out[o] = 0f; out[o + 1] = eyeY; out[o + 2] = FP_FWD }
+            else { out[o] = wx; out[o + 1] = wy; out[o + 2] = wz }
             val nl = Math.sqrt((X * X + Y * Y + Z * Z).toDouble()).toFloat()
             val inv = if (nl > 1e-9f) 1f / nl else 0f
             out[o + 3] = X * inv; out[o + 4] = if (nl > 1e-9f) Y * inv else 1f; out[o + 5] = Z * inv
         }
+        if (base && topMax > 0.8f) topObs = topMax
         val buf = s.fb
         buf.position(0)
         buf.put(out, 0, s.nv * STRIDE)
