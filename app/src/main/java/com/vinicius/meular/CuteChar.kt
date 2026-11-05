@@ -264,7 +264,7 @@ object CuteChar {
         val bk = wearBodyKey
         simOn = bk != null
         simH = if (bk != null) (simRatio[bk] ?: 1f) else 1f
-        simWant = if (bk != null && bk.length >= 9) bk.substring(7, 9) else ""
+        simWant = if (bk != null && bk.length >= 9) bk.substring(7, 9) + (if (bk.length >= 10 && bk[9] == '5') "5" else "") else ""   // Etapa 90f: corpo do TS4 usa clips_<g>5.bin (juntas do esqueleto original do TS4)
         simFail = false
         simTryNs = 0L
         useSimClips(simWant)   // Etapa 45: clipes do esqueleto do Sims (estagio+sexo)
@@ -783,7 +783,7 @@ object CuteChar {
                 }
             } catch (e: Throwable) { }
         }
-        val base = sitSeats[simGrp] ?: 0.335f
+        val base = sitSeats[simGrp] ?: sitSeats[simGrp.take(2)] ?: 0.335f
         val k = if (simH > 0.05f) heightS / simH else 1f
         return base * k
     }

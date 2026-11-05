@@ -24,3 +24,8 @@
 - ferramentas/sims4/rig.py lê o RIG (posição/quaternion locais, pai, nome, hash); assets/cute/skel_s4.txt guarda tudo (mundo + local).
 - Conferido: as juntas caem exatamente no corpo do TS4 (mesmo referencial em metros; L = +x). O pacote também traz 4 CLIPs (animações das asas) para testar a leitura do formato de animação do TS4.
 - Ainda não usado pelo jogo: próximo passo é o corpo do TS4 deformar neste esqueleto e as animações serem passadas para ele.
+
+## 90f — animações girando nas juntas do TS4
+- ferramentas/etapa90f_clipes_s4.py: clips_am5.bin / clips_af5.bin = os 11 clipes do app refeitos com as juntas do esqueleto original do TS4 (mesma rotação por osso, posições por cinemática direta com os comprimentos do TS4).
+- CuteChar: corpo "body/S_<g>5" carrega clips_<g>5.bin. bodyrig am5/af5 = juntas do TS4.
+- Próximo: andar/correr novos (captura de movimento Bandai Namco, uso não comercial).

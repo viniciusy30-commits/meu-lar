@@ -562,3 +562,4 @@ Etapa 90 — Corpos base do The Sims 4 (teste): no criador, adulto → "Modelo: 
 Etapa 90b — Sims 4: o corpo agora usa a pele do próprio Sims 4 (atlas certo).
 Etapa 90c — Sims 4: pescoço, nuca, ombros e pés sem defeitos visuais.
 Etapa 90d — Sims 4: o corpo usa os ossos e pesos originais da EA (dobra mais natural).
+Etapa 90f — Sims 4: o corpo dobra nas juntas do esqueleto original do Sims 4.

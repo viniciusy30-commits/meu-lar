@@ -306,6 +306,7 @@ def go(sexo, body, head, tex, src_grp, out_grp):
         # alinha pelo tronco (y entre 40% e 70% da altura)
         h0,h1=np.percentile(sp[:,1],[40,70]); ms=(sp[:,1]>h0)&(sp[:,1]<h1); mq=(Q[:,1]>h0)&(Q[:,1]<h1)
         Q[:,ax]+=np.median(sp[ms,ax])-np.median(Q[mq,ax])
+    import json; json.dump({'k':k,'off':(Q[0]-P[0]*k).tolist()},open('/tmp/s4/xf_%s.json'%out_grp,'w'))
     O=np.r_[np.array(_ORIG),np.full(len(Q)-len(_ORIG),2)]   # 0 corpo, 1 cabeça, 2 olhos
     # pés: o pé do TS4 é maior que o do Sims 3 e atravessava os sapatos -> cada pé ganha o tamanho/posição do pé do Sims 3
     ya=sp[:,1].min()+(sp[:,1].max()-sp[:,1].min())*0.075
