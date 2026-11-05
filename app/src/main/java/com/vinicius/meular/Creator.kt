@@ -879,7 +879,9 @@ class CreatorUi(
             av.masc = it == 1; av.female = !av.masc; simApply()
         }
         // Etapa 90: modelo base do The Sims 4 (homem e mulher, adulto) à parte, para testar
-        chipRow("Modelo", listOf("The Sims 3", "The Sims 4 (teste)"), if (av.simType == 5) 1 else 0, { it == 0 || av.simAge == 3 }) {
+        chipRow("Modelo", listOf("The Sims 3", "The Sims 4 (teste)"), if (av.simType == 5) 1 else 0, { true }) {
+            // o corpo do Sims 4 só existe adulto: escolher ele muda a idade para Adulto
+            if (it == 1) av.simAge = 3
             av.simType = if (it == 1) 5 else 1; simApply()
         }
         val tipos = listOf(0, 1, 3)
