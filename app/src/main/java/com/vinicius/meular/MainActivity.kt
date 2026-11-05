@@ -669,10 +669,16 @@ class MainActivity : AppCompatActivity() {
             sc.addView(row)
             panel.addView(moneyChip, LinearLayout.LayoutParams(-2, -2).also { it.bottomMargin = dp(10) })
             panel.addView(sc, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
+            // a grade cabe na tela (deitado, a altura é pequena: antes a 2ª linha ficava fora e não dava para rolar)
+            val dm = resources.displayMetrics
+            val deitado = dm.widthPixels > dm.heightPixels
             val rv = RecyclerView(this)
-            rv.layoutManager = GridLayoutManager(this, 3)
+            rv.layoutManager = GridLayoutManager(this, if (deitado) 5 else 3)
             rv.adapter = adapter
-            panel.addView(rv, LinearLayout.LayoutParams(-1, dp(310)))
+            rv.isNestedScrollingEnabled = true
+            rv.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            val alturaLivre = dm.heightPixels - dp(235) - bottomInset
+            panel.addView(rv, LinearLayout.LayoutParams(-1, alturaLivre.coerceIn(dp(150), dp(310))))
         }
         shopDialog = d
         refreshShop()

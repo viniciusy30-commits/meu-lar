@@ -1331,7 +1331,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val g = Glb.get(gid) ?: continue
             val cx = o.x + o.ox + o.w / 2f; val cz = o.y + o.oz + o.h / 2f
             if (kotlin.math.hypot(cx - px, cz - pz) > 3f) continue
-            if (!o.busy && CuteChar.hasSit()) g.point("IP_sentar")?.let { ip ->
+            if (!o.busy) g.point("IP_sentar")?.let { ip ->
                 val w = toWorld(o, ip[0], ip[2])
                 val d = kotlin.math.hypot(w[0] - px, w[1] - pz)
                 if (d < 1.4f && d * 0.9f < best) { best = d * 0.9f; kind = 3; lab = "Sentar"; bi = o; bp = -1 }
@@ -1454,7 +1454,13 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val ap = g.extraPoint("IP_sentar", "aproximacao") ?: return
         val ini = g.extraPoint("IP_sentar", "inicio") ?: return
         val sy = g.extraFloat("IP_sentar", "assento_y", 0.34f)
-        if (!CuteChar.hasSit() || o.busy) return
+        if (o.busy) return
+        if (!CuteChar.hasSit()) {
+            // sem os clipes de sentar (clips_<g>.bin com 8 clipes) ou corpo sem esqueleto do Sims: avisa em vez de sumir com o botão
+            msgText = if (CuteChar.bodyGroup() == null) "Este corpo não tem animação de sentar" else "Falta a animação de sentar (etapa83-clipes.zip)"
+            msgT = 2.5f
+            return
+        }
         val w0 = toWorld(o, ip[0], ip[2]); sitPt[0] = w0[0]; sitPt[1] = w0[1]
         val w1 = toWorld(o, ini[0], ini[2]); sitPt[2] = w1[0]; sitPt[3] = w1[1]
         val w2 = toWorld(o, ap[0], ap[2])

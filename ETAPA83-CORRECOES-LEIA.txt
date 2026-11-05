@@ -1,0 +1,1 @@
+Etapa 83 - correções: rolagem da loja, botão Sentar e animações de sentar.
