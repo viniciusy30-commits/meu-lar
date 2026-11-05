@@ -55,7 +55,9 @@ PARAMS = {
 }
 # Etapa 63: parado, correr, pulo e pulo correndo vem dos FBX do Mixamo enviados pelo usuario (ferramentas/anim_fbx), sem ajuste de estilo
 _ID = dict(sx=1.0, sz=1.0, sb=1.0, pgain=1.0, trunk=0.0, head=0.0, abd=(None, 1.0), sag=(None, 1.0), rate=1.0)
-for _k in (0, 2, 3, 4): PARAMS[_k] = dict(_ID)
+for _k in (0, 1, 2, 3, 4): PARAMS[_k] = dict(_ID)
+WALK_SPEED = 1.7                      # m/s no jogo (Renderer3D); 'rate' do andar ajusta cada clipe a essa velocidade
+WALK_NATIVE = {'f': 1.65, 'm': 1.79}  # velocidade do pe de apoio de cada FBX (m/s)
 
 # ------------------------------------------------------------------------------------------------ utilidades 3D
 def unit(v):
@@ -328,7 +330,9 @@ def run_group(src, grp, ratios, outdir):
     for ci, c in enumerate(CLIPS):
         if c is None: continue
         anim, fps = c
-        sx_ = MIX.get(ci, src)
+        if ci == WALK:
+            sx_ = MIX_WALK['m' if (grp[1] == 'm') else 'f']; PARAMS[WALK]['rate'] = WALK_SPEED / WALK_NATIVE['m' if grp[1] == 'm' else 'f']
+        else: sx_ = MIX.get(ci, src)
         rt = Retarget(sx_, body, PARAMS[ci], anim, fps)
         cl = build_clip(sx_, rt, body, anim, fps, sole_ids, bi, bw, rest_m)
         clips[ci] = (cl, rt)
@@ -361,6 +365,7 @@ if __name__ == '__main__':
     MIX = {}
     MIX[IDLE] = MixClip(FB + 'Idle.fbx')
     MIX[RUN] = MixClip(FB + 'Running_1.fbx')
+    MIX_WALK = {'f': MixClip(FB + 'Walk_Female.fbx'), 'm': MixClip(FB + 'Walk_Male.fbx', no_root=True)}
     for ci_, fn, pre, tail, base in ((JUMP, 'Jump_1.fbx', 0.14, 0.75, 1.034), (RUNJUMP, 'Running_Jump.fbx', 0.0, None, 0.859)):
         t_off, t_land, low_, tend = air_window(FB + fn)
         a_ = pre + AIR; segs = []

@@ -121,3 +121,4 @@ Limites: só corpo "Normal" (magro/gordo não acompanham); sem jaqueta jeans, mo
 - Renderer3D: pulo parado tem agachada de 0,14 s antes de sair do chão; pulo correndo se estava correndo; a recuperação do pouso toca até o fim (ou corta se o jogador andar). RUN_SPEED 2,1 -> 3,2 m/s (passo do clipe novo). CuteChar: RUNJUMP=4 (sem corpo do Sims cai em JUMP).
 - Não testado no aparelho; o app não foi compilado por inteiro aqui.
 - O cabelo da Etapa 62 foi mantido como estava (o pedido de "esquecer" o zip foi lido como "não é o foco agora").
+- Andar também trocado: male_Walking_3.fbx (corpos masculinos tm/am/em) e f_male_Walking_2.fbx (os demais, incl. criança/bebê). O masculino tinha deslocamento de raiz (1,8 m/s), retirado. Velocidade de andar do jogo 1,0 -> 1,7 m/s (WALK_SPEED, Renderer3D); duração de cada clipe ajustada a essa velocidade.

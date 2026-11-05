@@ -68,7 +68,7 @@ class MixClip(MixSource):
     """Etapa 63: um clipe Mixamo (FBX) como esta, sem procurar ciclo.
     segs: lista de (u0, u1, s0, s1) -- tempo do clipe [u0,u1] <- tempo do FBX [s0,s1] (linear; permite esticar o trecho no ar).
     lift_base: se dado, a subida do quadril acima desta altura (m) e' retirada de todo o corpo (quem sobe e' o jogo, pela fisica do pulo)."""
-    def __init__(self, path, segs=None, lift_base=None, fps=60):
+    def __init__(self, path, segs=None, lift_base=None, fps=60, no_root=False):
         self.a = Anim(path); a = self.a
         Wr = a.world(0, False)
         self.pr = {n: Wr[v][1] * self.SC for n, v in MAP.items()}
@@ -79,6 +79,11 @@ class MixClip(MixSource):
         self.period = self.segs[-1][1]
         self.lift_base = lift_base
         self.ov = 0.0
+        # no_root: retira o deslocamento linear do quadril no plano (clipe que anda; quem anda e' o jogo)
+        self.drift = None
+        if no_root:
+            h0 = a.world(a.t0)['Hips'][1] * self.SC; h1 = a.world(a.t1)['Hips'][1] * self.SC
+            self.drift = (np.array([h1[0] - h0[0], 0.0, h1[2] - h0[2]]), a.t0, a.t1)
 
     def src_t(self, u):
         for (u0, u1, s0, s1) in self.segs:
@@ -92,6 +97,9 @@ class MixClip(MixSource):
     def pose(self, anim, u):
         s = self.src_t(u)
         p, D = self._raw(s)
+        if self.drift is not None:
+            d, t0, t1 = self.drift; off = d * ((s - t0) / (t1 - t0))
+            p = {n: v - off for n, v in p.items()}
         lf = self.lift_at(s)
         if lf: p = {n: v - np.array([0.0, lf, 0.0]) for n, v in p.items()}
         return p, D
