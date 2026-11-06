@@ -911,8 +911,8 @@ class CreatorUi(
         chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { av.simAge >= 2 }) {
             av.masc = it == 1; av.female = !av.masc; simApply()
         }
-        val tipos = listOf(0, 1, 3)
-        chipRow("Corpo", listOf("Magro", "Normal", "Gordo"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
+        val tipos = listOf(0, 1, 3, 5)   // 5 = corpo do The Sims 4 (só adulto)
+        chipRow("Corpo", listOf("Magro", "Normal", "Gordo", "Sims 4"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
             av.simType = tipos[it]; simApply()
         }
     }
