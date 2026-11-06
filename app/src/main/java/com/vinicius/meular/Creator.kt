@@ -567,6 +567,7 @@ class CreatorUi(
                 if (!m.builtin) ({ ModStore.remove(m); itemsChanged() }) else null,
                 if (!m.builtin && !m.hasTex) ({ act?.pickMods(m.id) }) else null))
         }
+        for (m in list) if (ModStore.VARS.containsKey(m.id) && ModStore.isWorn(m)) variantColors(m)
         val cols = 2
         val total = entries.size + 1
         var row: LinearLayout? = null
@@ -588,6 +589,38 @@ class CreatorUi(
             m.setTextColor(TXT)
             body.addView(m, LinearLayout.LayoutParams(-1, -2).also { it.setMargins(dp(4), dp(6), dp(4), dp(4)) })
         }
+    }
+
+    /** Etapas 94/95: cores de uma peça de modelo único (Lotus, blusa Bloom, saia Autumn Grace), mostradas quando ela está vestida; trocam a textura na hora. */
+    private fun variantColors(m: ModStore.Item) {
+        val v = ModStore.VARS[m.id] ?: return
+        val cur = ModStore.variantIndex(m.id)
+        val lab = TextView(context)
+        lab.text = "Cor: " + v.label + " (" + v.colors[cur].nome + ")"
+        lab.textSize = 13f
+        lab.typeface = Ui.BOLD
+        lab.setTextColor(TXT)
+        body.addView(lab, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8); it.bottomMargin = dp(6); it.leftMargin = dp(4); it.rightMargin = dp(4) })
+        val pal = v.colors
+        val cols = 6
+        var row: LinearLayout? = null
+        for (i in pal.indices) {
+            if (i % cols == 0) {
+                row = LinearLayout(context)
+                row.orientation = LinearLayout.HORIZONTAL
+                body.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+            val cell = FrameLayout(context)
+            val dot = View(context)
+            val on = i == cur
+            dot.background = Ui.oval(pal[i].argb, if (on) TXT else 0x33000000, if (on) dpf(3.5f) else dpf(1f))
+            dot.setOnClickListener { ModStore.setVariant(m.id, i); st.save(); refresh(true) }
+            cell.addView(dot, LayoutParams(dp(38), dp(38), Gravity.CENTER))
+            row!!.addView(cell, LinearLayout.LayoutParams(0, dp(46), 1f))
+        }
+        val rest = (cols - pal.size % cols) % cols
+        for (k in 0 until rest) row!!.addView(View(context), LinearLayout.LayoutParams(0, dp(46), 1f))
+        body.addView(View(context), LinearLayout.LayoutParams(-1, dp(6)))
     }
 
     private fun colorRow(slot: Int) {
@@ -878,14 +911,8 @@ class CreatorUi(
         chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { av.simAge >= 2 }) {
             av.masc = it == 1; av.female = !av.masc; simApply()
         }
-        // Etapa 90: modelo base do The Sims 4 (homem e mulher, adulto) à parte, para testar
-        chipRow("Modelo", listOf("The Sims 3", "The Sims 4 (teste)"), if (av.simType == 5) 1 else 0, { true }) {
-            // o corpo do Sims 4 só existe adulto: escolher ele muda a idade para Adulto
-            if (it == 1) av.simAge = 3
-            av.simType = if (it == 1) 5 else 1; simApply()
-        }
         val tipos = listOf(0, 1, 3)
-        if (av.simType != 5) chipRow("Corpo", listOf("Magro", "Normal", "Gordo"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
+        chipRow("Corpo", listOf("Magro", "Normal", "Gordo"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
             av.simType = tipos[it]; simApply()
         }
     }

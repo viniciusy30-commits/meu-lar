@@ -17,6 +17,56 @@ object ModStore {
         val key: String get() = "$slot/M_$id"
     }
 
+    class VarColor(val slug: String, val nome: String, val argb: Int)
+    /** Peça de modelo único com várias cores: uma malha e uma textura por cor (a escolhida no seletor de cores). */
+    class Var(val label: String, val colors: List<VarColor>, val thumb: String, val cupOf: (String) -> String, val pngOf: (String) -> String)
+
+    const val LOTUS_ID = "lotusc_af5"
+    const val BLOOM_ID = "bloom_af5"
+    const val AUTUMN_ID = "autumn_af5"
+
+    val LOTUS = listOf(
+        VarColor("preto", "Preto", 0xFF262326.toInt()),
+        VarColor("castanhoe", "Castanho escuro", 0xFF4A3225.toInt()),
+        VarColor("castanho", "Castanho", 0xFF7A5238.toInt()),
+        VarColor("ruivo", "Ruivo", 0xFFB5532D.toInt()),
+        VarColor("loiroe", "Loiro escuro", 0xFFA07C48.toInt()),
+        VarColor("loiro", "Loiro", 0xFFD9B96A.toInt()),
+        VarColor("platina", "Platinado", 0xFFE8DFC8.toInt()),
+        VarColor("cinza", "Cinza", 0xFF8E9096.toInt()),
+        VarColor("rosa", "Rosa", 0xFFE0517F.toInt()),
+        VarColor("azul", "Azul", 0xFF2F62C0.toInt())
+    )
+    val BLOOM = listOf(
+        VarColor("branco", "Branca", 0xFFF2F0EC.toInt()),
+        VarColor("creme", "Creme", 0xFFE8DCBF.toInt()),
+        VarColor("azul", "Azul claro", 0xFFA9CBEA.toInt()),
+        VarColor("lavanda", "Lavanda", 0xFFB7A6DB.toInt()),
+        VarColor("pessego", "Pêssego", 0xFFF4B79B.toInt()),
+        VarColor("coral", "Coral", 0xFFF26D5F.toInt()),
+        VarColor("vermelho", "Vermelha", 0xFFC4283A.toInt()),
+        VarColor("cinza", "Cinza", 0xFF9B9DA3.toInt()),
+        VarColor("preto", "Preta", 0xFF2A282B.toInt()),
+        VarColor("verde", "Verde", 0xFF5E9E5A.toInt()),
+        VarColor("amarelo", "Amarela", 0xFFEFCB4A.toInt()),
+        VarColor("rosa", "Rosa pink", 0xFFD8337F.toInt())
+    )
+    val AUTUMN = listOf(
+        VarColor("mostarda", "Xadrez mostarda", 0xFFD9A441.toInt()),
+        VarColor("cinza", "Xadrez cinza", 0xFFB8B2A8.toInt()),
+        VarColor("oliva", "Xadrez verde-oliva", 0xFF7C7A3C.toInt()),
+        VarColor("ferrugem", "Xadrez ferrugem", 0xFFB4502A.toInt()),
+        VarColor("petroleo", "Xadrez azul petróleo", 0xFF4C95A8.toInt()),
+        VarColor("preto", "Preta", 0xFF26262A.toInt())
+    )
+    val VARS: Map<String, Var> = mapOf(
+        LOTUS_ID to Var("Cabelo Lotus", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
+        BLOOM_ID to Var("Blusa Bloom", BLOOM, "bloom_branco_af5", { c -> "bloom_${c}_af5" }, { c -> "bloom_${c}_af5" }),
+        AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" })
+    )
+    private val sel = HashMap<String, Int>()   // id da peça -> índice da cor escolhida (0 = a primeira)
+    fun variantIndex(id: String): Int = synchronized(this) { sel[id] ?: 0 }
+
     val items = ArrayList<Item>()
     private val worn = LinkedHashSet<String>()
     private var dir: File? = null
@@ -57,13 +107,21 @@ object ModStore {
         // Etapa 91: Bernard refeito na cabeça do corpo do The Sims 4 (só aparece nesse corpo; os cabelos do Sims 3 não aparecem nele)
         for (g in listOf("af", "am")) items.add(Item("bern1_${g}5", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         for (g in listOf("cu", "pu")) items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
-        // Etapa 92: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5)
-        for ((slug, nome) in listOf("branco" to "Branca", "creme" to "Creme", "azul" to "Azul claro", "lavanda" to "Lavanda", "pessego" to "Pêssego", "coral" to "Coral", "vermelho" to "Vermelha", "cinza" to "Cinza", "preto" to "Preta", "verde" to "Verde", "amarelo" to "Amarela", "rosa" to "Rosa pink"))
-            items.add(Item("bloom_${slug}_af5", "Blusa renda Bloom ($nome)", "top", "af", 0, true, true, true))
-        // Etapa 93: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), cabelo longo ondulado só para o corpo feminino do Sims 4 (af5): coque (meio preso) e solto
-        for ((slug, nome) in listOf("ruivo" to "Ruivo", "preto" to "Preto", "castanhoe" to "Castanho escuro", "castanho" to "Castanho", "loiroe" to "Loiro escuro", "loiro" to "Loiro", "platina" to "Platinado", "cinza" to "Cinza", "rosa" to "Rosa", "azul" to "Azul")) {
-            items.add(Item("lotusc_${slug}_af5", "Lotus coque ($nome)", "hairBack", "af", 0, true, true, true))
-            items.add(Item("lotuss_${slug}_af5", "Lotus solto ($nome)", "hairBack", "af", 0, true, true, true))
+        // Etapa 95: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5): um item, 12 cores no seletor
+        items.add(Item(BLOOM_ID, "Blusa renda Bloom", "top", "af", 0, true, true, true))
+        // Etapa 94: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), só o coque, um único item (preto); a cor troca no seletor de cores do Cabelo
+        items.add(Item(LOTUS_ID, "Lotus coque", "hairBack", "af", 0, true, true, true))
+        // Etapa 95: GoldFish Autumn Grace (Sims 4), saia rodada com cinto, só para o corpo feminino do Sims 4 (af5): um item, 6 cores no seletor
+        items.add(Item(AUTUMN_ID, "Saia Autumn Grace", "bottom", "af", 0, true, true, true))
+        loadVariants(d)
+        // quem já tinha Lotus/Bloom vestido num item por cor (Etapas 92/93) passa para o item único, com a mesma cor
+        for (k in worn.toList()) {
+            val m = Regex("(hairBack|top)/M_(lotusc|bloom)_([a-z]+)_af5").matchEntire(k) ?: continue
+            val id = if (m.groupValues[2] == "lotusc") LOTUS_ID else BLOOM_ID
+            val i = VARS[id]!!.colors.indexOfFirst { c -> c.slug == m.groupValues[3] }
+            worn.remove(k)
+            if (i >= 0) sel[id] = i
+            worn.add(m.groupValues[1] + "/M_" + id)
         }
         // Etapa 84: low fade com topo texturizado curto (original do jogo, ferramentas/sk_fade.py), todos os corpos
         for (g in listOf("af", "am", "tf", "tm", "ef", "em", "cu", "pu")) items.add(Item("fade1_$g", "Low fade texturizado", "hairBack", g, 0, true, true, true))
@@ -75,6 +133,35 @@ object ModStore {
             items.add(Item("singlet_haters_$g", "Regata haters (preta)", "top", g, 0, true, true, true))
         }
         worn.retainAll(items.map { it.key }.toSet())
+    }
+
+    /** Escolhe a cor (índice em VARS[id].colors) de uma peça de modelo único; se está vestida, a textura troca na hora. */
+    fun setVariant(id: String, i: Int) {
+        val v = VARS[id] ?: return
+        if (i !in v.colors.indices) return
+        val item = synchronized(this) {
+            sel[id] = i
+            try { dir?.let { d -> File(d, "variants.txt").writeText(sel.entries.joinToString("\n") { e -> e.key + "=" + (VARS[e.key]?.colors?.getOrNull(e.value)?.slug ?: "") }) } } catch (e: Throwable) { }
+            items.firstOrNull { x -> x.id == id }
+        }
+        if (item != null && isWorn(item)) Thread { load(item) }.start()
+    }
+
+    private fun loadVariants(d: File) {
+        try {
+            val f = File(d, "variants.txt")
+            if (f.exists()) {
+                for (ln in f.readLines(Charsets.UTF_8)) {
+                    val p = ln.split('=')
+                    if (p.size != 2) continue
+                    val i = VARS[p[0]]?.colors?.indexOfFirst { c -> c.slug == p[1] } ?: -1
+                    if (i >= 0) sel[p[0]] = i
+                }
+            } else {
+                // Etapa 94 guardava só o índice da cor do Lotus
+                File(d, "lotuscolor.txt").takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()?.let { i -> if (i in LOTUS.indices) sel[LOTUS_ID] = i }
+            }
+        } catch (e: Throwable) { }
     }
 
     /** Veste a peça (troca a do mesmo tipo). Já vestida: não faz nada. */
@@ -95,7 +182,7 @@ object ModStore {
 
     /** Miniatura da peça: embutida, ou gerada na primeira vez (peças importadas) e guardada em disco. Chamar fora da thread da tela. */
     fun thumb(it: Item): Bitmap? {
-        if (it.builtin) return assetThumb(it.id)
+        if (it.builtin) return assetThumb(VARS[it.id]?.thumb ?: it.id)
         val d = dir ?: return null
         val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".thumb.png")
         if (f.exists()) BitmapFactory.decodeFile(f.path)?.let { b -> return b }
@@ -154,7 +241,7 @@ object ModStore {
     /** Chaves das peças vestidas que servem para o corpo [grp] (idade+sexo, ex.: "af"). */
     @Synchronized
     /** Cabelos embutidos do Sims 4 (id termina em 5) só no corpo do Sims 4; os do Sims 3, só nos corpos do Sims 3. Importados aparecem sempre. */
-    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_"))) || it.id.endsWith("5") == ts4
+    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_") || it.id.startsWith("autumn_"))) || it.id.endsWith("5") == ts4
 
     fun wornKeys(grp: String): List<String> = items.filter { it.key in worn && it.grp == grp && visible(it, CuteChar.isTs4()) }.map { it.key }
 
@@ -211,9 +298,11 @@ object ModStore {
             val bmp: Bitmap
             if (it.builtin) {
                 val am = CuteChar.assets ?: return
-                // Lotus: duas malhas (coque/solto) e uma textura por cor, compartilhadas entre as peças
-                val cupName = if (it.id.startsWith("lotusc_")) "lotus_coque" else if (it.id.startsWith("lotuss_")) "lotus_solto" else it.id
-                val pngName = if (it.id.startsWith("lotus")) "lotus_" + it.id.substringAfter('_').substringBeforeLast('_') else it.id
+                // peças de modelo único: malha e textura da cor escolhida
+                val vr = VARS[it.id]
+                val slug = vr?.colors?.get(variantIndex(it.id))?.slug
+                val cupName = if (vr != null && slug != null) vr.cupOf(slug) else it.id
+                val pngName = if (vr != null && slug != null) vr.pngOf(slug) else it.id
                 cup = am.open("cute/skate/" + cupName + ".cup").use { s -> s.readBytes() }
                 bmp = am.open("cute/skate/" + pngName + ".png").use { s -> BitmapFactory.decodeStream(s, null, opts) } ?: return
             } else {
