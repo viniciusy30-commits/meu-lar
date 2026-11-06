@@ -102,8 +102,17 @@ object ModStore {
         try {
             File(d, "index.txt").takeIf { it.exists() }?.readLines(Charsets.UTF_8)?.forEach { ln ->
                 val f = ln.split('|')
-                if (f.size >= 7 && File(d, f[0] + ".cup").exists())
-                    items.add(Item(f[0], f[1], f[2], f[3], f[4].toIntOrNull() ?: 3, f[5] == "1", f[6] == "1"))
+                if (f.size >= 7) {
+                    val game = f[4].toIntOrNull() ?: 0
+                    if (game == 4 && File(d, f[0] + ".cup").exists()) {
+                        items.add(Item(f[0], f[1], f[2], f[3], game, f[5] == "1", f[6] == "1"))
+                    } else if (game != 4) {
+                        // Remove do armazenamento local peças importadas de The Sims 2/3.
+                        for (suffix in listOf(".cup", ".png", ".t0.thumb.png", ".t1.thumb.png")) {
+                            File(d, f[0] + suffix).delete()
+                        }
+                    }
+                }
             }
             File(d, "worn.txt").takeIf { it.exists() }?.readText()?.split(',')?.forEach { if (it.isNotBlank()) worn.add(it.trim()) }
         } catch (e: Throwable) {
@@ -252,8 +261,8 @@ object ModStore {
 
     /** Chaves das peças vestidas que servem para o corpo [grp] (idade+sexo, ex.: "af"). */
     @Synchronized
-    /** Cabelos embutidos do Sims 4 (id termina em 5) só no corpo do Sims 4; os do Sims 3, só nos corpos do Sims 3. Importados aparecem sempre. */
-    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_") || it.id.startsWith("autumn_") || it.id.startsWith("hood_") || it.id.startsWith("hcargo_"))) || it.id.endsWith("5") == ts4
+    /** O catálogo aceita somente itens nativos Sims 4 e arquivos .package identificados como Sims 4. */
+    fun visible(it: Item, ts4: Boolean): Boolean = ts4 && (it.builtin || it.game == 4)
 
     fun wornKeys(grp: String): List<String> = items.filter { it.key in worn && it.grp == grp && visible(it, CuteChar.isTs4()) }.map { it.key }
 
