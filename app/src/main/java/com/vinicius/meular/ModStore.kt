@@ -60,6 +60,11 @@ object ModStore {
         // Etapa 92: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5)
         for ((slug, nome) in listOf("branco" to "Branca", "creme" to "Creme", "azul" to "Azul claro", "lavanda" to "Lavanda", "pessego" to "Pêssego", "coral" to "Coral", "vermelho" to "Vermelha", "cinza" to "Cinza", "preto" to "Preta", "verde" to "Verde", "amarelo" to "Amarela", "rosa" to "Rosa pink"))
             items.add(Item("bloom_${slug}_af5", "Blusa renda Bloom ($nome)", "top", "af", 0, true, true, true))
+        // Etapa 93: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), cabelo longo ondulado só para o corpo feminino do Sims 4 (af5): coque (meio preso) e solto
+        for ((slug, nome) in listOf("ruivo" to "Ruivo", "preto" to "Preto", "castanhoe" to "Castanho escuro", "castanho" to "Castanho", "loiroe" to "Loiro escuro", "loiro" to "Loiro", "platina" to "Platinado", "cinza" to "Cinza", "rosa" to "Rosa", "azul" to "Azul")) {
+            items.add(Item("lotusc_${slug}_af5", "Lotus coque ($nome)", "hairBack", "af", 0, true, true, true))
+            items.add(Item("lotuss_${slug}_af5", "Lotus solto ($nome)", "hairBack", "af", 0, true, true, true))
+        }
         // Etapa 84: low fade com topo texturizado curto (original do jogo, ferramentas/sk_fade.py), todos os corpos
         for (g in listOf("af", "am", "tf", "tm", "ef", "em", "cu", "pu")) items.add(Item("fade1_$g", "Low fade texturizado", "hairBack", g, 0, true, true, true))
         // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
@@ -206,8 +211,11 @@ object ModStore {
             val bmp: Bitmap
             if (it.builtin) {
                 val am = CuteChar.assets ?: return
-                cup = am.open("cute/skate/" + it.id + ".cup").use { s -> s.readBytes() }
-                bmp = am.open("cute/skate/" + it.id + ".png").use { s -> BitmapFactory.decodeStream(s, null, opts) } ?: return
+                // Lotus: duas malhas (coque/solto) e uma textura por cor, compartilhadas entre as peças
+                val cupName = if (it.id.startsWith("lotusc_")) "lotus_coque" else if (it.id.startsWith("lotuss_")) "lotus_solto" else it.id
+                val pngName = if (it.id.startsWith("lotus")) "lotus_" + it.id.substringAfter('_').substringBeforeLast('_') else it.id
+                cup = am.open("cute/skate/" + cupName + ".cup").use { s -> s.readBytes() }
+                bmp = am.open("cute/skate/" + pngName + ".png").use { s -> BitmapFactory.decodeStream(s, null, opts) } ?: return
             } else {
                 cup = File(d, it.id + ".cup").readBytes()
                 bmp = BitmapFactory.decodeFile(File(d, it.id + ".png").path, opts) ?: return
