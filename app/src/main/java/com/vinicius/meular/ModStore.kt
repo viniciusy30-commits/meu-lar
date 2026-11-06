@@ -26,6 +26,9 @@ object ModStore {
     const val AUTUMN_ID = "autumn_af5"
     const val HOOD_ID = "hood_af5"
     const val HCARGO_ID = "hcargo_af5"
+    // Etapa 107: as mesmas peças refeitas para o corpo masculino do Sims 4 (am5)
+    const val HOOD_M_ID = "hood_am5"
+    const val HCARGO_M_ID = "hcargo_am5"
 
     val LOTUS = listOf(
         VarColor("preto", "Preto", 0xFF262326.toInt()),
@@ -75,7 +78,9 @@ object ModStore {
         BLOOM_ID to Var("Blusa Bloom", BLOOM, "bloom_branco_af5", { c -> "bloom_${c}_af5" }, { c -> "bloom_${c}_af5" }),
         AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" }),
         HOOD_ID to Var("Jaqueta com capuz", HOOD, "hood_preto_af5", { _ -> "hood_af5" }, { c -> "hood_$c" }),
-        HCARGO_ID to Var("Calça cargo com cintos", HOOD, "hcargo_preto_af5", { _ -> "hcargo_af5" }, { c -> "hood_$c" })
+        HCARGO_ID to Var("Calça cargo com cintos", HOOD, "hcargo_preto_af5", { _ -> "hcargo_af5" }, { c -> "hood_$c" }),
+        HOOD_M_ID to Var("Jaqueta com capuz", HOOD, "hood_preto_am5", { _ -> "hood_am5" }, { c -> "hood_$c" }),
+        HCARGO_M_ID to Var("Calça cargo com cintos", HOOD, "hcargo_preto_am5", { _ -> "hcargo_am5" }, { c -> "hood_$c" })
     )
     private val sel = HashMap<String, Int>()   // id da peça -> índice da cor escolhida (0 = a primeira)
     fun variantIndex(id: String): Int = synchronized(this) { sel[id] ?: 0 }
@@ -129,6 +134,9 @@ object ModStore {
         // Etapa 105: jaqueta com capuz (slot jaqueta) e calça cargo com cintos (slot calça), só para o corpo feminino do Sims 4 (af5)
         items.add(Item(HOOD_ID, "Jaqueta com capuz", "jacket", "af", 0, true, false, true))
         items.add(Item(HCARGO_ID, "Calça cargo com cintos", "bottom", "af", 0, true, false, true))
+        // Etapa 107: versão masculina (corpo am5) da jaqueta com capuz e da calça cargo
+        items.add(Item(HOOD_M_ID, "Jaqueta com capuz", "jacket", "am", 0, true, false, true))
+        items.add(Item(HCARGO_M_ID, "Calça cargo com cintos", "bottom", "am", 0, true, false, true))
         loadVariants(d)
         // quem já tinha Lotus/Bloom vestido num item por cor (Etapas 92/93) passa para o item único, com a mesma cor
         for (k in worn.toList()) {
