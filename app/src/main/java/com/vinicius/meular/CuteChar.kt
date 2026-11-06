@@ -678,12 +678,11 @@ object CuteChar {
             }
         }
         val rg = if (simOn) rigs[simKey] else null
-        if (simOn && rg != null) {
-            // Etapa 65: sliders reais do Sims 3 (ajustes de osso do BOND); sem eles o corpo fica exatamente como o original
+        if (simOn && rg != null && !isTs4()) {
+            // Compatibilidade legada; o corpo ativo do jogo é Sims 4 e não recebe sliders do rig Sims 3.
             val k = rg[19] / SimSliders.neckY(simKey.substring(0, 2))
             if (!SimSliders.warp(src, s.pos, s.nv, simV, simKey.substring(0, 2), k, s.pos0)) System.arraycopy(src, 0, s.pos, 0, s.nv * 3)
-        }
-        else BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
+        } else BodyMorph.warp(src, s.pos, s.nv, bp, mascV, !isBase && s.tex == "skatetee.png")
         BodyMorph.fixNormals(s.pos0, s.pos, s.nor0, s.nor, s.idx, s.ni, s.nv)   // Etapa 13: sombreado acompanha o busto/corpo novo
         s.warpVer = ver
     }

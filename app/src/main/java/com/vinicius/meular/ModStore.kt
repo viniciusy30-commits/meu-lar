@@ -154,6 +154,7 @@ object ModStore {
             items.add(Item("singlet_haters_$g", "Regata haters (preta)", "top", g, 0, true, true, true))
         }
         worn.retainAll(items.map { it.key }.toSet())
+        saveIndex()   // regrava o índice sem os mods antigos do Sims 2/3
     }
 
     /** Escolhe a cor (índice em VARS[id].colors) de uma peça de modelo único; se está vestida, a textura troca na hora. */
