@@ -86,6 +86,10 @@ object CuteChar {
         var modAlpha = false         // textura com recorte (cabelo)
         var legCol = false           // saia rodada: as coxas empurram a malha para fora (colisão perna x saia, a cada quadro)
         var legMask: BooleanArray? = null   // vértices abaixo do quadril (os únicos que a colisão mexe)
+        var legIdx: IntArray? = null        // índices dos vértices da máscara (a colisão só percorre estes)
+        var legRef: FloatArray? = null      // folga de cada vértice até o eixo das coxas na pose parada (cm)
+        var legRefVer = -1
+        var legRefSet: Any? = null
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -1038,14 +1042,14 @@ object CuteChar {
         floatArrayOf(64.7f, 100.15f, 66.9f, 98.05f, 68.8f, 96.3f),
         floatArrayOf(64.55f, 100.45f, 66.85f, 98.35f, 68.8f, 96.6f),
         floatArrayOf(59.35f, 103.5f, 60.25f, 101.1f, 62.65f, 99.65f))
-    // Corpo do Sims 4: as juntas dos dedos (Index/Mid/Ring/Pinky/Thumb 0..2, esqueleto original do TS4, skel_s4.txt) ficam ~4 cm
-    // acima das do Sims 3; girar em torno das juntas erradas rasgava os dedos ao correr e pular.
+    // Corpo do Sims 4: juntas dos dedos (Index/Mid/Ring/Pinky/Thumb 0..2) do esqueleto original do TS4 (skel_s4.txt), trazidas para a escala da malha
+    // (o corpo do TS4 é reescalado para 182 cm: punho do esqueleto -> punho do bodyrig, escala 0.969). A versão da etapa 97 usava a escala do esqueleto e errava o pivô.
     private val FIST_J_TS4 = arrayOf(
-        floatArrayOf(63.96f, 104.37f, 67.06f, 101.28f, 68.82f, 99.53f),
-        floatArrayOf(64.44f, 104.25f, 67.60f, 100.91f, 69.59f, 98.81f),
-        floatArrayOf(64.48f, 104.19f, 67.46f, 100.96f, 69.29f, 98.98f),
-        floatArrayOf(64.06f, 104.33f, 66.86f, 101.47f, 68.39f, 99.90f),
-        floatArrayOf(59.87f, 107.76f, 60.41f, 105.43f, 61.08f, 102.49f))
+        floatArrayOf(61.99f, 101.95f, 64.99f, 98.96f, 66.7f, 97.27f),
+        floatArrayOf(62.46f, 101.84f, 65.52f, 98.61f, 67.45f, 96.57f),
+        floatArrayOf(62.5f, 101.78f, 65.39f, 98.65f, 67.16f, 96.73f),
+        floatArrayOf(62.09f, 101.92f, 64.8f, 99.15f, 66.29f, 97.63f),
+        floatArrayOf(58.03f, 105.24f, 58.55f, 102.98f, 59.21f, 100.14f))
     private val FIST_ANG = arrayOf(
         floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
         floatArrayOf(18f, 28f, 18f))
@@ -1152,6 +1156,51 @@ object CuteChar {
         return res
     }
 
+    /** Folga (em cm) de cada vértice da saia até o eixo de cada coxa NA POSE PARADA: a colisão nunca empurra além dela, então parada nada muda. */
+    private fun legRef(s: Skin, rg: FloatArray, mask: BooleanArray): FloatArray? {
+        val cur = s.legRef
+        val cset = clipSet
+        if (cur != null && s.legRefVer == s.warpVer && s.legRefSet === cset) return cur
+        val d = cset.data.getOrNull(IDLE) ?: return null
+        if (d.size < nb * 12) return null
+        val ref = cur ?: FloatArray(2 * s.nv)
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val tb = (if (side == 0) 17 else 21) * 12
+            val cb = (if (side == 0) 18 else 22) * 12
+            val hx = sx * rg[9]; val hy = rg[10]; val hz = rg[11]
+            val kx = sx * rg[12]; val ky = rg[13]; val kz = rg[14]
+            val h0 = d[tb] * hx + d[tb + 1] * hy + d[tb + 2] * hz + d[tb + 3]
+            val h1 = d[tb + 4] * hx + d[tb + 5] * hy + d[tb + 6] * hz + d[tb + 7]
+            val h2 = d[tb + 8] * hx + d[tb + 9] * hy + d[tb + 10] * hz + d[tb + 11]
+            val k0 = d[cb] * kx + d[cb + 1] * ky + d[cb + 2] * kz + d[cb + 3]
+            val k1 = d[cb + 4] * kx + d[cb + 5] * ky + d[cb + 6] * kz + d[cb + 7]
+            val k2 = d[cb + 8] * kx + d[cb + 9] * ky + d[cb + 10] * kz + d[cb + 11]
+            val c0 = d[tb]; val c1 = d[tb + 4]; val c2 = d[tb + 8]
+            val sc = Math.sqrt((c0 * c0 + c1 * c1 + c2 * c2).toDouble()).toFloat()
+            val ax = k0 - h0; val ay = k1 - h1; val az = k2 - h2
+            val l2 = ax * ax + ay * ay + az * az
+            for (v in 0 until s.nv) {
+                if (!mask[v] || sc < 1e-6f || l2 < 1e-12f) { ref[side * s.nv + v] = 0f; continue }
+                val px = s.pos[v * 3]; val py = s.pos[v * 3 + 1]; val pz = s.pos[v * 3 + 2]
+                var x = 0f; var y = 0f; var z = 0f
+                for (k in 0 until 4) {
+                    val w = s.bw[v * 4 + k]
+                    if (w <= 0f) continue
+                    val bo = s.bi[v * 4 + k] * 12
+                    x += w * (d[bo] * px + d[bo + 1] * py + d[bo + 2] * pz + d[bo + 3])
+                    y += w * (d[bo + 4] * px + d[bo + 5] * py + d[bo + 6] * pz + d[bo + 7])
+                    z += w * (d[bo + 8] * px + d[bo + 9] * py + d[bo + 10] * pz + d[bo + 11])
+                }
+                val t = (((x - h0) * ax + (y - h1) * ay + (z - h2) * az) / l2).coerceIn(0f, 1f)
+                val qx = x - (h0 + t * ax); val qy = y - (h1 + t * ay); val qz = z - (h2 + t * az)
+                ref[side * s.nv + v] = Math.sqrt((qx * qx + qy * qy + qz * qz).toDouble()).toFloat() / sc
+            }
+        }
+        s.legRef = ref; s.legRefVer = s.warpVer; s.legRefSet = cset
+        return ref
+    }
+
     private fun legCollide(s: Skin, body: Skin, mm: FloatArray) {
         val rg = rigs[simKey] ?: return
         if (rg.size < 18) return
@@ -1161,9 +1210,17 @@ object CuteChar {
             val lim = rg[10] + 3f   // quadril + 3 cm: cintura e cinto não são mexidos
             mask = BooleanArray(s.nv) { s.pos0[it * 3 + 1] < lim }
             s.legMask = mask
+            var n = 0
+            for (v in 0 until s.nv) if (mask[v]) n++
+            val li = IntArray(n); var q = 0
+            for (v in 0 until s.nv) if (mask[v]) li[q++] = v
+            s.legIdx = li
         }
+        val idxs = s.legIdx ?: return
+        val ref = legRef(s, rg, mask) ?: return
         val hs = heightS
         val out = s.out
+        val nv = s.nv
         for (side in 0..1) {
             val sx = if (side == 0) 1f else -1f
             val tb = (if (side == 0) 17 else 21) * 12
@@ -1184,19 +1241,25 @@ object CuteChar {
             val ax = k0 - h0; val ay = k1 - h1; val az = k2 - h2
             val l2 = ax * ax + ay * ay + az * az
             if (l2 < 1e-12f) continue
-            for (v in 0 until s.nv) {
-                if (!mask[v]) continue
+            val rmax = (rad[side * LEG_BINS] + LEG_MARGIN) * sc   // raio máximo possível desta perna (cota rápida)
+            for (i in idxs.indices) {
+                val v = idxs[i]
+                val cap = ref[side * nv + v]
+                if (cap <= 0f) continue
                 val o = v * STRIDE
                 val px = out[o]; val py = out[o + 1]; val pz = out[o + 2]
-                val t = (((px - h0) * ax + (py - h1) * ay + (pz - h2) * az) / l2).coerceIn(0f, 1f)
-                val qx = px - (h0 + t * ax); val qy = py - (h1 + t * ay); val qz = pz - (h2 + t * az)
+                val ox = px - h0; val oy = py - h1; val oz = pz - h2
+                if (ox > 4f * rmax || ox < -4f * rmax) continue   // longe demais da coxa: nada a fazer
+                val t = ((ox * ax + oy * ay + oz * az) / l2).coerceIn(0f, 1f)
+                val qx = ox - t * ax; val qy = oy - t * ay; val qz = oz - t * az
                 val d2 = qx * qx + qy * qy + qz * qz
                 val bf = t * (LEG_BINS - 1)
                 val b0 = bf.toInt().coerceAtMost(LEG_BINS - 1); val b1 = (b0 + 1).coerceAtMost(LEG_BINS - 1)
-                val r = (rad[side * LEG_BINS + b0] * (1f - (bf - b0)) + rad[side * LEG_BINS + b1] * (bf - b0) + LEG_MARGIN) * sc
+                val rcm = rad[side * LEG_BINS + b0] * (1f - (bf - b0)) + rad[side * LEG_BINS + b1] * (bf - b0) + LEG_MARGIN
+                val r = (if (cap < rcm) cap else rcm) * sc
                 if (d2 >= r * r) continue
                 val d = Math.sqrt(d2.toDouble()).toFloat()
-                if (d < 1e-6f) { out[o + 1] = py + r; continue }   // em cima do eixo: sobe
+                if (d < 1e-6f) continue
                 val k = r / d
                 out[o] = h0 + t * ax + qx * k; out[o + 1] = h1 + t * ay + qy * k; out[o + 2] = h2 + t * az + qz * k
             }
