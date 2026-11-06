@@ -337,7 +337,7 @@ class CreatorUi(
         val rnd = java.util.Random()
         if (s.sl == 6) {
             val grp = CuteChar.bodyGroup()
-            val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in s.slots }
+            val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in s.slots && ModStore.visible(it, CuteChar.isTs4()) }
             if (list.isNotEmpty()) { ModStore.select(list[rnd.nextInt(list.size)]); itemsChanged(); return }
         }
         for (slot in s.colors) {
@@ -539,7 +539,7 @@ class CreatorUi(
         val act = context as? MainActivity
         val grp = CuteChar.bodyGroup()
         val hair = "hairBack" in slots
-        val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in slots }
+        val list = if (grp == null) emptyList() else ModStore.items.filter { it.grp == grp && it.slot in slots && ModStore.visible(it, CuteChar.isTs4()) }
         val anyWorn = list.any { ModStore.isWorn(it) }
         val entries = ArrayList<Entry>()
         if (hair) {
@@ -548,7 +548,7 @@ class CreatorUi(
                 if (grp != null) ModStore.clear(grp, slots)
                 itemsChanged()
             }))
-            if (grp != null && av.simAge >= 2) {
+            if (grp != null && av.simAge >= 2 && !CuteChar.isTs4()) {
                 entries.add(Entry("hairdef_$grp", "Liso longo", av.simHair && !anyWorn, false, { ModStore.assetThumb("hairdef_$grp") }, {
                     av.simHair = true
                     ModStore.clear(grp, slots)

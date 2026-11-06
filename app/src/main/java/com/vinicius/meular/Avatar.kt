@@ -148,7 +148,7 @@ class Avatar(
             val keys = ArrayList<String>()
             keys.add("body/S_$st$g$t")
             val mods = ModStore.wornKeys("$st$g")   // roupas/cabelos importados de .package
-            if (simHair && a >= 2 && mods.none { it.startsWith("hairBack/") }) keys.add("hairBack/H_$st$g")
+            if (simHair && t != 5 && a >= 2 && mods.none { it.startsWith("hairBack/") }) keys.add("hairBack/H_$st$g")
             keys.addAll(mods)
             return keys
         }

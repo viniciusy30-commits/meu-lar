@@ -57,3 +57,9 @@
 
 ## 90m — braços da corrida
 - Calibração da corrida passou a usar um quadro em pé com braços soltos (walk_normal_001, quadro 0; mesmo esqueleto normalizado do Bandai) em vez do 1º quadro da corrida (cotovelo dobrado torcia o antebraço). Tronco com inclinação lateral média zero. Aprovado em vídeo.
+
+## 91 — Cabelo Bernard no corpo do Sims 4
+- O cabelo é nativo do Sims 4 (JohnnySims): a malha original (GEOM LOD0, 14 216 vértices) foi levada ao espaço do app com a mesma escala/deslocamento usados na cabeça do corpo (xf_<grp>.json: Q = P*k + off), então encaixa sem deformar. Nada de escala/inclinação ajustada à mão como nos corpos do Sims 3.
+- Pesos: copiados da pele mais próxima; ombros/clavículas/coluna fundidos no pescoço (cabelo curto só segue cabeça e pescoço).
+- Itens `bern1_am5` / `bern1_af5` (assets/cute/skate + thumbs). No corpo do Sims 4 só aparecem esses; os cabelos do Sims 3 (Wolf cut, Bernard antigo, Low fade, "Liso longo", cabelo padrão H_*) ficam ocultos. Cabelos importados continuam aparecendo.
+- Ferramentas: etapa91_cabelo_s4.py (+ _gerar.py, sims4/hv.py). Não testado no aparelho.

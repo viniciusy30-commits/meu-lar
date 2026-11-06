@@ -488,6 +488,9 @@ object CuteChar {
     }
 
     /** "af", "am", "tf", "cu", "pu"... do corpo atual (idade+sexo) ou null. */
+    /** Etapa 91: corpo do The Sims 4 (chave "am5"/"af5"). */
+    fun isTs4(): Boolean = simOn && simKey.length >= 3 && simKey[2] == '5'
+
     fun bodyGroup(): String? = if (simOn && simKey.length >= 2) simKey.substring(0, 2) else null
 
     /** Chamar na thread GL (onSurfaceCreated): carrega o modelo e cria as texturas. */

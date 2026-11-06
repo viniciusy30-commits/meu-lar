@@ -567,4 +567,6 @@ Etapa 90j — Sims 4: caminhada nova escolhida por você (homem A, mulher B).
 Etapa 90k — Sims 4: corrida e pulo correndo escolhidos por você.
 Etapa 90l — Sims 4: tronco reto ao correr e andar (não inclina mais para o lado).
 Etapa 90m — Sims 4: balanço dos braços da corrida corrigido.
+Etapa 91 — Sims 4: cabelo Bernard refeito para a cabeça do Sims 4; cabelos do Sims 3 ocultos nesse corpo.
 Etapa 90m — Sims 4: braços da corrida balançando certo.
+Etapa 91 — Sims 4: cabelo Bernard refeito para a cabeça do Sims 4; cabelos do Sims 3 ocultos nesse corpo.
