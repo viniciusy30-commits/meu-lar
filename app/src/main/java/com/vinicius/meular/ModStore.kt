@@ -263,7 +263,7 @@ object ModStore {
     /** Chaves das peças vestidas que servem para o corpo [grp] (idade+sexo, ex.: "af"). */
     @Synchronized
     /** O catálogo aceita somente itens nativos Sims 4 e arquivos .package identificados como Sims 4. */
-    fun visible(it: Item, ts4: Boolean): Boolean = ts4 && (it.builtin || it.game == 4)
+    fun visible(it: Item, ts4: Boolean): Boolean = it.builtin || it.game == 4
 
     fun wornKeys(grp: String): List<String> = items.filter { it.key in worn && it.grp == grp && visible(it, CuteChar.isTs4()) }.map { it.key }
 
