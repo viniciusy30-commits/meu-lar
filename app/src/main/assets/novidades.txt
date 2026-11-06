@@ -565,3 +565,4 @@ Etapa 90d — Sims 4: o corpo usa os ossos e pesos originais da EA (dobra mais n
 Etapa 90f — Sims 4: o corpo dobra nas juntas do esqueleto original do Sims 4.
 Etapa 90j — Sims 4: caminhada nova escolhida por você (homem A, mulher B).
 Etapa 90k — Sims 4: corrida e pulo correndo escolhidos por você.
+Etapa 90l — Sims 4: tronco reto ao correr e andar (não inclina mais para o lado).

@@ -48,3 +48,6 @@
 ## 90k — correr e pulo correndo escolhidos
 - Correr: homem Bandai run_normal_001 (11-34), mulher run_normal_004 (30-53).
 - Pulo correndo: CMU 127_21 (homem e mulher). Pulo parado: mantido o atual (escolha do usuário).
+
+## 90l — postura do tronco
+- Correr tinha o tronco inclinado para o lado (média de ~9° no homem e ~8° na mulher), herdado do quadro de calibração da captura. Corrigido girando tronco+braços para inclinação lateral média zero (andar, correr e pulo correndo). Andar também deixou de inclinar para trás (de -4° para +1° à frente).
