@@ -1053,6 +1053,12 @@ object CuteChar {
     private val FIST_ANG = arrayOf(
         floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
         floatArrayOf(18f, 28f, 18f))
+    // Corpo Sims 4, polegar: só girar em Z (como os outros dedos) deixava o polegar esticado para fora, na frente da mão. Agora ele primeiro
+    // "entra" girando em X (eixo da frente para trás da palma) em torno da base do polegar e só depois dobra as 3 juntas, assim ele cruza
+    // por cima dos outros dedos fechados. THUMB_TUCK_DEG = graus da entrada; THUMB_TUCK_P = pivô (x,y,z em cm, mão esquerda; a direita espelha x).
+    private val THUMB_ANG_TS4 = floatArrayOf(-18f, 5f, 25f)
+    private const val THUMB_TUCK_DEG = 35f
+    private val THUMB_TUCK_P = floatArrayOf(58.03f, 105.24f, 2.1f)
 
     /** Fecha a mão: cada junta gira em torno do seu pivô (no espaço de repouso) e a matriz do osso recebe esse giro antes da pose da animação. */
     private fun fistHands(mm: FloatArray, k: Float) {
@@ -1061,10 +1067,21 @@ object CuteChar {
             val sx = if (side == 0) 1f else -1f
             val off = if (side == 0) 0 else 15
             for (f in 0 until 5) {
-                val bones = FIST_BONES[f]; val j = if (isTs4()) FIST_J_TS4[f] else FIST_J[f]; val a = FIST_ANG[f]
-                // acumulado = identidade
+                val ts4 = isTs4()
+                val bones = FIST_BONES[f]; val j = if (ts4) FIST_J_TS4[f] else FIST_J[f]
+                val a = if (f == 4 && ts4) THUMB_ANG_TS4 else FIST_ANG[f]
+                // acumulado = identidade (polegar do Sims 4: começa com a "entrada" em X em torno da base do polegar)
                 rc[0] = 1f; rc[1] = 0f; rc[2] = 0f; rc[3] = 0f; rc[4] = 1f; rc[5] = 0f; rc[6] = 0f; rc[7] = 0f; rc[8] = 1f
                 tc[0] = 0f; tc[1] = 0f; tc[2] = 0f
+                if (f == 4 && ts4) {
+                    val th = Math.toRadians((THUMB_TUCK_DEG * k).toDouble())
+                    val c0 = Math.cos(th).toFloat(); val s0 = Math.sin(th).toFloat()
+                    val qx = sx * THUMB_TUCK_P[0]; val qy = THUMB_TUCK_P[1]; val qz = THUMB_TUCK_P[2]
+                    // R = [[1,0,0],[0,c,-s],[0,s,c]], t = Q - R*Q
+                    rc[4] = c0; rc[5] = -s0; rc[7] = s0; rc[8] = c0
+                    tc[1] = qy - (c0 * qy - s0 * qz)
+                    tc[2] = qz - (s0 * qy + c0 * qz)
+                }
                 for (jt in 0 until 3) {
                     val ang = -sx * Math.toRadians((a[jt] * k).toDouble())
                     val cs = Math.cos(ang).toFloat(); val sn = Math.sin(ang).toFloat()
