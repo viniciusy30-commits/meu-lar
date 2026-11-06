@@ -24,6 +24,8 @@ object ModStore {
     const val LOTUS_ID = "lotusc_af5"
     const val BLOOM_ID = "bloom_af5"
     const val AUTUMN_ID = "autumn_af5"
+    const val HOOD_ID = "hood_af5"
+    const val HCARGO_ID = "hcargo_af5"
 
     val LOTUS = listOf(
         VarColor("preto", "Preto", 0xFF262326.toInt()),
@@ -59,10 +61,21 @@ object ModStore {
         VarColor("petroleo", "Xadrez azul petróleo", 0xFF4C95A8.toInt()),
         VarColor("preto", "Preta", 0xFF26262A.toInt())
     )
+    // Etapa 105: conjunto "Hooded short jacket" (finistudio, Sims 4): jaqueta com capuz e calça cargo com cintos, 6 cores (a textura é a mesma para as duas peças)
+    val HOOD = listOf(
+        VarColor("preto", "Preto", 0xFF26262A.toInt()),
+        VarColor("grafite", "Grafite", 0xFF55565A.toInt()),
+        VarColor("branco", "Branco", 0xFFEDEDEF.toInt()),
+        VarColor("azul", "Azul", 0xFF2A2FA8.toInt()),
+        VarColor("bege", "Bege", 0xFFC9A98E.toInt()),
+        VarColor("ardosia", "Azul ardósia", 0xFF5A6578.toInt())
+    )
     val VARS: Map<String, Var> = mapOf(
         LOTUS_ID to Var("Cabelo Lotus", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
         BLOOM_ID to Var("Blusa Bloom", BLOOM, "bloom_branco_af5", { c -> "bloom_${c}_af5" }, { c -> "bloom_${c}_af5" }),
-        AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" })
+        AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" }),
+        HOOD_ID to Var("Jaqueta com capuz", HOOD, "hood_preto_af5", { _ -> "hood_af5" }, { c -> "hood_$c" }),
+        HCARGO_ID to Var("Calça cargo com cintos", HOOD, "hcargo_preto_af5", { _ -> "hcargo_af5" }, { c -> "hood_$c" })
     )
     private val sel = HashMap<String, Int>()   // id da peça -> índice da cor escolhida (0 = a primeira)
     fun variantIndex(id: String): Int = synchronized(this) { sel[id] ?: 0 }
@@ -113,6 +126,9 @@ object ModStore {
         items.add(Item(LOTUS_ID, "Lotus coque", "hairBack", "af", 0, true, true, true))
         // Etapa 95: GoldFish Autumn Grace (Sims 4), saia rodada com cinto, só para o corpo feminino do Sims 4 (af5): um item, 6 cores no seletor
         items.add(Item(AUTUMN_ID, "Saia Autumn Grace", "bottom", "af", 0, true, true, true))
+        // Etapa 105: jaqueta com capuz (slot jaqueta) e calça cargo com cintos (slot calça), só para o corpo feminino do Sims 4 (af5)
+        items.add(Item(HOOD_ID, "Jaqueta com capuz", "jacket", "af", 0, true, false, true))
+        items.add(Item(HCARGO_ID, "Calça cargo com cintos", "bottom", "af", 0, true, false, true))
         loadVariants(d)
         // quem já tinha Lotus/Bloom vestido num item por cor (Etapas 92/93) passa para o item único, com a mesma cor
         for (k in worn.toList()) {
@@ -241,7 +257,7 @@ object ModStore {
     /** Chaves das peças vestidas que servem para o corpo [grp] (idade+sexo, ex.: "af"). */
     @Synchronized
     /** Cabelos embutidos do Sims 4 (id termina em 5) só no corpo do Sims 4; os do Sims 3, só nos corpos do Sims 3. Importados aparecem sempre. */
-    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_") || it.id.startsWith("autumn_"))) || it.id.endsWith("5") == ts4
+    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_") || it.id.startsWith("autumn_") || it.id.startsWith("hood_") || it.id.startsWith("hcargo_"))) || it.id.endsWith("5") == ts4
 
     fun wornKeys(grp: String): List<String> = items.filter { it.key in worn && it.grp == grp && visible(it, CuteChar.isTs4()) }.map { it.key }
 
