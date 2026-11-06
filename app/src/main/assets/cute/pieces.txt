@@ -1,5 +1,5 @@
 # slot|id|arquivo|textura   (ordem = ordem de desenho)
 # roupa padrão (a Mary): chaves slot/id
-# Etapa 44: corpos do Sims 3 (id = estagio+sexo+tipo; ultimo campo = altura relativa ao adulto feminino)
+# Corpos adultos do The Sims 4 (af5 = feminino; am5 = masculino).
 body|S_af5|p_body_af5.bin|sk_s4f.png|1.0002
 body|S_am5|p_body_am5.bin|sk_s4m.png|0.9861

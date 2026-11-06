@@ -486,7 +486,8 @@ object CuteChar {
     /** Corpo do Sims em uso (tipo "normal" do grupo idade+sexo) como molde para encaixar peças importadas; null se não houver corpo do Sims. */
     fun bodyRef(): com.vinicius.meular.mods.BodyRef? {
         val grp = bodyGroup() ?: return null
-        val suffix = if (isTs4()) "5" else "1"\n        val key = "body/S_" + grp + suffix
+        val suffix = if (isTs4()) "5" else "1"
+        val key = "body/S_" + grp + suffix
         val sk = library[key] ?: return null
         val idx = IntArray(sk.ni) { sk.idx[it].toInt() and 0xFFFF }
         val rg = rigs[grp + suffix]

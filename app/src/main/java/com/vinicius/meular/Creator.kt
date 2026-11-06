@@ -897,7 +897,8 @@ class CreatorUi(
 
     private fun simApply() {
         val av = st.avatar
-        av.simAge = 3\n        av.simType = 5
+        av.simAge = 3
+        av.simType = 5
         CuteChar.setWear(av.wearKeys())
         CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
         st.save()

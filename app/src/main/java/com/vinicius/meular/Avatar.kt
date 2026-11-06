@@ -139,7 +139,7 @@ class Avatar(
         // Apenas corpos adultos do The Sims 4: af5 (feminino) e am5 (masculino).
         val g = if (masc) "am" else "af"
         val keys = ArrayList<String>()
-        keys.add("body/S_a${g}5")
+        keys.add("body/S_${g}5")
         keys.addAll(ModStore.wornKeys(g))
         return keys
     }
