@@ -1279,7 +1279,7 @@ object CuteChar {
                 val bf = t * (LEG_BINS - 1)
                 val b0 = bf.toInt().coerceAtMost(LEG_BINS - 1); val b1 = (b0 + 1).coerceAtMost(LEG_BINS - 1)
                 val rcm = rad[side * LEG_BINS + b0] * (1f - (bf - b0)) + rad[side * LEG_BINS + b1] * (bf - b0) + LEG_MARGIN
-                val r = (if (cap < rcm) cap else rcm) * sc
+                val r = rcm * sc   // Etapa 101: sem teto pela folga parada (o teto da etapa 98 deixava a coxa atravessar a saia)
                 if (d2 >= r * r) continue
                 val d = Math.sqrt(d2.toDouble()).toFloat()
                 if (d < 1e-6f) continue
