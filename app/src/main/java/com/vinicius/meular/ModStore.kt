@@ -9,7 +9,7 @@ import com.vinicius.meular.mods.Importer
 import java.io.File
 
 /**
- * Roupas e cabelos importados de arquivos .package (The Sims 2, 3 e 4), direto pelo jogo.
+ * Peças importadas de arquivos .package e itens nativos compatíveis com os corpos do The Sims 4.
  * Cada peça fica em filesDir/mods: <id>.cup (malha já encaixada no corpo), <id>.png (textura), index.txt e worn.txt.
  */
 object ModStore {
@@ -109,22 +109,10 @@ object ModStore {
         } catch (e: Throwable) {
             android.util.Log.e("ModStore", "índice ilegível", e)
         }
-        // roupas que já vêm no jogo (assets/cute/skate): camiseta oversized CHAOS, calça cargo baggy e tênis preto e branco
-        for (g in listOf("af", "am", "tf", "tm", "ef", "em")) {
-            items.add(Item("tee_$g", "Camiseta CHAOS", "top", g, 0, true, false, true))
-            items.add(Item("jacket_$g", "Jaqueta jeans preta", "jacket", g, 0, true, false, true))
-            items.add(Item("cargo_$g", "Cargo baggy preta", "bottom", g, 0, true, false, true))
-            items.add(Item("shoe_$g", "Jordan preto e branco", "feet", g, 0, true, false, true))
-            items.add(Item("short_$g", "Short preto", "bottom", g, 0, true, false, true))
-            // alpha=true: não esconde a pele do pé por baixo (chinelo deixa o pé aparecendo)
-            items.add(Item("kenner_$g", "Chinelo estilo Kenner", "feet", g, 0, true, true, true))
-            items.add(Item("hair_$g", "Wolf cut preto", "hairBack", g, 0, true, true, true))
-            // Sims 4: Bernard Hair (JohnnySims), mesh original reajustado à cabeça de cada corpo
-            items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
+        // Cabelo Bernard (JohnnySims), preparado exclusivamente para os corpos adultos do Sims 4.
+        for (g in listOf("af5", "am5")) {
+            items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g.substring(0, 2), 0, true, true, true))
         }
-        // Etapa 91: Bernard refeito na cabeça do corpo do The Sims 4 (só aparece nesse corpo; os cabelos do Sims 3 não aparecem nele)
-        for (g in listOf("af", "am")) items.add(Item("bern1_${g}5", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
-        for (g in listOf("cu", "pu")) items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         // Etapa 95: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5): um item, 12 cores no seletor
         items.add(Item(BLOOM_ID, "Blusa renda Bloom", "top", "af", 0, true, true, true))
         // Etapa 94: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), só o coque, um único item (preto); a cor troca no seletor de cores do Cabelo
@@ -242,7 +230,7 @@ object ModStore {
             try {
                 val am = CuteChar.assets
                 if (am != null) {
-                    val bm = Thumb.parse(am.open("cute/p_body_" + it.grp + "1.bin").use { s -> s.readBytes() })
+                    val bm = Thumb.parse(am.open("cute/p_body_" + it.grp + (if (CuteChar.isTs4()) "5" else "1") + ".bin").use { s -> s.readBytes() })
                     parts.add(Thumb.Piece(Thumb.headOf(bm), null, 0, 0, 0xFFE3BFA2.toInt(), false, true))
                 }
             } catch (e: Throwable) { }

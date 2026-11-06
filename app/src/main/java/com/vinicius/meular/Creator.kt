@@ -897,7 +897,7 @@ class CreatorUi(
 
     private fun simApply() {
         val av = st.avatar
-        av.simType = av.simTypeFor(av.simAge, av.simType)
+        av.simAge = 3\n        av.simType = 5
         CuteChar.setWear(av.wearKeys())
         CuteChar.setShape(av.bs, av.fs, av.masc, av.ss)
         st.save()
@@ -905,17 +905,20 @@ class CreatorUi(
     }
 
     /** Etapa 44: corpo igual ao The Sims 3 (idade, sexo, tipo de corpo e cabelo). */
+    /** Seletor exclusivo dos corpos adultos do The Sims 4. */
     private fun simSelector() {
         val av = st.avatar
-        chipRow("Idade", listOf("Bebê", "Criança", "Jovem", "Adulto", "Idoso"), av.simAge, { true }) { av.simAge = it; simApply() }
-        chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { av.simAge >= 2 }) {
-            av.masc = it == 1; av.female = !av.masc; simApply()
-        }
-        val tipos = listOf(0, 1, 3, 5)   // 5 = corpo do The Sims 4 (só adulto)
-        chipRow("Corpo", listOf("Magro", "Normal", "Gordo", "Sims 4"), tipos.indexOf(av.simTypeFor(av.simAge, av.simType)), { av.simTypeFor(av.simAge, tipos[it]) == tipos[it] }) {
-            av.simType = tipos[it]; simApply()
+        av.simAge = 3
+        av.simType = 5
+        chipRow("Sexo", listOf("\u2640 Feminino", "\u2642 Masculino"), if (av.masc) 1 else 0, { true }) {
+            av.simAge = 3
+            av.simType = 5
+            av.masc = it == 1
+            av.female = !av.masc
+            simApply()
         }
     }
+
 
     /** Etapa 14: escolha da base. Recomeça o personagem do zero (roupa de baixo, cabelo simples, proporções zeradas). */
     private fun baseChoice() {

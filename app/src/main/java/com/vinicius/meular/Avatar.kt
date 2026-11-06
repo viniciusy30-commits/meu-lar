@@ -120,7 +120,7 @@ class Avatar(
     var julie: Boolean = false,
     /** Etapa 44: corpo do Sims 3. Idade 0 bebê, 1 criança, 2 jovem, 3 adulto, 4 idoso; tipo 0 magro, 1 normal, 3 gordo; cabelo (jovem/adulto/idoso). */
     var simAge: Int = 3,
-    var simType: Int = 1,
+    var simType: Int = 5,
     var simHair: Boolean = true,
     /** Etapa 65: sliders do The Sims 3 (SimSliders), -100..100, índice = id da tabela; 0 = original. */
     var ss: IntArray = IntArray(SimSliders.NS)
@@ -131,45 +131,17 @@ class Avatar(
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
-    fun simTypeFor(age: Int, t: Int): Int = when {
-        t == 5 -> if (age == 3) 5 else 1          // Etapa 90: corpo do The Sims 4 (teste), só adulto
-        age == 0 -> 1
-        age == 1 -> if (t == 3) 3 else 1
-        else -> if (t == 0 || t == 3) t else 1
-    }
+    /** O projeto usa exclusivamente os corpos adultos do The Sims 4. */
+    fun simTypeFor(age: Int, t: Int): Int = 5
 
     /** Peças do personagem modular que devem aparecer (chaves "slot/id" do manifesto). Sem blusa/calça: roupa de baixo. */
     fun wearKeys(): List<String> {
-        if (true) {   // Etapa 44: corpo, rosto e roupa de baixo vêm do Sims 3 (peça única); roupas/cabelos antigos esperam as peças novas
-            val a = simAge.coerceIn(0, 4)
-            val t = simTypeFor(a, simType)
-            val st = "pctae"[a]
-            val g = if (a <= 1) 'u' else if (masc) 'm' else 'f'
-            val keys = ArrayList<String>()
-            keys.add("body/S_$st$g$t")
-            val mods = ModStore.wornKeys("$st$g")   // roupas/cabelos importados de .package
-            if (simHair && t != 5 && a >= 2 && mods.none { it.startsWith("hairBack/") }) keys.add("hairBack/H_$st$g")
-            keys.addAll(mods)
-            return keys
-        }
-        val k = ArrayList<String>()
-        AvaPal.HB_IDS[hb].let { if (it.isNotEmpty()) k.add("hairBack/$it") }
-        // chapéu cobre a franja (a franja atravessaria o tecido)
-        if (chat == 0) AvaPal.HF_IDS[hf].let { if (it.isNotEmpty()) k.add("hairFront/$it") }
-        if (cov > 0) {
-            k.add("overall/" + AvaPal.CO_IDS[cov])
-        } else {
-            // Etapa 14: base masculina sem faixa de sutiã (peito nu)
-            if (ctop > 0 || !masc) k.add("top/" + AvaPal.CT_IDS[ctop].ifEmpty { "Underwear" })
-            k.add("bottom/" + AvaPal.CB_IDS[cbot].ifEmpty { "Underwear" })
-        }
-        AvaPal.FT_IDS[cfeet].let { if (it.isNotEmpty()) k.add("feet/$it") }
-        AvaPal.GV_IDS[cglove].let { if (it.isNotEmpty()) k.add("gloves/$it") }
-        AvaPal.HT_IDS[chat].let { if (it.isNotEmpty()) k.add("hat/$it") }
-        AvaPal.GS_IDS[cgls].let { if (it.isNotEmpty()) k.add("glasses/$it") }
-        AvaPal.BD_IDS[cbrd].let { if (it.isNotEmpty()) k.add("beard/$it") }
-        AvaPal.HA_IDS[chac].let { if (it.isNotEmpty()) k.add("headAcc/$it") }
-        return k
+        // Apenas corpos adultos do The Sims 4: af5 (feminino) e am5 (masculino).
+        val g = if (masc) "am" else "af"
+        val keys = ArrayList<String>()
+        keys.add("body/S_a${g}5")
+        keys.addAll(ModStore.wornKeys(g))
+        return keys
     }
 
     /** Etapa 14: recomeça do zero com a base masculina ou feminina (sem roupa da Mary); mantém só tom de pele e cor dos olhos. */
