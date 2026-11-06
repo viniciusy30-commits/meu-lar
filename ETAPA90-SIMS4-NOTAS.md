@@ -54,3 +54,6 @@
 
 ## 90m — braços da corrida
 - A corrida era calibrada num quadro com os cotovelos dobrados (giro do antebraço errado -> braço torto). Agora calibra num quadro em pé, braços soltos (dataset-2 walk_normal_001, quadro 0; mesmo esqueleto normalizado), e o tronco segue sem inclinação lateral. Aprovado pelo usuário em vídeo.
+
+## 90m — braços da corrida
+- Calibração da corrida passou a usar um quadro em pé com braços soltos (walk_normal_001, quadro 0; mesmo esqueleto normalizado do Bandai) em vez do 1º quadro da corrida (cotovelo dobrado torcia o antebraço). Tronco com inclinação lateral média zero. Aprovado em vídeo.
