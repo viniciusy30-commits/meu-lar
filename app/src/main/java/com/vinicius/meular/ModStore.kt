@@ -57,6 +57,9 @@ object ModStore {
         // Etapa 91: Bernard refeito na cabeça do corpo do The Sims 4 (só aparece nesse corpo; os cabelos do Sims 3 não aparecem nele)
         for (g in listOf("af", "am")) items.add(Item("bern1_${g}5", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
         for (g in listOf("cu", "pu")) items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g, 0, true, true, true))
+        // Etapa 92: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5)
+        for ((slug, nome) in listOf("branco" to "Branca", "creme" to "Creme", "azul" to "Azul claro", "lavanda" to "Lavanda", "pessego" to "Pêssego", "coral" to "Coral", "vermelho" to "Vermelha", "cinza" to "Cinza", "preto" to "Preta", "verde" to "Verde", "amarelo" to "Amarela", "rosa" to "Rosa pink"))
+            items.add(Item("bloom_${slug}_af5", "Blusa renda Bloom ($nome)", "top", "af", 0, true, true, true))
         // Etapa 84: low fade com topo texturizado curto (original do jogo, ferramentas/sk_fade.py), todos os corpos
         for (g in listOf("af", "am", "tf", "tm", "ef", "em", "cu", "pu")) items.add(Item("fade1_$g", "Low fade texturizado", "hairBack", g, 0, true, true, true))
         // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
@@ -146,7 +149,7 @@ object ModStore {
     /** Chaves das peças vestidas que servem para o corpo [grp] (idade+sexo, ex.: "af"). */
     @Synchronized
     /** Cabelos embutidos do Sims 4 (id termina em 5) só no corpo do Sims 4; os do Sims 3, só nos corpos do Sims 3. Importados aparecem sempre. */
-    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && it.slot == "hairBack") || it.id.endsWith("5") == ts4
+    fun visible(it: Item, ts4: Boolean): Boolean = !(it.builtin && (it.slot == "hairBack" || it.id.startsWith("bloom_"))) || it.id.endsWith("5") == ts4
 
     fun wornKeys(grp: String): List<String> = items.filter { it.key in worn && it.grp == grp && visible(it, CuteChar.isTs4()) }.map { it.key }
 
