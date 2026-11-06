@@ -51,3 +51,6 @@
 
 ## 90l — postura do tronco
 - Correr tinha o tronco inclinado para o lado (média de ~9° no homem e ~8° na mulher), herdado do quadro de calibração da captura. Corrigido girando tronco+braços para inclinação lateral média zero (andar, correr e pulo correndo). Andar também deixou de inclinar para trás (de -4° para +1° à frente).
+
+## 90m — braços da corrida
+- A corrida era calibrada num quadro com os cotovelos dobrados (giro do antebraço errado -> braço torto). Agora calibra num quadro em pé, braços soltos (dataset-2 walk_normal_001, quadro 0; mesmo esqueleto normalizado), e o tronco segue sem inclinação lateral. Aprovado pelo usuário em vídeo.
