@@ -84,6 +84,8 @@ object CuteChar {
         var foot: IntArray? = null   // Etapa 20: vértices da região do pé/sola (para apoiar a sola no chão)
         var mod = false              // peça importada de .package (Sims 2/3/4)
         var modAlpha = false         // textura com recorte (cabelo)
+        var legCol = false           // saia rodada: as coxas empurram a malha para fora (colisão perna x saia, a cada quadro)
+        var legMask: BooleanArray? = null   // vértices abaixo do quadril (os únicos que a colisão mexe)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -452,6 +454,7 @@ object CuteChar {
                 val sk = readPieceBytes(j.cup, j.key, tname)
                 sk.mod = true
                 sk.modAlpha = j.alpha
+                sk.legCol = j.key.startsWith("bottom/") && j.key.contains("autumn")
                 val ids = IntArray(1)
                 GLES20.glGenTextures(1, ids, 0)
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
@@ -920,9 +923,11 @@ object CuteChar {
             refit(bs, true, sv, bp, fp)   // só o corpo-base tem o rosto
         } else if (bs.warpVer != sv) refit(bs, true, sv, bp, fp)
         skinInto(bs, bone, !simOn)
+        val bodySk = cs.skins.firstOrNull { it.key.startsWith("body/S_") }
         for (s in cs.skins) {
             if (s.warpVer != sv) refit(s, false, sv, bp, fp)
             skinInto(s, bone, s.key.startsWith("body/"))
+            if (s.legCol && bodySk != null) legCollide(s, bodySk, bone)
         }
         updateLift(sl, c, cs, bs, sv, dt)
         return cs.mesh
@@ -1033,6 +1038,14 @@ object CuteChar {
         floatArrayOf(64.7f, 100.15f, 66.9f, 98.05f, 68.8f, 96.3f),
         floatArrayOf(64.55f, 100.45f, 66.85f, 98.35f, 68.8f, 96.6f),
         floatArrayOf(59.35f, 103.5f, 60.25f, 101.1f, 62.65f, 99.65f))
+    // Corpo do Sims 4: as juntas dos dedos (Index/Mid/Ring/Pinky/Thumb 0..2, esqueleto original do TS4, skel_s4.txt) ficam ~4 cm
+    // acima das do Sims 3; girar em torno das juntas erradas rasgava os dedos ao correr e pular.
+    private val FIST_J_TS4 = arrayOf(
+        floatArrayOf(63.96f, 104.37f, 67.06f, 101.28f, 68.82f, 99.53f),
+        floatArrayOf(64.44f, 104.25f, 67.60f, 100.91f, 69.59f, 98.81f),
+        floatArrayOf(64.48f, 104.19f, 67.46f, 100.96f, 69.29f, 98.98f),
+        floatArrayOf(64.06f, 104.33f, 66.86f, 101.47f, 68.39f, 99.90f),
+        floatArrayOf(59.87f, 107.76f, 60.41f, 105.43f, 61.08f, 102.49f))
     private val FIST_ANG = arrayOf(
         floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
         floatArrayOf(18f, 28f, 18f))
@@ -1044,7 +1057,7 @@ object CuteChar {
             val sx = if (side == 0) 1f else -1f
             val off = if (side == 0) 0 else 15
             for (f in 0 until 5) {
-                val bones = FIST_BONES[f]; val j = FIST_J[f]; val a = FIST_ANG[f]
+                val bones = FIST_BONES[f]; val j = if (isTs4()) FIST_J_TS4[f] else FIST_J[f]; val a = FIST_ANG[f]
                 // acumulado = identidade
                 rc[0] = 1f; rc[1] = 0f; rc[2] = 0f; rc[3] = 0f; rc[4] = 1f; rc[5] = 0f; rc[6] = 0f; rc[7] = 0f; rc[8] = 1f
                 tc[0] = 0f; tc[1] = 0f; tc[2] = 0f
@@ -1098,6 +1111,100 @@ object CuteChar {
             mm[o + 3] += tx
             mm[o + 7] += ty
         }
+    }
+
+    // ---- Colisão perna x saia ----
+    // A saia é uma malha rígida presa aos ossos (coxa 55%, pelve 45%); sem isso a perna atravessa o tecido ao andar, correr e sentar.
+    // Cada coxa vira uma cápsula (quadril -> joelho, raio medido no corpo do Sims em repouso); vértice da saia dentro dela é empurrado para a superfície.
+    private val legRadCache = HashMap<String, FloatArray>()
+    private const val LEG_BINS = 6
+    private const val LEG_MARGIN = 0.9f   // cm de folga entre a coxa e o tecido
+
+    /** Raios da coxa (cm) em LEG_BINS faixas do quadril ao joelho, para cada lado (esquerdo, depois direito). */
+    private fun legRadii(key: String, rg: FloatArray, body: Skin): FloatArray {
+        legRadCache[key]?.let { return it }
+        val res = FloatArray(2 * LEG_BINS)
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val hx = sx * rg[9]; val hy = rg[10]; val hz = rg[11]
+            val kx = sx * rg[12]; val ky = rg[13]; val kz = rg[14]
+            val ax = kx - hx; val ay = ky - hy; val az = kz - hz
+            val l2 = ax * ax + ay * ay + az * az
+            val bins = Array(LEG_BINS) { ArrayList<Float>() }
+            for (v in 0 until body.nv) {
+                val px = body.pos0[v * 3]; val py = body.pos0[v * 3 + 1]; val pz = body.pos0[v * 3 + 2]
+                if (px * sx < 0.5f) continue
+                val t = ((px - hx) * ax + (py - hy) * ay + (pz - hz) * az) / l2
+                if (t < 0f || t > 1f) continue
+                val qx = px - (hx + t * ax); val qy = py - (hy + t * ay); val qz = pz - (hz + t * az)
+                val d = Math.sqrt((qx * qx + qy * qy + qz * qz).toDouble()).toFloat()
+                if (d > 14f) continue
+                bins[(t * LEG_BINS).toInt().coerceAtMost(LEG_BINS - 1)].add(d)
+            }
+            var last = 8f
+            for (b in 0 until LEG_BINS) {
+                val l = bins[b]
+                if (l.size >= 4) { l.sort(); last = l[(l.size * 0.9f).toInt().coerceAtMost(l.size - 1)] }
+                res[side * LEG_BINS + b] = last
+            }
+        }
+        legRadCache[key] = res
+        return res
+    }
+
+    private fun legCollide(s: Skin, body: Skin, mm: FloatArray) {
+        val rg = rigs[simKey] ?: return
+        if (rg.size < 18) return
+        val rad = legRadii(simKey, rg, body)
+        var mask = s.legMask
+        if (mask == null) {
+            val lim = rg[10] + 3f   // quadril + 3 cm: cintura e cinto não são mexidos
+            mask = BooleanArray(s.nv) { s.pos0[it * 3 + 1] < lim }
+            s.legMask = mask
+        }
+        val hs = heightS
+        val out = s.out
+        for (side in 0..1) {
+            val sx = if (side == 0) 1f else -1f
+            val tb = (if (side == 0) 17 else 21) * 12
+            val cb = (if (side == 0) 18 else 22) * 12
+            val hx = sx * rg[9]; val hy = rg[10]; val hz = rg[11]
+            val kx = sx * rg[12]; val ky = rg[13]; val kz = rg[14]
+            // quadril pelo osso da coxa, joelho pelo osso da perna (acompanha o joelho dobrando)
+            val h0 = (mm[tb] * hx + mm[tb + 1] * hy + mm[tb + 2] * hz + mm[tb + 3]) * hs
+            val h1 = (mm[tb + 4] * hx + mm[tb + 5] * hy + mm[tb + 6] * hz + mm[tb + 7]) * hs
+            val h2 = (mm[tb + 8] * hx + mm[tb + 9] * hy + mm[tb + 10] * hz + mm[tb + 11]) * hs
+            val k0 = (mm[cb] * kx + mm[cb + 1] * ky + mm[cb + 2] * kz + mm[cb + 3]) * hs
+            val k1 = (mm[cb + 4] * kx + mm[cb + 5] * ky + mm[cb + 6] * kz + mm[cb + 7]) * hs
+            val k2 = (mm[cb + 8] * kx + mm[cb + 9] * ky + mm[cb + 10] * kz + mm[cb + 11]) * hs
+            // escala cm -> unidade de saída (o osso carrega a escala)
+            val c0 = mm[tb]; val c1 = mm[tb + 4]; val c2 = mm[tb + 8]
+            val sc = Math.sqrt((c0 * c0 + c1 * c1 + c2 * c2).toDouble()).toFloat() * hs
+            if (sc < 1e-6f) continue
+            val ax = k0 - h0; val ay = k1 - h1; val az = k2 - h2
+            val l2 = ax * ax + ay * ay + az * az
+            if (l2 < 1e-12f) continue
+            for (v in 0 until s.nv) {
+                if (!mask[v]) continue
+                val o = v * STRIDE
+                val px = out[o]; val py = out[o + 1]; val pz = out[o + 2]
+                val t = (((px - h0) * ax + (py - h1) * ay + (pz - h2) * az) / l2).coerceIn(0f, 1f)
+                val qx = px - (h0 + t * ax); val qy = py - (h1 + t * ay); val qz = pz - (h2 + t * az)
+                val d2 = qx * qx + qy * qy + qz * qz
+                val bf = t * (LEG_BINS - 1)
+                val b0 = bf.toInt().coerceAtMost(LEG_BINS - 1); val b1 = (b0 + 1).coerceAtMost(LEG_BINS - 1)
+                val r = (rad[side * LEG_BINS + b0] * (1f - (bf - b0)) + rad[side * LEG_BINS + b1] * (bf - b0) + LEG_MARGIN) * sc
+                if (d2 >= r * r) continue
+                val d = Math.sqrt(d2.toDouble()).toFloat()
+                if (d < 1e-6f) { out[o + 1] = py + r; continue }   // em cima do eixo: sobe
+                val k = r / d
+                out[o] = h0 + t * ax + qx * k; out[o + 1] = h1 + t * ay + qy * k; out[o + 2] = h2 + t * az + qz * k
+            }
+        }
+        val buf = s.fb
+        buf.position(0)
+        buf.put(out, 0, s.nv * STRIDE)
+        buf.position(0)
     }
 
     private fun skinInto(s: Skin, mm: FloatArray, base: Boolean = false) {
