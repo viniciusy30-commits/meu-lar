@@ -1100,6 +1100,12 @@ object CuteChar {
                     System.arraycopy(rn, 0, rc, 0, 9); System.arraycopy(tn, 0, tc, 0, 3)
                     // aplica na matriz do osso desta junta: M = M * acumulado
                     val o = (bones[jt] + off) * 12
+                    // Etapa 100 (Sims 4): o clipe de correr traz uma pose relaxada dos dedos gravada em cada osso; o punho girava POR CIMA dela e abria os dedos em leque.
+                    // Agora a base de cada dedo vai para a matriz do pulso (osso da mão: 12 esquerda, 16 direita) na proporção do punho, ignorando essa pose gravada.
+                    if (ts4) {
+                        val w = (12 + side * 4) * 12
+                        for (q in 0 until 12) mm[o + q] = mm[o + q] + (mm[w + q] - mm[o + q]) * k
+                    }
                     for (r in 0..2) {
                         val m0 = mm[o + r * 4]; val m1 = mm[o + r * 4 + 1]; val m2 = mm[o + r * 4 + 2]; val mt = mm[o + r * 4 + 3]
                         mm[o + r * 4] = m0 * rc[0] + m1 * rc[3] + m2 * rc[6]
