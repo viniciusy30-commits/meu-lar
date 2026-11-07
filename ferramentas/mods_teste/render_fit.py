@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Renderização diagnóstica das roupas Hooded short jacket + cargo pants."""
+from pathlib import Path
+import struct, json
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.collections import PolyCollection
+from scipy.spatial import cKDTree
+
+ROOT=Path("app/src/main/assets/cute")
+OUT=Path("fit-preview")
+OUT.mkdir(exist_ok=True)
+
+def read_cup(path):
+    b=path.read_bytes()
+    if b[:4] != b"CUP1": raise ValueError(f"{path}: formato inesperado {b[:4]!r}")
+    nv,ni,flags=struct.unpack_from("<III",b,4)
+    dtype=np.dtype([("pos","<f4",(3,)),("nor","<f4",(3,)),("uv","<f4",(2,)),("rgba","u1",(4,)),("bi","u1",(4,)),("bw","u1",(4,))])
+    v=np.frombuffer(b,dtype=dtype,count=nv,offset=16)
+    off=16+nv*44
+    idx=np.frombuffer(b,dtype="<u2",count=ni,offset=off).reshape(-1,3).astype(np.int32)
+    return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
+
+def current_cover(body, garment, ymax):
+    # Reproduz Cover.mark: triângulo do corpo, vértice de roupa mais próximo, raio 3,2 cm e teste de lado.
+    p=garment["pos"]; n=garment["nor"]
+    tree=cKDTree(p)
+    tri=body["idx"]; bp=body["pos"]
+    centers=bp[tri].mean(axis=1)
+    dist,near=tree.query(centers,k=1,workers=-1)
+    side=np.einsum("ij,ij->i",centers-p[near],n[near])
+    return (dist <= 3.2) & (side < 0.6) & (centers[:,1] <= ymax)
+
+def render_view(body, jacket, pants, masks, sex, view):
+    # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
+    if view in ("frente","costas"):
+        xy=lambda p: p[:,[0,1]]
+        depth=lambda p: p[:,2] if view=="frente" else -p[:,2]
+    elif view=="lado":
+        xy=lambda p: p[:,[2,1]]
+        depth=lambda p: p[:,0]
+    else:
+        xy=lambda p: p[:,[2,1]]
+        depth=lambda p: -p[:,0]
+    faces=[]
+    for mesh,color,mask in [(body,(0.83,0.66,0.54,1.0),masks),(jacket,(0.20,0.23,0.29,1.0),None),(pants,(0.22,0.38,0.62,1.0),None)]:
+        tri=mesh["idx"]
+        if mask is not None: tri=tri[~mask]
+        pos=mesh["pos"]
+        for start in range(0,len(tri),4000):
+            q=tri[start:start+4000]
+            xyz=pos[q]
+            z=depth(xyz).mean(axis=1)
+            for poly,d in zip(xy(xyz),z):
+                faces.append((float(d),poly,color))
+    faces.sort(key=lambda x:x[0])
+    fig,ax=plt.subplots(figsize=(5,8),dpi=180)
+    ax.set_facecolor("#e8e8e8")
+    coll=PolyCollection([f[1] for f in faces],facecolors=[f[2] for f in faces],edgecolors="none",closed=True)
+    ax.add_collection(coll)
+    p=np.concatenate([body["pos"],jacket["pos"],pants["pos"]])
+    if view in ("frente","costas"):
+        xx=p[:,0]; yy=p[:,1]
+    else:
+        xx=p[:,2]; yy=p[:,1]
+    cx=(xx.min()+xx.max())/2
+    span=max(xx.max()-xx.min(),yy.max()-yy.min())
+    ax.set_xlim(cx-span*.58,cx+span*.58)
+    ax.set_ylim(yy.min()-4,yy.max()+4)
+    ax.set_aspect("equal"); ax.axis("off")
+    ax.set_title(f"{sex.upper()} — {view}",fontsize=12)
+    fig.tight_layout(pad=0.2)
+    fig.savefig(OUT/f"{sex}_{view}.png",bbox_inches="tight",pad_inches=.04)
+    plt.close(fig)
+
+report={}
+for sex,grp in [("masculino","am5"),("feminino","af5")]:
+    body=read_cup(ROOT/f"p_body_{grp}.bin")
+    jacket=read_cup(ROOT/f"skate/hood_{grp}.cup")
+    pants=read_cup(ROOT/f"skate/hcargo_{grp}.cup")
+    neck_y=158.24 if grp=="am5" else 156.52
+    jm=current_cover(body,jacket,neck_y-7)
+    pm=current_cover(body,pants,9999)
+    combined=jm|pm
+    centers=body["pos"][body["idx"]].mean(axis=1)
+    # Bones de mão/dedos conforme ARM_L/ARM_R em CuteChar.kt.
+    hand_bones=set([12,16]+list(range(25,55)))
+    hand=np.any(np.isin(body["bi"][body["idx"]],list(hand_bones)) & (body["bw"][body["idx"]]>.15),axis=(1,2))
+    foot=centers[:,1] < 18.0
+    waist=(centers[:,1]>=72)&(centers[:,1]<=108)
+    seam=(jacket["pos"][:,1]>=72)&(jacket["pos"][:,1]<=108)&(jacket["pos"][:,2]<0)
+    tree=cKDTree(pants["pos"])
+    ds,_=tree.query(jacket["pos"][seam],k=1,workers=-1)
+    report[sex]={
+      "body_vertices":int(len(body["pos"])),"jacket_vertices":int(len(jacket["pos"])),"pants_vertices":int(len(pants["pos"])),
+      "body_triangles":int(len(body["idx"])),"jacket_cover_triangles":int(jm.sum()),"pants_cover_triangles":int(pm.sum()),
+      "hidden_hand_triangles":int((combined&hand).sum()),"hand_triangles":int(hand.sum()),
+      "hidden_low_foot_triangles":int((combined&foot).sum()),"low_foot_triangles":int(foot.sum()),
+      "hidden_waist_triangles":int((combined&waist).sum()),"waist_triangles":int(waist.sum()),
+      "back_waist_jacket_vertices":int(seam.sum()),
+      "back_waist_jacket_vertices_within_1cm_of_pants":int((ds<1.0).sum()) if len(ds) else 0,
+      "back_waist_min_distance_cm":float(ds.min()) if len(ds) else None
+    }
+    for view in ("frente","costas","lado"):
+        render_view(body,jacket,pants,combined,sex,view)
+
+(OUT/"diagnostico.json").write_text(json.dumps(report,indent=2,ensure_ascii=False))
+# Contact sheet
+from PIL import Image, ImageDraw
+files=[OUT/f"{s}_{v}.png" for s in ("masculino","feminino") for v in ("frente","costas","lado")]
+ims=[Image.open(f).convert("RGB") for f in files]
+w=max(i.width for i in ims); h=max(i.height for i in ims)
+sheet=Image.new("RGB",(w*3,h*2),"white")
+for k,im in enumerate(ims): sheet.paste(im.resize((w,h)),((k%3)*w,(k//3)*h))
+sheet.save(OUT/"comparativo.png")
+print(json.dumps(report,indent=2,ensure_ascii=False))

@@ -1,0 +1,28 @@
+name: Render clothing fit diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/src/main/assets/cute/p_body_*.bin'
+      - 'app/src/main/assets/cute/skate/hood_*.cup'
+      - 'app/src/main/assets/cute/skate/hcargo_*.cup'
+      - 'ferramentas/mods_teste/render_fit.py'
+      - '.github/workflows/fit-preview.yml'
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install renderer
+        run: pip install numpy scipy matplotlib pillow
+      - name: Render clothing combinations
+        run: python ferramentas/mods_teste/render_fit.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clothing-fit-diagnostics
+          path: fit-preview/
