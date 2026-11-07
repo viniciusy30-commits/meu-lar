@@ -36,10 +36,10 @@ def current_cover(body, garment, ymax):
 def render_view(body, jacket, pants, masks, sex, view):
     # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
     if view in ("frente","costas"):
-        xy=lambda p: p[:,[0,1]]
+        xy=lambda p: p[:,:,[0,1]]
         depth=lambda p: p[:,:,2] if view=="frente" else -p[:,:,2]
     elif view=="lado":
-        xy=lambda p: p[:,[2,1]]
+        xy=lambda p: p[:,:,[2,1]]
         depth=lambda p: p[:,:,0]
     else:
         xy=lambda p: p[:,[2,1]]
