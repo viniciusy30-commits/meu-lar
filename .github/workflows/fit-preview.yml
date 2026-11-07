@@ -28,3 +28,5 @@ jobs:
         with:
           name: clothing-fit-diagnostics
           path: fit-preview/
+
+# Reexecutar renderização das quatro combinações de cintura.
