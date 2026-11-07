@@ -143,7 +143,8 @@ public final class T3 {
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
       piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
       System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length);
-      byte[] fitted=trimByAlpha(piece.cup,raw);\n      fitted=improveFit(fitted,male,i==2);\n      Files.write(out.resolve(ids[i]+".cup"),fitted);
+      byte[] fitted=trimByAlpha(piece.cup,raw);
+      fitted=improveFit(fitted,male,i==2);\n      Files.write(out.resolve(ids[i]+".cup"),fitted);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
       for(String note:converted.notes) System.out.println("INFO "+ids[i]+": "+note);
