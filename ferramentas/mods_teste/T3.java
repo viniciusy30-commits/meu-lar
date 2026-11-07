@@ -183,10 +183,10 @@ public final class T3 {
       if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
       Img raw=rawTexture(new Pkg(packageBytes));
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
-      // O atlas tem grandes áreas transparentes: preserva o alpha para o GPU recortar por pixel.
-      // Não elimina triângulos inteiros por amostras de UV (isso criava buracos nas mangas e barras).
-      piece.alpha=true; piece.png=raw.limit(1024).pot().png();
-      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length+" | alpha-cutout=GPU");
+      // A textura de roupa usa o alpha do atlas como máscara auxiliar, não como transparência do tecido.
+      // Mantém a textura opaca e a malha inteira; o recorte por pixel abria buracos no denim.
+      piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
+      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | source-alpha-transparent="+transparent+" | output=opaque");
       byte[] fitted=improveFit(piece.cup,male,i==2);
       Files.write(out.resolve(ids[i]+".cup"),fitted);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
