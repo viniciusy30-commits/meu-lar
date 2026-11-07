@@ -392,11 +392,11 @@ object CuteChar {
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
                         val jeans = m.key.contains("minimalist_jeans_am5")
                         val maxDistance = when {
-                            jeans -> 10.0f
+                            jeans -> 12.0f
                             sl == "bottom" -> 5.5f
                             else -> 4.5f
                         }
-                        val sideLimit = if (jeans) 4.0f else if (sl == "bottom") 2.0f else 1.0f
+                        val sideLimit = if (jeans) 6.0f else if (sl == "bottom") 2.0f else 1.0f
                         com.vinicius.meular.mods.Cover.markSurface(
                             sims.pos0, bi, m.pos0, m.nor0, garmentIdx, maxDistance, r, lower, lim,
                             sims.bi, sims.bw, protect, sideLimit
