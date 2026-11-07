@@ -23,7 +23,7 @@ def read_cup(path):
     idx=np.frombuffer(b,dtype="<u2",count=ni,offset=off).reshape(-1,3).astype(np.int32)
     return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
 
-def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2):
+def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2, side_limit=-0.4):
     # Reproduz Cover.mark com faixa vertical e proteção por pesos de osso.
     p=garment["pos"]; n=garment["nor"]
     tree=cKDTree(p)
@@ -31,7 +31,7 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2):
     centers=bp[tri].mean(axis=1)
     dist,near=tree.query(centers,k=1,workers=-1)
     side=np.einsum("ij,ij->i",centers-p[near],n[near])
-    keep=(dist <= radius) & (side < -0.4) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
+    keep=(dist <= radius) & (side < side_limit) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
     if protected:
         bi=body["bi"][tri]; bw=body["bw"][tri]
         keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
@@ -109,7 +109,18 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
         for inset in (0.0,1.0,2.0,3.0):
             test=current_cover(body,pants,pants_top-inset,0.0,foot_bones,rad)
             waist_diag[f"r{rad}_inset{inset}"]={"waist_hidden":int((test&((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
-    pm=current_cover(body,pants,pants_top-2.0,0.0,foot_bones,1.4)
+    pm=current_cover(body,pants,pants_top-2.0,0.0,foot_bones,1.4,-0.4)
+    # Diagnóstico específico da cueca/cintura: comparar quanto do corpo-base (cueca incluída)
+    # é removido sob a calça, variando proximidade e lado da superfície.
+    underwear_candidates={}
+    for rad in (1.4,2.4,3.2,4.0):
+        for side_limit in (-0.4,0.0,0.3,0.6):
+            test=current_cover(body,pants,pants_top+0.5,0.0,foot_bones,rad,side_limit)
+            key=f"r{rad}_side{side_limit}"
+            underwear_candidates[key]={"waist_hidden":int((test & ((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
+            if rad in (2.4,3.2) and side_limit in (0.0,0.6):
+                render_view(body,jacket,pants,test,sex,"frente",False,True,f"cueca_{key}_frente")
+                render_view(body,jacket,pants,test,sex,"costas",False,True,f"cueca_{key}_costas")
     combined=jm|pm
     waist=(centers if False else body["pos"][body["idx"]].mean(axis=1))
     waist=(waist[:,1]>=72)&(waist[:,1]<=108)
@@ -151,6 +162,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_low_foot_bone_weights":bone_distribution(combined&foot),
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
       "pants_mask_sweep":waist_diag,
+      "underwear_mask_candidates":underwear_candidates,
       "pants_mask_candidate":{"radius_cm":1.4,"top_inset_cm":2.0},
       "combination_waist_masks":combo_counts,
       "hidden_waist_by_jacket":int((jm&waist).sum()),
