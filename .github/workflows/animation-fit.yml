@@ -1,0 +1,30 @@
+name: Render male and female animation diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ferramentas/render_animation_fit.py'
+      - 'ferramentas/etapa53_preview.py'
+      - 'app/src/main/assets/cute/clips_am5.bin'
+      - 'app/src/main/assets/cute/clips_af5.bin'
+      - 'app/src/main/assets/cute/p_body_am5.bin'
+      - 'app/src/main/assets/cute/p_body_af5.bin'
+      - '.github/workflows/animation-fit.yml'
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install renderer
+        run: pip install numpy scipy matplotlib pillow
+      - name: Render walk and run for both bodies
+        run: python ferramentas/render_animation_fit.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: animation-fit-diagnostics
+          path: animation-fit/
