@@ -23,15 +23,19 @@ def read_cup(path):
     idx=np.frombuffer(b,dtype="<u2",count=ni,offset=off).reshape(-1,3).astype(np.int32)
     return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
 
-def current_cover(body, garment, ymax):
-    # Reproduz Cover.mark: triângulo do corpo, vértice de roupa mais próximo, raio 3,2 cm e teste de lado.
+def current_cover(body, garment, ymax, ymin=0.0, protected=None):
+    # Reproduz Cover.mark com faixa vertical e proteção por pesos de osso.
     p=garment["pos"]; n=garment["nor"]
     tree=cKDTree(p)
     tri=body["idx"]; bp=body["pos"]
     centers=bp[tri].mean(axis=1)
     dist,near=tree.query(centers,k=1,workers=-1)
     side=np.einsum("ij,ij->i",centers-p[near],n[near])
-    return (dist <= 3.2) & (side < 0.6) & (centers[:,1] <= ymax)
+    keep=(dist <= 3.2) & (side < 0.6) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
+    if protected:
+        bi=body["bi"][tri]; bw=body["bw"][tri]
+        keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
+    return keep
 
 def render_view(body, jacket, pants, masks, sex, view):
     # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
@@ -80,9 +84,19 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     body=read_cup(ROOT/f"p_body_{grp}.bin")
     jacket=read_cup(ROOT/f"skate/hood_{grp}.cup")
     pants=read_cup(ROOT/f"skate/hcargo_{grp}.cup")
+    # Correção candidata: ergue o acabamento inferior 3 cm e afasta a barra 0,75 cm pela normal.
+    jacket["pos"]=jacket["pos"].copy()
+    y0=jacket["pos"][:,1].copy()
+    w=np.clip((112.0-y0)/11.0,0.0,1.0)
+    w=w*w*(3.0-2.0*w)
+    jacket["pos"][:,1] += 3.0*w
+    jacket["pos"] += jacket["nor"]*(0.75*w[:,None])
     neck_y=158.24 if grp=="am5" else 156.52
-    jm=current_cover(body,jacket,neck_y-7)
-    pm=current_cover(body,pants,9999)
+    hand_bones=set([11,12,15,16]+list(range(25,55)))
+    foot_bones=set([18,19,20,22,23,24])
+    # A jaqueta não apaga a cintura abaixo da barra; a calça não apaga pés/tornozelos.
+    jm=current_cover(body,jacket,neck_y-7,102.0,hand_bones)
+    pm=current_cover(body,pants,9999,0.0,foot_bones)
     combined=jm|pm
     centers=body["pos"][body["idx"]].mean(axis=1)
     # Bones de mão/dedos conforme ARM_L/ARM_R em CuteChar.kt.
@@ -104,6 +118,8 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     near=ds<1.0
     report[sex]={
       "jacket_y_range_cm":[float(jacket["pos"][:,1].min()),float(jacket["pos"][:,1].max())],
+      "jacket_hem_lift_max_cm":3.0,"jacket_hem_outset_max_cm":0.75,
+      "mask_protected_hand_bones":sorted(hand_bones),"mask_protected_foot_bones":sorted(foot_bones),
       "pants_y_range_cm":[float(pants["pos"][:,1].min()),float(pants["pos"][:,1].max())],
       "jacket_z_range_cm":[float(jacket["pos"][:,2].min()),float(jacket["pos"][:,2].max())],
       "pants_z_range_cm":[float(pants["pos"][:,2].min()),float(pants["pos"][:,2].max())],
