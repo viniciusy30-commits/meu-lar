@@ -390,7 +390,7 @@ object CuteChar {
                     }
                     com.vinicius.meular.mods.Cover.mark(
                         sims.pos0, bi, m.pos0, m.nor0, coverRadius, r, lower, lim,
-                        sims.bi, sims.bw, protect, -0.4f
+                        sims.bi, sims.bw, protect, 0.6f
                     )
                     r
                 }
