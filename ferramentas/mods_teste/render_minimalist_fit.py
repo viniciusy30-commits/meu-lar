@@ -20,13 +20,15 @@ body=read(ROOT/"p_body_am5.bin")
 items={n:read(ROOT/"skate"/(n+".cup")) for n in ("minimalist_top_am5","minimalist_short_am5","minimalist_jeans_am5")}
 for n,g in items.items():
  g["tex"]=np.asarray(Image.open(ROOT/"skate"/(n+".png")).convert("RGBA"))
- g["alpha"]=bool(np.any(g["tex"][:,:,3]<250))
+ g["alpha_channel_nonopaque"]=bool(np.any(g["tex"][:,:,3]<250))
+ g["tex"][:,:,3]=255
+ g["alpha"]=False
 # Métrica de proximidade roupa-corpo em pontos amostrados; não substitui inspeção visual no aparelho.
 metrics={}
 tree=cKDTree(body["pos"])
 for n,g in items.items():
  d,_=tree.query(g["pos"],k=1)
- metrics[n]={"vertices":len(g["pos"]),"triangles":len(g["idx"]),"y_min":float(g["pos"][:,1].min()),"y_max":float(g["pos"][:,1].max()),"nearest_body_mean_cm":float(d.mean()),"nearest_body_p95_cm":float(np.percentile(d,95)),"uv_min":g["uv"].min(axis=0).tolist(),"uv_max":g["uv"].max(axis=0).tolist(),"texture_alpha":g["alpha"],"transparent_texture_pixels":int(np.sum(g["tex"][:,:,3]<250)),"texture_pixels":int(g["tex"].shape[0]*g["tex"].shape[1])}
+ metrics[n]={"vertices":len(g["pos"]),"triangles":len(g["idx"]),"y_min":float(g["pos"][:,1].min()),"y_max":float(g["pos"][:,1].max()),"nearest_body_mean_cm":float(d.mean()),"nearest_body_p95_cm":float(np.percentile(d,95)),"uv_min":g["uv"].min(axis=0).tolist(),"uv_max":g["uv"].max(axis=0).tolist(),"texture_alpha_channel_nonopaque":g["alpha_channel_nonopaque"],"transparent_texture_pixels":int(np.sum(g["tex"][:,:,3]<250)),"texture_pixels":int(g["tex"].shape[0]*g["tex"].shape[1])}
 def closest_point_triangle(p,a,b,c):
  ab=b-a; ac=c-a; ap=p-a
  d1=np.dot(ab,ap); d2=np.dot(ac,ap)
@@ -80,9 +82,9 @@ def cover(g,radius=3.2,protected=None):
   keep[ti]=covered>=3
  return keep
 MASKS={
- "minimalist_top_am5":(cover(items["minimalist_top_am5"],3.2,[11,12,15,16]+list(range(25,55))) if not items["minimalist_top_am5"]["alpha"] else np.zeros(len(body["idx"]),bool)),
- "minimalist_short_am5":(cover(items["minimalist_short_am5"],3.2,[18,19,20,22,23,24]) if not items["minimalist_short_am5"]["alpha"] else np.zeros(len(body["idx"]),bool)),
- "minimalist_jeans_am5":(cover(items["minimalist_jeans_am5"],3.2,[18,19,20,22,23,24]) if not items["minimalist_jeans_am5"]["alpha"] else np.zeros(len(body["idx"]),bool))
+ "minimalist_top_am5":cover(items["minimalist_top_am5"],3.2,[11,12,15,16]+list(range(25,55))),
+ "minimalist_short_am5":cover(items["minimalist_short_am5"],3.2,[18,19,20,22,23,24]),
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],3.2,[18,19,20,22,23,24])
 }
 def render(names,view):
  masks=[MASKS[n] for n in names]
@@ -124,8 +126,6 @@ def render(names,view):
     u=(a*uv[ids[0],0]+b*uv[ids[1],0]+cc*uv[ids[2],0])
     v=(a*uv[ids[0],1]+b*uv[ids[1],1]+cc*uv[ids[2],1])
     tx=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)]
-    take &= tx[:,:,3]>=115
-    if not take.any(): continue
     outcolor=tx[:,:,:3]
    else: outcolor=np.empty((y1-y0+1,x1-x0+1,3),dtype=np.uint8);outcolor[:]=color
    sub[take]=z[take]
