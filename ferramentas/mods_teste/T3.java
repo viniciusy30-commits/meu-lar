@@ -67,8 +67,8 @@ public final class T3 {
       if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
       Img raw=rawTexture(new Pkg(packageBytes));
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
-      piece.alpha=transparent>0; piece.png=raw.limit(1024).pot().png();
-      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha="+piece.alpha+" | transparent="+transparent+"/"+raw.argb.length);
+      piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
+      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length);
       Files.write(out.resolve(ids[i]+".cup"),piece.cup);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
