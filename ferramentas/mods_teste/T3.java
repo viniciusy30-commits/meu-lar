@@ -35,6 +35,24 @@ public final class T3 {
     }
     return false;
   }
+  static void dumpTextureCandidates(Pkg pkg, String id) throws Exception {
+    java.util.List<Pkg.Ent> casps=pkg.ofType(0x034AEECB);
+    if(casps.isEmpty()) return;
+    byte[] casp=pkg.read(casps.get(0));
+    Path dir=Paths.get("fit-minimalist","texture_candidates",id);
+    Files.createDirectories(dir);
+    int n=0;
+    for(Pkg.Ent e:pkg.ofType(Tex.T_RLE2)) if(refs(casp,e)) {
+      try { Img im=Tex.rle2(pkg.read(e)); Files.write(dir.resolve(String.format(java.util.Locale.ROOT,"%02d_rle2_%dx%d.png",n++,im.w,im.h)),im.png()); }
+      catch(Exception ex) { System.out.println("TEXTURE_CANDIDATE_SKIP "+id+" RLE2 "+ex.getMessage()); }
+    }
+    for(Pkg.Ent e:pkg.ofType(Tex.T_IMG)) if(refs(casp,e)) {
+      try { Img im=Tex.dds(pkg.read(e)); Files.write(dir.resolve(String.format(java.util.Locale.ROOT,"%02d_img_%dx%d.png",n++,im.w,im.h)),im.png()); }
+      catch(Exception ex) { System.out.println("TEXTURE_CANDIDATE_SKIP "+id+" IMG "+ex.getMessage()); }
+    }
+    System.out.println("TEXTURE_CANDIDATES "+id+" count="+n);
+  }
+
   static Img rawTexture(Pkg pkg) throws Exception {
     java.util.List<Pkg.Ent> casps=pkg.ofType(0x034AEECB);
     if(casps.isEmpty())throw new Exception("CASP ausente");
@@ -181,7 +199,9 @@ public final class T3 {
       if(!slots[i].equals(piece.slot)) throw new Exception(names[i]+": slot calculado "+piece.slot+"; esperado "+slots[i]+". Conversão cancelada para não cadastrar no lugar errado.");
       if(piece.fit>30.0) throw new Exception(names[i]+": encaixe reprovado (erro "+piece.fit+").");
       if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
-      Img raw=rawTexture(new Pkg(packageBytes));
+      Pkg pkg=new Pkg(packageBytes);
+      dumpTextureCandidates(pkg,ids[i]);
+      Img raw=rawTexture(pkg);
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
       // A textura de roupa usa o alpha do atlas como máscara auxiliar, não como transparência do tecido.
       // Mantém a textura opaca e a malha inteira; o recorte por pixel abria buracos no denim.
