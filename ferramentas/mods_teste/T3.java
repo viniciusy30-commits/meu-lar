@@ -22,6 +22,31 @@ public final class T3 {
     int[] idx=new int[ni]; for(int i=0;i<ni;i++)idx[i]=b.getShort()&65535;
     return new BodyRef(pos,nor,bi,bw,idx,null,96.8f/0.9861f);
   }
+
+  static boolean refs(byte[] casp,Pkg.Ent e){
+    int[] v={e.i1,e.i2,e.group,e.type};
+    for(int p=0;p<=casp.length-16;p++){
+      boolean ok=true;
+      for(int k=0;k<4;k++){
+        int q=p+k*4,x=v[k];
+        if((casp[q]&255)!=(x&255)||(casp[q+1]&255)!=((x>>>8)&255)||(casp[q+2]&255)!=((x>>>16)&255)||(casp[q+3]&255)!=((x>>>24)&255)){ok=false;break;}
+      }
+      if(ok)return true;
+    }
+    return false;
+  }
+  static Img rawTexture(Pkg pkg) throws Exception {
+    java.util.List<Pkg.Ent> casps=pkg.ofType(0x034AEECB);
+    if(casps.isEmpty())throw new Exception("CASP ausente");
+    byte[] casp=pkg.read(casps.get(0));
+    java.util.List<Pkg.Ent> refs=new java.util.ArrayList<>();
+    for(Pkg.Ent e:pkg.ofType(Tex.T_RLE2))if(refs(casp,e))refs.add(e);
+    for(Pkg.Ent e:pkg.ofType(Tex.T_IMG))if(refs(casp,e))refs.add(e);
+    Exception last=null;
+    for(Pkg.Ent e:refs)try{return e.type==Tex.T_RLE2?Tex.rle2(pkg.read(e)):Tex.dds(pkg.read(e));}catch(Exception ex){last=ex;}
+    if(last!=null)throw last;
+    throw new Exception("Textura base referenciada não encontrada");
+  }
   public static void main(String[] a) throws Exception {
     if(a.length!=3) throw new Exception("Uso: T3 top.package short.package jeans.package");
     Path root=Paths.get(".").toAbsolutePath();
@@ -33,12 +58,12 @@ public final class T3 {
     for(int i=0;i<3;i++){
       Path src=root.resolve(a[i]);
       if(!Files.isRegularFile(src)) throw new Exception("Pacote ausente: "+src);
-      Importer.Out converted=Importer.convert(Files.readAllBytes(src),src.getFileName().toString(),male);
+      byte[] packageBytes=Files.readAllBytes(src);\n      Importer.Out converted=Importer.convert(packageBytes,src.getFileName().toString(),male);
       if(converted.pieces.size()!=1) throw new Exception(names[i]+": esperado 1 modelo LOD0, recebidos "+converted.pieces.size()+"; "+converted.notes);
       Importer.PieceOut piece=converted.pieces.get(0);
       if(!slots[i].equals(piece.slot)) throw new Exception(names[i]+": slot calculado "+piece.slot+"; esperado "+slots[i]+". Conversão cancelada para não cadastrar no lugar errado.");
       if(piece.fit>30.0) throw new Exception(names[i]+": encaixe reprovado (erro "+piece.fit+").");
-      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
+      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");\n      Img raw=rawTexture(new Pkg(packageBytes));\n      int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;\n      piece.alpha=transparent>0; piece.png=raw.limit(1024).pot().png();\n      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha="+piece.alpha+" | transparent="+transparent+"/"+raw.argb.length);
       Files.write(out.resolve(ids[i]+".cup"),piece.cup);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
