@@ -11,5 +11,7 @@ with tempfile.TemporaryDirectory() as clipdir:
         shutil.copyfile(os.path.join(cu,f"clips_{grp}5.bin"),os.path.join(clipdir,f"clips_{grp}.bin"))
         for clip,move in ((1,"andar"),(3,"correr")):
             target=os.path.join(out,f"{label}_{move}.png")
-            subprocess.run([sys.executable,preview,cu,clipdir,grp,target,str(clip),"12","5"],check=True)
+            args=[sys.executable,preview,cu,clipdir,grp,target,str(clip),"12","5"]
+            if grp == "am": args.append("male_adjusted")
+            subprocess.run(args,check=True)
             print("RENDERED",target)
