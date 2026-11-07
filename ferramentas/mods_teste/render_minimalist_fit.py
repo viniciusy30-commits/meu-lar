@@ -107,7 +107,7 @@ def cover(g,radius=4.5,protected=None,slot="top",side_limit=1.0):
 MASKS={
  "minimalist_top_am5":cover(items["minimalist_top_am5"],4.5,None,"top"),
  "minimalist_short_am5":cover(items["minimalist_short_am5"],5.5,[18,19,20,22,23,24],"bottom",2.0),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],12.0,[18,19,20,22,23,24],"bottom",6.0)
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],12.0,None,"bottom",6.0)
 }
 
 def render(names,view,hide_body=False):
