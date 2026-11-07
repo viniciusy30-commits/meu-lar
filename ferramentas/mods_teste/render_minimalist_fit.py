@@ -80,9 +80,9 @@ def cover(g,radius=3.2,protected=None):
   keep[ti]=covered>=3
  return keep
 MASKS={
- "minimalist_top_am5":cover(items["minimalist_top_am5"],3.2,[11,12,15,16]+list(range(25,55))),
- "minimalist_short_am5":cover(items["minimalist_short_am5"],3.2,[18,19,20,22,23,24]),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],3.2,[18,19,20,22,23,24])
+ "minimalist_top_am5":(cover(items["minimalist_top_am5"],3.2,[11,12,15,16]+list(range(25,55))) if not items["minimalist_top_am5"]["alpha"] else np.zeros(len(body["idx"]),bool)),
+ "minimalist_short_am5":(cover(items["minimalist_short_am5"],3.2,[18,19,20,22,23,24]) if not items["minimalist_short_am5"]["alpha"] else np.zeros(len(body["idx"]),bool)),
+ "minimalist_jeans_am5":(cover(items["minimalist_jeans_am5"],3.2,[18,19,20,22,23,24]) if not items["minimalist_jeans_am5"]["alpha"] else np.zeros(len(body["idx"]),bool))
 }
 def render(names,view):
  masks=[MASKS[n] for n in names]
