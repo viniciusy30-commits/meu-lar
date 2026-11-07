@@ -172,7 +172,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     hand_bones=set([11,12,15,16]+list(range(25,55)))
     foot_bones=set([18,19,20,22,23,24])
     # A jaqueta não apaga a cintura abaixo da barra; a calça não apaga pés/tornozelos.
-    jm=surface_cover(body,jacket,neck_y-7,float(jacket["pos"][:,1].min())-1.0,hand_bones,1.4,0.6)
+    jm=surface_cover(body,jacket,neck_y-7,float(jacket["pos"][:,1].min())-1.0,hand_bones,1.8,0.6)
     # Sweep de limites/raios da calça para encontrar a menor máscara que ainda cobre a malha.
     pants_top=float(pants["pos"][:,1].max())
     waist_diag={}
@@ -236,7 +236,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
       "pants_mask_sweep":waist_diag,
       "underwear_mask_candidates":underwear_candidates,
-      "pants_mask_candidate":{"method":"closest garment triangle","radius_cm":1.15,"top_extension_cm":0.5,"side_limit":0.6},"jacket_mask_candidate":{"method":"closest garment triangle","radius_cm":1.4,"side_limit":0.6},
+      "pants_mask_candidate":{"method":"closest garment triangle","radius_cm":1.15,"top_extension_cm":0.5,"side_limit":0.6},"jacket_mask_candidate":{"method":"closest garment triangle","radius_cm":1.8,"side_limit":0.6},
       "combination_waist_masks":combo_counts,
       "hidden_waist_by_jacket":int((jm&waist).sum()),
       "hidden_waist_by_pants":int((pm&waist).sum()),
