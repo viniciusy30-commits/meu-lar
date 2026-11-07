@@ -58,12 +58,17 @@ public final class T3 {
     for(int i=0;i<3;i++){
       Path src=root.resolve(a[i]);
       if(!Files.isRegularFile(src)) throw new Exception("Pacote ausente: "+src);
-      byte[] packageBytes=Files.readAllBytes(src);\n      Importer.Out converted=Importer.convert(packageBytes,src.getFileName().toString(),male);
+      byte[] packageBytes=Files.readAllBytes(src);
+      Importer.Out converted=Importer.convert(packageBytes,src.getFileName().toString(),male);
       if(converted.pieces.size()!=1) throw new Exception(names[i]+": esperado 1 modelo LOD0, recebidos "+converted.pieces.size()+"; "+converted.notes);
       Importer.PieceOut piece=converted.pieces.get(0);
       if(!slots[i].equals(piece.slot)) throw new Exception(names[i]+": slot calculado "+piece.slot+"; esperado "+slots[i]+". Conversão cancelada para não cadastrar no lugar errado.");
       if(piece.fit>30.0) throw new Exception(names[i]+": encaixe reprovado (erro "+piece.fit+").");
-      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");\n      Img raw=rawTexture(new Pkg(packageBytes));\n      int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;\n      piece.alpha=transparent>0; piece.png=raw.limit(1024).pot().png();\n      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha="+piece.alpha+" | transparent="+transparent+"/"+raw.argb.length);
+      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
+      Img raw=rawTexture(new Pkg(packageBytes));
+      int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
+      piece.alpha=transparent>0; piece.png=raw.limit(1024).pot().png();
+      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha="+piece.alpha+" | transparent="+transparent+"/"+raw.argb.length);
       Files.write(out.resolve(ids[i]+".cup"),piece.cup);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
