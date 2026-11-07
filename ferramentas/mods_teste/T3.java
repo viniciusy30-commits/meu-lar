@@ -186,6 +186,7 @@ public final class T3 {
     return cup;
   }
 
+  /** Conversor novo (Ts4Cloth): LOD0, recorte só de triângulos 100% transparentes, escala s0, empurrão suave e textura recortada. */
   public static void main(String[] a) throws Exception {
     if(a.length!=3) throw new Exception("Uso: T3 top.package short.package jeans.package");
     Path root=Paths.get(".").toAbsolutePath();
@@ -194,32 +195,16 @@ public final class T3 {
     String[] slots={"top","bottom","bottom"};
     String[] names={"Camiseta Minimalist","Short Minimalist","Calça jeans Minimalist"};
     Path out=root.resolve("app/src/main/assets/cute/skate"); Files.createDirectories(out);
+    float clear=Float.parseFloat(System.getProperty("clear","0.35"));
+    int maxTex=Integer.parseInt(System.getProperty("maxtex","2048"));
     for(int i=0;i<3;i++){
       Path src=root.resolve(a[i]);
       if(!Files.isRegularFile(src)) throw new Exception("Pacote ausente: "+src);
-      byte[] packageBytes=Files.readAllBytes(src);
-      Importer.Out converted=Importer.convert(packageBytes,src.getFileName().toString(),male);
-      if(converted.pieces.size()!=1) throw new Exception(names[i]+": esperado 1 modelo LOD0, recebidos "+converted.pieces.size()+"; "+converted.notes);
-      Importer.PieceOut piece=converted.pieces.get(0);
-      if(!slots[i].equals(piece.slot)) throw new Exception(names[i]+": slot calculado "+piece.slot+"; esperado "+slots[i]+". Conversão cancelada para não cadastrar no lugar errado.");
-      if(piece.fit>30.0) throw new Exception(names[i]+": encaixe reprovado (erro "+piece.fit+").");
-      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
-      Pkg pkg=new Pkg(packageBytes);
-      dumpTextureCandidates(pkg,ids[i]);
-      Img raw=rawTexture(pkg);
-      int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
-      // A textura de roupa usa o alpha do atlas como máscara auxiliar, não como transparência do tecido.
-      // Mantém a textura opaca e a malha inteira; o recorte por pixel abria buracos no denim.
-      piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
-      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | source-alpha-transparent="+transparent+" | output=opaque");
-      // Top e short carregam partes de pele no mesmo mesh; recorta só essas regiões pelo alpha.
-      // O jeans já é uma malha de tecido: não aplicar o recorte nele evita falhas no denim.
-      byte[] fitted=(i==2)?piece.cup:trimByAlpha(piece.cup,raw);
-      fitted=improveFit(fitted,male,i==2);
-      Files.write(out.resolve(ids[i]+".cup"),fitted);
-      Files.write(out.resolve(ids[i]+".png"),piece.png);
-      System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
-      for(String note:converted.notes) System.out.println("INFO "+ids[i]+": "+note);
+      Ts4Cloth.Out o=Ts4Cloth.convert(Files.readAllBytes(src),male,0,clear,maxTex);
+      if(!slots[i].equals(o.slot)) throw new Exception(names[i]+": slot calculado "+o.slot+"; esperado "+slots[i]);
+      Files.write(out.resolve(ids[i]+".cup"),o.cup);
+      Files.write(out.resolve(ids[i]+".png"),o.png);
+      System.out.println("OK "+ids[i]+" | "+o.slot+" | v="+o.verts+" | tris="+o.tris+"/"+o.srcTris+" | pushed="+o.pushed+" max="+o.maxPush+" | y="+o.ymin+".."+o.ymax+" | tex="+o.texW+"x"+o.texH+" | cup="+o.cup.length+" | png="+o.png.length);
     }
   }
 }

@@ -196,3 +196,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] clips_*.bin, base.bin e f_1.bin com 1 clipe parado; ferramentas/etapa51_sem_animacao.py
 - [ ] Testar no celular (ver ETAPA51-SEM-ANIMACAO-NOTAS.md)
 - [ ] Esqueleto real do Sims 3: precisa do arquivo de esqueleto (nao veio nos RAR)
+
+## Etapa 108 — Roupas masculinas Minimalist corrigidas (entregue, aguardando teste)
+- [x] `Ts4Cloth` (LOD0, recorte só de transparentes, escala s0, empurrão suave iterativo, textura recortada), `Cover.markSurface` sem cunhas na borda aberta, assets regenerados, renders antes/depois. Detalhes em `ETAPA108-ROUPAS-TS4-NOTAS.md`.
+- [ ] Testar no celular (camiseta, short, jeans e combinações; caminhar/correr). Possível próximo passo: outras cores dos pacotes, pesos originais da EA.

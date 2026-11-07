@@ -151,6 +151,9 @@ public final class Cover {
                         float nz=pnor[p0+2]*q[3]+pnor[p1+2]*q[4]+pnor[p2+2]*q[5];
                         float nl=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
                         float side=nl>1e-8f?(dx*nx+dy*ny+dz*nz)/nl:Float.MAX_VALUE;
+                        // Borda aberta (barra, manga, cintura): o ponto mais próximo fica na quina e o vetor corre ao longo do tecido,
+                        // não por baixo dele. Isso não é "coberto": sem este teste a pele abaixo da barra sumia em cunhas.
+                        if (d2 > 0.04f && nl > 1e-8f && Math.abs(side) < 0.5f * (float) Math.sqrt(d2)) side = Float.MAX_VALUE;
                         bestD2=d2; bestSide=side;
                     }
                 }
