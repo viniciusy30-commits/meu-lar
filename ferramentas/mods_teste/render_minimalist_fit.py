@@ -55,7 +55,9 @@ def cover(g,radius=3.2,protected=None):
   for v in tri:incident[int(v)].append(tj)
  keep=np.zeros(len(bi),dtype=bool); protected_set=set(protected or [])
  body_bones=body["bi"][bi];body_weights=body["bw"][bi]
+ ymin=float(gp[:,1].min())-radius; ymax=float(gp[:,1].max())+radius
  for ti,center in enumerate(centers):
+  if center[1]<ymin or center[1]>ymax: continue
   if protected_set and any(int(bone) in protected_set and weight>=.15 for bone,weight in zip(body_bones[ti].ravel(),body_weights[ti].ravel())):continue
   samples=np.vstack((center,bp[bi[ti]]));covered=0
   for point in samples:
@@ -74,8 +76,13 @@ def cover(g,radius=3.2,protected=None):
    if best_d2<=radius*radius and best_side<0.6:covered+=1
   keep[ti]=covered>=3
  return keep
+MASKS={
+ "minimalist_top_am5":cover(items["minimalist_top_am5"],3.2,[11,12,15,16]+list(range(25,55))),
+ "minimalist_short_am5":cover(items["minimalist_short_am5"],3.2,[18,19,20,22,23,24]),
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],3.2,[18,19,20,22,23,24])
+}
 def render(names,view):
- masks=[cover(items[n],3.2,([11,12,15,16]+list(range(25,55)) if n=="minimalist_top_am5" else [18,19,20,22,23,24])) for n in names]
+ masks=[MASKS[n] for n in names]
  hide=np.logical_or.reduce(masks) if masks else np.zeros(len(body["idx"]),bool)
  if view in ("frente","costas"):
   project=lambda p:p[:,[0,1]]
