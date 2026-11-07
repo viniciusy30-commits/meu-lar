@@ -406,7 +406,7 @@ object CuteChar {
                     ib.put(sims.idx[t * 3]); ib.put(sims.idx[t * 3 + 1]); ib.put(sims.idx[t * 3 + 2])
                 }
                 ib.position(0)
-                parts[at] = Part(Mt.PLAIN, sims.fb, sims.nv, ib, keep * 3, simsPart.tex).also { it.soft = simsPart.soft; it.push = simsPart.push }
+                parts[at] = Part(Mt.PLAIN, sims.fb, sims.nv, ib, keep * 3, simsPart.tex).also { it.soft = simsPart.soft; it.push = maxOf(simsPart.push, 0.002f) }
             }
         }
         // jaqueta vestida: some a manga da blusa/roupa de baixo (fica só o tronco, o resto da manga atravessaria a jaqueta)
@@ -471,7 +471,7 @@ object CuteChar {
             val t = ((114f - y) / 13f).coerceIn(0f, 1f)
             val w = t * t * (3f - 2f * t)
             if (w <= 0f) continue
-            val push = 1.4f * w
+            val push = 0.4f * w
             val lift = 0.8f * w
             for (k in 0..2) {
                 val d = s.nor0[o + k] * push
