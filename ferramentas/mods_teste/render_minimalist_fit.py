@@ -73,7 +73,7 @@ def closest_point_triangle(p,a,b,c):
  if abs(den)<1e-12:return a,np.array([1.,0.,0.])
  v=vb/den;w=vc/den;u=1-v-w
  return u*a+v*b+w*c,np.array([u,v,w])
-def cover(g,radius=4.5,protected=None,slot="top"):
+def cover(g,radius=4.5,protected=None,slot="top",side_limit=1.0):
  gp=g["pos"];gn=g["nor"];gi=g["idx"];bp=body["pos"];bi=body["idx"]
  centers=bp[bi].mean(axis=1);tree=cKDTree(gp)
  _,nearest=tree.query(centers,k=min(12,len(gp)),workers=-1)
@@ -101,13 +101,13 @@ def cover(g,radius=4.5,protected=None,slot="top"):
     n=(gn[ids]*bary[:,None]).sum(axis=0);nl=float(np.linalg.norm(n))
     side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
     best_d2=d2;best_side=side
-   if best_d2<=radius*radius and best_side<1.0:covered+=1
+   if best_d2<=radius*radius and best_side<side_limit:covered+=1
   keep[ti]=covered>=3
  return keep
 MASKS={
  "minimalist_top_am5":cover(items["minimalist_top_am5"],4.5,None,"top"),
  "minimalist_short_am5":cover(items["minimalist_short_am5"],4.5,[18,19,20,22,23,24],"bottom"),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],5.0,[18,19,20,22,23,24],"bottom")
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],6.5,[18,19,20,22,23,24],"bottom",2.0)
 }
 
 def render(names,view):
