@@ -388,10 +388,18 @@ object CuteChar {
                         for (v in 1 until m.pos0.size step 3) if (m.pos0[v] < hem) hem = m.pos0[v]
                         lower = hem - 1.0f
                     }
-                    com.vinicius.meular.mods.Cover.mark(
-                        sims.pos0, bi, m.pos0, m.nor0, coverRadius, r, lower, lim,
-                        sims.bi, sims.bw, protect, 0.6f
-                    )
+                    if (m.key.contains("hood_") || m.key.contains("hcargo_")) {
+                        val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
+                        com.vinicius.meular.mods.Cover.markSurface(
+                            sims.pos0, bi, m.pos0, m.nor0, garmentIdx, 1.15f, r, lower, lim,
+                            sims.bi, sims.bw, protect, 0.6f
+                        )
+                    } else {
+                        com.vinicius.meular.mods.Cover.mark(
+                            sims.pos0, bi, m.pos0, m.nor0, coverRadius, r, lower, lim,
+                            sims.bi, sims.bw, protect, 0.6f
+                        )
+                    }
                     r
                 }
                 for (i in cv.indices) if (cv[i]) { mk[i] = true; any = true }
