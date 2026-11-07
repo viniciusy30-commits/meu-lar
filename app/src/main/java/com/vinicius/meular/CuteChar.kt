@@ -392,7 +392,6 @@ object CuteChar {
                         // Máscara curta e precisa: esconde somente a pele imediatamente sob o tecido.
                         // Mantém mãos e pés; não apaga pernas/tornozelos fora da barra.
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
-                        val jeans = m.key.contains("minimalist_jeans_am5")
                         val maxDistance = 3.5f
                         val surfaceProtect = if (sl == "top") COVER_HAND_BONES else COVER_FOOT_BONES
                         com.vinicius.meular.mods.Cover.markSurface(
