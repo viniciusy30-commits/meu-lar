@@ -122,6 +122,11 @@ object ModStore {
         for (g in listOf("af5", "am5")) {
             items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g.substring(0, 2), 0, true, true, true))
         }
+        // Ross JohnnySims: quatro versões convertidas para os corpos adultos Sims 4.
+        items.add(Item("ross1_am5", "Ross V1 masculino", "hairBack", "am", 0, true, true, true))
+        items.add(Item("ross1_af5", "Ross V1 feminino", "hairBack", "af", 0, true, true, true))
+        items.add(Item("ross2_am5", "Ross V2 masculino", "hairBack", "am", 0, true, true, true))
+        items.add(Item("ross2_af5", "Ross V2 feminino", "hairBack", "af", 0, true, true, true))
         // Etapa 95: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5): um item, 12 cores no seletor
         items.add(Item(BLOOM_ID, "Blusa renda Bloom", "top", "af", 0, true, true, true))
         // Etapa 94: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), só o coque, um único item (preto); a cor troca no seletor de cores do Cabelo

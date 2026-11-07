@@ -1,0 +1,34 @@
+name: Ross hair conversion and fit preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ferramentas/ross_hair_convert.py'
+      - '.github/workflows/ross-hair.yml'
+      - 'JohnnySims_Ross_Hair_*.package'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy scipy pillow
+      - name: Convert Ross and render fit diagnostics
+        run: python ferramentas/ross_hair_convert.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ross-fit-previews
+          path: |
+            fit-ross/*.png
+            app/src/main/assets/cute/skate/ross*.png
+      - name: Commit converted assets
+        run: |
+          git config user.name "ross-converter"
+          git config user.email "ross-converter@users.noreply.github.com"
+          git add app/src/main/assets/cute/skate/ross* app/src/main/assets/cute/thumbs/ross* fit-ross
+          if git diff --cached --quiet; then echo "No converted files"; else git commit -m "Convert Ross hairstyles and add fit previews"; git push; fi
