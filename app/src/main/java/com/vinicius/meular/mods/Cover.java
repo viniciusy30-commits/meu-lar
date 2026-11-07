@@ -124,29 +124,39 @@ public final class Cover {
                 }
                 if (protect) continue;
             }
-            int got = grid.knn(x, y, z, 2, near.length, false, near, nearD);
-            if (got == 0) continue;
-            int token = t + 1;
-            float bestD2 = Float.MAX_VALUE, bestSide = Float.MAX_VALUE;
-            for (int ni = 0; ni < got; ni++) {
-                int v = near[ni];
-                for (int at = offsets[v]; at < offsets[v + 1]; at++) {
-                    int pt = incident[at];
-                    if (stamp[pt] == token) continue;
-                    stamp[pt] = token;
-                    int p0 = pidx[pt * 3] * 3, p1 = pidx[pt * 3 + 1] * 3, p2 = pidx[pt * 3 + 2] * 3;
-                    closest(x,y,z, ppos[p0],ppos[p0+1],ppos[p0+2], ppos[p1],ppos[p1+1],ppos[p1+2], ppos[p2],ppos[p2+1],ppos[p2+2], q);
-                    float dx=x-q[0], dy=y-q[1], dz=z-q[2], d2=dx*dx+dy*dy+dz*dz;
-                    if (d2 >= bestD2) continue;
-                    float nx=pnor[p0]*q[3]+pnor[p1]*q[4]+pnor[p2]*q[5];
-                    float ny=pnor[p0+1]*q[3]+pnor[p1+1]*q[4]+pnor[p2+1]*q[5];
-                    float nz=pnor[p0+2]*q[3]+pnor[p1+2]*q[4]+pnor[p2+2]*q[5];
-                    float nl=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
-                    float side=nl>1e-8f?(dx*nx+dy*ny+dz*nz)/nl:Float.MAX_VALUE;
-                    bestD2=d2; bestSide=side;
+            // Amostra centro e três vértices. Exigimos 3 de 4 pontos cobertos:
+            // fecha pequenas frestas na borda sem apagar triângulos inteiros por um único vértice.
+            int covered = 0;
+            float[] sx = {x, bpos[a], bpos[b], bpos[cc]};
+            float[] sy = {y, bpos[a + 1], bpos[b + 1], bpos[cc + 1]};
+            float[] sz = {z, bpos[a + 2], bpos[b + 2], bpos[cc + 2]};
+            for (int sample = 0; sample < 4; sample++) {
+                if (sy[sample] < ymin || sy[sample] > ymax) continue;
+                int got = grid.knn(sx[sample], sy[sample], sz[sample], 2, near.length, false, near, nearD);
+                if (got == 0) continue;
+                int token = (t + 1) * 4 + sample;
+                float bestD2 = Float.MAX_VALUE, bestSide = Float.MAX_VALUE;
+                for (int ni = 0; ni < got; ni++) {
+                    int v = near[ni];
+                    for (int at = offsets[v]; at < offsets[v + 1]; at++) {
+                        int pt = incident[at];
+                        if (stamp[pt] == token) continue;
+                        stamp[pt] = token;
+                        int p0 = pidx[pt * 3] * 3, p1 = pidx[pt * 3 + 1] * 3, p2 = pidx[pt * 3 + 2] * 3;
+                        closest(sx[sample],sy[sample],sz[sample], ppos[p0],ppos[p0+1],ppos[p0+2], ppos[p1],ppos[p1+1],ppos[p1+2], ppos[p2],ppos[p2+1],ppos[p2+2], q);
+                        float dx=sx[sample]-q[0], dy=sy[sample]-q[1], dz=sz[sample]-q[2], d2=dx*dx+dy*dy+dz*dz;
+                        if (d2 >= bestD2) continue;
+                        float nx=pnor[p0]*q[3]+pnor[p1]*q[4]+pnor[p2]*q[5];
+                        float ny=pnor[p0+1]*q[3]+pnor[p1+1]*q[4]+pnor[p2+1]*q[5];
+                        float nz=pnor[p0+2]*q[3]+pnor[p1+2]*q[4]+pnor[p2+2]*q[5];
+                        float nl=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
+                        float side=nl>1e-8f?(dx*nx+dy*ny+dz*nz)/nl:Float.MAX_VALUE;
+                        bestD2=d2; bestSide=side;
+                    }
                 }
+                if (bestD2 <= maxD2 && bestSide < sideLimit) covered++;
             }
-            if (bestD2 <= maxD2 && bestSide < sideLimit) mark[t] = true;
+            if (covered >= 3) mark[t] = true;
         }
     }
 
