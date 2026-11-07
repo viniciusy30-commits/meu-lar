@@ -151,9 +151,10 @@ object ModStore {
         items.add(Item(HOOD_M_ID, "Jaqueta com capuz", "jacket", "am", 0, true, false, true))
         items.add(Item(HCARGO_M_ID, "Calça cargo com cintos", "bottom", "am", 0, true, false, true))
         // CC Minimalist convertidos offline e cadastrados como peças nativas.
-        items.add(Item("minimalist_top_am5", "Camiseta Minimalist", "top", "am", 0, true, false, true))
-        items.add(Item("minimalist_short_am5", "Short Minimalist", "bottom", "am", 0, true, false, true))
-        items.add(Item("minimalist_jeans_am5", "Calça jeans Minimalist", "bottom", "am", 0, true, false, true))
+        // Atlas do CC tem transparência fora das ilhas UV; o alpha cutout mantém mangas, cintura e barras inteiras.
+        items.add(Item("minimalist_top_am5", "Camiseta Minimalist", "top", "am", 0, true, true, true))
+        items.add(Item("minimalist_short_am5", "Short Minimalist", "bottom", "am", 0, true, true, true))
+        items.add(Item("minimalist_jeans_am5", "Calça jeans Minimalist", "bottom", "am", 0, true, true, true))
         loadVariants(d)
         // quem já tinha Lotus/Bloom vestido num item por cor (Etapas 92/93) passa para o item único, com a mesma cor
         for (k in worn.toList()) {
