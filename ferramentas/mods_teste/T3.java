@@ -146,7 +146,7 @@ public final class T3 {
     float minY=Float.MAX_VALUE,maxY=-Float.MAX_VALUE;
     for(int j=1;j<bp.length;j+=3){minY=Math.min(minY,bp[j]);maxY=Math.max(maxY,bp[j]);}
     float centerY=(minY+maxY)*0.5f;
-    float target=jeans?1.8f:1.6f;
+    float target=jeans?2.8f:2.4f;
     int moved=0,skipped=0;float maxMove=0f;
     for(int v=0;v<nv;v++){
       int o=16+v*44;
@@ -178,7 +178,7 @@ public final class T3 {
       float signed=(x-bx)*nx+(y-by)*ny+(z-bz)*nz;
       float delta=target-signed;
       if(delta<=0.05f)continue;
-      if(delta>3.5f){skipped++;continue;}
+      if(delta>4.5f){skipped++;continue;}
       b.putFloat(o,x+nx*delta);b.putFloat(o+4,y+ny*delta);b.putFloat(o+8,z+nz*delta);
       moved++;if(delta>maxMove)maxMove=delta;
     }
