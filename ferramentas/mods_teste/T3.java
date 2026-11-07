@@ -78,34 +78,88 @@ public final class T3 {
     System.out.println("ALPHA_TRIM triangles="+ni/3+" -> "+count/3);
     return out.array();
   }
-  /** Afasta o tecido usando a normal suave do corpo; preserva a malha e o UV originais. */
+  /** Ajusta a roupa pela superfície real do corpo, sem deslocar vértices por normais isoladas. */
+  static void closest(float px,float py,float pz,
+                      float ax,float ay,float az,float bx,float by,float bz,float cx,float cy,float cz,
+                      float[] q) {
+    float abx=bx-ax,aby=by-ay,abz=bz-az,acx=cx-ax,acy=cy-ay,acz=cz-az;
+    float apx=px-ax,apy=py-ay,apz=pz-az;
+    float d1=abx*apx+aby*apy+abz*apz,d2=acx*apx+acy*apy+acz*apz;
+    float u,v,w;
+    if(d1<=0&&d2<=0){u=1;v=0;w=0;}
+    else {
+      float bpx=px-bx,bpy=py-by,bpz=pz-bz;
+      float d3=abx*bpx+aby*bpy+abz*bpz,d4=acx*bpx+acy*bpy+acz*bpz;
+      if(d3>=0&&d4<=d3){u=0;v=1;w=0;}
+      else {
+        float vc=d1*d4-d3*d2;
+        if(vc<=0&&d1>=0&&d3<=0){float t=d1/(d1-d3);u=1-t;v=t;w=0;}
+        else {
+          float cpx=px-cx,cpy=py-cy,cpz=pz-cz;
+          float d5=abx*cpx+aby*cpy+abz*cpz,d6=acx*cpx+acy*cpy+acz*cpz;
+          if(d6>=0&&d5<=d6){u=0;v=0;w=1;}
+          else {
+            float vb=d5*d2-d1*d6;
+            if(vb<=0&&d2>=0&&d6<=0){float t=d2/(d2-d6);u=1-t;v=0;w=t;}
+            else {
+              float va=d3*d6-d5*d4;
+              if(va<=0&&(d4-d3)>=0&&(d5-d6)>=0){float t=(d4-d3)/((d4-d3)+(d5-d6));u=0;v=1-t;w=t;}
+              else {float inv=1f/(va+vb+vc);v=vb*inv;w=vc*inv;u=1-v-w;}
+            }
+          }
+        }
+      }
+    }
+    q[0]=u*ax+v*bx+w*cx;q[1]=u*ay+v*by+w*cy;q[2]=u*az+v*bz+w*cz;q[3]=u;q[4]=v;q[5]=w;
+  }
+
+  /** Mantém folga pequena e uniforme entre pele e tecido. Não escala nem deforma a peça. */
   static byte[] improveFit(byte[] cup, BodyRef body, boolean jeans) throws Exception {
     ByteBuffer b=ByteBuffer.wrap(cup).order(ByteOrder.LITTLE_ENDIAN);
     if(b.getInt()!=0x31505543) throw new Exception("CUP1 inválido no ajuste de caimento");
-    int nv=b.getInt(), ni=b.getInt(); b.getInt();
+    int nv=b.getInt(),ni=b.getInt();b.getInt();
     int vertexEnd=16+nv*44;
     if(vertexEnd+(long)ni*2!=cup.length) throw new Exception("CUP1 inválido no ajuste de caimento");
-    float[] bp=body.pos, bn=body.nor;
-    float clearance=jeans?0.9f:1.6f;
+    float[] bp=body.pos,bn=body.nor,q=new float[6];
+    int[] bi=body.idx;
+    @SuppressWarnings("unchecked") java.util.ArrayList<Integer>[] incident=new java.util.ArrayList[bp.length/3];
+    for(int v=0;v<incident.length;v++) incident[v]=new java.util.ArrayList<>();
+    for(int t=0;t<bi.length/3;t++) for(int k=0;k<3;k++) incident[bi[t*3+k]].add(t);
+    float target=jeans?0.75f:1.0f;
+    int moved=0,skipped=0;float maxMove=0f;
     for(int v=0;v<nv;v++){
-      int q=16+v*44;
-      float x=b.getFloat(q),y=b.getFloat(q+4),z=b.getFloat(q+8);
-      int nearest=-1; float best=Float.MAX_VALUE;
+      int o=16+v*44;
+      float x=b.getFloat(o),y=b.getFloat(o+4),z=b.getFloat(o+8);
+      int nearest=-1;float best=Float.MAX_VALUE;
       for(int j=0;j<bp.length/3;j++){
-        float dx=x-bp[j*3],dy=y-bp[j*3+1],dz=z-bp[j*3+2];
-        if(Math.abs(x)>2f && Math.abs(bp[j*3])>1f && (x>0)!=(bp[j*3]>0)) continue;
-        float d=dx*dx+dy*dy+dz*dz;
+        if(Math.abs(x)>2.5f&&Math.abs(bp[j*3])>1f&&(x>0)!=(bp[j*3]>0))continue;
+        float dx=x-bp[j*3],dy=y-bp[j*3+1],dz=z-bp[j*3+2],d=dx*dx+dy*dy+dz*dz;
         if(d<best){best=d;nearest=j;}
       }
-      if(nearest<0) continue;
-      float nx=bn[nearest*3],ny=bn[nearest*3+1],nz=bn[nearest*3+2];
-      float nl=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
-      if(nl<1e-6f) continue;
-      b.putFloat(q,x+nx/nl*clearance);
-      b.putFloat(q+4,y+ny/nl*clearance);
-      b.putFloat(q+8,z+nz/nl*clearance);
+      if(nearest<0||best>36f){skipped++;continue;}
+      float bestD=Float.MAX_VALUE,bx=0,by=0,bz=0,nx=0,ny=0,nz=0;
+      for(int t:incident[nearest]){
+        int ia=bi[t*3],ib=bi[t*3+1],ic=bi[t*3+2];
+        int a=ia*3,bb=ib*3,c=ic*3;
+        closest(x,y,z,bp[a],bp[a+1],bp[a+2],bp[bb],bp[bb+1],bp[bb+2],bp[c],bp[c+1],bp[c+2],q);
+        float dx=x-q[0],dy=y-q[1],dz=z-q[2],d=dx*dx+dy*dy+dz*dz;
+        if(d>=bestD)continue;
+        float tx=bn[a]*q[3]+bn[bb]*q[4]+bn[c]*q[5];
+        float ty=bn[a+1]*q[3]+bn[bb+1]*q[4]+bn[c+1]*q[5];
+        float tz=bn[a+2]*q[3]+bn[bb+2]*q[4]+bn[c+2]*q[5];
+        float nl=(float)Math.sqrt(tx*tx+ty*ty+tz*tz);
+        if(nl<1e-7f)continue;
+        nx=tx/nl;ny=ty/nl;nz=tz/nl;bestD=d;bx=q[0];by=q[1];bz=q[2];
+      }
+      if(bestD>16f){skipped++;continue;}
+      float signed=(x-bx)*nx+(y-by)*ny+(z-bz)*nz;
+      float delta=target-signed;
+      if(delta<=0.05f)continue;
+      if(delta>2.5f){skipped++;continue;}
+      b.putFloat(o,x+nx*delta);b.putFloat(o+4,y+ny*delta);b.putFloat(o+8,z+nz*delta);
+      moved++;if(delta>maxMove)maxMove=delta;
     }
-    System.out.println("FIT_CLEARANCE "+clearance+"cm | body normals | original garment proportions preserved");
+    System.out.println("FIT_SURFACE target="+target+"cm moved="+moved+" skipped="+skipped+" maxMove="+maxMove+"cm; proportions and UV preserved");
     return cup;
   }
 
