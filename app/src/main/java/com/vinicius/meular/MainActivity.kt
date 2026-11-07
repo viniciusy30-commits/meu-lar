@@ -170,13 +170,16 @@ class MainActivity : AppCompatActivity() {
         val w = game.width; val h = game.height
         if (w <= 0 || h <= 0 || game.mode == 2) return
         val short = minOf(w, h).toFloat()
-        val maxS = minOf(1f, 900f / short); val minS = minOf(maxS, 380f / short)
+        // Prioriza nitidez: renderiza em resolução nativa (até 900 px no lado curto).
+        // A escala dinâmica só reduz até 82% quando realmente necessário, evitando o antigo visual borrado.
+        val maxS = minOf(1f, 900f / short)
+        val minS = maxS * 0.82f
         var ns = rScale
-        if (w != rW || h != rH || rScale == 0f) { rW = w; rH = h; ns = minOf(maxS, 720f / short) }
+        if (w != rW || h != rH || rScale == 0f) { rW = w; rH = h; ns = maxS }
         else {
             val f = game.r.fpsAvg
-            if (f < 45f) ns = maxOf(minS, rScale * 0.85f)
-            else if (f > 58f) ns = minOf(maxS, rScale * 1.08f)
+            if (f < 40f) ns = maxOf(minS, rScale * 0.90f)
+            else if (f > 56f) ns = minOf(maxS, rScale * 1.04f)
         }
         if (Math.abs(ns - rScale) > 0.02f || rScale == 0f) {
             rScale = ns
@@ -403,8 +406,7 @@ class MainActivity : AppCompatActivity() {
             ins
         }
 
-        // Etapa 89: resolução dinâmica — o 3D é desenhado numa resolução menor que a da tela (a imagem é ampliada pelo sistema)
-        // e ela se ajusta sozinha para manter o jogo liso: cai se o FPS ficar abaixo de 45 e sobe de novo se sobrar folga.
+        // Resolução dinâmica com prioridade para nitidez: começa na resolução máxima e só reduz em quedas persistentes de FPS.
         game.r.showFps = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("fps", false)
         game.post(object : Runnable {
             override fun run() { ajustarResolucao(); game.postDelayed(this, 1200) }
