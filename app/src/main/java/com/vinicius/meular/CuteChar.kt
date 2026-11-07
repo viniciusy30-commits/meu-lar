@@ -479,8 +479,9 @@ object CuteChar {
             val t = ((114f - y) / 13f).coerceIn(0f, 1f)
             val w = t * t * (3f - 2f * t)
             if (w <= 0f) continue
-            val push = 0.4f * w
-            val lift = 0.8f * w
+            // Desce a barra para sobrepor a cintura da calça; antes ela era levantada e deixava a pele aparecer.
+            val push = 0.45f * w
+            val lift = -1.5f * w
             for (k in 0..2) {
                 val d = s.nor0[o + k] * push
                 s.pos0[o + k] += d
