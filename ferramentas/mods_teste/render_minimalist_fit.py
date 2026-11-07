@@ -23,7 +23,8 @@ for n,g in items.items():
  Image.fromarray(g["tex"]).save(OUT/(n+"_texture.png"))
  Image.fromarray(g["tex"][:,:,3]).save(OUT/(n+"_alpha_channel.png"))
  g["alpha_channel_nonopaque"]=bool(np.any(g["tex"][:,:,3]<250))
- g["alpha"]=True
+ g["tex"][:,:,3]=255
+ g["alpha"]=False
 # Métrica de proximidade roupa-corpo em pontos amostrados; não substitui inspeção visual no aparelho.
 metrics={}
 tree=cKDTree(body["pos"])
@@ -147,8 +148,6 @@ def render(names,view,hide_body=False):
     u=(a*uv[ids[0],0]+b*uv[ids[1],0]+cc*uv[ids[2],0])
     v=(a*uv[ids[0],1]+b*uv[ids[1],1]+cc*uv[ids[2],1])
     tx=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)]
-    take &= tx[:,:,3]>=128
-    if not take.any(): continue
     outcolor=tx[:,:,:3]
    else: outcolor=np.empty((y1-y0+1,x1-x0+1,3),dtype=np.uint8);outcolor[:]=color
    sub[take]=z[take]
