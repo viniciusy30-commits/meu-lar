@@ -189,7 +189,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
             test=surface_cover(body,pants,pants_top+0.5,0.0,foot_bones,rad,side_limit)
             key=f"r{rad}_side{side_limit}"
             underwear_candidates[key]={"waist_hidden":int((test & ((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
-            if rad in (2.4,3.2) and side_limit in (0.0,0.6):
+            if rad in (1.4,1.8,2.4) and side_limit in (-0.4,0.0,0.6):
                 render_view(body,jacket,pants,test,sex,"frente",False,True,f"cueca_{key}_frente")
                 render_view(body,jacket,pants,test,sex,"costas",False,True,f"cueca_{key}_costas")
     combined=jm|pm
