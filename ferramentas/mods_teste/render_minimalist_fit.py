@@ -104,9 +104,14 @@ def cover(g,radius=4.5,protected=None,slot="top",side_limit=1.0):
    if best_d2<=radius*radius and best_side<side_limit:covered+=1
   keep[ti]=covered>=3
  return keep
-# O jogo mantém o corpo sob estas peças e usa alpha cutout por pixel.
-# Portanto, nenhuma região inteira do corpo deve ser apagada por uma aproximação geométrica.
-MASKS={name:np.zeros(len(body["idx"]),dtype=bool) for name in items}
+# Máscara conservadora igual à do jogo: só oculta a pele imediatamente sob a roupa.
+HAND_BONES=[12,16,*range(25,55)]
+FOOT_BONES=[18,19,20,22,23,24]
+MASKS={
+ "minimalist_top_am5":cover(items["minimalist_top_am5"],2.8,HAND_BONES,"top",0.7),
+ "minimalist_short_am5":cover(items["minimalist_short_am5"],2.8,FOOT_BONES,"bottom",0.7),
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],3.0,FOOT_BONES,"bottom",0.7)
+}
 
 def render(names,view,hide_body=False):
  masks=[MASKS[n] for n in names]
