@@ -207,7 +207,10 @@ public final class T3 {
       // Mantém a textura opaca e a malha inteira; o recorte por pixel abria buracos no denim.
       piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
       System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | source-alpha-transparent="+transparent+" | output=opaque");
-      byte[] fitted=improveFit(piece.cup,male,i==2);
+      // Top e short carregam partes de pele no mesmo mesh; recorta só essas regiões pelo alpha.
+      // O jeans já é uma malha de tecido: não aplicar o recorte nele evita falhas no denim.
+      byte[] fitted=(i==2)?piece.cup:trimByAlpha(piece.cup,raw);
+      fitted=improveFit(fitted,male,i==2);
       Files.write(out.resolve(ids[i]+".cup"),fitted);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
