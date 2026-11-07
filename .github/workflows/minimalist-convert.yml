@@ -7,6 +7,8 @@ on:
       - 'Minimalist-CC_Everyday_Short_Man.package'
       - 'Minimalist-CC_Everyday_Top_Man.package'
       - 'ferramentas/mods_teste/T3.java'
+      - 'ferramentas/mods_teste/render_minimalist_fit.py'
+      - '.github/workflows/minimalist-convert.yml'
       - 'app/src/main/java/com/vinicius/meular/ModStore.kt'
   workflow_dispatch:
 permissions:
