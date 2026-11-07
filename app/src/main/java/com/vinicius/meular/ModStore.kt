@@ -261,7 +261,8 @@ object ModStore {
             }
         }
         val d = dir ?: return null
-        val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".thumb.png")
+        // v2 invalida as miniaturas antigas que mostravam a peça isolada, sem o Sim.
+        val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".sim.thumb.png")
         if (f.exists()) BitmapFactory.decodeFile(f.path)?.let { b -> return b }
         val b = try { renderThumb(it) } catch (e: Throwable) { android.util.Log.e("ModStore", "miniatura " + it.id, e); null } ?: return null
         try { f.outputStream().use { o -> b.compress(Bitmap.CompressFormat.PNG, 100, o) } } catch (e: Throwable) { }
@@ -327,14 +328,19 @@ object ModStore {
             }
         }
         val parts = ArrayList<Thumb.Piece>()
-        if (it.slot == "hairBack" || it.slot == "hat") {
-            try {
-                val am = CuteChar.assets
-                if (am != null) {
-                    val bm = Thumb.parse(am.open("cute/p_body_" + it.grp + (if (CuteChar.isTs4()) "5" else "1") + ".bin").use { s -> s.readBytes() })
-                    parts.add(Thumb.Piece(Thumb.headOf(bm), null, 0, 0, 0xFFE3BFA2.toInt(), false, true))
-                }
-            } catch (e: Throwable) { }
+        // Miniatura no mesmo padrão do catálogo: o Sim veste a peça; o enquadramento
+        // é calculado pela malha do item e a cabeça/corpo serve de apoio visual.
+        try {
+            val am = CuteChar.assets
+            if (am != null) {
+                val male = it.grp.startsWith("am") || it.grp == "tm" || it.grp == "em"
+                val body = Thumb.parse(am.open("cute/p_body_" + (if (male) "am5" else "af5") + ".bin").use { s -> s.readBytes() })
+                val headOnly = it.slot in setOf("hairBack", "hairFront", "hat", "headAcc", "glasses", "beard")
+                val support = if (headOnly) Thumb.headOf(body) else body
+                parts.add(Thumb.Piece(support, null, 0, 0, 0xFFE3BFA2.toInt(), false, true))
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("ModStore", "corpo de apoio da miniatura " + it.id, e)
         }
         parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFF9AA3AD.toInt(), it.alpha))
         val px = Thumb.render(parts, it.slot, 256)
