@@ -146,7 +146,7 @@ public final class T3 {
     float minY=Float.MAX_VALUE,maxY=-Float.MAX_VALUE;
     for(int j=1;j<bp.length;j+=3){minY=Math.min(minY,bp[j]);maxY=Math.max(maxY,bp[j]);}
     float centerY=(minY+maxY)*0.5f;
-    float target=jeans?1.0f:1.0f;
+    float target=jeans?1.8f:1.6f;
     int moved=0,skipped=0;float maxMove=0f;
     for(int v=0;v<nv;v++){
       int o=16+v*44;
