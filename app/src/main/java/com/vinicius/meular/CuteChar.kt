@@ -468,11 +468,11 @@ object CuteChar {
         for (v in 0 until s.nv) {
             val o = v * 3
             val y = s.pos0[o + 1]
-            val t = ((112f - y) / 11f).coerceIn(0f, 1f)
+            val t = ((114f - y) / 13f).coerceIn(0f, 1f)
             val w = t * t * (3f - 2f * t)
             if (w <= 0f) continue
             val push = 1.4f * w
-            val lift = 3f * w
+            val lift = 5f * w
             for (k in 0..2) {
                 val d = s.nor0[o + k] * push
                 s.pos0[o + k] += d
