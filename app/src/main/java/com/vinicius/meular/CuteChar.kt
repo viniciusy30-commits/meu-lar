@@ -389,25 +389,9 @@ object CuteChar {
                         lower = hem - 1.0f
                     }
                     if (m.key.contains("minimalist_top_am5") || m.key.contains("minimalist_short_am5") || m.key.contains("minimalist_jeans_am5")) {
-                        val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
-                        val jeans = m.key.contains("minimalist_jeans_am5")
-                        // Limites menores impedem que a máscara apague pele distante da roupa.
-                        // Pés e mãos continuam visíveis mesmo quando a barra/sleeve chega perto deles.
-                        val maxDistance = when {
-                            jeans -> 4.5f
-                            sl == "bottom" -> 3.8f
-                            else -> 4.0f
-                        }
-                        val sideLimit = 0.9f
-                        val surfaceProtect = when {
-                            jeans || sl == "bottom" -> COVER_FOOT_BONES
-                            sl == "top" -> COVER_HAND_BONES
-                            else -> protect
-                        }
-                        com.vinicius.meular.mods.Cover.markSurface(
-                            sims.pos0, bi, m.pos0, m.nor0, garmentIdx, maxDistance, r, lower, lim,
-                            sims.bi, sims.bw, surfaceProtect, sideLimit
-                        )
+                        // Estas peças usam alpha cutout: o tecido cobre a pele apenas onde a textura é opaca.
+                        // Não removemos triângulos inteiros do corpo, pois isso abria buracos em mangas e barras.
+                        // A folga da malha evita z-fighting; a pele continua visível nas áreas transparentes.
                     } else if (m.key.contains("hood_") || m.key.contains("hcargo_")) {
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
                         com.vinicius.meular.mods.Cover.markSurface(
