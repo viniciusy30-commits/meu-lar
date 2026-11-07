@@ -78,46 +78,34 @@ public final class T3 {
     System.out.println("ALPHA_TRIM triangles="+ni/3+" -> "+count/3);
     return out.array();
   }
-  /** Afasta o tecido da pele e corrige o comprimento da calça sem alterar UVs. */
+  /** Afasta o tecido usando a normal suave do corpo; preserva a malha e o UV originais. */
   static byte[] improveFit(byte[] cup, BodyRef body, boolean jeans) throws Exception {
     ByteBuffer b=ByteBuffer.wrap(cup).order(ByteOrder.LITTLE_ENDIAN);
     if(b.getInt()!=0x31505543) throw new Exception("CUP1 inválido no ajuste de caimento");
     int nv=b.getInt(), ni=b.getInt(); b.getInt();
     int vertexEnd=16+nv*44;
     if(vertexEnd+(long)ni*2!=cup.length) throw new Exception("CUP1 inválido no ajuste de caimento");
-    float top=-Float.MAX_VALUE;
-    for(int v=0;v<nv;v++) top=Math.max(top,b.getFloat(16+v*44+4));
-    float[] bp=body.pos;
-    float[] p=new float[3], n=new float[3];
-    float clearance=jeans?2.8f:2.2f;
+    float[] bp=body.pos, bn=body.nor;
+    float clearance=jeans?0.9f:1.6f;
     for(int v=0;v<nv;v++){
       int q=16+v*44;
-      for(int k=0;k<3;k++){p[k]=b.getFloat(q+k*4);n[k]=b.getFloat(q+12+k*4);}
+      float x=b.getFloat(q),y=b.getFloat(q+4),z=b.getFloat(q+8);
       int nearest=-1; float best=Float.MAX_VALUE;
       for(int j=0;j<bp.length/3;j++){
-        float dx=p[0]-bp[j*3],dy=p[1]-bp[j*3+1],dz=p[2]-bp[j*3+2];
-        if(Math.abs(p[0])>2f && Math.abs(bp[j*3])>1f && (p[0]>0)!=(bp[j*3]>0)) continue;
+        float dx=x-bp[j*3],dy=y-bp[j*3+1],dz=z-bp[j*3+2];
+        if(Math.abs(x)>2f && Math.abs(bp[j*3])>1f && (x>0)!=(bp[j*3]>0)) continue;
         float d=dx*dx+dy*dy+dz*dz;
         if(d<best){best=d;nearest=j;}
       }
-      if(nearest>=0 && best>1e-6f){
-        float dx=p[0]-bp[nearest*3],dy=p[1]-bp[nearest*3+1],dz=p[2]-bp[nearest*3+2];
-        float dot=dx*n[0]+dy*n[1]+dz*n[2];
-        if(dot<0){n[0]=-n[0];n[1]=-n[1];n[2]=-n[2];}
-      }
-      float nl=(float)Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-      if(nl>1e-6f){
-        float d=clearance/nl;
-        b.putFloat(q,p[0]+n[0]*d); b.putFloat(q+4,p[1]+n[1]*d); b.putFloat(q+8,p[2]+n[2]*d);
-        b.putFloat(q+12,n[0]/nl); b.putFloat(q+16,n[1]/nl); b.putFloat(q+20,n[2]/nl);
-      }
-      if(jeans){
-        float y=b.getFloat(q+4);
-        // Alongar a perna a partir da cintura, mantendo o cós na mesma altura.
-        b.putFloat(q+4,top-(top-y)*1.24f);
-      }
+      if(nearest<0) continue;
+      float nx=bn[nearest*3],ny=bn[nearest*3+1],nz=bn[nearest*3+2];
+      float nl=(float)Math.sqrt(nx*nx+ny*ny+nz*nz);
+      if(nl<1e-6f) continue;
+      b.putFloat(q,x+nx/nl*clearance);
+      b.putFloat(q+4,y+ny/nl*clearance);
+      b.putFloat(q+8,z+nz/nl*clearance);
     }
-    System.out.println("FIT_CLEARANCE "+clearance+"cm"+(jeans?" | jeans length x1.24":""));
+    System.out.println("FIT_CLEARANCE "+clearance+"cm | body normals | original garment proportions preserved");
     return cup;
   }
 
