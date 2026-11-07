@@ -161,7 +161,14 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     body=read_cup(ROOT/f"p_body_{grp}.bin")
     jacket=read_cup(ROOT/f"skate/hood_{grp}.cup")
     pants=read_cup(ROOT/f"skate/hcargo_{grp}.cup")
-    # Correção candidata: ergue o acabamento inferior 3 cm e afasta a barra 0,75 cm pela normal.
+    # Replica o ajuste de cintura aplicado no app: eleva os 8 cm superiores em até 1,4 cm.
+    pants["pos"]=pants["pos"].copy()
+    top0=float(pants["pos"][:,1].max())
+    wt=np.clip((pants["pos"][:,1]-(top0-8.0))/8.0,0.0,1.0)
+    wt=wt*wt*(3.0-2.0*wt)
+    pants["pos"] += pants["nor"]*(0.18*wt[:,None])
+    pants["pos"][:,1] += 1.4*wt
+    # Correção candidata: ajusta a barra inferior da jaqueta e a cintura da calça.
     jacket["pos"]=jacket["pos"].copy()
     y0=jacket["pos"][:,1].copy()
     w=np.clip((114.0-y0)/13.0,0.0,1.0)
