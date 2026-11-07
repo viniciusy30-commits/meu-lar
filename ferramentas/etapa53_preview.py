@@ -14,6 +14,35 @@ K = 0.0082
 v, idx, fl, tail = E.read_piece(CU + 'p_body_%s%d.bin' % (grp, typ))
 cl = E.read_clips(CLIPDIR + 'clips_%s.bin' % grp)
 ln, d = cl[clip]
+# Opcional: reproduz a correção masculina aplicada em CuteChar.kt, diretamente nas matrizes do clipe.
+adjusted = len(sys.argv) > 8 and sys.argv[8] == 'male_adjusted'
+if adjusted:
+    def rot_arm(mm, bones, pivot_idx, from_idx, rx, ry, rz, ang):
+        u = bones[pivot_idx] * 12
+        px = mm[u] * rx + mm[u + 1] * ry + mm[u + 2] * rz + mm[u + 3]
+        py = mm[u + 4] * rx + mm[u + 5] * ry + mm[u + 6] * rz + mm[u + 7]
+        c, s = np.cos(ang), np.sin(ang)
+        tx = px - (c * px - s * py)
+        ty = py - (s * px + c * py)
+        for i in range(from_idx, len(bones)):
+            o = bones[i] * 12
+            for k in range(4):
+                r0, r1 = mm[o + k], mm[o + 4 + k]
+                mm[o + k] = c * r0 - s * r1
+                mm[o + 4 + k] = s * r0 + c * r1
+            mm[o + 3] += tx
+            mm[o + 7] += ty
+    # Equivale ao estado estabilizado de slotArm: 1.0 no andar e 0.65 na corrida.
+    arm_deg = 5.0 if clip == 1 else 5.0 * 0.65 if clip == 3 else 0.0
+    fore_deg = 4.0 if clip == 1 else 4.0 * 0.65 if clip == 3 else 0.0
+    if arm_deg:
+        for frame in d:
+            mm = frame.reshape(55, 12)
+            for side in (0, 1):
+                sx = 1.0 if side == 0 else -1.0
+                bones = [10, 11, 12] + list(range(25, 40)) if side == 0 else [14, 15, 16] + list(range(40, 55))
+                rot_arm(mm, bones, 0, 0, sx * 13.3, 142.5, -2.9, -sx * np.deg2rad(arm_deg))
+                rot_arm(mm, bones, 1, 1, sx * 32.1, 122.0, 0.0, -sx * np.deg2rad(fore_deg))
 pos = v['pos'].astype(np.float64); bi = v['bi'].astype(int); bw = v['bw'] / 255.0
 def skin(M):
     M = M.reshape(55, 3, 4).astype(np.float64); out = np.zeros_like(pos)
