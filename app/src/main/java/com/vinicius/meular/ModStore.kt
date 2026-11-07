@@ -214,7 +214,8 @@ object ModStore {
 
     // ---- miniaturas (a "foto de prévia" de cada peça) ----
     /** Miniatura embutida (assets/cute/thumbs/<nome>.png). Chamar fora da thread da tela. */
-    fun assetThumb(name: String): Bitmap? = try {
+    fun assetThumb(name: String): Bitmap? {
+        return try {
         val src = CuteChar.assets?.open("cute/thumbs/$name.png")?.use { BitmapFactory.decodeStream(it) } ?: return null
         // Padroniza todas as miniaturas em um canvas quadrado, com a mesma margem e sem distorcer a peça.
         val side = 256
@@ -227,7 +228,8 @@ object ModStore {
         canvas.drawBitmap(src, null, dst, paint)
         if (src !== out && !src.isRecycled) src.recycle()
         out
-    } catch (e: Throwable) { null }
+        } catch (e: Throwable) { null }
+    }
 
     private fun tintBitmap(src: Bitmap, argb: Int): Bitmap {
         val w = src.width; val h = src.height
