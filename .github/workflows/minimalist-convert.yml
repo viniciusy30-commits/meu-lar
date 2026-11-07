@@ -8,8 +8,8 @@ on:
       - 'Minimalist-CC_Everyday_Top_Man.package'
       - 'ferramentas/mods_teste/T3.java'
       - 'ferramentas/mods_teste/render_minimalist_fit.py'
-      - '.github/workflows/minimalist-convert.yml'
       - 'app/src/main/java/com/vinicius/meular/ModStore.kt'
+      - '.github/workflows/minimalist-convert.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,6 +22,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Install render dependencies
+        run: pip install numpy scipy pillow
       - name: Compile offline converter
         run: |
           mkdir -p /tmp/meular-classes
@@ -34,18 +36,24 @@ jobs:
           python - <<'PY'
           import struct
           from pathlib import Path
+          from PIL import Image
           root=Path('app/src/main/assets/cute/skate')
           for name in ('minimalist_top_am5','minimalist_short_am5','minimalist_jeans_am5'):
               cup=(root/(name+'.cup')).read_bytes()
               assert cup[:4]==b'CUP1', name+' CUP1 ausente'
               nv,ni,_=struct.unpack_from('<III',cup,4)
               assert nv>=100 and ni>=300 and ni%3==0, (name,nv,ni)
-              from PIL import Image
               im=Image.open(root/(name+'.png'))
               im.verify()
               print(name, 'VALID', nv, 'vertices', ni//3, 'triangulos', im.size)
           PY
-      - name: Render fit diagnostics\n        run: |\n          pip install numpy scipy pillow\n          python ferramentas/mods_teste/render_minimalist_fit.py\n      - uses: actions/upload-artifact@v4\n        with:\n          name: minimalist-fit-diagnostics\n          path: fit-minimalist/\n      - name: Commit converted native assets
+      - name: Render fit diagnostics
+        run: python ferramentas/mods_teste/render_minimalist_fit.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: minimalist-fit-diagnostics
+          path: fit-minimalist/
+      - name: Commit converted native assets
         run: |
           git config user.name "meular-assets-bot"
           git config user.email "meular-assets-bot@users.noreply.github.com"
