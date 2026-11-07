@@ -23,8 +23,7 @@ for n,g in items.items():
  Image.fromarray(g["tex"]).save(OUT/(n+"_texture.png"))
  Image.fromarray(g["tex"][:,:,3]).save(OUT/(n+"_alpha_channel.png"))
  g["alpha_channel_nonopaque"]=bool(np.any(g["tex"][:,:,3]<250))
- g["tex"][:,:,3]=255
- g["alpha"]=False
+ g["alpha"]=True
 # Métrica de proximidade roupa-corpo em pontos amostrados; não substitui inspeção visual no aparelho.
 metrics={}
 tree=cKDTree(body["pos"])
@@ -104,15 +103,9 @@ def cover(g,radius=4.5,protected=None,slot="top",side_limit=1.0):
    if best_d2<=radius*radius and best_side<side_limit:covered+=1
   keep[ti]=covered>=3
  return keep
-# Mesmas proteções e limites adotados no renderizador Android:
-# a camiseta não apaga mãos/dedos; calças preservam pés e tornozelos.
-HAND_BONES=[12,16,*range(25,55)]
-FOOT_BONES=[18,19,20,22,23,24]
-MASKS={
- "minimalist_top_am5":cover(items["minimalist_top_am5"],4.0,HAND_BONES,"top",0.9),
- "minimalist_short_am5":cover(items["minimalist_short_am5"],3.8,FOOT_BONES,"bottom",0.9),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],4.5,FOOT_BONES,"bottom",0.9)
-}
+# O jogo mantém o corpo sob estas peças e usa alpha cutout por pixel.
+# Portanto, nenhuma região inteira do corpo deve ser apagada por uma aproximação geométrica.
+MASKS={name:np.zeros(len(body["idx"]),dtype=bool) for name in items}
 
 def render(names,view,hide_body=False):
  masks=[MASKS[n] for n in names]
@@ -154,6 +147,8 @@ def render(names,view,hide_body=False):
     u=(a*uv[ids[0],0]+b*uv[ids[1],0]+cc*uv[ids[2],0])
     v=(a*uv[ids[0],1]+b*uv[ids[1],1]+cc*uv[ids[2],1])
     tx=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)]
+    take &= tx[:,:,3]>=128
+    if not take.any(): continue
     outcolor=tx[:,:,:3]
    else: outcolor=np.empty((y1-y0+1,x1-x0+1,3),dtype=np.uint8);outcolor[:]=color
    sub[take]=z[take]
