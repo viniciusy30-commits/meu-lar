@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'app/src/main/java/**'
+      - 'app/src/main/assets/cute/skate/minimalist_*'
       - '.github/workflows/android.yml'
   workflow_dispatch:
   workflow_run:
