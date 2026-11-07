@@ -88,6 +88,8 @@ public final class Cover {
                                    int[] bodyBones, float[] bodyWeights, int[] protectedBones, float sideLimit) {
         if (ppos.length == 0 || pidx.length < 3) return;
         final int pnv = ppos.length / 3, pnt = pidx.length / 3;
+        float yLow = Float.MAX_VALUE; for (int i = 1; i < ppos.length; i += 3) yLow = Math.min(yLow, ppos[i]);
+        final float hemTop = yLow + 4f;   // só perto da barra um triângulo que passa dela fica visível
         Grid grid = new Grid(ppos, 1.0f);
         int[] counts = new int[pnv];
         for (int t = 0; t < pnt; t++) {
@@ -127,6 +129,7 @@ public final class Cover {
             // Amostra centro e três vértices. Exigimos 3 de 4 pontos cobertos:
             // fecha pequenas frestas na borda sem apagar triângulos inteiros por um único vértice.
             int covered = 0;
+            boolean allBelow = true;
             float[] sx = {x, bpos[a], bpos[b], bpos[cc]};
             float[] sy = {y, bpos[a + 1], bpos[b + 1], bpos[cc + 1]};
             float[] sz = {z, bpos[a + 2], bpos[b + 2], bpos[cc + 2]};
@@ -157,10 +160,25 @@ public final class Cover {
                         bestD2=d2; bestSide=side;
                     }
                 }
-                if (bestD2 <= maxD2 && bestSide < sideLimit) covered++;
+                if (bestD2 <= maxD2 && bestSide < sideLimit) {
+                    covered++;
+                    // triângulo que passa da borda aberta (barra, manga, cintura) fica visível: sem "dentes" nem buracos de pele apagada
+                    if (sy[sample] < hemTop && !clothBelow(ppos, sx[sample], sy[sample], sz[sample], maxDistance + 2f)) allBelow = false;
+                }
             }
-            if (covered >= 3) mark[t] = true;
+            if (covered >= 3 && allBelow) mark[t] = true;
         }
+    }
+
+    /** Há tecido logo abaixo do ponto (perto na horizontal)? Se não, é pele abaixo da barra: não pode ser escondida. */
+    private static boolean clothBelow(float[] ppos, float x, float y, float z, float radius) {
+        float r2 = radius * radius;
+        for (int i = 0; i < ppos.length; i += 3) {
+            if (ppos[i + 1] >= y - 0.4f) continue;
+            float dx = ppos[i] - x, dz = ppos[i + 2] - z;
+            if (dx * dx + dz * dz <= r2) return true;
+        }
+        return false;
     }
 
     // Ponto mais próximo em triângulo; q = posição xyz + coordenadas baricêntricas.

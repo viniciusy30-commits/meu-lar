@@ -86,6 +86,7 @@ public final class Ts4Cloth {
         // ---- pesos de osso
         int[] bi = new int[nv*4]; float[] bw = new float[nv*4];
         Fit.weights(body, pos, out.slot, bi, bw);
+        if (!out.slot.equals("hat") && !out.slot.equals("hairBack")) Fit.cleanWeights(pos, idx, bi, bw, out.slot.equals("bottom"));
         // ---- textura recortada na região usada
         float u0 = 1, v0 = 1, u1 = 0, v1 = 0;
         for (int i = 0; i < nv; i++) { u0 = Math.min(u0, uv[i*2]); u1 = Math.max(u1, uv[i*2]); v0 = Math.min(v0, uv[i*2+1]); v1 = Math.max(v1, uv[i*2+1]); }

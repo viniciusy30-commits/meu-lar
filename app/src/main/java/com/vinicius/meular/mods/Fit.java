@@ -256,6 +256,77 @@ final class Fit {
     }
 
     // ------------------------------------------------------------------ arquivo CUP1
+    /**
+     * Limpa os pesos de osso copiados do corpo: vértice cujos pesos destoam dos vizinhos na malha da roupa
+     * (ex.: barra da calça presa à coluna, ponta de manga presa ao tronco) recebe a média dos vizinhos; depois suaviza.
+     * Sem isso, na animação esses vértices ficam para trás e esticam "pontas" de tecido.
+     */
+    static void cleanWeights(float[] pos, int[] idx, int[] bi, float[] bw, boolean legSplit) {
+        int nv = pos.length / 3;
+        int[] w = new int[nv];
+        java.util.HashMap<String, Integer> ids = new java.util.HashMap<>();
+        for (int v = 0; v < nv; v++) {
+            String k = Math.round(pos[v*3]*200) + "," + Math.round(pos[v*3+1]*200) + "," + Math.round(pos[v*3+2]*200);
+            Integer id = ids.get(k); if (id == null) { id = ids.size(); ids.put(k, id); } w[v] = id;
+        }
+        int nw = ids.size(), NB = 64;
+        float[][] W = new float[nw][NB];
+        for (int v = 0; v < nv; v++) for (int k = 0; k < 4; k++) if (bw[v*4+k] > 0f) W[w[v]][bi[v*4+k] & 63] += bw[v*4+k];
+        for (int i = 0; i < nw; i++) { float s = 0; for (float x : W[i]) s += x; if (s > 1e-9f) for (int b = 0; b < NB; b++) W[i][b] /= s; }
+        java.util.ArrayList<java.util.TreeSet<Integer>> adj = new java.util.ArrayList<>();
+        for (int i = 0; i < nw; i++) adj.add(new java.util.TreeSet<>());
+        for (int t = 0; t < idx.length / 3; t++) {
+            int a = w[idx[t*3]], b = w[idx[t*3+1]], c = w[idx[t*3+2]];
+            adj.get(a).add(b); adj.get(a).add(c); adj.get(b).add(a); adj.get(b).add(c); adj.get(c).add(a); adj.get(c).add(b);
+        }
+        for (int i = 0; i < nw; i++) adj.get(i).remove(i);
+        for (int round = 0; round < 4; round++) {
+            float[][] N = new float[nw][]; int ch = 0;
+            for (int i = 0; i < nw; i++) {
+                N[i] = W[i];
+                if (adj.get(i).isEmpty()) continue;
+                float[] m = new float[NB];
+                for (int j : adj.get(i)) for (int b = 0; b < NB; b++) m[b] += W[j][b];
+                float d = 0; for (int b = 0; b < NB; b++) { m[b] /= adj.get(i).size(); d += Math.abs(W[i][b] - m[b]); }
+                if (d > 0.6f) { N[i] = m; ch++; }
+            }
+            W = N;
+            if (ch == 0) break;
+        }
+        for (int it = 0; it < 2; it++) {
+            float[][] N = new float[nw][];
+            for (int i = 0; i < nw; i++) {
+                N[i] = W[i];
+                if (adj.get(i).isEmpty()) continue;
+                float[] m = new float[NB];
+                for (int j : adj.get(i)) for (int b = 0; b < NB; b++) m[b] += W[j][b];
+                float[] r = new float[NB];
+                for (int b = 0; b < NB; b++) r[b] = 0.5f * W[i][b] + 0.5f * (m[b] / adj.get(i).size());
+                N[i] = r;
+            }
+            W = N;
+        }
+        if (legSplit) {
+            // cada perna só segue o próprio osso (direita x>0): sem isso a coxa que sobe atravessa o tecido da frente
+            int[][] pairs = {{17, 21}, {18, 22}, {19, 23}, {20, 24}};
+            float[] wx = new float[nw]; for (int v = 0; v < nv; v++) wx[w[v]] = pos[v*3];
+            for (int i = 0; i < nw; i++) {
+                float t = Math.max(0f, Math.min(1f, (wx[i] + 1.5f) / 3f));
+                for (int[] pr : pairs) { float tot = W[i][pr[0]] + W[i][pr[1]]; W[i][pr[0]] = tot * t; W[i][pr[1]] = tot * (1f - t); }
+            }
+        }
+        for (int v = 0; v < nv; v++) {
+            float[] row = W[w[v]].clone();
+            float sum = 0;
+            for (int j = 0; j < 4; j++) {
+                int best = 0; for (int b = 1; b < NB; b++) if (row[b] > row[best]) best = b;
+                bi[v*4+j] = best; bw[v*4+j] = row[best]; sum += row[best]; row[best] = -1f;
+            }
+            if (sum <= 1e-9f) { bi[v*4] = 0; bw[v*4] = 1f; for (int j = 1; j < 4; j++) bw[v*4+j] = 0f; }
+            else for (int j = 0; j < 4; j++) bw[v*4+j] /= sum;
+        }
+    }
+
     static byte[] cup1(float[] pos, float[] nor, float[] uv, int[] idx, int[] bi, float[] bw) throws Exception {
         int nv = pos.length / 3, ni = idx.length;
         if (nv > 65535) throw new Exception("Malha pesada demais (" + nv + " vértices)");
