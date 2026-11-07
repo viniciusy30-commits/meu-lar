@@ -37,6 +37,65 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2, sid
         keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
     return keep
 
+
+def closest_point_triangle(p, a, b, c):
+    ab=b-a; ac=c-a; ap=p-a
+    d1=np.dot(ab,ap); d2=np.dot(ac,ap)
+    if d1<=0 and d2<=0: return a, np.array([1.,0.,0.])
+    bp=p-b; d3=np.dot(ab,bp); d4=np.dot(ac,bp)
+    if d3>=0 and d4<=d3: return b, np.array([0.,1.,0.])
+    vc=d1*d4-d3*d2
+    if vc<=0 and d1>=0 and d3<=0:
+        v=d1/(d1-d3); return a+v*ab, np.array([1-v,v,0.])
+    cp=p-c; d5=np.dot(ab,cp); d6=np.dot(ac,cp)
+    if d6>=0 and d5<=d6: return c, np.array([0.,0.,1.])
+    vb=d5*d2-d1*d6
+    if vb<=0 and d2>=0 and d6<=0:
+        w=d2/(d2-d6); return a+w*ac, np.array([1-w,0.,w])
+    va=d3*d6-d5*d4
+    if va<=0 and (d4-d3)>=0 and (d5-d6)>=0:
+        w=(d4-d3)/((d4-d3)+(d5-d6)); return b+w*(c-b), np.array([0.,1-w,w])
+    den=va+vb+vc
+    if abs(den)<1e-12: return a, np.array([1.,0.,0.])
+    v=vb/den; w=vc/den; u=1-v-w
+    return u*a+v*b+w*c, np.array([u,v,w])
+
+def surface_cover(body, garment, ymax, ymin=0.0, protected=None, radius=1.15, side_limit=0.6):
+    # Compara o centro de cada triângulo da pele com triângulos reais da roupa,
+    # evitando apagar pele só porque existe um vértice de roupa próximo.
+    gp=garment["pos"]; gn=garment["nor"]; gi=garment["idx"]
+    bp=body["pos"]; bi=body["idx"]
+    centers=bp[bi].mean(axis=1)
+    tree=cKDTree(gp)
+    _, nearest=tree.query(centers, k=min(12,len(gp)), workers=-1)
+    if nearest.ndim==1: nearest=nearest[:,None]
+    incident=[[] for _ in range(len(gp))]
+    for ti, tri in enumerate(gi):
+        for v in tri: incident[int(v)].append(ti)
+    keep=np.zeros(len(bi),dtype=bool)
+    protected_set=set(protected or [])
+    body_bones=body["bi"][bi]; body_weights=body["bw"][bi]
+    for ti,p in enumerate(centers):
+        if p[1]<ymin or p[1]>ymax: continue
+        if protected_set and any(int(bone) in protected_set and weight>=.15
+                                 for bone,weight in zip(body_bones[ti].ravel(),body_weights[ti].ravel())):
+            continue
+        candidates=set()
+        for v in nearest[ti]:
+            candidates.update(incident[int(v)])
+        best_d2=float("inf"); best_side=float("inf")
+        for gj in candidates:
+            ids=gi[gj]; a,b,c=gp[ids]
+            q,bary=closest_point_triangle(p,a,b,c)
+            delta=p-q; d2=float(np.dot(delta,delta))
+            if d2>=best_d2: continue
+            n=(gn[ids]*bary[:,None]).sum(axis=0)
+            nl=float(np.linalg.norm(n))
+            side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
+            best_d2=d2; best_side=side
+        keep[ti]=(best_d2<=radius*radius and best_side<side_limit)
+    return keep
+
 def render_view(body, jacket, pants, masks, sex, view, show_jacket=True, show_pants=True, suffix=''):
     # Rasterizador ortográfico com z-buffer real: evita os falsos triângulos do painter sorting.
     if view in ("frente","costas"):
@@ -113,7 +172,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     hand_bones=set([11,12,15,16]+list(range(25,55)))
     foot_bones=set([18,19,20,22,23,24])
     # A jaqueta não apaga a cintura abaixo da barra; a calça não apaga pés/tornozelos.
-    jm=current_cover(body,jacket,neck_y-7,float(jacket["pos"][:,1].min())-1.0,hand_bones,3.2)
+    jm=surface_cover(body,jacket,neck_y-7,float(jacket["pos"][:,1].min())-1.0,hand_bones,1.15,0.6)
     # Sweep de limites/raios da calça para encontrar a menor máscara que ainda cobre a malha.
     pants_top=float(pants["pos"][:,1].max())
     waist_diag={}
@@ -121,13 +180,13 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
         for inset in (0.0,1.0,2.0,3.0):
             test=current_cover(body,pants,pants_top-inset,0.0,foot_bones,rad)
             waist_diag[f"r{rad}_inset{inset}"]={"waist_hidden":int((test&((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
-    pm=current_cover(body,pants,pants_top+0.5,0.0,foot_bones,2.4,0.6)
+    pm=surface_cover(body,pants,pants_top+0.5,0.0,foot_bones,1.15,0.6)
     # Diagnóstico específico da cueca/cintura: comparar quanto do corpo-base (cueca incluída)
     # é removido sob a calça, variando proximidade e lado da superfície.
     underwear_candidates={}
     for rad in (1.4,2.4,3.2,4.0):
         for side_limit in (-0.4,0.0,0.3,0.6):
-            test=current_cover(body,pants,pants_top+0.5,0.0,foot_bones,rad,side_limit)
+            test=surface_cover(body,pants,pants_top+0.5,0.0,foot_bones,rad,side_limit)
             key=f"r{rad}_side{side_limit}"
             underwear_candidates[key]={"waist_hidden":int((test & ((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
             if rad in (2.4,3.2) and side_limit in (0.0,0.6):
@@ -175,7 +234,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
       "pants_mask_sweep":waist_diag,
       "underwear_mask_candidates":underwear_candidates,
-      "pants_mask_candidate":{"radius_cm":2.4,"top_extension_cm":0.5,"side_limit":0.6},
+      "pants_mask_candidate":{"method":"closest garment triangle","radius_cm":1.15,"top_extension_cm":0.5,"side_limit":0.6},
       "combination_waist_masks":combo_counts,
       "hidden_waist_by_jacket":int((jm&waist).sum()),
       "hidden_waist_by_pants":int((pm&waist).sum()),
