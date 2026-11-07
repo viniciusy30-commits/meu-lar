@@ -34,7 +34,7 @@ public final class Cover {
      */
     public static void mark(float[] bpos, int[] bidx, float[] ppos, float[] pnor,
                             float radius, boolean[] mark, float ymin, float ymax,
-                            int[] bodyBones, float[] bodyWeights, int[] protectedBones) {
+                            int[] bodyBones, float[] bodyWeights, int[] protectedBones, float sideLimit) {
         if (ppos.length == 0) return;
         Grid g = new Grid(ppos, radius);
         int nt = bidx.length / 3;
@@ -74,7 +74,7 @@ public final class Cover {
             float side = (x - ppos[i * 3]) * pnor[i * 3]
                     + (y - ppos[i * 3 + 1]) * pnor[i * 3 + 1]
                     + (z - ppos[i * 3 + 2]) * pnor[i * 3 + 2];
-            if (side < 0.6f) mark[t] = true;
+            if (side < sideLimit) mark[t] = true;
         }
     }
 }
