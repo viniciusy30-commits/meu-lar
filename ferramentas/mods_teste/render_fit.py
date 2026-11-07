@@ -95,7 +95,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     y0=jacket["pos"][:,1].copy()
     w=np.clip((114.0-y0)/13.0,0.0,1.0)
     w=w*w*(3.0-2.0*w)
-    jacket["pos"][:,1] += 5.0*w
+    jacket["pos"][:,1] += 0.8*w
     jacket["pos"] += jacket["nor"]*(1.40*w[:,None])
     neck_y=158.24 if grp=="am5" else 156.52
     hand_bones=set([11,12,15,16]+list(range(25,55)))
@@ -142,7 +142,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     near=ds<1.0
     report[sex]={
       "jacket_y_range_cm":[float(jacket["pos"][:,1].min()),float(jacket["pos"][:,1].max())],
-      "jacket_hem_lift_max_cm":5.0,"jacket_hem_outset_max_cm":1.40,
+      "jacket_hem_lift_max_cm":0.8,"jacket_hem_outset_max_cm":1.40,
       "mask_protected_hand_bones":sorted(hand_bones),"mask_protected_foot_bones":sorted(foot_bones),
       "pants_y_range_cm":[float(pants["pos"][:,1].min()),float(pants["pos"][:,1].max())],
       "jacket_z_range_cm":[float(jacket["pos"][:,2].min()),float(jacket["pos"][:,2].max())],
