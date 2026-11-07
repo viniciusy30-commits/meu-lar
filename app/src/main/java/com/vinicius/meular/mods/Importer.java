@@ -33,10 +33,22 @@ public final class Importer {
         String base = cleanName(fileName);
         List<RawMesh> meshes = new ArrayList<>();
         Img tex = null;
+        byte[] ts4CasPart = null;
+        List<Pkg.Ent> caspEntries = pkg.ofType(0x034AEECB);
         try {
-            tex = pickTexture(pkg, game);
+            if (game == 4 && !caspEntries.isEmpty()) {
+                // No Sims 4, cada CASP aponta para a textura exata da variante e para os GEOMs
+                // do item. Nunca escolher a maior RLE2 do package: isso mistura swatches.
+                ts4CasPart = pkg.read(caspEntries.get(0));
+                tex = pickReferencedTexture(pkg, ts4CasPart);
+            } else {
+                tex = pickTexture(pkg, game);
+            }
         } catch (Exception e) {
-            out.notes.add("Textura não lida: " + e.getMessage());
+            out.notes.add("Textura vinculada ao CASP não lida: " + e.getMessage());
+        }
+        if (game == 4 && !caspEntries.isEmpty() && tex == null) {
+            throw new Exception("O CASP não apontou para uma textura base que o importador consiga ler. Importação cancelada para evitar roupa cinza ou com cores de outra variante.");
         }
         if (game == 2) {
             for (Pkg.Ent e : pkg.ofType(Gmdc.T_GMDC)) {
@@ -45,7 +57,10 @@ public final class Importer {
                 if (all != null) { all.name = base; meshes.add(all); }
             }
         } else {
-            List<Pkg.Ent> ge = pkg.ofType(Geom.T_GEOM);
+            List<Pkg.Ent> ge = (game == 4 && ts4CasPart != null)
+                    ? referencedEntries(pkg, ts4CasPart, Geom.T_GEOM)
+                    : pkg.ofType(Geom.T_GEOM);
+            if (ge.isEmpty()) ge = pkg.ofType(Geom.T_GEOM);
             List<RawMesh> cand = new ArrayList<>();
             int bad = 0, small = 0;
             String firstErr = "";
@@ -265,6 +280,48 @@ public final class Importer {
             io += m.idx.length;
         }
         return r;
+    }
+
+    /**
+     * Lê a referência TGI do CASP. A ordem no bloco CASP é instance-low,
+     * instance-high, group, type (cada campo little-endian). Isso vincula a
+     * roupa à textura base correta em vez de selecionar uma RLE2 aleatória.
+     */
+    private static boolean containsTgi(byte[] data, Pkg.Ent e) {
+        if (data == null || data.length < 16) return false;
+        int[] v = {e.i1, e.i2, e.group, e.type};
+        for (int p = 0; p <= data.length - 16; p++) {
+            boolean ok = true;
+            for (int k = 0; k < 4 && ok; k++) {
+                int q = p + k * 4, x = v[k];
+                if ((data[q] & 255) != (x & 255)
+                        || (data[q + 1] & 255) != ((x >>> 8) & 255)
+                        || (data[q + 2] & 255) != ((x >>> 16) & 255)
+                        || (data[q + 3] & 255) != ((x >>> 24) & 255)) ok = false;
+            }
+            if (ok) return true;
+        }
+        return false;
+    }
+
+    private static List<Pkg.Ent> referencedEntries(Pkg pkg, byte[] casp, int type) {
+        List<Pkg.Ent> out = new ArrayList<>();
+        for (Pkg.Ent e : pkg.ofType(type)) if (containsTgi(casp, e)) out.add(e);
+        return out;
+    }
+
+    private static Img pickReferencedTexture(Pkg pkg, byte[] casp) throws Exception {
+        List<Pkg.Ent> refs = referencedEntries(pkg, casp, Tex.T_RLE2);
+        refs.addAll(referencedEntries(pkg, casp, Tex.T_IMG));
+        Exception last = null;
+        for (Pkg.Ent e : refs) {
+            try {
+                byte[] b = pkg.read(e);
+                return e.type == Tex.T_RLE2 ? Tex.rle2(b) : Tex.dds(b);
+            } catch (Exception ex) { last = ex; }
+        }
+        if (last != null) throw last;
+        throw new Exception("nenhuma RLE2/IMG referenciada por este CASP");
     }
 
     private static Img pickTexture(Pkg pkg, int game) throws Exception {
