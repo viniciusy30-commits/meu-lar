@@ -1,0 +1,48 @@
+import com.vinicius.meular.mods.*;
+import java.io.*;
+import java.nio.*;
+import java.nio.file.*;
+import java.util.*;
+
+/** Conversor OFFLINE dos três CCs Minimalist. Não altera o importador do jogo. */
+public final class T3 {
+  static BodyRef body(Path p) throws Exception {
+    ByteBuffer b=ByteBuffer.wrap(Files.readAllBytes(p)).order(ByteOrder.LITTLE_ENDIAN);
+    if(b.getInt()!=0x31505543) throw new Exception("Corpo CUP1 inválido: "+p);
+    int nv=b.getInt(), ni=b.getInt(); b.getInt();
+    float[] pos=new float[nv*3], nor=new float[nv*3], bw=new float[nv*4];
+    int[] bi=new int[nv*4];
+    for(int v=0;v<nv;v++){
+      for(int k=0;k<3;k++)pos[v*3+k]=b.getFloat();
+      for(int k=0;k<3;k++)nor[v*3+k]=b.getFloat();
+      b.getFloat(); b.getFloat(); b.position(b.position()+4);
+      for(int k=0;k<4;k++)bi[v*4+k]=b.get()&255;
+      for(int k=0;k<4;k++)bw[v*4+k]=(b.get()&255)/255f;
+    }
+    int[] idx=new int[ni]; for(int i=0;i<ni;i++)idx[i]=b.getShort()&65535;
+    return new BodyRef(pos,nor,bi,bw,idx,null,96.8f/0.9861f);
+  }
+  public static void main(String[] a) throws Exception {
+    if(a.length!=3) throw new Exception("Uso: T3 top.package short.package jeans.package");
+    Path root=Paths.get(".").toAbsolutePath();
+    BodyRef male=body(root.resolve("app/src/main/assets/cute/p_body_am5.bin"));
+    String[] ids={"minimalist_top_am5","minimalist_short_am5","minimalist_jeans_am5"};
+    String[] slots={"top","bottom","bottom"};
+    String[] names={"Camiseta Minimalist","Short Minimalist","Calça jeans Minimalist"};
+    Path out=root.resolve("app/src/main/assets/cute/skate"); Files.createDirectories(out);
+    for(int i=0;i<3;i++){
+      Path src=root.resolve(a[i]);
+      if(!Files.isRegularFile(src)) throw new Exception("Pacote ausente: "+src);
+      Importer.Out converted=Importer.convert(Files.readAllBytes(src),src.getFileName().toString(),male);
+      if(converted.pieces.size()!=1) throw new Exception(names[i]+": esperado 1 modelo LOD0, recebidos "+converted.pieces.size()+"; "+converted.notes);
+      Importer.PieceOut piece=converted.pieces.get(0);
+      if(!slots[i].equals(piece.slot)) throw new Exception(names[i]+": slot calculado "+piece.slot+"; esperado "+slots[i]+". Conversão cancelada para não cadastrar no lugar errado.");
+      if(piece.fit>30.0) throw new Exception(names[i]+": encaixe reprovado (erro "+piece.fit+").");
+      if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
+      Files.write(out.resolve(ids[i]+".cup"),piece.cup);
+      Files.write(out.resolve(ids[i]+".png"),piece.png);
+      System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
+      for(String note:converted.notes) System.out.println("INFO "+ids[i]+": "+note);
+    }
+  }
+}
