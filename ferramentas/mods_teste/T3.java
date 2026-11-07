@@ -183,10 +183,11 @@ public final class T3 {
       if(!piece.hasTex || piece.png==null) throw new Exception(names[i]+": textura não foi convertida.");
       Img raw=rawTexture(new Pkg(packageBytes));
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
-      piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
-      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length);
-      byte[] fitted=trimByAlpha(piece.cup,raw);
-      fitted=improveFit(fitted,male,i==2);
+      // O atlas tem grandes áreas transparentes: preserva o alpha para o GPU recortar por pixel.
+      // Não elimina triângulos inteiros por amostras de UV (isso criava buracos nas mangas e barras).
+      piece.alpha=true; piece.png=raw.limit(1024).pot().png();
+      System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length+" | alpha-cutout=GPU");
+      byte[] fitted=improveFit(piece.cup,male,i==2);
       Files.write(out.resolve(ids[i]+".cup"),fitted);
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
