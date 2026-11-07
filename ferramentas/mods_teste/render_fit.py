@@ -37,13 +37,13 @@ def render_view(body, jacket, pants, masks, sex, view):
     # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
     if view in ("frente","costas"):
         xy=lambda p: p[:,[0,1]]
-        depth=lambda p: p[:,2] if view=="frente" else -p[:,2]
+        depth=lambda p: p[:,:,2] if view=="frente" else -p[:,:,2]
     elif view=="lado":
         xy=lambda p: p[:,[2,1]]
-        depth=lambda p: p[:,0]
+        depth=lambda p: p[:,:,0]
     else:
         xy=lambda p: p[:,[2,1]]
-        depth=lambda p: -p[:,0]
+        depth=lambda p: -p[:,:,0]
     faces=[]
     for mesh,color,mask in [(body,(0.83,0.66,0.54,1.0),masks),(jacket,(0.20,0.23,0.29,1.0),None),(pants,(0.22,0.38,0.62,1.0),None)]:
         tri=mesh["idx"]
