@@ -47,6 +47,37 @@ public final class T3 {
     if(last!=null)throw last;
     throw new Exception("Textura base referenciada não encontrada");
   }
+
+  static byte[] trimByAlpha(byte[] cup,Img tex) throws Exception {
+    ByteBuffer b=ByteBuffer.wrap(cup).order(ByteOrder.LITTLE_ENDIAN);
+    if(b.get()!='C'||b.get()!='U'||b.get()!='P'||b.get()!='1')throw new Exception("CUP1 inválido para recorte alpha");
+    int nv=b.getInt(),ni=b.getInt();b.getInt();
+    int vertexEnd=16+nv*44;
+    if(vertexEnd+(long)ni*2>cup.length)throw new Exception("CUP1 truncado");
+    float[] uv=new float[nv*2];
+    for(int v=0;v<nv;v++){int q=16+v*44+24;uv[v*2]=b.getFloat(q);uv[v*2+1]=b.getFloat(q+4);}
+    int[] kept=new int[ni];int count=0;
+    for(int q=0;q<ni;q+=3){
+      int a=b.getShort(vertexEnd+q*2)&65535,bb=b.getShort(vertexEnd+(q+1)*2)&65535,cc=b.getShort(vertexEnd+(q+2)*2)&65535;
+      int[][] samples={{a,bb,cc},{a,bb,cc},{a,bb,cc},{a,bb,cc}};
+      float[][] coords={{(uv[a*2]+uv[bb*2]+uv[cc*2])/3f,(uv[a*2+1]+uv[bb*2+1]+uv[cc*2+1])/3f},
+        {uv[a*2],uv[a*2+1]},{uv[bb*2],uv[bb*2+1]},{uv[cc*2],uv[cc*2+1]}};
+      int opaque=0,total=0;
+      for(float[] xy:coords){
+        int x=Math.max(0,Math.min(tex.w-1,(int)(xy[0]*tex.w)));
+        int y=Math.max(0,Math.min(tex.h-1,(int)(xy[1]*tex.h)));
+        if((tex.argb[y*tex.w+x]>>>24)>=128)opaque++;
+        total++;
+      }
+      if(opaque>=2){kept[count++]=a;kept[count++]=bb;kept[count++]=cc;}
+    }
+    if(count<Math.max(30,ni/20))throw new Exception("Recorte alpha removeu quase toda a roupa: "+count/3+"/"+ni/3+" triângulos");
+    ByteBuffer out=ByteBuffer.allocate(vertexEnd+count*2).order(ByteOrder.LITTLE_ENDIAN);
+    out.put(cup,0,vertexEnd);out.putInt(8,count);
+    for(int i=0;i<count;i++)out.putShort((short)kept[i]);
+    System.out.println("ALPHA_TRIM triangles="+ni/3+" -> "+count/3);
+    return out.array();
+  }
   public static void main(String[] a) throws Exception {
     if(a.length!=3) throw new Exception("Uso: T3 top.package short.package jeans.package");
     Path root=Paths.get(".").toAbsolutePath();
@@ -69,7 +100,7 @@ public final class T3 {
       int transparent=0; for(int px:raw.argb) if((px>>>24)<250) transparent++;
       piece.alpha=false; piece.png=raw.opaque().limit(1024).pot().png();
       System.out.println("TEXTURE "+ids[i]+" | "+raw.w+"x"+raw.h+" | alpha-channel-transparent="+transparent+" | transparent="+transparent+"/"+raw.argb.length);
-      Files.write(out.resolve(ids[i]+".cup"),piece.cup);
+      Files.write(out.resolve(ids[i]+".cup"),trimByAlpha(piece.cup,raw));
       Files.write(out.resolve(ids[i]+".png"),piece.png);
       System.out.println("OK "+ids[i]+" | "+piece.slot+" | vertices="+piece.verts+" | fit="+piece.fit+" | cup="+piece.cup.length+" | png="+piece.png.length);
       for(String note:converted.notes) System.out.println("INFO "+ids[i]+": "+note);
