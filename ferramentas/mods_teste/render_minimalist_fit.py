@@ -18,12 +18,15 @@ def read(p):
  return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"uv":v["uv"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
 body=read(ROOT/"p_body_am5.bin")
 items={n:read(ROOT/"skate"/(n+".cup")) for n in ("minimalist_top_am5","minimalist_short_am5","minimalist_jeans_am5")}
+for n,g in items.items():
+ g["tex"]=np.asarray(Image.open(ROOT/"skate"/(n+".png")).convert("RGBA"))
+ g["alpha"]=bool(np.any(g["tex"][:,:,3]<250))
 # Métrica de proximidade roupa-corpo em pontos amostrados; não substitui inspeção visual no aparelho.
 metrics={}
 tree=cKDTree(body["pos"])
 for n,g in items.items():
  d,_=tree.query(g["pos"],k=1)
- metrics[n]={"vertices":len(g["pos"]),"triangles":len(g["idx"]),"y_min":float(g["pos"][:,1].min()),"y_max":float(g["pos"][:,1].max()),"nearest_body_mean_cm":float(d.mean()),"nearest_body_p95_cm":float(np.percentile(d,95)),"uv_min":g["uv"].min(axis=0).tolist(),"uv_max":g["uv"].max(axis=0).tolist()}
+ metrics[n]={"vertices":len(g["pos"]),"triangles":len(g["idx"]),"y_min":float(g["pos"][:,1].min()),"y_max":float(g["pos"][:,1].max()),"nearest_body_mean_cm":float(d.mean()),"nearest_body_p95_cm":float(np.percentile(d,95)),"uv_min":g["uv"].min(axis=0).tolist(),"uv_max":g["uv"].max(axis=0).tolist(),"texture_alpha":g["alpha"],"transparent_texture_pixels":int(np.sum(g["tex"][:,:,3]<250)),"texture_pixels":int(g["tex"].shape[0]*g["tex"].shape[1])}
 def closest_point_triangle(p,a,b,c):
  ab=b-a; ac=c-a; ap=p-a
  d1=np.dot(ab,ap); d2=np.dot(ac,ap)
@@ -98,8 +101,10 @@ def render(names,view):
  W,H=720,1080; scale=min((W-24)/span,(H-24)/span); center=(lo+hi)/2
  zbuf=np.full((H,W),-np.inf,np.float32); canvas=np.full((H,W,3),235,np.uint8)
  for mesh,color,mask in meshes:
-  pos=mesh["pos"]; tri=mesh["idx"]
+  pos=mesh["pos"]; tri=mesh["idx"]; tex=mesh.get("tex")
   if mask is not None: tri=tri[~mask]
+  th,tw=(tex.shape[:2] if tex is not None else (0,0))
+  uv=mesh.get("uv")
   for ids in tri:
    xyz=pos[ids]; xy=project(xyz); px=(W/2+(xy[:,0]-center[0])*scale); py=(H/2-(xy[:,1]-center[1])*scale); zz=depth(xyz)
    x0=max(0,int(np.floor(px.min()))); x1=min(W-1,int(np.ceil(px.max())))
@@ -111,10 +116,20 @@ def render(names,view):
    gx,gy=np.meshgrid(np.arange(x0,x1+1)+.5,np.arange(y0,y1+1)+.5)
    a=((by-cy)*(gx-cx)+(cx-bx)*(gy-cy))/den
    b=((cy-ay)*(gx-cx)+(ax-cx)*(gy-cy))/den
-   c=1-a-b; inside=(a>=-1e-5)&(b>=-1e-5)&(c>=-1e-5)
-   z=a*zz[0]+b*zz[1]+c*zz[2]; sub=zbuf[y0:y1+1,x0:x1+1]
+   cc=1-a-b; inside=(a>=-1e-5)&(b>=-1e-5)&(cc>=-1e-5)
+   z=a*zz[0]+b*zz[1]+cc*zz[2]; sub=zbuf[y0:y1+1,x0:x1+1]
    take=inside&(z>sub)
-   if take.any(): sub[take]=z[take]; canvas[y0:y1+1,x0:x1+1][take]=color
+   if not take.any(): continue
+   if tex is not None:
+    u=(a*uv[ids[0],0]+b*uv[ids[1],0]+cc*uv[ids[2],0])
+    v=(a*uv[ids[0],1]+b*uv[ids[1],1]+cc*uv[ids[2],1])
+    tx=tex[np.clip((v*th).astype(int),0,th-1),np.clip((u*tw).astype(int),0,tw-1)]
+    take &= tx[:,:,3]>=115
+    if not take.any(): continue
+    outcolor=tx[:,:,:3]
+   else: outcolor=np.empty((y1-y0+1,x1-x0+1,3),dtype=np.uint8);outcolor[:]=color
+   sub[take]=z[take]
+   canvas[y0:y1+1,x0:x1+1][take]=outcolor[take]
  im=Image.fromarray(canvas); ImageDraw.Draw(im).text((14,12),"MASCULINO — "+(" + ".join(names) if names else "corpo") +" — "+view,fill=(15,15,15))
  return im
 combos={"camiseta_short":["minimalist_top_am5","minimalist_short_am5"],"camiseta_jeans":["minimalist_top_am5","minimalist_jeans_am5"],"short":["minimalist_short_am5"],"jeans":["minimalist_jeans_am5"],"camiseta":["minimalist_top_am5"]}
