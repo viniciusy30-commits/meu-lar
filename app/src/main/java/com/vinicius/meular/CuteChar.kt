@@ -389,8 +389,8 @@ object CuteChar {
                         lower = hem - 1.0f
                     }
                     if (m.key.contains("minimalist_top_am5") || m.key.contains("minimalist_short_am5") || m.key.contains("minimalist_jeans_am5")) {
-                        // Máscara curta e precisa: esconde somente a pele imediatamente sob o tecido.
-                        // Mantém mãos e pés; não apaga pernas/tornozelos fora da barra.
+                        // Máscara calibrada na prévia frontal, traseira e lateral do corpo masculino.
+                        // Mantém mãos e pés; evita pele atravessando a roupa sem cortar as extremidades.
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
                         val jeans = m.key.contains("minimalist_jeans_am5")
                         val maxDistance = if (jeans) 6.0f else 4.5f
