@@ -371,7 +371,21 @@ object CuteChar {
                     val r = BooleanArray(sims.ni / 3)
                     val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
                     val lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
-                    com.vinicius.meular.mods.Cover.mark(sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lim)
+                    val protect = when (sl) {
+                        "jacket" -> COVER_HAND_BONES
+                        "bottom" -> COVER_FOOT_BONES
+                        else -> null
+                    }
+                    var lower = 0f
+                    if (sl == "jacket") {
+                        var hem = Float.MAX_VALUE
+                        for (v in 1 until m.pos0.size step 3) if (m.pos0[v] < hem) hem = m.pos0[v]
+                        lower = hem - 1.0f
+                    }
+                    com.vinicius.meular.mods.Cover.mark(
+                        sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lower, lim,
+                        sims.bi, sims.bw, protect
+                    )
                     r
                 }
                 for (i in cv.indices) if (cv[i]) { mk[i] = true; any = true }
@@ -434,10 +448,33 @@ object CuteChar {
     private class ModJob(val key: String, val cup: ByteArray?, val bmp: android.graphics.Bitmap?, val alpha: Boolean)
     private val modJobs = java.util.concurrent.ConcurrentLinkedQueue<ModJob>()
     private val coverCache = HashMap<String, BooleanArray>()
+    // Índices do esqueleto TS4: mãos/dedos e pés/dedos dos pés.
+    private val COVER_HAND_BONES = intArrayOf(12, 16, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54)
+    private val COVER_FOOT_BONES = intArrayOf(18, 19, 20, 22, 23, 24)
 
     /** Chamar de qualquer thread: coloca (ou troca) a peça importada [key]; cup == null remove. A GL cuida do resto no próximo quadro. */
     fun enqueueMod(key: String, cup: ByteArray?, bmp: android.graphics.Bitmap?, alpha: Boolean) {
         modJobs.add(ModJob(key, cup, bmp, alpha))
+    }
+
+    /** Ajusta a barra da jaqueta para não atravessar a cintura da calça cargo. */
+    private fun adjustHoodHem(s: Skin) {
+        for (v in 0 until s.nv) {
+            val o = v * 3
+            val y = s.pos0[o + 1]
+            val t = ((112f - y) / 11f).coerceIn(0f, 1f)
+            val w = t * t * (3f - 2f * t)
+            if (w <= 0f) continue
+            val push = 1.4f * w
+            val lift = 3f * w
+            for (k in 0..2) {
+                val d = s.nor0[o + k] * push
+                s.pos0[o + k] += d
+                s.pos[o + k] += d
+            }
+            s.pos0[o + 1] += lift
+            s.pos[o + 1] += lift
+        }
     }
 
     private fun runModJobs() {
@@ -457,6 +494,7 @@ object CuteChar {
                 val tname = "mod:" + j.key
                 val sk = readPieceBytes(j.cup, j.key, tname)
                 sk.mod = true
+                if (j.key.contains("hood_af5") || j.key.contains("hood_am5")) adjustHoodHem(sk)
                 sk.modAlpha = j.alpha
                 sk.legCol = j.key.startsWith("bottom/") && j.key.contains("autumn")
                 val ids = IntArray(1)

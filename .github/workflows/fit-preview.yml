@@ -6,6 +6,8 @@ on:
       - 'app/src/main/assets/cute/p_body_*.bin'
       - 'app/src/main/assets/cute/skate/hood_*.cup'
       - 'app/src/main/assets/cute/skate/hcargo_*.cup'
+      - 'app/src/main/java/com/vinicius/meular/CuteChar.kt'
+      - 'app/src/main/java/com/vinicius/meular/mods/Cover.java'
       - 'ferramentas/mods_teste/render_fit.py'
       - '.github/workflows/fit-preview.yml'
 permissions:
