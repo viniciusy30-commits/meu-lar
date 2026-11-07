@@ -15,7 +15,7 @@ def read(p):
  v=np.frombuffer(b,dtype=dt,count=nv,offset=16)
  idx=np.frombuffer(b,dtype="<u2",count=ni,offset=16+nv*44).reshape(-1,3).astype(np.int32)
  if idx.max()>=nv: raise ValueError(f"índice fora da malha: {p}")
- return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"uv":v["uv"].copy(),"idx":idx}
+ return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"uv":v["uv"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
 body=read(ROOT/"p_body_am5.bin")
 items={n:read(ROOT/"skate"/(n+".cup")) for n in ("minimalist_top_am5","minimalist_short_am5","minimalist_jeans_am5")}
 # Métrica de proximidade roupa-corpo em pontos amostrados; não substitui inspeção visual no aparelho.
@@ -24,13 +24,58 @@ tree=cKDTree(body["pos"])
 for n,g in items.items():
  d,_=tree.query(g["pos"],k=1)
  metrics[n]={"vertices":len(g["pos"]),"triangles":len(g["idx"]),"y_min":float(g["pos"][:,1].min()),"y_max":float(g["pos"][:,1].max()),"nearest_body_mean_cm":float(d.mean()),"nearest_body_p95_cm":float(np.percentile(d,95)),"uv_min":g["uv"].min(axis=0).tolist(),"uv_max":g["uv"].max(axis=0).tolist()}
-def cover(g):
- # Oculta a pele apenas onde a superfície da roupa está realmente próxima.
- tri=body["idx"]; centers=body["pos"][tri].mean(axis=1)
- tr=cKDTree(g["pos"]); d,_=tr.query(centers,k=1)
- return (d<1.65)
+def closest_point_triangle(p,a,b,c):
+ ab=b-a; ac=c-a; ap=p-a
+ d1=np.dot(ab,ap); d2=np.dot(ac,ap)
+ if d1<=0 and d2<=0:return a,np.array([1.,0.,0.])
+ bp=p-b; d3=np.dot(ab,bp); d4=np.dot(ac,bp)
+ if d3>=0 and d4<=d3:return b,np.array([0.,1.,0.])
+ vc=d1*d4-d3*d2
+ if vc<=0 and d1>=0 and d3<=0:
+  v=d1/(d1-d3);return a+v*ab,np.array([1-v,v,0.])
+ cp=p-c; d5=np.dot(ab,cp); d6=np.dot(ac,cp)
+ if d6>=0 and d5<=d6:return c,np.array([0.,0.,1.])
+ vb=d5*d2-d1*d6
+ if vb<=0 and d2>=0 and d6<=0:
+  w=d2/(d2-d6);return a+w*ac,np.array([1-w,0.,w])
+ va=d3*d6-d5*d4
+ if va<=0 and d4-d3>=0 and d5-d6>=0:
+  w=(d4-d3)/((d4-d3)+(d5-d6));return b+w*(c-b),np.array([0.,1-w,w])
+ den=va+vb+vc
+ if abs(den)<1e-12:return a,np.array([1.,0.,0.])
+ v=vb/den;w=vc/den;u=1-v-w
+ return u*a+v*b+w*c,np.array([u,v,w])
+def cover(g,radius=3.2,protected=None):
+ gp=g["pos"];gn=g["nor"];gi=g["idx"];bp=body["pos"];bi=body["idx"]
+ centers=bp[bi].mean(axis=1);tree=cKDTree(gp)
+ _,nearest=tree.query(centers,k=min(12,len(gp)),workers=-1)
+ if nearest.ndim==1:nearest=nearest[:,None]
+ incident=[[] for _ in range(len(gp))]
+ for tj,tri in enumerate(gi):
+  for v in tri:incident[int(v)].append(tj)
+ keep=np.zeros(len(bi),dtype=bool); protected_set=set(protected or [])
+ body_bones=body["bi"][bi];body_weights=body["bw"][bi]
+ for ti,center in enumerate(centers):
+  if protected_set and any(int(bone) in protected_set and weight>=.15 for bone,weight in zip(body_bones[ti].ravel(),body_weights[ti].ravel())):continue
+  samples=np.vstack((center,bp[bi[ti]]));covered=0
+  for point in samples:
+   _,near=tree.query(point,k=min(12,len(gp)),workers=-1)
+   if np.isscalar(near):near=[int(near)]
+   candidates=set()
+   for v in np.atleast_1d(near):candidates.update(incident[int(v)])
+   best_d2=float("inf");best_side=float("inf")
+   for gj in candidates:
+    ids=gi[gj];a,b,cc=gp[ids];q,bary=closest_point_triangle(point,a,b,cc)
+    delta=point-q;d2=float(np.dot(delta,delta))
+    if d2>=best_d2:continue
+    n=(gn[ids]*bary[:,None]).sum(axis=0);nl=float(np.linalg.norm(n))
+    side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
+    best_d2=d2;best_side=side
+   if best_d2<=radius*radius and best_side<0.6:covered+=1
+  keep[ti]=covered>=3
+ return keep
 def render(names,view):
- masks=[cover(items[n]) for n in names]
+ masks=[cover(items[n],3.2,([11,12,15,16]+list(range(25,55)) if n=="minimalist_top_am5" else [18,19,20,22,23,24])) for n in names]
  hide=np.logical_or.reduce(masks) if masks else np.zeros(len(body["idx"]),bool)
  if view in ("frente","costas"):
   project=lambda p:p[:,[0,1]]
