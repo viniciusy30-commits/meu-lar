@@ -96,7 +96,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     w=np.clip((114.0-y0)/13.0,0.0,1.0)
     w=w*w*(3.0-2.0*w)
     jacket["pos"][:,1] += 0.8*w
-    jacket["pos"] += jacket["nor"]*(1.40*w[:,None])
+    jacket["pos"] += jacket["nor"]*(0.40*w[:,None])
     neck_y=158.24 if grp=="am5" else 156.52
     hand_bones=set([11,12,15,16]+list(range(25,55)))
     foot_bones=set([18,19,20,22,23,24])
