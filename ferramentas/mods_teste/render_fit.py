@@ -37,7 +37,7 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None):
         keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
     return keep
 
-def render_view(body, jacket, pants, masks, sex, view):
+def render_view(body, jacket, pants, masks, sex, view, show_jacket=True, show_pants=True, suffix=''):
     # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
     if view in ("frente","costas"):
         xy=lambda p: p[:,:,[0,1]]
@@ -49,7 +49,10 @@ def render_view(body, jacket, pants, masks, sex, view):
         xy=lambda p: p[:,[2,1]]
         depth=lambda p: -p[:,:,0]
     faces=[]
-    for mesh,color,mask in [(body,(0.83,0.66,0.54,1.0),masks),(jacket,(0.20,0.23,0.29,1.0),None),(pants,(0.22,0.38,0.62,1.0),None)]:
+    meshes=[(body,(0.83,0.66,0.54,1.0),masks)]
+    if show_jacket: meshes.append((jacket,(0.20,0.23,0.29,1.0),None))
+    if show_pants: meshes.append((pants,(0.22,0.38,0.62,1.0),None))
+    for mesh,color,mask in meshes:
         tri=mesh["idx"]
         if mask is not None: tri=tri[~mask]
         pos=mesh["pos"]
@@ -64,7 +67,10 @@ def render_view(body, jacket, pants, masks, sex, view):
     ax.set_facecolor("#e8e8e8")
     coll=PolyCollection([f[1] for f in faces],facecolors=[f[2] for f in faces],edgecolors="none",closed=True)
     ax.add_collection(coll)
-    p=np.concatenate([body["pos"],jacket["pos"],pants["pos"]])
+    visible=[body["pos"]]
+    if show_jacket: visible.append(jacket["pos"])
+    if show_pants: visible.append(pants["pos"])
+    p=np.concatenate(visible)
     if view in ("frente","costas"):
         xx=p[:,0]; yy=p[:,1]
     else:
@@ -74,9 +80,9 @@ def render_view(body, jacket, pants, masks, sex, view):
     ax.set_xlim(cx-span*.58,cx+span*.58)
     ax.set_ylim(yy.min()-4,yy.max()+4)
     ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title(f"{sex.upper()} — {view}",fontsize=12)
+    ax.set_title(f"{sex.upper()} — {suffix or view}",fontsize=12)
     fig.tight_layout(pad=0.2)
-    fig.savefig(OUT/f"{sex}_{view}.png",bbox_inches="tight",pad_inches=.04)
+    fig.savefig(OUT/f"{sex}_{suffix or view}.png",bbox_inches="tight",pad_inches=.04)
     plt.close(fig)
 
 report={}
@@ -98,6 +104,17 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     jm=current_cover(body,jacket,neck_y-7,102.0,hand_bones)
     pm=current_cover(body,pants,9999,0.0,foot_bones)
     combined=jm|pm
+    waist=(centers if False else body["pos"][body["idx"]].mean(axis=1))
+    waist=(waist[:,1]>=72)&(waist[:,1]<=108)
+    combos={"sem_roupa":(np.zeros_like(combined),False,False),
+            "so_jaqueta":(jm,True,False),
+            "so_calca":(pm,False,True),
+            "jaqueta_e_calca":(combined,True,True)}
+    combo_counts={}
+    for name,(mask,showj,showp) in combos.items():
+        combo_counts[name]={"cintura_total":int(waist.sum()),"cintura_oculta":int((mask&waist).sum())}
+        for view in ("frente","costas"):
+            render_view(body,jacket,pants,mask,sex,view,showj,showp,f"{name}_{view}")
     centers=body["pos"][body["idx"]].mean(axis=1)
     # Bones de mão/dedos conforme ARM_L/ARM_R em CuteChar.kt.
     hand_bones=set([12,16]+list(range(25,55)))
@@ -126,7 +143,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_hand_bone_weights":bone_distribution(combined&hand),
       "hidden_low_foot_bone_weights":bone_distribution(combined&foot),
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
-      "hidden_waist_by_jacket":int((jm&waist).sum()),
+      "combination_waist_masks":combo_counts,\n      "hidden_waist_by_jacket":int((jm&waist).sum()),
       "hidden_waist_by_pants":int((pm&waist).sum()),
       "jacket_pants_close_y_range_cm":[float(jacket["pos"][seam][near,1].min()),float(jacket["pos"][seam][near,1].max())] if np.any(near) else None,
       "jacket_pants_close_z_range_cm":[float(jacket["pos"][seam][near,2].min()),float(jacket["pos"][seam][near,2].max())] if np.any(near) else None,
@@ -140,15 +157,15 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "back_waist_min_distance_cm":float(ds.min()) if len(ds) else None
     }
     for view in ("frente","costas","lado"):
-        render_view(body,jacket,pants,combined,sex,view)
+        render_view(body,jacket,pants,combined,sex,view,True,True)
 
 (OUT/"diagnostico.json").write_text(json.dumps(report,indent=2,ensure_ascii=False))
 # Contact sheet
 from PIL import Image, ImageDraw
-files=[OUT/f"{s}_{v}.png" for s in ("masculino","feminino") for v in ("frente","costas","lado")]
+files=[OUT/f"{s}_{c}_{v}.png" for s in ("masculino","feminino") for c in ("sem_roupa","so_jaqueta","so_calca","jaqueta_e_calca") for v in ("frente","costas")]
 ims=[Image.open(f).convert("RGB") for f in files]
 w=max(i.width for i in ims); h=max(i.height for i in ims)
-sheet=Image.new("RGB",(w*3,h*2),"white")
-for k,im in enumerate(ims): sheet.paste(im.resize((w,h)),((k%3)*w,(k//3)*h))
-sheet.save(OUT/"comparativo.png")
+sheet=Image.new("RGB",(w*4,h*4),"white")
+for k,im in enumerate(ims): sheet.paste(im.resize((w,h)),((k%4)*w,(k//4)*h))
+sheet.save(OUT/"combinacoes_cintura.png")
 print(json.dumps(report,indent=2,ensure_ascii=False))
