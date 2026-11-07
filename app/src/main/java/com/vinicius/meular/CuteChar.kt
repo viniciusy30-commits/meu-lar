@@ -376,7 +376,7 @@ object CuteChar {
                         for (v in 1 until m.pos0.size step 3) if (m.pos0[v] > top) top = m.pos0[v]
                         lim = top + 0.5f
                     }
-                    val coverRadius = if (sl == "bottom") 2.4f else 3.2f
+                    val coverRadius = if (sl == "bottom") 4.0f else 5.0f
                     val protect = when (sl) {
                         "jacket" -> COVER_HAND_BONES
                         "bottom" -> COVER_FOOT_BONES
