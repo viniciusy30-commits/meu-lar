@@ -103,9 +103,13 @@ public final class Importer {
                     + (game == 2 ? "." : " (procurei GEOM)."));
         }
         Grid g = Fit.bodyGrid(body);
+        boolean ts4Hair = game == 4 && isTs4Hair(pkg);
         int n = 0;
         for (RawMesh m : meshes) {
             Fit.Placed p = Fit.place(m, body, g);
+            // O CASP identifica este conteúdo como cabelo. A malha fica acima dos ombros,
+            // então o classificador geométrico sozinho a confundiria com um chapéu.
+            if (ts4Hair) p.slot = "hairBack";
             int nv = m.nv();
             float[] uv = new float[nv * 2];
             for (int i = 0; i < nv; i++) {
@@ -209,6 +213,17 @@ public final class Importer {
         } catch (RuntimeException e) {
             return cup;
         }
+    }
+
+    /** Detecta cabelos TS4 pelo nome interno do CASP (ex.: JohnnySims_ymHair_...). */
+    private static boolean isTs4Hair(Pkg pkg) {
+        try {
+            for (Pkg.Ent e : pkg.ofType(0x034AEECB)) {
+                String name = new String(pkg.read(e), java.nio.charset.StandardCharsets.UTF_16LE);
+                if (name.contains("ymHair_") || name.contains("yfHair_")) return true;
+            }
+        } catch (Exception e) { /* pacote incompleto: mantém a classificação geométrica */ }
+        return false;
     }
 
     /** Sims 3: nome do modelo (daeFileName) que o CASP do recolor usa; vazio se não achar. */
