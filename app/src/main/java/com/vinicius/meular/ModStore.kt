@@ -461,3 +461,5 @@ object ModStore {
         load(it)
     }
 }
+
+// Build acionado apos a inclusao dos quatro cabelos Ross convertidos em assets.
