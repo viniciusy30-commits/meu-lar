@@ -198,7 +198,9 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     combos={"sem_roupa":(np.zeros_like(combined),False,False),
             "so_jaqueta":(jm,True,False),
             "so_calca":(pm,False,True),
-            "jaqueta_e_calca":(combined,True,True)}
+            "jaqueta_e_calca":(combined,True,True),
+            "so_calca_sem_mascara":(np.zeros_like(combined),False,True),
+            "jaqueta_e_calca_sem_mascara":(np.zeros_like(combined),True,True)}
     combo_counts={}
     for name,(mask,showj,showp) in combos.items():
         combo_counts[name]={"cintura_total":int(waist.sum()),"cintura_oculta":int((mask&waist).sum())}
@@ -255,7 +257,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
 (OUT/"diagnostico.json").write_text(json.dumps(report,indent=2,ensure_ascii=False))
 # Contact sheet
 from PIL import Image, ImageDraw
-files=[OUT/f"{s}_{c}_{v}.png" for s in ("masculino","feminino") for c in ("sem_roupa","so_jaqueta","so_calca","jaqueta_e_calca") for v in ("frente","costas")]
+files=[OUT/f"{s}_{c}_{v}.png" for s in ("masculino","feminino") for c in ("sem_roupa","so_jaqueta","so_calca","jaqueta_e_calca","so_calca_sem_mascara","jaqueta_e_calca_sem_mascara") for v in ("frente","costas")]
 ims=[Image.open(f).convert("RGB") for f in files]
 w=max(i.width for i in ims); h=max(i.height for i in ims)
 sheet=Image.new("RGB",(w*4,h*4),"white")
