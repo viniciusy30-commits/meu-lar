@@ -160,14 +160,18 @@ object ModStore {
             if (i >= 0) sel[id] = i
             worn.add(m.groupValues[1] + "/M_" + id)
         }
-        // Etapa 84: low fade com topo texturizado curto (original do jogo, ferramentas/sk_fade.py), todos os corpos
-        for (g in listOf("af", "am", "tf", "tm", "ef", "em", "cu", "pu")) items.add(Item("fade1_$g", "Low fade texturizado", "hairBack", g, 0, true, true, true))
+        // Low fade texturizado removido do catálogo a pedido do usuário.
         // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
         for (g in listOf("am", "tm", "em")) {
             items.add(Item("singlet_white_$g", "Regata baggy branca", "top", g, 0, true, true, true))
             items.add(Item("singlet_black_$g", "Regata baggy preta", "top", g, 0, true, true, true))
             items.add(Item("singlet_love_$g", "Regata love you (preta)", "top", g, 0, true, true, true))
             items.add(Item("singlet_haters_$g", "Regata haters (preta)", "top", g, 0, true, true, true))
+        }
+        // Remove também qualquer low fade antigo que tenha ficado salvo como equipado.
+        for (key in worn.filter { it.startsWith("hairBack/M_fade1_") }) {
+            worn.remove(key)
+            CuteChar.enqueueMod(key, null, null, false)
         }
         worn.retainAll(items.map { it.key }.toSet())
         saveIndex()   // regrava o índice sem os mods antigos do Sims 2/3
@@ -249,12 +253,12 @@ object ModStore {
     /** Miniatura da peça: embutida, ou gerada na primeira vez (peças importadas) e guardada em disco. Chamar fora da thread da tela. */
     fun thumb(it: Item): Bitmap? {
         if (it.builtin) {
-            val b = assetThumb(VARS[it.id]?.thumb ?: it.id) ?: return null
-            val vr = VARS[it.id]
-            return if (it.id.startsWith("ross1_") && vr != null) {
-                val tinted = tintBitmap(b, vr.colors[variantIndex(it.id)].argb)
-                b.recycle(); tinted
-            } else b
+            // Gera a miniatura com o Sim usando a peça, em vez de usar recortes isolados e inconsistentes.
+            return try { renderBuiltinThumb(it) ?: assetThumb(VARS[it.id]?.thumb ?: it.id) }
+            catch (e: Throwable) {
+                android.util.Log.e("ModStore", "prévia 3D " + it.id, e)
+                assetThumb(VARS[it.id]?.thumb ?: it.id)
+            }
         }
         val d = dir ?: return null
         val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".thumb.png")
@@ -262,6 +266,42 @@ object ModStore {
         val b = try { renderThumb(it) } catch (e: Throwable) { android.util.Log.e("ModStore", "miniatura " + it.id, e); null } ?: return null
         try { f.outputStream().use { o -> b.compress(Bitmap.CompressFormat.PNG, 100, o) } } catch (e: Throwable) { }
         return b
+    }
+
+    /** Miniatura de item nativo: corpo/cabeça de apoio + peça real + textura selecionada. */
+    private fun renderBuiltinThumb(it: Item): Bitmap? {
+        val am = CuteChar.assets ?: return null
+        val vr = VARS[it.id]
+        val slug = vr?.colors?.get(variantIndex(it.id))?.slug
+        val cupName = if (vr != null && slug != null) vr.cupOf(slug) else it.id
+        val pngName = if (vr != null && slug != null) vr.pngOf(slug) else it.id
+        val cup = am.open("cute/skate/$cupName.cup").use { it.readBytes() }
+        val opts = BitmapFactory.Options().apply { inPremultiplied = false }
+        var bmp = am.open("cute/skate/$pngName.png").use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+        if (it.id.startsWith("ross1_") && vr != null) {
+            val tinted = tintBitmap(bmp, vr.colors[variantIndex(it.id)].argb)
+            if (!bmp.isRecycled) bmp.recycle()
+            bmp = tinted
+        }
+        val tw = bmp.width
+        val th = bmp.height
+        val pixels = IntArray(tw * th)
+        bmp.getPixels(pixels, 0, tw, 0, 0, tw, th)
+        val parts = ArrayList<Thumb.Piece>()
+        val isHead = it.slot in setOf("hairBack", "hairFront", "hat", "headAcc", "glasses", "beard")
+        // Os corpos-base disponíveis são os adultos Sims 4; o grupo do item escolhe o sexo correspondente.
+        val bodyName = if (it.grp.startsWith("am") || it.grp == "tm" || it.grp == "em") "p_body_am5.bin" else "p_body_af5.bin"
+        try {
+            val body = Thumb.parse(am.open("cute/$bodyName").use { it.readBytes() })
+            val support = if (isHead) Thumb.headOf(body) else body
+            parts.add(Thumb.Piece(support, null, 0, 0, 0xFFE3BFA2.toInt(), false, true))
+        } catch (e: Throwable) {
+            android.util.Log.w("ModStore", "corpo de apoio indisponível para " + it.id, e)
+        }
+        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFFFFFFFF.toInt(), it.alpha))
+        val rendered = Thumb.render(parts, it.slot, 256)
+        if (!bmp.isRecycled) bmp.recycle()
+        return Bitmap.createBitmap(rendered, 256, 256, Bitmap.Config.ARGB_8888)
     }
 
     private fun renderThumb(it: Item): Bitmap? {
