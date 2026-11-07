@@ -73,7 +73,20 @@ object ModStore {
         VarColor("bege", "Bege", 0xFFC9A98E.toInt()),
         VarColor("ardosia", "Azul ardósia", 0xFF5A6578.toInt())
     )
+    val ROSS = listOf(
+        VarColor("preto", "Preto", 0xFF29252A.toInt()),
+        VarColor("castanhoe", "Castanho escuro", 0xFF493126.toInt()),
+        VarColor("castanho", "Castanho", 0xFF795039.toInt()),
+        VarColor("loiroe", "Loiro escuro", 0xFF9C7848.toInt()),
+        VarColor("loiro", "Loiro", 0xFFD6B66D.toInt()),
+        VarColor("platinado", "Platinado", 0xFFE8E2D5.toInt()),
+        VarColor("ruivo", "Ruivo", 0xFFAD4F2B.toInt()),
+        VarColor("azul", "Azul", 0xFF416BC5.toInt()),
+        VarColor("rosa", "Rosa", 0xFFD65A91.toInt())
+    )
     val VARS: Map<String, Var> = mapOf(
+        "ross1_am5" to Var("Cabelo Ross masculino", ROSS, "ross1_am5", { _ -> "ross1_am5" }, { _ -> "ross1_am5" }),
+        "ross1_af5" to Var("Cabelo Ross feminino", ROSS, "ross1_af5", { _ -> "ross1_af5" }, { _ -> "ross1_af5" }),
         LOTUS_ID to Var("Cabelo Lotus — coque", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
         BLOOM_ID to Var("Blusa Bloom", BLOOM, "bloom_branco_af5", { c -> "bloom_${c}_af5" }, { c -> "bloom_${c}_af5" }),
         AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" }),
@@ -122,11 +135,9 @@ object ModStore {
         for (g in listOf("af5", "am5")) {
             items.add(Item("bern1_$g", "Bernard (JohnnySims)", "hairBack", g.substring(0, 2), 0, true, true, true))
         }
-        // Ross JohnnySims: quatro versões convertidas para os corpos adultos Sims 4.
-        items.add(Item("ross1_am5", "Ross V1 masculino", "hairBack", "am", 0, true, true, true))
-        items.add(Item("ross1_af5", "Ross V1 feminino", "hairBack", "af", 0, true, true, true))
-        items.add(Item("ross2_am5", "Ross V2 masculino", "hairBack", "am", 0, true, true, true))
-        items.add(Item("ross2_af5", "Ross V2 feminino", "hairBack", "af", 0, true, true, true))
+        // Ross JohnnySims: apenas V1; V2 foi removido por ser visualmente igual.
+        items.add(Item("ross1_am5", "Cabelo Ross", "hairBack", "am", 0, true, true, true))
+        items.add(Item("ross1_af5", "Cabelo Ross", "hairBack", "af", 0, true, true, true))
         // Etapa 95: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5): um item, 12 cores no seletor
         items.add(Item(BLOOM_ID, "Blusa renda Bloom", "top", "af", 0, true, true, true))
         // Etapa 94: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), só o coque, um único item (preto); a cor troca no seletor de cores do Cabelo
@@ -204,12 +215,45 @@ object ModStore {
     // ---- miniaturas (a "foto de prévia" de cada peça) ----
     /** Miniatura embutida (assets/cute/thumbs/<nome>.png). Chamar fora da thread da tela. */
     fun assetThumb(name: String): Bitmap? = try {
-        CuteChar.assets?.open("cute/thumbs/$name.png")?.use { BitmapFactory.decodeStream(it) }
+        val src = CuteChar.assets?.open("cute/thumbs/$name.png")?.use { BitmapFactory.decodeStream(it) } ?: return null
+        // Padroniza todas as miniaturas em um canvas quadrado, com a mesma margem e sem distorcer a peça.
+        val side = 256
+        val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+        val scale = minOf((side * 0.88f) / src.width, (side * 0.88f) / src.height)
+        val w = src.width * scale; val h = src.height * scale
+        val dst = android.graphics.RectF((side - w) / 2f, (side - h) / 2f, (side + w) / 2f, (side + h) / 2f)
+        canvas.drawBitmap(src, null, dst, paint)
+        if (src !== out && !src.isRecycled) src.recycle()
+        out
     } catch (e: Throwable) { null }
+
+    private fun tintBitmap(src: Bitmap, argb: Int): Bitmap {
+        val w = src.width; val h = src.height
+        val px = IntArray(w * h); src.getPixels(px, 0, w, 0, 0, w, h)
+        val tr = (argb shr 16) and 255; val tg = (argb shr 8) and 255; val tb = argb and 255
+        for (i in px.indices) {
+            val c = px[i]; val a = c ushr 24
+            if (a == 0) continue
+            val r = (((c shr 16) and 255) * tr / 255).coerceIn(0, 255)
+            val g = (((c shr 8) and 255) * tg / 255).coerceIn(0, 255)
+            val b = ((c and 255) * tb / 255).coerceIn(0, 255)
+            px[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+        }
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+    }
 
     /** Miniatura da peça: embutida, ou gerada na primeira vez (peças importadas) e guardada em disco. Chamar fora da thread da tela. */
     fun thumb(it: Item): Bitmap? {
-        if (it.builtin) return assetThumb(VARS[it.id]?.thumb ?: it.id)
+        if (it.builtin) {
+            val b = assetThumb(VARS[it.id]?.thumb ?: it.id) ?: return null
+            val vr = VARS[it.id]
+            return if (it.id.startsWith("ross1_") && vr != null) {
+                val tinted = tintBitmap(b, vr.colors[variantIndex(it.id)].argb)
+                b.recycle(); tinted
+            } else b
+        }
         val d = dir ?: return null
         val f = File(d, it.id + (if (it.hasTex) ".t1" else ".t0") + ".thumb.png")
         if (f.exists()) BitmapFactory.decodeFile(f.path)?.let { b -> return b }
@@ -335,6 +379,14 @@ object ModStore {
             } else {
                 cup = File(d, it.id + ".cup").readBytes()
                 bmp = BitmapFactory.decodeFile(File(d, it.id + ".png").path, opts) ?: return
+            }
+            val colorVar = VARS[it.id]
+            if (it.id.startsWith("ross1_") && colorVar != null) {
+                val tinted = tintBitmap(bmp, colorVar.colors[variantIndex(it.id)].argb)
+                if (tinted !== bmp && !bmp.isRecycled) bmp.recycle()
+                // A malha é a mesma; somente a textura recebe a cor selecionada.
+                CuteChar.enqueueMod(it.key, cup, tinted, it.alpha)
+                return
             }
             if (it.game == 2 && it.hasTex) {
                 val px = IntArray(bmp.width * bmp.height)
