@@ -23,7 +23,7 @@ def read_cup(path):
     idx=np.frombuffer(b,dtype="<u2",count=ni,offset=off).reshape(-1,3).astype(np.int32)
     return {"pos":v["pos"].copy(),"nor":v["nor"].copy(),"bi":v["bi"].copy(),"bw":v["bw"].astype(np.float32)/255.0,"idx":idx}
 
-def current_cover(body, garment, ymax, ymin=0.0, protected=None):
+def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2):
     # Reproduz Cover.mark com faixa vertical e proteção por pesos de osso.
     p=garment["pos"]; n=garment["nor"]
     tree=cKDTree(p)
@@ -31,7 +31,7 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None):
     centers=bp[tri].mean(axis=1)
     dist,near=tree.query(centers,k=1,workers=-1)
     side=np.einsum("ij,ij->i",centers-p[near],n[near])
-    keep=(dist <= 3.2) & (side < 0.6) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
+    keep=(dist <= radius) & (side < 0.6) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
     if protected:
         bi=body["bi"][tri]; bw=body["bw"][tri]
         keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
@@ -102,7 +102,14 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     foot_bones=set([18,19,20,22,23,24])
     # A jaqueta não apaga a cintura abaixo da barra; a calça não apaga pés/tornozelos.
     jm=current_cover(body,jacket,neck_y-7,102.0,hand_bones)
-    pm=current_cover(body,pants,9999,0.0,foot_bones)
+    # Sweep de limites/raios da calça para encontrar a menor máscara que ainda cobre a malha.
+    pants_top=float(pants["pos"][:,1].max())
+    waist_diag={}
+    for rad in (3.2,2.4,1.8,1.4,1.0):
+        for inset in (0.0,1.0,2.0,3.0):
+            test=current_cover(body,pants,pants_top-inset,0.0,foot_bones,rad)
+            waist_diag[f"r{rad}_inset{inset}"]={"waist_hidden":int((test&((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
+    pm=current_cover(body,pants,pants_top-2.0,0.0,foot_bones,1.8)
     combined=jm|pm
     waist=(centers if False else body["pos"][body["idx"]].mean(axis=1))
     waist=(waist[:,1]>=72)&(waist[:,1]<=108)
@@ -143,7 +150,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_hand_bone_weights":bone_distribution(combined&hand),
       "hidden_low_foot_bone_weights":bone_distribution(combined&foot),
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
-      "combination_waist_masks":combo_counts,
+      "pants_mask_sweep":waist_diag,\n      "pants_mask_candidate":{"radius_cm":1.8,"top_inset_cm":2.0},\n      "combination_waist_masks":combo_counts,
       "hidden_waist_by_jacket":int((jm&waist).sum()),
       "hidden_waist_by_pants":int((pm&waist).sum()),
       "jacket_pants_close_y_range_cm":[float(jacket["pos"][seam][near,1].min()),float(jacket["pos"][seam][near,1].max())] if np.any(near) else None,
