@@ -25,7 +25,7 @@ private const val USE_ANIM = false  // Etapa 88: andando agachado (Crouch_Fwd_Lo
 
 class MsaaChooser : GLSurfaceView.EGLConfigChooser {
     override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
-        for (depth in intArrayOf(24, 16)) for (s in intArrayOf(2, 0)) {
+        for (depth in intArrayOf(24, 16)) for (s in intArrayOf(4, 2, 0)) {
             val attr = intArrayOf(
                 EGL10.EGL_RED_SIZE, 8, EGL10.EGL_GREEN_SIZE, 8, EGL10.EGL_BLUE_SIZE, 8,
                 EGL10.EGL_ALPHA_SIZE, 8, EGL10.EGL_DEPTH_SIZE, depth,
