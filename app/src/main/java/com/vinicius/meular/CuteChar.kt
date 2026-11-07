@@ -393,11 +393,11 @@ object CuteChar {
                         // Mantém mãos e pés; não apaga pernas/tornozelos fora da barra.
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
                         val jeans = m.key.contains("minimalist_jeans_am5")
-                        val maxDistance = if (jeans) 3.0f else 2.8f
+                        val maxDistance = 3.5f
                         val surfaceProtect = if (sl == "top") COVER_HAND_BONES else COVER_FOOT_BONES
                         com.vinicius.meular.mods.Cover.markSurface(
                             sims.pos0, bi, m.pos0, m.nor0, garmentIdx, maxDistance, r, lower, lim,
-                            sims.bi, sims.bw, surfaceProtect, 0.7f
+                            sims.bi, sims.bw, surfaceProtect, 1.1f
                         )
                     } else if (m.key.contains("hood_") || m.key.contains("hcargo_")) {
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
