@@ -48,14 +48,14 @@ print('Calibração:',k,'RMS',rms,'P95',p95,'anisotropia',an)
 if k<=0 or an>.015 or rms>.004 or p95>.008:raise RuntimeError('calibração espacial reprovada; exportação cancelada')
 PRE.mkdir(exist_ok=True)
 for grp,sex in [('am','M'),('af','F')]:
- b,bi=bodyread(grp); skin=Image.open(CU/f'sk_s4{sex.lower()}.png').convert('RGBA')
+ b,bi=bodyread(grp); skin=np.asarray(Image.open(CU/f'sk_s4{sex.lower()}.png').convert('RGBA'))
  body=(b['pos'].astype(float),b['uv'].astype(float),b['col'][:,:3].astype(float)/255,bi.astype(int),skin,0.0)
  for ver in ('V1','V2'):
   ident=f'ross{ver[-1]}_{grp}5'; es=dbpf.read(str(ROOT/f'JohnnySims_Ross_Hair_{ver}_{sex}.package'))
   g=max(meshes(es),key=lambda x:len(x['pos'])); P=g['pos'].astype(float)*k+off; N=g['nor'].astype(float); UV=g['uv'][0].astype(float)*[2,1]; I=g['idx'].astype(int)
   if len(P)>65535:raise RuntimeError(ident+' excede índice uint16')
   top,q=weights(P,b); v=np.zeros(len(P),DT);v['pos']=P;v['nor']=N;v['uv']=UV;v['col']=255;v['bi']=top;v['bw']=q
-  tx=texture(es); tx.save(SK/f'{ident}.png',optimize=True);cupwrite(SK/f'{ident}.cup',v,I)
+  txim=texture(es); txim.save(SK/f'{ident}.png',optimize=True); tx=np.asarray(txim.convert('RGBA')); cupwrite(SK/f'{ident}.cup',v,I)
   hair=(P,UV,np.ones((len(P),3)),I,tx,.35);yc=b['pos'][:,1].max()-9
   ims=[hv.raster([body,hair],512,view,((0,yc),34)) for view in ('f','s','b','q')]
   panel=np.concatenate(ims,axis=1);Image.fromarray(panel).save(PRE/f'{ident}_fit.png')
