@@ -391,7 +391,7 @@ object CuteChar {
                     if (m.key.contains("hood_") || m.key.contains("hcargo_")) {
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
                         com.vinicius.meular.mods.Cover.markSurface(
-                            sims.pos0, bi, m.pos0, m.nor0, garmentIdx, 1.15f, r, lower, lim,
+                            sims.pos0, bi, m.pos0, m.nor0, garmentIdx, if (sl == "jacket") 1.4f else 1.15f, r, lower, lim,
                             sims.bi, sims.bw, protect, 0.6f
                         )
                     } else {
