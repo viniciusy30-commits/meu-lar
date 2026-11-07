@@ -507,14 +507,12 @@ object CuteChar {
                 GLES20.glGenTextures(1, ids, 0)
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
                 GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, j.bmp, 0)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+                // Mipmaps em todas as peças: reduzem serrilhado e cintilação à distância sem diminuir a resolução-base.
+                GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-                if (j.alpha) {
-                    GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
-                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
-                }
                 texIds[tname] = ids[0]
                 sk.part = Part(Mt.PLAIN, sk.fb, sk.nv, sk.ib, sk.ni, ids[0]).also { p -> if (j.alpha) { p.cut = 0.45f; p.cull = false; p.solid = true } }
                 library[j.key] = sk
