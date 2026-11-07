@@ -61,8 +61,8 @@ def closest_point_triangle(p, a, b, c):
     return u*a+v*b+w*c, np.array([u,v,w])
 
 def surface_cover(body, garment, ymax, ymin=0.0, protected=None, radius=1.15, side_limit=0.6):
-    # Compara o centro de cada triângulo da pele com triângulos reais da roupa,
-    # evitando apagar pele só porque existe um vértice de roupa próximo.
+    # Replica a cobertura por superfície: centro + três vértices do triângulo da pele.
+    # Exige 3/4 amostras cobertas para fechar frestas sem esconder a pele por um único ponto.
     gp=garment["pos"]; gn=garment["nor"]; gi=garment["idx"]
     bp=body["pos"]; bi=body["idx"]
     centers=bp[bi].mean(axis=1)
@@ -70,30 +70,38 @@ def surface_cover(body, garment, ymax, ymin=0.0, protected=None, radius=1.15, si
     _, nearest=tree.query(centers, k=min(12,len(gp)), workers=-1)
     if nearest.ndim==1: nearest=nearest[:,None]
     incident=[[] for _ in range(len(gp))]
-    for ti, tri in enumerate(gi):
-        for v in tri: incident[int(v)].append(ti)
+    for tj, tri in enumerate(gi):
+        for v in tri: incident[int(v)].append(tj)
     keep=np.zeros(len(bi),dtype=bool)
     protected_set=set(protected or [])
     body_bones=body["bi"][bi]; body_weights=body["bw"][bi]
-    for ti,p in enumerate(centers):
-        if p[1]<ymin or p[1]>ymax: continue
+    for ti, tri_center in enumerate(centers):
+        if tri_center[1]<ymin or tri_center[1]>ymax: continue
         if protected_set and any(int(bone) in protected_set and weight>=.15
                                  for bone,weight in zip(body_bones[ti].ravel(),body_weights[ti].ravel())):
             continue
-        candidates=set()
-        for v in nearest[ti]:
-            candidates.update(incident[int(v)])
-        best_d2=float("inf"); best_side=float("inf")
-        for gj in candidates:
-            ids=gi[gj]; a,b,c=gp[ids]
-            q,bary=closest_point_triangle(p,a,b,c)
-            delta=p-q; d2=float(np.dot(delta,delta))
-            if d2>=best_d2: continue
-            n=(gn[ids]*bary[:,None]).sum(axis=0)
-            nl=float(np.linalg.norm(n))
-            side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
-            best_d2=d2; best_side=side
-        keep[ti]=(best_d2<=radius*radius and best_side<side_limit)
+        samples=np.vstack((tri_center,bp[bi[ti]]))
+        covered=0
+        for p in samples:
+            if p[1]<ymin or p[1]>ymax: continue
+            _, near=tree.query(p,k=min(12,len(gp)),workers=-1)
+            if np.isscalar(near): near=[int(near)]
+            candidates=set()
+            for v in np.atleast_1d(near):
+                candidates.update(incident[int(v)])
+            best_d2=float("inf"); best_side=float("inf")
+            for gj in candidates:
+                ids=gi[gj]; a,b,c=gp[ids]
+                q,bary=closest_point_triangle(p,a,b,c)
+                delta=p-q; d2=float(np.dot(delta,delta))
+                if d2>=best_d2: continue
+                n=(gn[ids]*bary[:,None]).sum(axis=0)
+                nl=float(np.linalg.norm(n))
+                side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
+                best_d2=d2; best_side=side
+            if best_d2<=radius*radius and best_side<side_limit:
+                covered+=1
+        keep[ti]=covered>=3
     return keep
 
 def render_view(body, jacket, pants, masks, sex, view, show_jacket=True, show_pants=True, suffix=''):
