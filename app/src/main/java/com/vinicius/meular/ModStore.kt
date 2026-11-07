@@ -22,6 +22,7 @@ object ModStore {
     class Var(val label: String, val colors: List<VarColor>, val thumb: String, val cupOf: (String) -> String, val pngOf: (String) -> String)
 
     const val LOTUS_ID = "lotusc_af5"
+    const val LOTUS_LOOSE_ID = "lotuss_af5"
     const val BLOOM_ID = "bloom_af5"
     const val AUTUMN_ID = "autumn_af5"
     const val HOOD_ID = "hood_af5"
@@ -74,7 +75,8 @@ object ModStore {
         VarColor("ardosia", "Azul ardósia", 0xFF5A6578.toInt())
     )
     val VARS: Map<String, Var> = mapOf(
-        LOTUS_ID to Var("Cabelo Lotus", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
+        LOTUS_ID to Var("Cabelo Lotus — coque", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
+        LOTUS_LOOSE_ID to Var("Cabelo Lotus — solto", LOTUS, "lotuss_preto_af5", { _ -> "lotus_solto" }, { c -> "lotus_$c" }),
         BLOOM_ID to Var("Blusa Bloom", BLOOM, "bloom_branco_af5", { c -> "bloom_${c}_af5" }, { c -> "bloom_${c}_af5" }),
         AUTUMN_ID to Var("Saia Autumn Grace", AUTUMN, "autumn_mostarda_af5", { _ -> "autumn_af5" }, { c -> "autumn_$c" }),
         HOOD_ID to Var("Jaqueta com capuz", HOOD, "hood_preto_af5", { _ -> "hood_af5" }, { c -> "hood_$c" }),
@@ -125,7 +127,8 @@ object ModStore {
         // Etapa 95: Aurum Bloom Top (Sims 4), blusa de renda off-shoulder só para o corpo feminino do Sims 4 (af5): um item, 12 cores no seletor
         items.add(Item(BLOOM_ID, "Blusa renda Bloom", "top", "af", 0, true, true, true))
         // Etapa 94: Aurum Hairstyle FMM 146 "Lotus" (Sims 4), só o coque, um único item (preto); a cor troca no seletor de cores do Cabelo
-        items.add(Item(LOTUS_ID, "Lotus coque", "hairBack", "af", 0, true, true, true))
+        items.add(Item(LOTUS_ID, "Lotus — coque", "hairBack", "af", 0, true, true, true))
+        items.add(Item(LOTUS_LOOSE_ID, "Lotus — solto", "hairBack", "af", 0, true, true, true))
         // Etapa 95: GoldFish Autumn Grace (Sims 4), saia rodada com cinto, só para o corpo feminino do Sims 4 (af5): um item, 6 cores no seletor
         items.add(Item(AUTUMN_ID, "Saia Autumn Grace", "bottom", "af", 0, true, true, true))
         // Etapa 105: jaqueta com capuz (slot jaqueta) e calça cargo com cintos (slot calça), só para o corpo feminino do Sims 4 (af5)
