@@ -9,6 +9,7 @@ on:
       - 'ferramentas/mods_teste/T3.java'
       - 'ferramentas/mods_teste/render_minimalist_fit.py'
       - 'app/src/main/java/com/vinicius/meular/ModStore.kt'
+      - 'app/src/main/java/com/vinicius/meular/CuteChar.kt'
       - '.github/workflows/minimalist-convert.yml'
   workflow_dispatch:
 permissions:
