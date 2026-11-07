@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from scipy.spatial import cKDTree
 ROOT=Path(__file__).resolve().parents[1]; CU=ROOT/'app/src/main/assets/cute'; SK=CU/'skate'; PRE=ROOT/'fit-ross'
-sys.path[:0]=[str(ROOT/'ferramentas'),str(ROOT/'ferramentas/sims4')]
+sys.path[:0]=[str(ROOT/'ferramentas/sims4'),str(ROOT/'ferramentas')]
 import dbpf,geom,hv
 from rle2 import rle2_mip0
 DT=np.dtype([('pos','<f4',3),('nor','<f4',3),('uv','<f4',2),('col','u1',4),('bi','u1',4),('bw','u1',4)])
