@@ -370,7 +370,13 @@ object CuteChar {
                     val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
                     val r = BooleanArray(sims.ni / 3)
                     val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
-                    val lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
+                    var lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
+                    if (sl == "bottom") {
+                        var top = -Float.MAX_VALUE
+                        for (v in 1 until m.pos0.size step 3) if (m.pos0[v] > top) top = m.pos0[v]
+                        lim = top - 2.0f
+                    }
+                    val coverRadius = if (sl == "bottom") 1.4f else 3.2f
                     val protect = when (sl) {
                         "jacket" -> COVER_HAND_BONES
                         "bottom" -> COVER_FOOT_BONES
@@ -383,7 +389,7 @@ object CuteChar {
                         lower = hem - 1.0f
                     }
                     com.vinicius.meular.mods.Cover.mark(
-                        sims.pos0, bi, m.pos0, m.nor0, 3.2f, r, lower, lim,
+                        sims.pos0, bi, m.pos0, m.nor0, coverRadius, r, lower, lim,
                         sims.bi, sims.bw, protect
                     )
                     r

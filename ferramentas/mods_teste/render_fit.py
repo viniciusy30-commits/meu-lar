@@ -109,7 +109,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
         for inset in (0.0,1.0,2.0,3.0):
             test=current_cover(body,pants,pants_top-inset,0.0,foot_bones,rad)
             waist_diag[f"r{rad}_inset{inset}"]={"waist_hidden":int((test&((body["pos"][body["idx"]].mean(axis=1)[:,1]>=72)&(body["pos"][body["idx"]].mean(axis=1)[:,1]<=108))).sum()),"total_hidden":int(test.sum())}
-    pm=current_cover(body,pants,pants_top-2.0,0.0,foot_bones,1.8)
+    pm=current_cover(body,pants,pants_top-2.0,0.0,foot_bones,1.4)
     combined=jm|pm
     waist=(centers if False else body["pos"][body["idx"]].mean(axis=1))
     waist=(waist[:,1]>=72)&(waist[:,1]<=108)
@@ -151,7 +151,7 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
       "hidden_low_foot_bone_weights":bone_distribution(combined&foot),
       "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
       "pants_mask_sweep":waist_diag,
-      "pants_mask_candidate":{"radius_cm":1.8,"top_inset_cm":2.0},
+      "pants_mask_candidate":{"radius_cm":1.4,"top_inset_cm":2.0},
       "combination_waist_masks":combo_counts,
       "hidden_waist_by_jacket":int((jm&waist).sum()),
       "hidden_waist_by_pants":int((pm&waist).sum()),
