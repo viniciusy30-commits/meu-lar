@@ -1096,12 +1096,22 @@ object CuteChar {
     // deg2 gira só antebraço e mão em torno do cotovelo (cotovelo afastado, mão perto da coxa).
     // mm = matrizes 3x4 de osso (12 floats por osso). Ombro (13,3; 142,5; -2,9) e cotovelo (32,1; 122,0; 0) de repouso, em cm.
     private fun armIn(mm: FloatArray, deg: Float, deg2: Float) {
+        // Os pivôs antigos (13.3/142.5 e 32.1/122) pertenciam ao corpo-base anterior.
+        // Nos corpos Sims, usa as juntas reais do bodyrig.txt: ombro [0..2], cotovelo [3..5].
+        // Isso é essencial no TS4, cujo ombro/cotovelo ficam em posições diferentes.
+        val rg = if (simOn) rigs[simKey] else null
+        val shX = rg?.getOrNull(0) ?: 13.3f
+        val shY = rg?.getOrNull(1) ?: 142.5f
+        val shZ = rg?.getOrNull(2) ?: -2.9f
+        val elX = rg?.getOrNull(3) ?: 32.1f
+        val elY = rg?.getOrNull(4) ?: 122.0f
+        val elZ = rg?.getOrNull(5) ?: 0f
         for (side in 0..1) {
             val sx = if (side == 0) 1f else -1f
             val bones = if (side == 0) ARM_L else ARM_R
-            rotArm(mm, bones, 0, 0, sx * 13.3f, 142.5f, -2.9f, -sx * Math.toRadians(deg.toDouble()))
+            rotArm(mm, bones, 0, 0, sx * shX, shY, shZ, -sx * Math.toRadians(deg.toDouble()))
             // cotovelo: usa a matriz do antebraço já com o giro do ombro
-            rotArm(mm, bones, 1, 1, sx * 32.1f, 122.0f, 0f, -sx * Math.toRadians(deg2.toDouble()))
+            rotArm(mm, bones, 1, 1, sx * elX, elY, elZ, -sx * Math.toRadians(deg2.toDouble()))
         }
     }
 
