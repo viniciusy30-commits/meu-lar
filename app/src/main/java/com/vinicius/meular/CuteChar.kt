@@ -42,11 +42,11 @@ object CuteChar {
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
     private const val MALE_CLIPS = true   // Etapa 23: parado e andar masculinos novos (clipes 4 e 5); correr continua o clipe 3
-    // Etapa 17: no masculino os braços ficam mais junto do corpo (a pose A original abre ~26 graus e parece feminina).
-    // Graus que o braço inteiro (ombro para baixo, mão e dedos) gira em direção ao corpo. 0 = como antes; 8 ficou colado demais; 12 encosta no quadril.
-    private const val MALE_ARM_IN = 0f
-    // Graus extras só do antebraço e da mão (em torno do cotovelo): deixa o cotovelo afastado e a mão perto da coxa.
-    private const val MALE_FOREARM_IN = 3f
+    // Correção de postura masculina nos corpos Sims 4: pequena rotação no ombro e no cotovelo
+    // para evitar que antebraços/mãos fiquem projetados para fora. Valores conservadores para
+    // manter balanço natural e não encostar as mãos nas coxas.
+    private const val MALE_ARM_IN = 5f
+    private const val MALE_FOREARM_IN = 4f
     private val ARM_L = IntArray(18) { if (it < 3) 10 + it else 22 + it }   // upperarm, lowerarm, hand, dedos (25..39)
     private val ARM_R = IntArray(18) { if (it < 3) 14 + it else 37 + it }   // idem, lado direito (40..54)
     private val slotFist = FloatArray(3)   // 0..1: mão fechando ao correr
@@ -973,11 +973,14 @@ object CuteChar {
         System.arraycopy(bone, 0, keep, 0, n12)
 
         // Etapa 17: braços do masculino mais para dentro (depois do keep, para não acumular na mistura entre clipes)
-        val armTarget = if (simOn || !mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.5f else 0f
+        // Aplica também nos corpos Sims 4: antes simOn desativava a correção masculina,
+        // deixando justamente o corpo masculino com a pose de braços sem ajuste.
+        val armTarget = if (!mascV) 0f else if (c0 == IDLE || c0 == WALK) 1f else if (c0 == RUN) 0.65f else 0f
         slotArm[sl] += (armTarget - slotArm[sl]) * (dt * 10f).coerceAtMost(1f)
         if (slotArm[sl] > 0.01f) armIn(bone, MALE_ARM_IN * slotArm[sl], MALE_FOREARM_IN * slotArm[sl])
-        // mãos fechadas só na corrida (andar e parado seguem com a mão solta)
-        val fistT = if (c0 == RUN || clip == RUNJUMP) 1f else 0f
+        // O punho procedural foi calibrado para outra pose de mão e deformava os dedos masculinos.
+        // Mantém as mãos masculinas na pose natural do clipe; o fechamento continua nas personagens femininas.
+        val fistT = if (!mascV && (c0 == RUN || clip == RUNJUMP)) 1f else 0f
         slotFist[sl] += (fistT - slotFist[sl]) * (dt * 14f).coerceAtMost(1f)
         if (slotFist[sl] > 0.01f) fistHands(bone, slotFist[sl])
 
