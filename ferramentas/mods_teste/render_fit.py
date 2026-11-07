@@ -38,52 +38,64 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2, sid
     return keep
 
 def render_view(body, jacket, pants, masks, sex, view, show_jacket=True, show_pants=True, suffix=''):
-    # Painter sorting in orthographic projection; colors distinguish body/jacket/pants.
+    # Rasterizador ortográfico com z-buffer real: evita os falsos triângulos do painter sorting.
     if view in ("frente","costas"):
-        xy=lambda p: p[:,:,[0,1]]
+        project=lambda p: p[:,:,[0,1]]
         depth=lambda p: p[:,:,2] if view=="frente" else -p[:,:,2]
-    elif view=="lado":
-        xy=lambda p: p[:,:,[2,1]]
-        depth=lambda p: p[:,:,0]
     else:
-        xy=lambda p: p[:,[2,1]]
-        depth=lambda p: -p[:,:,0]
-    faces=[]
-    meshes=[(body,(0.83,0.66,0.54,1.0),masks)]
-    if show_jacket: meshes.append((jacket,(0.20,0.23,0.29,1.0),None))
-    if show_pants: meshes.append((pants,(0.22,0.38,0.62,1.0),None))
+        project=lambda p: p[:,:,[2,1]]
+        depth=lambda p: p[:,:,0] if view=="lado" else -p[:,:,0]
+    visible=[body["pos"]]
+    if show_jacket: visible.append(jacket["pos"])
+    if show_pants: visible.append(pants["pos"])
+    allp=np.concatenate(visible)
+    pp=project(allp[:,None,:])[:,0,:]
+    xmin,xmax=float(pp[:,0].min()),float(pp[:,0].max())
+    ymin,ymax=float(pp[:,1].min()),float(pp[:,1].max())
+    W,H=720,1152
+    span=max(xmax-xmin,ymax-ymin)*1.16
+    cx=(xmin+xmax)/2; cy=(ymin+ymax)/2
+    sx=(W-20)/span; sy=(H-20)/span; scale=min(sx,sy)
+    zbuf=np.full((H,W),-np.inf,dtype=np.float32)
+    canvas=np.full((H,W,3),232,dtype=np.uint8)
+    meshes=[(body,(212,168,137),masks)]
+    if show_jacket: meshes.append((jacket,(51,59,76),None))
+    if show_pants: meshes.append((pants,(56,97,158),None))
     for mesh,color,mask in meshes:
         tri=mesh["idx"]
         if mask is not None: tri=tri[~mask]
         pos=mesh["pos"]
-        for start in range(0,len(tri),4000):
-            q=tri[start:start+4000]
-            xyz=pos[q]
-            z=depth(xyz).mean(axis=1)
-            for poly,d in zip(xy(xyz),z):
-                faces.append((float(d),poly,color))
-    faces.sort(key=lambda x:x[0])
-    fig,ax=plt.subplots(figsize=(5,8),dpi=180)
-    ax.set_facecolor("#e8e8e8")
-    coll=PolyCollection([f[1] for f in faces],facecolors=[f[2] for f in faces],edgecolors="none",closed=True)
-    ax.add_collection(coll)
-    visible=[body["pos"]]
-    if show_jacket: visible.append(jacket["pos"])
-    if show_pants: visible.append(pants["pos"])
-    p=np.concatenate(visible)
-    if view in ("frente","costas"):
-        xx=p[:,0]; yy=p[:,1]
-    else:
-        xx=p[:,2]; yy=p[:,1]
-    cx=(xx.min()+xx.max())/2
-    span=max(xx.max()-xx.min(),yy.max()-yy.min())
-    ax.set_xlim(cx-span*.58,cx+span*.58)
-    ax.set_ylim(yy.min()-4,yy.max()+4)
-    ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title(f"{sex.upper()} — {suffix or view}",fontsize=12)
-    fig.tight_layout(pad=0.2)
-    fig.savefig(OUT/f"{sex}_{suffix or view}.png",bbox_inches="tight",pad_inches=.04)
-    plt.close(fig)
+        for start_i in range(0,len(tri),2500):
+            for ids in tri[start_i:start_i+2500]:
+                xyz=pos[ids]
+                q=project(xyz[:,None,:])[:,0,:]
+                px=(W/2+(q[:,0]-cx)*scale).astype(np.float32)
+                py=(H/2-(q[:,1]-cy)*scale).astype(np.float32)
+                zz=depth(xyz[None,:,:])[0].astype(np.float32)
+                x0=max(0,int(np.floor(px.min()))); x1=min(W-1,int(np.ceil(px.max())))
+                y0=max(0,int(np.floor(py.min()))); y1=min(H-1,int(np.ceil(py.max())))
+                if x1<x0 or y1<y0: continue
+                ax0,ay0=px[0],py[0]; bx0,by0=px[1],py[1]; cx0,cy0=px[2],py[2]
+                den=(by0-cy0)*(ax0-cx0)+(cx0-bx0)*(ay0-cy0)
+                if abs(float(den))<1e-8: continue
+                gx,gy=np.meshgrid(np.arange(x0,x1+1,dtype=np.float32)+.5,np.arange(y0,y1+1,dtype=np.float32)+.5)
+                w0=((by0-cy0)*(gx-cx0)+(cx0-bx0)*(gy-cy0))/den
+                w1=((cy0-ay0)*(gx-cx0)+(ax0-cx0)*(gy-cy0))/den
+                w2=1.0-w0-w1
+                inside=(w0>=-1e-5)&(w1>=-1e-5)&(w2>=-1e-5)
+                if not inside.any(): continue
+                z=w0*zz[0]+w1*zz[1]+w2*zz[2]
+                sub=zbuf[y0:y1+1,x0:x1+1]
+                take=inside&(z>sub)
+                if take.any():
+                    sub[take]=z[take]
+                    out=canvas[y0:y1+1,x0:x1+1]
+                    out[take]=color
+    from PIL import Image, ImageDraw
+    im=Image.fromarray(canvas)
+    draw=ImageDraw.Draw(im)
+    draw.text((14,12),f"{sex.upper()} — {suffix or view}",fill=(20,20,20))
+    im.save(OUT/f"{sex}_{suffix or view}.png")
 
 report={}
 for sex,grp in [("masculino","am5"),("feminino","af5")]:
