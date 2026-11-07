@@ -374,9 +374,9 @@ object CuteChar {
                     if (sl == "bottom") {
                         var top = -Float.MAX_VALUE
                         for (v in 1 until m.pos0.size step 3) if (m.pos0[v] > top) top = m.pos0[v]
-                        lim = top - 2.0f
+                        lim = top + 0.5f
                     }
-                    val coverRadius = if (sl == "bottom") 1.4f else 3.2f
+                    val coverRadius = if (sl == "bottom") 2.4f else 3.2f
                     val protect = when (sl) {
                         "jacket" -> COVER_HAND_BONES
                         "bottom" -> COVER_FOOT_BONES
@@ -386,7 +386,7 @@ object CuteChar {
                     if (sl == "jacket") {
                         var hem = Float.MAX_VALUE
                         for (v in 1 until m.pos0.size step 3) if (m.pos0[v] < hem) hem = m.pos0[v]
-                        lower = hem - 1.0f
+                        lower = hem - 4.0f
                     }
                     com.vinicius.meular.mods.Cover.mark(
                         sims.pos0, bi, m.pos0, m.nor0, coverRadius, r, lower, lim,
@@ -472,7 +472,7 @@ object CuteChar {
             val w = t * t * (3f - 2f * t)
             if (w <= 0f) continue
             val push = 1.4f * w
-            val lift = 5f * w
+            val lift = 0.8f * w
             for (k in 0..2) {
                 val d = s.nor0[o + k] * push
                 s.pos0[o + k] += d
