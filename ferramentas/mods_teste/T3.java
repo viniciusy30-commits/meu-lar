@@ -69,7 +69,7 @@ public final class T3 {
         if((tex.argb[y*tex.w+x]>>>24)>=128)opaque++;
         total++;
       }
-      if(opaque>=2){kept[count++]=a;kept[count++]=bb;kept[count++]=cc;}
+      if(opaque==4){kept[count++]=a;kept[count++]=bb;kept[count++]=cc;}
     }
     if(count<Math.max(30,ni/20))throw new Exception("Recorte alpha removeu quase toda a roupa: "+count/3+"/"+ni/3+" triângulos");
     ByteBuffer out=ByteBuffer.allocate(vertexEnd+count*2).order(ByteOrder.LITTLE_ENDIAN);
