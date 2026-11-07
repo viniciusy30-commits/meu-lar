@@ -31,7 +31,7 @@ def current_cover(body, garment, ymax, ymin=0.0, protected=None, radius=3.2):
     centers=bp[tri].mean(axis=1)
     dist,near=tree.query(centers,k=1,workers=-1)
     side=np.einsum("ij,ij->i",centers-p[near],n[near])
-    keep=(dist <= radius) & (side < 0.6) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
+    keep=(dist <= radius) & (side < -0.4) & (centers[:,1] <= ymax) & (centers[:,1] >= ymin)
     if protected:
         bi=body["bi"][tri]; bw=body["bw"][tri]
         keep &= ~np.any(np.isin(bi,list(protected)) & (bw >= 0.15),axis=(1,2))
