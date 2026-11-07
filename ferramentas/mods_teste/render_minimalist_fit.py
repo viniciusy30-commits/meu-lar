@@ -19,7 +19,7 @@ def read(p):
 body=read(ROOT/"p_body_am5.bin")
 items={n:read(ROOT/"skate"/(n+".cup")) for n in ("minimalist_top_am5","minimalist_short_am5","minimalist_jeans_am5")}
 for n,g in items.items():
- g["tex"]=np.asarray(Image.open(ROOT/"skate"/(n+".png")).convert("RGBA"))
+ g["tex"]=np.asarray(Image.open(ROOT/"skate"/(n+".png")).convert("RGBA")).copy()
  g["alpha_channel_nonopaque"]=bool(np.any(g["tex"][:,:,3]<250))
  g["tex"][:,:,3]=255
  g["alpha"]=False
