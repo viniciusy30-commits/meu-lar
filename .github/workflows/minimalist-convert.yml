@@ -1,0 +1,52 @@
+name: Convert Minimalist clothes and build
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Minimalist-CC_Everyday_Jean_Man.package'
+      - 'Minimalist-CC_Everyday_Short_Man.package'
+      - 'Minimalist-CC_Everyday_Top_Man.package'
+      - 'ferramentas/mods_teste/T3.java'
+      - 'app/src/main/java/com/vinicius/meular/ModStore.kt'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile offline converter
+        run: |
+          mkdir -p /tmp/meular-classes
+          javac -encoding UTF-8 -d /tmp/meular-classes app/src/main/java/com/vinicius/meular/mods/*.java ferramentas/mods_teste/T3.java
+      - name: Convert clothes to native CUP1 and PNG
+        run: |
+          java -cp /tmp/meular-classes T3 Minimalist-CC_Everyday_Top_Man.package Minimalist-CC_Everyday_Short_Man.package Minimalist-CC_Everyday_Jean_Man.package
+      - name: Validate generated assets
+        run: |
+          python - <<'PY'
+          import struct
+          from pathlib import Path
+          root=Path('app/src/main/assets/cute/skate')
+          for name in ('minimalist_top_am5','minimalist_short_am5','minimalist_jeans_am5'):
+              cup=(root/(name+'.cup')).read_bytes()
+              assert cup[:4]==b'CUP1', name+' CUP1 ausente'
+              nv,ni,_=struct.unpack_from('<III',cup,4)
+              assert nv>=100 and ni>=300 and ni%3==0, (name,nv,ni)
+              from PIL import Image
+              im=Image.open(root/(name+'.png'))
+              im.verify()
+              print(name, 'VALID', nv, 'vertices', ni//3, 'triangulos', im.size)
+          PY
+      - name: Commit converted native assets
+        run: |
+          git config user.name "meular-assets-bot"
+          git config user.email "meular-assets-bot@users.noreply.github.com"
+          git add app/src/main/assets/cute/skate/minimalist_*
+          git diff --cached --quiet || git commit -m "Add native Minimalist male clothing assets"
+          git push
