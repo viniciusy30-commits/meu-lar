@@ -52,25 +52,64 @@ def closest_point_triangle(p,a,b,c):
  if abs(den)<1e-12:return a,np.array([1.,0.,0.])
  v=vb/den;w=vc/den;u=1-v-w
  return u*a+v*b+w*c,np.array([u,v,w])
-def cover(g,radius=3.2,protected=None,slot="top"):
- gp=g["pos"];gn=g["nor"];bp=body["pos"];bi=body["idx"]
- centers=bp[bi].mean(axis=1)
- d,near=cKDTree(gp).query(centers,k=1,workers=-1)
- delta=centers-gp[near]
- side=np.einsum("ij,ij->i",delta,gn[near])
- ymax=float(gp[:,1].max())-7.0 if slot=="top" else float(gp[:,1].max())+0.5
- keep=(d<=radius)&(side<0.6)&(centers[:,1]<=ymax)
- if protected:
-  bones=body["bi"][bi];weights=body["bw"][bi]
-  for bone in protected:
-   keep &= ~np.any((bones==bone)&(weights>=0.15),axis=(1,2))
+def closest_point_triangle(p,a,b,c):
+ ab=b-a; ac=c-a; ap=p-a
+ d1=np.dot(ab,ap); d2=np.dot(ac,ap)
+ if d1<=0 and d2<=0:return a,np.array([1.,0.,0.])
+ bp=p-b; d3=np.dot(ab,bp); d4=np.dot(ac,bp)
+ if d3>=0 and d4<=d3:return b,np.array([0.,1.,0.])
+ vc=d1*d4-d3*d2
+ if vc<=0 and d1>=0 and d3<=0:
+  v=d1/(d1-d3);return a+v*ab,np.array([1-v,v,0.])
+ cp=p-c; d5=np.dot(ab,cp); d6=np.dot(ac,cp)
+ if d6>=0 and d5<=d6:return c,np.array([0.,0.,1.])
+ vb=d5*d2-d1*d6
+ if vb<=0 and d2>=0 and d6<=0:
+  w=d2/(d2-d6);return a+w*ac,np.array([1-w,0.,w])
+ va=d3*d6-d5*d4
+ if va<=0 and d4-d3>=0 and d5-d6>=0:
+  w=(d4-d3)/((d4-d3)+(d5-d6));return b+w*(c-b),np.array([0.,1-w,w])
+ den=va+vb+vc
+ if abs(den)<1e-12:return a,np.array([1.,0.,0.])
+ v=vb/den;w=vc/den;u=1-v-w
+ return u*a+v*b+w*c,np.array([u,v,w])
+def cover(g,radius=4.5,protected=None,slot="top"):
+ gp=g["pos"];gn=g["nor"];gi=g["idx"];bp=body["pos"];bi=body["idx"]
+ centers=bp[bi].mean(axis=1);tree=cKDTree(gp)
+ _,nearest=tree.query(centers,k=min(12,len(gp)),workers=-1)
+ if nearest.ndim==1:nearest=nearest[:,None]
+ incident=[[] for _ in range(len(gp))]
+ for tj,tri in enumerate(gi):
+  for v in tri:incident[int(v)].append(tj)
+ keep=np.zeros(len(bi),dtype=bool); protected_set=set(protected or [])
+ body_bones=body["bi"][bi];body_weights=body["bw"][bi]
+ ymin=float(gp[:,1].min())-radius; ymax=float(gp[:,1].max())-7.0 if slot=="top" else float(gp[:,1].max())+0.5
+ for ti,center in enumerate(centers):
+  if center[1]<ymin or center[1]>ymax: continue
+  if protected_set and any(int(bone) in protected_set and weight>=.15 for bone,weight in zip(body_bones[ti].ravel(),body_weights[ti].ravel())):continue
+  samples=np.vstack((center,bp[bi[ti]]));covered=0
+  for point in samples:
+   _,near=tree.query(point,k=min(12,len(gp)),workers=-1)
+   if np.isscalar(near):near=[int(near)]
+   candidates=set()
+   for v in np.atleast_1d(near):candidates.update(incident[int(v)])
+   best_d2=float("inf");best_side=float("inf")
+   for gj in candidates:
+    ids=gi[gj];a,b,cc=gp[ids];q,bary=closest_point_triangle(point,a,b,cc)
+    delta=point-q;d2=float(np.dot(delta,delta))
+    if d2>=best_d2:continue
+    n=(gn[ids]*bary[:,None]).sum(axis=0);nl=float(np.linalg.norm(n))
+    side=float(np.dot(delta,n/nl)) if nl>1e-8 else float("inf")
+    best_d2=d2;best_side=side
+   if best_d2<=radius*radius and best_side<1.0:covered+=1
+  keep[ti]=covered>=3
  return keep
-
 MASKS={
- "minimalist_top_am5":cover(items["minimalist_top_am5"],3.2,None,"top"),
- "minimalist_short_am5":cover(items["minimalist_short_am5"],2.4,[18,19,20,22,23,24],"bottom"),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],2.4,[18,19,20,22,23,24],"bottom")
+ "minimalist_top_am5":cover(items["minimalist_top_am5"],4.5,None,"top"),
+ "minimalist_short_am5":cover(items["minimalist_short_am5"],4.5,[18,19,20,22,23,24],"bottom"),
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],5.0,[18,19,20,22,23,24],"bottom")
 }
+
 def render(names,view):
  masks=[MASKS[n] for n in names]
  hide=np.logical_or.reduce(masks) if masks else np.zeros(len(body["idx"]),bool)
