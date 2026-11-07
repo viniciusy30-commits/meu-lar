@@ -1,4 +1,5 @@
 name: Build APK
+# Rebuild after native Minimalist clothing assets are committed.
 
 on:
   push:
