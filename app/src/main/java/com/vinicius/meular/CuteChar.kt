@@ -397,9 +397,10 @@ object CuteChar {
                             else -> 4.5f
                         }
                         val sideLimit = if (jeans) 6.0f else if (sl == "bottom") 2.0f else 1.0f
+                        val surfaceProtect = if (jeans) null else protect
                         com.vinicius.meular.mods.Cover.markSurface(
                             sims.pos0, bi, m.pos0, m.nor0, garmentIdx, maxDistance, r, lower, lim,
-                            sims.bi, sims.bw, protect, sideLimit
+                            sims.bi, sims.bw, surfaceProtect, sideLimit
                         )
                     } else if (m.key.contains("hood_") || m.key.contains("hcargo_")) {
                         val garmentIdx = IntArray(m.idx.size) { m.idx[it].toInt() and 0xFFFF }
