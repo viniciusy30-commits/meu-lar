@@ -110,7 +110,7 @@ MASKS={
  "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],6.5,[18,19,20,22,23,24],"bottom",2.0)
 }
 
-def render(names,view):
+def render(names,view,hide_body=False):
  masks=[MASKS[n] for n in names]
  hide=np.logical_or.reduce(masks) if masks else np.zeros(len(body["idx"]),bool)
  if view in ("frente","costas"):
@@ -119,7 +119,7 @@ def render(names,view):
  else:
   project=lambda p:p[:,[2,1]]
   depth=lambda p:p[:,0] if view=="lado" else -p[:,0]
- meshes=[(body,(205,163,135),hide)]
+ meshes=[] if hide_body else [(body,(205,163,135),hide)]
  palette={"minimalist_top_am5":(42,53,78),"minimalist_short_am5":(60,111,157),"minimalist_jeans_am5":(55,91,145)}
  meshes += [(items[n],palette[n],None) for n in names]
  allp=np.concatenate([m[0]["pos"] for m in meshes])
@@ -157,6 +157,9 @@ def render(names,view):
  im=Image.fromarray(canvas); ImageDraw.Draw(im).text((14,12),"MASCULINO — "+(" + ".join(names) if names else "corpo") +" — "+view,fill=(15,15,15))
  return im
 combos={"camiseta_short":["minimalist_top_am5","minimalist_short_am5"],"camiseta_jeans":["minimalist_top_am5","minimalist_jeans_am5"],"short":["minimalist_short_am5"],"jeans":["minimalist_jeans_am5"],"camiseta":["minimalist_top_am5"]}
+render(["minimalist_jeans_am5"],"frente",True).save(OUT/"jeans_sem_corpo_frente.png")
+render(["minimalist_short_am5"],"frente",True).save(OUT/"short_sem_corpo_frente.png")
+render(["minimalist_top_am5"],"frente",True).save(OUT/"camiseta_sem_corpo_frente.png")
 for name,names in combos.items():
  for view in ("frente","costas","lado"): render(names,view).save(OUT/f"{name}_{view}.png")
 # Painel compacto com vistas das combinações mais importantes.
