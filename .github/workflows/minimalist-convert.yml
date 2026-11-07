@@ -43,7 +43,7 @@ jobs:
               im.verify()
               print(name, 'VALID', nv, 'vertices', ni//3, 'triangulos', im.size)
           PY
-      - name: Commit converted native assets
+      - name: Render fit diagnostics\n        run: |\n          pip install numpy scipy pillow\n          python ferramentas/mods_teste/render_minimalist_fit.py\n      - uses: actions/upload-artifact@v4\n        with:\n          name: minimalist-fit-diagnostics\n          path: fit-minimalist/\n      - name: Commit converted native assets
         run: |
           git config user.name "meular-assets-bot"
           git config user.email "meular-assets-bot@users.noreply.github.com"
