@@ -108,9 +108,9 @@ def cover(g,radius=4.5,protected=None,slot="top",side_limit=1.0):
 HAND_BONES=[12,16,*range(25,55)]
 FOOT_BONES=[18,19,20,22,23,24]
 MASKS={
- "minimalist_top_am5":cover(items["minimalist_top_am5"],3.5,HAND_BONES,"top",1.1),
- "minimalist_short_am5":cover(items["minimalist_short_am5"],3.5,FOOT_BONES,"bottom",1.1),
- "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],3.5,FOOT_BONES,"bottom",1.1)
+ "minimalist_top_am5":cover(items["minimalist_top_am5"],4.5,HAND_BONES,"top",1.4),
+ "minimalist_short_am5":cover(items["minimalist_short_am5"],4.5,FOOT_BONES,"bottom",1.4),
+ "minimalist_jeans_am5":cover(items["minimalist_jeans_am5"],6.0,FOOT_BONES,"bottom",1.4)
 }
 
 def render(names,view,hide_body=False):
