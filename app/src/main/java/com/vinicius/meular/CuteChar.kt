@@ -491,6 +491,26 @@ object CuteChar {
         }
     }
 
+    /** Sobe a faixa superior da calça cargo para fechar a junção com a cueca sem apagar pele fora do tecido. */
+    private fun adjustCargoWaist(s: Skin) {
+        var top = -Float.MAX_VALUE
+        for (v in 0 until s.nv) if (s.pos0[v * 3 + 1] > top) top = s.pos0[v * 3 + 1]
+        for (v in 0 until s.nv) {
+            val o = v * 3
+            val t = ((s.pos0[o + 1] - (top - 8f)) / 8f).coerceIn(0f, 1f)
+            val w = t * t * (3f - 2f * t)
+            if (w <= 0f) continue
+            for (a in 0..2) {
+                val d = s.nor0[o + a] * (0.18f * w)
+                s.pos0[o + a] += d
+                s.pos[o + a] += d
+            }
+            val lift = 1.4f * w
+            s.pos0[o + 1] += lift
+            s.pos[o + 1] += lift
+        }
+    }
+
     private fun runModJobs() {
         if (!loaded || baseSkin == null) return
         var changed = false
@@ -509,6 +529,7 @@ object CuteChar {
                 val sk = readPieceBytes(j.cup, j.key, tname)
                 sk.mod = true
                 if (j.key.contains("hood_af5") || j.key.contains("hood_am5")) adjustHoodHem(sk)
+                if (j.key.contains("hcargo_af5") || j.key.contains("hcargo_am5")) adjustCargoWaist(sk)
                 sk.modAlpha = j.alpha
                 sk.legCol = j.key.startsWith("bottom/") && j.key.contains("autumn")
                 val ids = IntArray(1)
