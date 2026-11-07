@@ -93,7 +93,27 @@ for sex,grp in [("masculino","am5"),("feminino","af5")]:
     seam=(jacket["pos"][:,1]>=72)&(jacket["pos"][:,1]<=108)&(jacket["pos"][:,2]<0)
     tree=cKDTree(pants["pos"])
     ds,_=tree.query(jacket["pos"][seam],k=1,workers=-1)
+    def bone_distribution(tri_mask):
+        ids=body["idx"][tri_mask]
+        bi=body["bi"][ids]
+        bw=body["bw"][ids]
+        vals={}
+        for bone in range(55):
+            vals[str(bone)]=round(float(bw[bi==bone].sum()),2)
+        return {k:v for k,v in vals.items() if v>0}
+    near=ds<1.0
     report[sex]={
+      "jacket_y_range_cm":[float(jacket["pos"][:,1].min()),float(jacket["pos"][:,1].max())],
+      "pants_y_range_cm":[float(pants["pos"][:,1].min()),float(pants["pos"][:,1].max())],
+      "jacket_z_range_cm":[float(jacket["pos"][:,2].min()),float(jacket["pos"][:,2].max())],
+      "pants_z_range_cm":[float(pants["pos"][:,2].min()),float(pants["pos"][:,2].max())],
+      "hidden_hand_bone_weights":bone_distribution(combined&hand),
+      "hidden_low_foot_bone_weights":bone_distribution(combined&foot),
+      "hidden_foot_y_range_cm":[float(centers[combined&foot,1].min()),float(centers[combined&foot,1].max())] if np.any(combined&foot) else None,
+      "hidden_waist_by_jacket":int((jm&waist).sum()),
+      "hidden_waist_by_pants":int((pm&waist).sum()),
+      "jacket_pants_close_y_range_cm":[float(jacket["pos"][seam][near,1].min()),float(jacket["pos"][seam][near,1].max())] if np.any(near) else None,
+      "jacket_pants_close_z_range_cm":[float(jacket["pos"][seam][near,2].min()),float(jacket["pos"][seam][near,2].max())] if np.any(near) else None,
       "body_vertices":int(len(body["pos"])),"jacket_vertices":int(len(jacket["pos"])),"pants_vertices":int(len(pants["pos"])),
       "body_triangles":int(len(body["idx"])),"jacket_cover_triangles":int(jm.sum()),"pants_cover_triangles":int(pm.sum()),
       "hidden_hand_triangles":int((combined&hand).sum()),"hand_triangles":int(hand.sum()),
