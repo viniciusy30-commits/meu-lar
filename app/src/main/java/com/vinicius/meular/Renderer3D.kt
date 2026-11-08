@@ -484,7 +484,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh, st.testRoom)
         inBld = null
-        if (!st.testRoom) City.build(gw, gh) else City.clear()   // Etapa 121: cidade em volta da casa
+        City.clear()
+        if (!st.testRoom) City.buildAsync(gw, gh)   // Etapa 122: a cidade é montada em segundo plano
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)
         doorM = Models.doorLeaf()
@@ -577,7 +578,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     /** Desenha a cidade: quarteirões perto em detalhe, longe simplificados; semáforos, veículos, pedestres, brinquedos. */
     private fun drawCity(ex: Float, ez: Float) {
+        City.service(ex, ez)
         setInside(if (mode == 0) City.bldAt(px, pz) else null)
+        inBld?.let { applySkip(it, true) }   // a malha detalhada pode ter sido recarregada
         cityGlass.clear()
         Matrix.setIdentityM(mdl, 0)
         val ib = inBld
@@ -586,8 +589,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val d2 = dx * dx + dz * dz
             if (d2 > 245f * 245f) continue
             if (!boxVisible(c.x0, -0.6f, c.z0, c.x1, c.h, c.z1)) continue
-            val near = d2 < City.NEAR * City.NEAR || c.far == null || (ib != null && ib.chunk == ci)
-            if (near) { draw(c.near, mdl, 1f); if (c.glass) cityGlass.add(c.near) } else draw(c.far!!, mdl, 1f)
+            val wantNear = d2 < City.NEAR * City.NEAR || c.far == null || (ib != null && ib.chunk == ci)
+            val nm = c.near
+            if (wantNear && nm != null) { draw(nm, mdl, 1f); if (c.glass) cityGlass.add(nm) }
+            else { val fm = c.far ?: nm ?: continue; draw(fm, mdl, 1f) }
         }
         City.lightMeshes[City.lightPhase]?.let { draw(it, mdl, 1f) }
         val cm = Vehicles.meshes

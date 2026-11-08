@@ -34,9 +34,18 @@ object City {
         var price = 0
     }
 
-    class Chunk(val near: Mesh, val far: Mesh?, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val h: Float) {
+    /**
+     * Pedaço da cidade. [near] = malha detalhada (pode ser nula: quarteirões são carregados perto do jogador, em segundo plano,
+     * e descartados quando ficam longe); [far] = versão simplificada, sempre presente.
+     */
+    class Chunk(@Volatile var near: Mesh?, val far: Mesh?, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val h: Float) {
         val nearIdx = HashMap<Int, Int>()   // material -> índice da peça (só as do construtor, não as da flora)
         var glass = false
+        var pend: Flora.Batch? = null       // flora a montar na thread do GL (precisa criar texturas)
+        var lazyI = -1; var lazyJ = -1      // quarteirão que se recarrega sob demanda
+        @Volatile var loading = false
+        @Volatile var result: Pair<Mesh, Flora.Batch>? = null
+        var lastNear = 0L
     }
 
     /** Ponto de interesse do mapa. */
@@ -78,6 +87,8 @@ object City {
     private val solidsBy = HashMap<Int, ArrayList<FloatArray>>()   // por célula de 32 m
     private val bldBy = HashMap<Int, ArrayList<Bld>>()
     private fun cell(x: Float, z: Float) = (Math.floor(x / 32.0).toInt() + 1000) * 4096 + (Math.floor(z / 32.0).toInt() + 1000)
+
+    fun addPlace(p: Place) { places.add(p) }
 
     fun addSolid(r: FloatArray) {
         val a = Math.floor(r[0] / 32.0).toInt(); val b = Math.floor(r[2] / 32.0).toInt()
@@ -168,7 +179,11 @@ object City {
         fun chance(p: Float) = f() < p
     }
 
+    @Volatile private var token = 0
+
+    /** Thread do GL: devolve buffers e zera tudo (antes de montar de novo). */
     fun clear() {
+        token++
         on = false
         chunks.forEach { it.near.release(); it.far?.release() }; chunks = emptyList()
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
@@ -178,8 +193,15 @@ object City {
         Gps.clear()
     }
 
-    fun build(gw: Int, gh: Int) {
-        clear()
+    /** Monta a cidade numa thread separada (o jogo continua rodando dentro de casa enquanto isso). */
+    fun buildAsync(gw: Int, gh: Int) {
+        val tk = token
+        Thread {
+            try { build(gw, gh, tk) } catch (e: Throwable) { android.util.Log.e("City", "falha ao montar a cidade", e) }
+        }.apply { priority = Thread.NORM_PRIORITY - 1 }.start()
+    }
+
+    private fun build(gw: Int, gh: Int, tk: Int) {
         val W = gw.toFloat(); val H = gh.toFloat()
         lotX0 = -10f; lotX1 = W + 10f; lotZ0 = -22f; lotZ1 = H + 9f
         // larguras dos quarteirões (a casa é a coluna/linha 3)
@@ -211,7 +233,9 @@ object City {
             val x0 = blkX[i * 2]; val x1 = blkX[i * 2 + 1]; val z0 = blkZ[j * 2]; val z1 = blkZ[j * 2 + 1]
             val g = CityGeo.Gen(out.size, Rng(i * 131 + j * 17 + 7), x0, z0, x1, z1)
             val h = CityGeo.block(g, t, i, j)
-            out.add(g.finish(h))
+            if (t == "fun") out.add(g.finish(h))
+            else { val c = g.finishFar(h); c.lazyI = i; c.lazyJ = j; out.add(c) }   // detalhe carregado quando o jogador chegar perto
+            if (tk != token) return
         }
         out.add(CityFun.beach(out.size))
         out.add(CityGeo.ring())
@@ -225,7 +249,51 @@ object City {
         places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
         places.add(Place("Píer", PIER_X, SEA_Z + 20f, 0xFF8D6E63.toInt(), 'Í'))
+        if (tk != token) return
         on = true
+    }
+
+    private val loader = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "cidade-detalhe").apply { priority = Thread.NORM_PRIORITY - 1 } }
+
+    /** Pede a malha detalhada de um quarteirão (gerada de novo, igual à primeira vez, sem registrar colisões de novo). */
+    fun requestNear(ci: Int) {
+        val c = chunks.getOrNull(ci) ?: return
+        if (c.lazyI < 0 || c.near != null || c.loading || c.result != null) return
+        c.loading = true
+        val tk = token
+        val i = c.lazyI; val j = c.lazyJ
+        loader.execute {
+            try {
+                if (tk == token) {
+                    val g = CityGeo.Gen(ci, Rng(i * 131 + j * 17 + 7), blkX[i * 2], blkZ[j * 2], blkX[i * 2 + 1], blkZ[j * 2 + 1], false)
+                    CityGeo.block(g, types[i][j], i, j)
+                    if (tk == token) c.result = Pair(g.b.toMesh(true), g.fl)
+                }
+            } catch (e: Throwable) { android.util.Log.e("City", "detalhe", e) }
+            c.loading = false
+        }
+    }
+
+    /** Thread do GL: instala malhas prontas, monta flora pendente e descarta detalhe de quarteirões longe. */
+    fun service(ex: Float, ez: Float) {
+        if (!on) return
+        val now = System.currentTimeMillis()
+        for ((ci, c) in chunks.withIndex()) {
+            c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()) }; c.pend = null }
+            val r = c.result
+            if (r != null) {
+                c.result = null
+                c.nearIdx.clear(); c.glass = false
+                for ((k, p) in r.first.parts.withIndex()) { c.nearIdx[p.mat] = k; if (p.mat == Mt.GLASS) c.glass = true }
+                c.near = Mesh(r.first.parts + r.second.build())
+                c.lastNear = now
+            }
+            if (c.lazyI < 0) continue
+            val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
+            val d2 = dx * dx + dz * dz
+            if (d2 < (NEAR + 25f) * (NEAR + 25f)) { requestNear(ci); c.lastNear = now }
+            else if (c.near != null && d2 > (NEAR + 70f) * (NEAR + 70f) && now - c.lastNear > 4000L) { c.near?.release(); c.near = null }
+        }
     }
 
     /** Planta da cidade, por linha (z) e coluna (x). */

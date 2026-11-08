@@ -94,7 +94,7 @@ object CityFun {
         for (i in 0 until 6) { val sx = rng.r(X0, X1); b.m(Mt.PLAIN); b.box(sx, sandH(SZ - 14f) + 1.0f, SZ - 14f, 0.55f, 2.0f, 0.08f, rng.pick(pal)) }
         // píer
         pier(g)
-        City.places.add(City.Place("Quiosques", City.PIER_X + 40f, BZ + 5f, 0xFF00838F.toInt(), 'Q'))
+        g.place(City.Place("Quiosques", City.PIER_X + 40f, BZ + 5f, 0xFF00838F.toInt(), 'Q'))
         return g.finish(12f)
     }
 
@@ -300,7 +300,7 @@ object CityFun {
         for (k in 0 until 6) CityGeo.palm(g, px0 + 3f + k * 15.5f, pz1 - 3f, 0.9f)
         // montanha-russa: trilho fixo, trem anda
         buildCoaster(g)
-        City.places.add(City.Place("Parque de Diversões", cx, pz0 - 2f, 0xFF6A1B9A.toInt(), 'D'))
+        g.place(City.Place("Parque de Diversões", cx, pz0 - 2f, 0xFF6A1B9A.toInt(), 'D'))
     }
 
     private fun lightString(b: MB, x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float) {

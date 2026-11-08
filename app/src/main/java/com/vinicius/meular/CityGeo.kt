@@ -22,7 +22,7 @@ object CityGeo {
 
     // ============================================================ geração de um pedaço
 
-    class Gen(val idx: Int, val rng: City.Rng, val x0: Float, val z0: Float, val x1: Float, val z1: Float) {
+    class Gen(val idx: Int, val rng: City.Rng, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val reg: Boolean = true) {
         val b = MB()
         val f = MB()
         val fl = Flora.Batch()
@@ -44,20 +44,25 @@ object CityGeo {
             b.append(H)
             val c1 = b.counts()
             for ((m, n1) in c1) { val n0 = c0[m] ?: 0; if (n1 > n0) bd.ranges[m] = intArrayOf(n0, n1) }
-            City.addBld(bd)
+            if (reg) City.addBld(bd)
             A = b; H = b; cur = null
         }
 
-        fun solid(ax: Float, az: Float, bx: Float, bz: Float) = City.addSolid(floatArrayOf(min(ax, bx), min(az, bz), max(ax, bx), max(az, bz)))
+        fun solid(ax: Float, az: Float, bx: Float, bz: Float) { if (reg) City.addSolid(floatArrayOf(min(ax, bx), min(az, bz), max(ax, bx), max(az, bz))) }
+        fun place(p: City.Place) { if (reg) City.addPlace(p) }
 
+        /** Pedaço com malha detalhada já pronta (a flora é montada depois, na thread do GL). */
         fun finish(h: Float): City.Chunk {
             val nm = b.toMesh(true)
-            val near = Mesh(nm.parts + fl.build())
             val far = if (f.isEmpty()) null else f.toMesh(true)
-            val c = City.Chunk(near, far, x0, z0, x1, z1, h)
+            val c = City.Chunk(nm, far, x0, z0, x1, z1, h)
+            c.pend = fl
             for ((i, p) in nm.parts.withIndex()) { c.nearIdx[p.mat] = i; if (p.mat == Mt.GLASS) c.glass = true }
             return c
         }
+
+        /** Só a versão de longe; a detalhada é gerada de novo quando o jogador chega perto. */
+        fun finishFar(h: Float): City.Chunk = City.Chunk(null, if (f.isEmpty()) null else f.toMesh(true), x0, z0, x1, z1, h)
     }
 
     // ============================================================ primitivas
@@ -222,21 +227,29 @@ object CityGeo {
      */
     fun wall(g: Gen, axis: Int, fix: Float, a: Float, e: Float, y0: Float, top: Float, out: Int, ops: List<Op>, cOut: Int, cIn: Int, matOut: Int, th: Float = 0.2f, interior: Boolean = false) {
         val sorted = ops.sortedBy { it.c }
-        fun half(b: MB, u0: Float, u1: Float, v0: Float, v1: Float, side: Int) {
+        // Etapa 122: um bloco só na espessura toda (cor de fora) + uma face fina por dentro (reboco) — metade dos vértices de antes
+        fun seg(b: MB, u0: Float, u1: Float, v0: Float, v1: Float) {
             if (u1 - u0 < 0.005f || v1 - v0 < 0.005f) return
-            val d = fix + side * th / 4f
-            val outer = side == out
-            if (outer && !interior) b.m(matOut, if (matOut == Mt.FACADE) 1f / 3f else 0.5f) else b.m(Mt.PLASTER, 0.5f)
-            val c = if (outer && !interior) cOut else cIn
-            if (axis == 0) b.box((u0 + u1) / 2, (v0 + v1) / 2, d, u1 - u0, v1 - v0, th / 2, c) else b.box(d, (v0 + v1) / 2, (u0 + u1) / 2, th / 2, v1 - v0, u1 - u0, c)
+            if (interior) {
+                b.m(Mt.PLASTER, 0.5f)
+                if (axis == 0) b.box((u0 + u1) / 2, (v0 + v1) / 2, fix, u1 - u0, v1 - v0, th, cIn) else b.box(fix, (v0 + v1) / 2, (u0 + u1) / 2, th, v1 - v0, u1 - u0, cIn)
+                return
+            }
+            b.m(matOut, if (matOut == Mt.FACADE) 1f / 3f else 0.5f)
+            if (axis == 0) b.box((u0 + u1) / 2, (v0 + v1) / 2, fix, u1 - u0, v1 - v0, th, cOut) else b.box(fix, (v0 + v1) / 2, (u0 + u1) / 2, th, v1 - v0, u1 - u0, cOut)
+            b.m(Mt.PLASTER, 0.5f)
+            val d = fix - out * (th / 2 + 0.003f)
+            if (axis == 0) {
+                if (out > 0) q(b, P(u0, v0, d) + P(u0, v1, d) + P(u1, v1, d) + P(u1, v0, d), cIn) else q(b, P(u1, v0, d) + P(u1, v1, d) + P(u0, v1, d) + P(u0, v0, d), cIn)
+            } else {
+                if (out > 0) q(b, P(d, v0, u1) + P(d, v1, u1) + P(d, v1, u0) + P(d, v0, u0), cIn) else q(b, P(d, v0, u0) + P(d, v1, u0) + P(d, v1, u1) + P(d, v0, u1), cIn)
+            }
         }
         fun piece(u0: Float, u1: Float, v0: Float, v1: Float) {
             val ys = y0 + STUB
-            for (side in intArrayOf(1, -1)) {
-                if (v1 <= ys) half(g.A, u0, u1, v0, v1, side)
-                else if (v0 >= ys) half(g.H, u0, u1, v0, v1, side)
-                else { half(g.A, u0, u1, v0, ys, side); half(g.H, u0, u1, ys, v1, side) }
-            }
+            if (v1 <= ys) seg(g.A, u0, u1, v0, v1)
+            else if (v0 >= ys) seg(g.H, u0, u1, v0, v1)
+            else { seg(g.A, u0, u1, v0, ys); seg(g.H, u0, u1, ys, v1) }
         }
         var u = a
         for (o in sorted) {
@@ -258,9 +271,7 @@ object CityGeo {
             }
             if (!o.door) {
                 bx(oa - 0.1f, ob + 0.1f, o.b - 0.06f, o.b, fix + out * (th / 2 + 0.06f), 0.16f, C("#E6E2DC"))   // peitoril
-                bx(oa, ob, o.b, o.b + 0.05f, fix, th * 0.9f, fc)
                 bx(o.c - 0.025f, o.c + 0.025f, o.b, o.t, fix, 0.06f, fc)                              // caixilho do meio
-                bx(oa, ob, o.b + (o.t - o.b) * 0.62f, o.b + (o.t - o.b) * 0.62f + 0.04f, fix, 0.06f, fc)
                 hb.m(Mt.GLASS); hb.al = 0.32f
                 bx(oa, ob, o.b, o.t, fix, 0.02f, C("#BFE3F2"))
                 hb.al = 1f; hb.m(Mt.PLAIN)
@@ -338,7 +349,7 @@ object CityGeo {
         for (k in 0..3) {
             var x = -0.44f
             while (x < 0.4f) {
-                val bw = rng.r(0.04f, 0.08f); val bh = rng.r(0.26f, 0.38f)
+                val bw = rng.r(0.09f, 0.17f); val bh = rng.r(0.26f, 0.38f)
                 lb(b, l, x + bw / 2, FL + 0.045f + k * 0.48f + bh / 2, 0.02f, bw, bh, 0.24f, rng.pick(arrayOf(C("#8E2C2C"), C("#2C4A8E"), C("#2E7D32"), C("#E0A030"), C("#EEEEEE"), C("#5D4037"), C("#455A64"))))
                 x += bw + 0.005f
                 if (rng.chance(0.08f)) x += 0.12f
@@ -500,7 +511,7 @@ object CityGeo {
         lb(b, l, 0f, FL + 0.2f, 0f, 0.38f, 0.4f, 0.55f, wc)
         lb(b, l, 0f, FL + 0.42f, -0.02f, 0.4f, 0.04f, 0.5f, C("#EEEEEE"))
         lb(b, l, 0f, FL + 0.65f, 0.25f, 0.4f, 0.42f, 0.18f, wc)
-        val l2 = L(x0 + 1.3f, backZ + fz * 0.3f, 0f, fz)
+        val l2 = L(x1 - 0.45f, backZ + fz * 1.58f, 0f, -fz)   // pia na parede da frente, ao lado da porta
         lb(b, l2, 0f, FL + 0.42f, 0f, 0.12f, 0.84f, 0.12f, wc)
         lb(b, l2, 0f, FL + 0.86f, 0f, 0.6f, 0.12f, 0.45f, wc)
         b.m(Mt.METAL, 1f)
@@ -512,7 +523,7 @@ object CityGeo {
         b.box(sx, FL + 0.03f, sz, 0.95f, 0.06f, 0.95f, C("#E0E6EA"))
         b.m(Mt.GLASS); b.al = 0.25f
         b.box(sx - 0.47f, FL + 1.0f, sz, 0.02f, 1.9f, 0.95f, C("#DFF3FA"))
-        b.box(sx, FL + 1.0f, sz - fz * 0.47f, 0.95f, 1.9f, 0.02f, C("#DFF3FA"))
+        b.box(sx, FL + 1.0f, sz + fz * 0.47f, 0.95f, 1.9f, 0.02f, C("#DFF3FA"))
         b.al = 1f
         b.m(Mt.METAL, 1f)
         b.cyl(sx + 0.3f, FL + 1.9f, sz + fz * 0.3f, 0.12f, 0.12f, 0.03f, C("#C0C0C0"), true, 10)
@@ -590,11 +601,10 @@ object CityGeo {
         val sOps = arrayListOf(Op((hz0 + hz1) / 2 + hd * 0.22f, 1.2f, FL + 1.0f, winT, false), Op((hz0 + hz1) / 2 - hd * 0.25f, 1.0f, FL + 1.3f, winT, false))
         wall(g, 1, hx0, hz0 + 0.1f, hz1 - 0.1f, FL, topY, -1, sOps, wall, inC, matOut)
         wall(g, 1, hx1, hz0 + 0.1f, hz1 - 0.1f, FL, topY, 1, sOps, wall, inC, matOut)
-        for (s in floatArrayOf(-1f, 1f)) {   // paredes como sólidos (a porta fica aberta)
-            g.solid(hx0 - 0.2f, hz0 - 0.2f, hx0 + 0.2f, hz1 + 0.2f); g.solid(hx1 - 0.2f, hz0 - 0.2f, hx1 + 0.2f, hz1 + 0.2f)
-            g.solid(hx0, zb - 0.2f, hx1, zb + 0.2f)
-            g.solid(hx0, zf - 0.2f, hcx - 0.62f, zf + 0.2f); g.solid(hcx + 0.62f, zf - 0.2f, hx1, zf + 0.2f)
-        }
+        // paredes como sólidos (a porta fica aberta)
+        g.solid(hx0 - 0.2f, hz0 - 0.2f, hx0 + 0.2f, hz1 + 0.2f); g.solid(hx1 - 0.2f, hz0 - 0.2f, hx1 + 0.2f, hz1 + 0.2f)
+        g.solid(hx0, zb - 0.2f, hx1, zb + 0.2f)
+        g.solid(hx0, zf - 0.2f, hcx - 0.62f, zf + 0.2f); g.solid(hcx + 0.62f, zf - 0.2f, hx1, zf + 0.2f)
         // porta aberta (folha encostada por dentro) e luminária da entrada
         H.m(Mt.WOOD, 1f)
         val dc = C(rng.pick(DOORS))
@@ -604,18 +614,22 @@ object CityGeo {
         // divisórias de dentro: frente (sala/jantar) e fundo (cozinha à esquerda, quarto à direita, banheiro no canto do quarto)
         val split = Z(set + hd * 0.55f)
         val midX = hcx + (if (rng.chance(0.5f)) -0.4f else 0.4f)
-        wall(g, 0, split, hx0 + 0.1f, hx1 - 0.1f, FL, topY, 1, listOf(Op(hx0 + hw * 0.25f, 2.2f, FL, FL + 2.3f, true), Op(midX + hw * 0.18f, 0.95f, FL, FL + 2.15f, true)), inC, inC, Mt.PLASTER, 0.12f, true)
+        val bdX = midX + 0.75f   // porta do quarto, junto da parede do meio
+        wall(g, 0, split, hx0 + 0.1f, hx1 - 0.1f, FL, topY, 1, listOf(Op(hx0 + hw * 0.25f, 2.2f, FL, FL + 2.3f, true), Op(bdX, 0.95f, FL, FL + 2.15f, true)), inC, inC, Mt.PLASTER, 0.12f, true)
         wall(g, 1, midX, min(split, zb) + 0.06f, max(split, zb) - 0.06f, FL, topY, 1, emptyList(), inC, inC, Mt.PLASTER, 0.12f, true)
-        g.solid(hx0, split - 0.08f, hx0 + hw * 0.25f - 1.1f, split + 0.08f); g.solid(hx0 + hw * 0.25f + 1.1f, split - 0.08f, midX + hw * 0.18f - 0.48f, split + 0.08f)
-        g.solid(midX + hw * 0.18f + 0.48f, split - 0.08f, hx1, split + 0.08f)
+        g.solid(hx0, split - 0.08f, hx0 + hw * 0.25f - 1.1f, split + 0.08f); g.solid(hx0 + hw * 0.25f + 1.1f, split - 0.08f, bdX - 0.48f, split + 0.08f)
+        g.solid(bdX + 0.48f, split - 0.08f, hx1, split + 0.08f)
         g.solid(midX - 0.08f, min(split, zb), midX + 0.08f, max(split, zb))
-        // banheiro: canto de trás do quarto
+        // banheiro: canto de trás do quarto (porta na parede da frente dele, abrindo para o quarto)
         val bathW = 2.2f
         val bx0 = hx1 - bathW
-        wall(g, 1, bx0, min(Z(set + hd - 2.0f), zb) + 0.06f, max(Z(set + hd - 2.0f), zb) - 0.06f, FL, topY, 1, listOf(Op((Z(set + hd - 2.0f) + zb) / 2 + fz * 0.35f, 0.8f, FL, FL + 2.1f, true)), inC, inC, Mt.PLASTER, 0.1f, true)
-        wall(g, 0, Z(set + hd - 2.0f), bx0, hx1 - 0.1f, FL, topY, 1, emptyList(), inC, inC, Mt.PLASTER, 0.1f, true)
-        A.m(Mt.TILE, 2.5f); A.box((bx0 + hx1) / 2, FL + 0.004f, (Z(set + hd - 2.0f) + zb) / 2, bathW - 0.2f, 0.01f, 1.8f, C("#E3EAF0"))
-        bathroom(A, bx0 + 0.15f, min(Z(set + hd - 2.0f), zb), hx1 - 0.15f, max(Z(set + hd - 2.0f), zb), zb - fz * 0.12f, -fz * -1f)
+        val bzF = Z(set + hd - 2.0f)
+        wall(g, 1, bx0, min(bzF, zb) + 0.06f, max(bzF, zb) - 0.06f, FL, topY, 1, emptyList(), inC, inC, Mt.PLASTER, 0.1f, true)
+        wall(g, 0, bzF, bx0, hx1 - 0.1f, FL, topY, 1, listOf(Op(bx0 + 0.6f, 0.8f, FL, FL + 2.1f, true)), inC, inC, Mt.PLASTER, 0.1f, true)
+        g.solid(bx0 - 0.06f, min(bzF, zb), bx0 + 0.06f, max(bzF, zb))
+        g.solid(bx0 + 1.0f, bzF - 0.06f, hx1, bzF + 0.06f)
+        A.m(Mt.TILE, 2.5f); A.box((bx0 + hx1) / 2, FL + 0.004f, (bzF + zb) / 2, bathW - 0.2f, 0.01f, 1.8f, C("#E3EAF0"))
+        bathroom(A, bx0 + 0.15f, min(bzF, zb), hx1 - 0.15f, max(bzF, zb), zb + fz * 0.12f, fz)
 
         // --- móveis
         val fab = rng.pick(FABRICS)
@@ -637,18 +651,28 @@ object CityGeo {
         diningSet(A, L(dx, Z(set + hd * 0.3f), 0f, fz), wood, if (mansion) 8 else 4, fab)
         g.solid(dx - 0.8f, Z(set + hd * 0.3f) - 0.5f, dx + 0.8f, Z(set + hd * 0.3f) + 0.5f)
         bookshelf(A, L(if (sideGar) hx1 - 0.3f else hx0 + 0.3f, Z(set + hd * 0.2f), if (sideGar) -1f else 1f, 0f), wood, rng)
-        // cozinha (fundo, esquerda de midX)
-        val kw = min(3.4f, midX - hx0 - 0.6f)
-        kitchen(A, L(hx0 + 0.25f + kw / 2, zb - fz * 0.45f, 0f, fz), kw, rng.pick(arrayOf(C("#FFFFFF"), C("#5B7065"), C("#2F3E46"), C("#C8A27A"), C("#E9E4D9"))), C(rng.pick(arrayOf("#2B2B2B", "#E8E4DC", "#7E7E7E"))), rng)
-        g.solid(hx0, min(zb, zb - fz * 0.8f), hx0 + 0.25f + kw, max(zb, zb - fz * 0.8f))
-        fridge(A, L(min(midX - 0.55f, hx0 + 0.25f + kw + 0.5f), zb - fz * 0.45f, 0f, fz))
-        // quarto (fundo, direita)
-        val bedX = (midX + bx0) / 2
-        bed(A, L(bedX, Z(set + hd * 0.55f + 1.25f), 0f, -fz).let { L(bedX, (split + Z(set + hd - 2.0f)) / 2 + fz * 0f, 0f, fz) }, wood, rng.pick(FABRICS), true)
-        nightstand(A, L(bedX - 1.15f, (split + Z(set + hd - 2.0f)) / 2 + (-fz) * (-0.8f), 0f, fz), wood)
-        nightstand(A, L(bedX + 1.15f, (split + Z(set + hd - 2.0f)) / 2 + (-fz) * (-0.8f), 0f, fz), wood)
-        wardrobe(A, L(bedX, zb - fz * 0.4f, 0f, fz), wood, 1.6f)
-        g.solid(bedX - 0.9f, (split + Z(set + hd - 2.0f)) / 2 - 1.05f, bedX + 0.9f, (split + Z(set + hd - 2.0f)) / 2 + 1.05f)
+        // cozinha (fundo, esquerda de midX): bancada no fundo e geladeira na ponta
+        val kw = max(1.2f, min(3.4f, midX - hx0 - 1.45f))
+        kitchen(A, L(hx0 + 0.2f + kw / 2, zb + fz * 0.45f, 0f, fz), kw, rng.pick(arrayOf(C("#FFFFFF"), C("#5B7065"), C("#2F3E46"), C("#C8A27A"), C("#E9E4D9"))), C(rng.pick(arrayOf("#2B2B2B", "#E8E4DC", "#7E7E7E"))), rng)
+        g.solid(hx0, min(zb, zb + fz * 0.8f), hx0 + 0.2f + kw, max(zb, zb + fz * 0.8f))
+        val frX = hx0 + 0.2f + kw + 0.45f
+        if (frX + 0.4f < midX) { fridge(A, L(frX, zb + fz * 0.45f, 0f, fz)); g.solid(frX - 0.4f, min(zb, zb + fz * 0.85f), frX + 0.4f, max(zb, zb + fz * 0.85f)) }
+        // quarto (fundo, direita): cama com a cabeceira no fundo, criado-mudo, guarda-roupa junto da parede da frente
+        val room = bx0 - midX
+        val dbl = room > 2.1f
+        val bwid = if (dbl) 1.6f else 0.95f
+        val bedX = bx0 - 0.1f - bwid / 2 - 0.05f
+        val bedZ = zb + fz * 1.2f
+        bed(A, L(bedX, bedZ, 0f, fz), wood, rng.pick(FABRICS), dbl)
+        g.solid(bedX - bwid / 2 - 0.05f, min(zb, zb + fz * 2.3f), bedX + bwid / 2 + 0.05f, max(zb, zb + fz * 2.3f))
+        if (bedX - bwid / 2 - 0.55f > midX + 0.1f) nightstand(A, L(bedX - bwid / 2 - 0.3f, zb + fz * 0.3f, 0f, fz), wood)
+        val wwid = min(1.8f, hx1 - 0.25f - (bdX + 0.6f))
+        if (wwid > 0.8f) {
+            val wx = bdX + 0.6f + wwid / 2
+            wardrobe(A, L(wx, split - fz * 0.36f, 0f, -fz), wood, wwid)
+            g.solid(wx - wwid / 2, min(split, split - fz * 0.7f), wx + wwid / 2, max(split, split - fz * 0.7f))
+        }
+        rug(A, bedX - bwid / 2 - 0.3f, min(bedZ + fz * 1.4f, bedZ + fz * 0.6f), bedX + bwid / 2 + 0.3f, max(bedZ + fz * 1.4f, bedZ + fz * 0.6f), rng.pick(FABRICS))
 
         // --- telhado / andar de cima (H)
         val ov = 0.5f
@@ -842,7 +866,7 @@ object CityGeo {
         val cx = (x0 + x1) / 2
         b.box(cx - 0.8f, CURB + 0.9f, Z(1.2f), 0.1f, 1.8f, 0.1f, C("#5D4037")); b.box(cx + 0.8f, CURB + 0.9f, Z(1.2f), 0.1f, 1.8f, 0.1f, C("#5D4037"))
         sign(b, cx, CURB + 1.15f, Z(1.2f) + fz * 0.07f, 0f, fz, 2.2f, 0.55f, City.signIdx("TERRENO À VENDA"))
-        City.places.add(City.Place("Terreno à venda", cx, Z(depth / 2), 0xFFF2C230.toInt(), 'T'))
+        g.place(City.Place("Terreno à venda", cx, Z(depth / 2), 0xFFF2C230.toInt(), 'T'))
     }
 
     // ============================================================ prédios
@@ -926,7 +950,7 @@ object CityGeo {
         if (glassy) { g.f.m(Mt.METAL, 1f); g.f.box(cx, FL + gh + floors * 1.5f, cz, w, floors * 3f, d, col) }
         else { g.f.m(Mt.FACADE, 1f / 3f, 0f, -(FL + gh) / 3f); g.f.box(cx, FL + gh + floors * 1.5f, cz, w, floors * 3f, d, col) }
         g.f.m(Mt.PLASTER, 0.5f); g.f.box(cx, topY + 0.5f, cz, w + 0.3f, 1.0f, d + 0.3f, shade(col, -28))
-        if (shop != null) City.places.add(City.Place(bd.name, cx, Z(set - 2f), placeColor(kind), bd.name.first()))
+        if (shop != null) g.place(City.Place(bd.name, cx, Z(set - 2f), placeColor(kind), bd.name.first()))
         return topY + 4f
     }
 
@@ -1037,7 +1061,7 @@ object CityGeo {
         for (k in 0..3) for (side in floatArrayOf(-1f, 1f)) {
             var px = x - w / 2 + 0.05f
             val c = rng.pick(pal)
-            val ph = rng.r(0.16f, 0.32f); val pw = rng.r(0.1f, 0.22f)
+            val ph = rng.r(0.16f, 0.32f); val pw = rng.r(0.32f, 0.55f)
             while (px < x + w / 2 - pw) {
                 b.box(px + pw / 2, FL + 0.27f + k * 0.45f + ph / 2, z + side * 0.17f, pw - 0.015f, ph, 0.22f, if (rng.chance(0.25f)) rng.pick(pal) else c)
                 px += pw
@@ -1211,7 +1235,7 @@ object CityGeo {
                 H.m(Mt.METAL, 1f); H.box(cx + sw * 0.3f, y2 + 1.2f, zb + fz * 0.0f - fz * 0.05f, 0.9f, 0.6f, 0.5f, C("#ECEFF1"))   // ar-condicionado
             }
             g.end()
-            City.places.add(City.Place(bd.name, cx, Z(0.8f), placeColor(kind), bd.name.first()))
+            g.place(City.Place(bd.name, cx, Z(0.8f), placeColor(kind), bd.name.first()))
             // mesinhas na calçada do café/lanchonete/sorveteria
             if (kind == 2) {
                 for (t in 0 until 2) {
@@ -1311,7 +1335,7 @@ object CityGeo {
         g.b.m(Mt.STONE, 0.8f)
         g.b.box((g.x0 + g.x1) / 2, CURB + 1.1f, (g.z0 + g.z1) / 2, g.x1 - g.x0, 2.2f, 0.25f, C("#E8E0D2"))
         g.solid(g.x0, (g.z0 + g.z1) / 2 - 0.2f, g.x1, (g.z0 + g.z1) / 2 + 0.2f)
-        City.places.add(City.Place("Mansões", (g.x0 + g.x1) / 2, (g.z0 + g.z1) / 2, 0xFFB8860B.toInt(), 'M'))
+        g.place(City.Place("Mansões", (g.x0 + g.x1) / 2, (g.z0 + g.z1) / 2, 0xFFB8860B.toInt(), 'M'))
     }
 
     private val TOWER_C = arrayOf(C("#F0F0F0"), C("#DDE6EE"), C("#EFE3D3"), C("#C9D6DF"), C("#E6E1EA"), C("#D8D2C4"), C("#F3E5D0"), C("#E0EBE4"))
@@ -1566,7 +1590,7 @@ object CityGeo {
         H.m(Mt.METAL, 1f); H.box(cx, ty + 20.2f, zf + 1.6f, 0.15f, 2.4f, 0.15f, C("#C9A227")); H.box(cx, ty + 20.6f, zf + 1.6f, 1.2f, 0.15f, 0.15f, C("#C9A227"))
         sign(H, cx, FL + 4.6f, zf + 0.22f, 0f, 1f, 4.5f, 0.6f, City.signIdx("IGREJA MATRIZ"))
         g.end()
-        City.places.add(City.Place("Igreja Matriz", cx, zf + 3f, 0xFF6D4C41.toInt(), 'I'))
+        g.place(City.Place("Igreja Matriz", cx, zf + 3f, 0xFF6D4C41.toInt(), 'I'))
         g.f.m(Mt.PLASTER, 0.5f); g.f.box(cx, FL + 4.5f, (zf + zb) / 2, w, 9f, zf - zb, wc); g.f.box(cx, ty + 3f, zf + 1.6f, 4f, 24f, 3.2f, wc)
         for (k in 0 until 8) tree(g, g.x0 + 3f + (k % 2) * (g.x1 - g.x0 - 6f), g.z0 + 5f + (k / 2) * 10f, 1.1f)
         for (k in 0 until 3) publicBench(b, cx - 6f + k * 6f, g.z1 - 3f, 0f, -1f)
@@ -1644,7 +1668,7 @@ object CityGeo {
             b.box(ex + 0.7f, CURB + 0.9f, ez, 0.1f, 1.8f, 0.1f, C("#2E7D32"))
         }
         sign(b, gx, CURB + 1.6f, gz + 5.5f, 0f, 1f, 4f, 0.5f, City.signIdx("ACADEMIA AO AR LIVRE"))
-        City.places.add(City.Place("Praça Central", cx, cz, 0xFF43A047.toInt(), 'P'))
+        g.place(City.Place("Praça Central", cx, cz, 0xFF43A047.toInt(), 'P'))
         return 10f
     }
 
@@ -1690,7 +1714,7 @@ object CityGeo {
             val az = if (ax == 0f) -(if (sin(a) >= 0) 1f else -1f) else 0f
             publicBench(b, cx + 21.6f * cos(a), cz + 21.6f * sin(a), ax, az)
         }
-        City.places.add(City.Place("Parque", cx, cz, 0xFF2E7D32.toInt(), 'P'))
+        g.place(City.Place("Parque", cx, cz, 0xFF2E7D32.toInt(), 'P'))
         return 10f
     }
 
@@ -1919,7 +1943,8 @@ object CityGeo {
             val cx = ((X0 + X1) / 2 + d * cos(ang)).toFloat(); val cz = ((Z0 + Z1) / 2 + d * sin(ang) * 0.9).toFloat()
             b.sphere(cx, -8f, cz, 55f + (k % 4) * 12f, mix(C("#7FAE7C"), C("#B9D3BC"), (k % 3) / 3f), 34f + (k % 3) * 8f, 12)
         }
-        val m = b.toMesh(true)
-        return City.Chunk(Mesh(m.parts + g.fl.build()), null, X0 - 420f, Z0 - 420f, X1 + 420f, Z1 + 420f, 70f)
+        val c = City.Chunk(b.toMesh(true), null, X0 - 420f, Z0 - 420f, X1 + 420f, Z1 + 420f, 70f)
+        c.pend = g.fl
+        return c
     }
 }
