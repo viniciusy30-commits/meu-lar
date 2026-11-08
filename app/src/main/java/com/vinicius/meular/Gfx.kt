@@ -38,8 +38,12 @@ object Mt {
     const val GLASS = 12
     const val SIDING = 13
     const val ROOF = 14
-    const val COUNT = 15
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f)
+    /** Etapa 121: cidade — asfalto, fachada com janelas (3 m por andar) e placas com letreiro (atlas gerado em City). */
+    const val ASPHALT = 15
+    const val FACADE = 16
+    const val SIGN = 17
+    const val COUNT = 18
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f)
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -254,10 +258,38 @@ object Tex {
                     val k = 0.80f + 0.16f * Noise.fbm(u, v, 2, 96, 2, 41)
                     px(k, k, k * 1.02f)
                 }
+                Mt.ASPHALT -> {
+                    val n = Noise.fbm(u, v, 8, 8, 4, 131)
+                    val g = Noise.h(x, y, 137)
+                    var k = 0.30f + 0.10f * n + 0.08f * (g - 0.5f)
+                    if (g > 0.97f) k += 0.12f
+                    if (Noise.fbm(u, v, 3, 3, 3, 141) > 0.72f) k *= 0.88f   // remendos
+                    px(k, k, k * 1.03f)
+                }
+                Mt.FACADE -> facade(x, y, u, v)
                 else -> Color.WHITE
             }
         }
         return a
+    }
+
+    /** Etapa 121: um módulo de fachada (3 × 3 m): parede clara (a cor vem do vértice), janela com moldura, vidro escuro com reflexo do céu. */
+    private fun facade(x: Int, y: Int, u: Float, v: Float): Int {
+        val wall = 0.92f + 0.05f * Noise.fbm(u, v, 8, 8, 2, 151)
+        val inX = u > 0.16f && u < 0.84f; val inY = v > 0.22f && v < 0.86f
+        val frX = u > 0.13f && u < 0.87f; val frY = v > 0.19f && v < 0.89f
+        if (inX && inY) {
+            val mull = abs(u - 0.5f) < 0.012f
+            if (mull) return px(0.80f, 0.80f, 0.82f)
+            val refl = 0.5f + 0.5f * sin(TP * (u * 0.7f - v * 1.3f + 0.2f))
+            val r = 0.20f + 0.14f * refl; val g = 0.30f + 0.16f * refl; val b = 0.42f + 0.18f * refl
+            val cur = if (v > 0.70f && Noise.h(x / 40, 0, 157) > 0.5f) 0.25f else 0f   // cortina em algumas
+            return px(r + cur * 0.9f, g + cur * 0.8f, b + cur * 0.5f)
+        }
+        if (frX && frY) return px(0.97f, 0.97f, 0.98f)
+        if (v < 0.06f) return px(wall * 0.82f, wall * 0.82f, wall * 0.82f)   // faixa entre andares
+        if (v > 0.19f && v < 0.22f && frX) return px(0.62f, 0.62f, 0.64f)   // peitoril
+        return px(wall, wall, wall)
     }
 
     private fun rug(x: Int, y: Int, u: Float, v: Float): Int {
@@ -293,12 +325,12 @@ object Tex {
     /** Gera as texturas em segundo plano, para não travar o primeiro quadro. */
     fun pregen() {
         Thread {
-            for (m in 0 until Mt.COUNT) if (m != Mt.PLAIN && m != Mt.GLASS) pix(m)
+            for (m in 0 until Mt.COUNT) if (m != Mt.PLAIN && m != Mt.GLASS && m != Mt.SIGN) pix(m)
         }.start()
     }
 
     private val FILES = arrayOf(null, "mat_floor_l", "mat_floor_d", "mat_tile", "mat_stone", "mat_plaster",
-        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof")
+        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null)
 
     /** Etapa 69: texturas de material pintadas (assets/flora/tex/mat_*.png); se faltar, usa a procedural. */
     private fun fileTex(m: Int): Bitmap? {
@@ -316,7 +348,7 @@ object Tex {
         for (m in 0 until Mt.COUNT) {
             val small = m == Mt.PLAIN || m == Mt.GLASS
             val sz = if (small) 4 else S
-            var bmp: Bitmap? = if (small) null else fileTex(m)
+            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) City.signBitmap() else fileTex(m)
             if (bmp == null) {
                 val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
                 bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)

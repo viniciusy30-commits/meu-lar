@@ -15,8 +15,8 @@ import java.nio.ShortBuffer
  * Substitui o plano de vidro da Etapa 118.
  */
 object Water {
-    private const val NX = 40
-    private const val NZ = 50
+    private const val NX = 30
+    private const val NZ = 38
     private const val NRIP = 8
 
     private var prog = 0
@@ -41,84 +41,69 @@ object Water {
         }
     }
 
+    // Etapa 121: altura e inclinação calculadas juntas (derivada analítica) — antes cada vértice
+    // somava as ondas e as 8 ondinhas 3 vezes; o fragment shader usa precisão média e cáusticas mais baratas.
     private val VS = """
         attribute vec2 aXZ;
         uniform mat4 uVP; uniform float uTime; uniform vec4 uBox; uniform vec4 uRip[$NRIP];
         varying vec3 vW; varying vec3 vN; varying float vFoam;
-        float wav(vec2 p, float t) {
-            return 0.010 * sin(p.x * 1.7 + t * 1.3) + 0.008 * sin(p.y * 2.3 - t * 1.1)
-                 + 0.005 * sin((p.x + p.y) * 3.9 + t * 2.1) + 0.003 * sin((p.x - p.y) * 6.1 - t * 2.7);
-        }
-        float rp(vec2 p, float t, out float foam) {
-            float h = 0.0; foam = 0.0;
+        void main() {
+            vec2 p = aXZ;
+            float t = uTime;
+            float e = smoothstep(0.0, 0.25, min(min(p.x - uBox.x, uBox.z - p.x), min(p.y - uBox.y, uBox.w - p.y)));
+            float a1 = p.x * 1.7 + t * 1.3; float a2 = p.y * 2.3 - t * 1.1; float a3 = (p.x + p.y) * 3.9 + t * 2.1; float a4 = (p.x - p.y) * 6.1 - t * 2.7;
+            float h = 0.010 * sin(a1) + 0.008 * sin(a2) + 0.005 * sin(a3) + 0.003 * sin(a4);
+            vec2 g = vec2(0.017 * cos(a1) + 0.0195 * cos(a3) + 0.0183 * cos(a4),
+                          0.0184 * cos(a2) + 0.0195 * cos(a3) - 0.0183 * cos(a4));
+            float foam = 0.0;
             for (int i = 0; i < $NRIP; i++) {
                 vec4 r = uRip[i];
                 float age = t - r.z;
                 if (age < 0.0 || age > 3.0 || r.w <= 0.0) continue;
-                float d = distance(p, r.xy);
-                float front = age * 1.25;
-                float x = d - front;
+                vec2 dv = p - r.xy;
+                float d = length(dv) + 0.0001;
+                float x = d - age * 1.25;
                 float env = exp(-x * x * 9.0) * (1.0 - age / 3.0) * r.w / (1.0 + d * 1.5);
                 h += 0.05 * env * cos(x * 16.0);
+                g += (-0.8 * env * sin(x * 16.0)) * (dv / d);
                 foam += env * smoothstep(0.6, 0.0, age);
             }
-            return h;
-        }
-        void main() {
-            vec2 p = aXZ;
-            float f0; float f1; float f2;
-            // bordas presas (sem onda encostando na parede)
-            float edge = smoothstep(0.0, 0.25, min(min(p.x - uBox.x, uBox.z - p.x), min(p.y - uBox.y, uBox.w - p.y)));
-            float h = (wav(p, uTime) + rp(p, uTime, f0)) * edge;
-            float e = 0.08;
-            float hx = (wav(p + vec2(e, 0.0), uTime) + rp(p + vec2(e, 0.0), uTime, f1)) * edge;
-            float hz = (wav(p + vec2(0.0, e), uTime) + rp(p + vec2(0.0, e), uTime, f2)) * edge;
-            vN = normalize(vec3(-(hx - h) / e, 1.0, -(hz - h) / e));
-            vFoam = f0;
+            h *= e; g *= e;
+            vN = normalize(vec3(-g.x, 1.0, -g.y));
+            vFoam = foam;
             vW = vec3(p.x, POOL_Y + h, p.y);
             gl_Position = uVP * vec4(vW, 1.0);
         }
     """.trimIndent()
 
     private val FS = """
-        #ifdef GL_FRAGMENT_PRECISION_HIGH
-        precision highp float;
-        #else
         precision mediump float;
-        #endif
         varying vec3 vW; varying vec3 vN; varying float vFoam;
         uniform vec3 uEye; uniform float uTime; uniform vec4 uBox; uniform float uDepth;
-        float caus(vec2 p, float t) {
-            vec2 q = p * 2.2;
-            float a = sin(q.x + sin(q.y * 1.3 + t * 0.9) * 1.4 + t * 0.7);
-            float b = sin(q.y * 1.1 + sin(q.x * 1.7 - t * 0.8) * 1.2 - t * 0.6);
-            float c = 1.0 - abs(a + b) * 0.5;
-            return pow(clamp(c, 0.0, 1.0), 6.0);
-        }
         void main() {
             vec3 n = normalize(vN);
             vec3 V = normalize(uEye - vW);
             float cosv = clamp(dot(n, V), 0.0, 1.0);
-            float fres = 0.04 + 0.96 * pow(1.0 - cosv, 5.0);
-            // raio refratado até o fundo (ou a parede): profundidade vista e ponto das cáusticas
+            float f1 = 1.0 - cosv; float f2 = f1 * f1;
+            float fres = 0.04 + 0.96 * f2 * f2 * f1;
             vec3 R = refract(-V, n, 0.75);
             float dd = uDepth / max(-R.y, 0.15);
             vec3 hit = vW + R * dd;
             vec2 hp = clamp(hit.xz, uBox.xy, uBox.zw);
-            float wallD = length(hit.xz - hp);
-            float path = dd - wallD;
-            vec3 shallow = vec3(0.45, 0.86, 0.93);
-            vec3 deep = vec3(0.06, 0.42, 0.66);
+            float path = dd - length(hit.xz - hp);
             float k = 1.0 - exp(-path * 0.55);
-            vec3 body = mix(shallow, deep, k);
-            body += vec3(0.9, 1.0, 1.0) * caus(hp, uTime) * 0.35 * (1.0 - k * 0.6);
-            // reflexo do céu
+            vec3 body = mix(vec3(0.45, 0.86, 0.93), vec3(0.06, 0.42, 0.66), k);
+            vec2 q = hp * 2.2; float t = uTime;
+            float c = 1.0 - abs(sin(q.x + sin(q.y * 1.3 + t * 0.9) * 1.4 + t * 0.7) + sin(q.y * 1.1 + sin(q.x * 1.7 - t * 0.8) * 1.2 - t * 0.6)) * 0.5;
+            c = clamp(c, 0.0, 1.0); c = c * c; c = c * c * c;
+            body += vec3(0.9, 1.0, 1.0) * c * 0.35 * (1.0 - k * 0.6);
             vec3 Rf = reflect(-V, n);
             vec3 sky = mix(vec3(0.86, 0.93, 0.98), vec3(0.36, 0.60, 0.88), clamp(Rf.y, 0.0, 1.0));
-            vec3 L = normalize(vec3(0.45, 1.0, 0.65));
-            float sun = pow(max(dot(Rf, L), 0.0), 220.0) * 3.0 + pow(max(dot(Rf, L), 0.0), 18.0) * 0.18;
+            float sd = max(dot(Rf, vec3(0.3592, 0.7982, 0.5188)), 0.0);
+            float s2 = sd * sd; float s4 = s2 * s2; float s16 = s4 * s4; s16 *= s16;
+            float s256 = s16 * s16; s256 *= s256; s256 *= s256; s256 *= s256;
+            float sun = s256 * 3.0 + s16 * sd * sd * 0.18;
             vec3 col = mix(body, sky, fres) + vec3(1.0, 0.97, 0.88) * sun;
-            // espuma das ondinhas e linha clara na borda
             float ed = min(min(vW.x - uBox.x, uBox.z - vW.x), min(vW.z - uBox.y, uBox.w - vW.z));
             float rim = smoothstep(0.10, 0.0, ed) * 0.35;
             col = mix(col, vec3(1.0), clamp(vFoam * 0.55 + rim, 0.0, 0.8));

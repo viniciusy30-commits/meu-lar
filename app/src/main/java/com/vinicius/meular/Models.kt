@@ -383,7 +383,10 @@ object Models {
                     val fx = ((x - xa) / cs.toFloat()).coerceIn(0f, 1f); val fz = ((z - za) / cs.toFloat()).coerceIn(0f, 1f)
                     return mix(mix(c00, c10, fx), mix(c01, c11, fx), fz)
                 }
-                fun piece(ax: Float, az: Float, bx: Float, bz: Float) {
+                fun piece(ax0: Float, az0: Float, bx0: Float, bz0: Float) {
+                    // Etapa 121: com a cidade, o gramado fica só no quarteirão da casa (o resto é rua/calçada/lotes)
+                    val ax = if (vitrine) ax0 else maxOf(ax0, -10f); val bx = if (vitrine) bx0 else minOf(bx0, W.toFloat() + 10f)
+                    val az = if (vitrine) az0 else maxOf(az0, -22f); val bz = if (vitrine) bz0 else minOf(bz0, H.toFloat() + 9f)
                     if (bx - ax < 1e-4f || bz - az < 1e-4f) return
                     fun vv(x: Float, z: Float) = b.v(x, yy, z, 0f, 1f, 0f, cc(x, z), x, z)
                     vv(ax, az); vv(ax, bz); vv(bx, bz)
@@ -400,7 +403,7 @@ object Models {
         }
 
         // colinhas ao longe: cúpulas sem luz com degradê (verde no topo, névoa na base)
-        for (k in 0 until 22) {
+        if (vitrine) for (k in 0 until 22) {   // Etapa 121: fora da sala de testes a cidade ocupa esse espaço
             val a = k * 2.0 * PI / 22 + 0.1 * (k % 3)
             val far = k % 2 == 0
             val dist = if (far) 118.0 else 100.0

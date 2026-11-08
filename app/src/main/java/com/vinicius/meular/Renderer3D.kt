@@ -315,6 +315,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             float s = pow(max(dot(n, H), 0.0), 42.0) * uSpec;
             float sp2 = pow(max(dot(n, normalize(pL + V)), 0.0), 30.0) * uSpec * 0.5 * att * 3.0;
             col += (s + sp2) * vec3(1.0, 0.97, 0.9);
+            // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
+            vec3 fd = (vW - uEye) * 0.01;
+            float fz = dot(fd, fd);
+            if (fz > 0.49) col = mix(col, vec3(0.86, 0.92, 0.96), smoothstep(0.49, 5.29, fz) * 0.85);
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -464,6 +468,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val wl = Finish.walls[st.wallIdx]
         yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh, st.testRoom)
+        if (!st.testRoom) City.build(gw, gh) else City.clear()   // Etapa 121: cidade em volta da casa
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)
         doorM = Models.doorLeaf()
@@ -508,9 +513,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = nx > 0.32f && nx < gw - 0.32f && nz > 0.32f && nz < gh - 0.32f
             val door = abs(nx - gw / 2f) < 0.42f && nz > gh - 0.4f && nz < gh + 0.45f
             if (!ins && !door) return false
-        } else {
-            if (!(nx > -6.6f && nx < gw + 6.6f && nz > Pool.WALK_Z && nz < gh + 8.6f)) return false
-        }
+        } else if (!yardOk(nx, nz)) return false
         if (swimPh == 0 && Pool.blocksWalker(st.gw, nx, nz)) return false   // Etapa 118: a água só se entra correndo (mergulho)
         val g = grabbed
         for (o in st.items) {
@@ -521,6 +524,69 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (b in partBoxes) if (nx > b[0] && nx < b[2] && nz > b[1] && nz < b[3] && !(ox > b[0] && ox < b[2] && oz > b[1] && oz < b[3])) return false
         return true
     }
+
+    /** Etapa 121: dentro do quintal valem os limites de antes; o portão da frente leva à cidade, onde só prédios, muros e carros bloqueiam. */
+    private fun yardOk(x: Float, z: Float): Boolean {
+        val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
+        if (x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f) return true
+        if (!City.on) return false
+        if (abs(x - gw / 2f) < 1.25f && z >= gh + 8.4f && z < gh + 9.8f) return true   // portão
+        if (x > -7.4f && x < gw + 7.4f && z > -19.4f && z < gh + 9.4f) return false     // cerca do quintal
+        return !City.blocked(x, z)
+    }
+
+    /** Etapa 121: desenha os quarteirões e ruas visíveis, os semáforos, os carros e os pedestres. */
+    private fun drawCity(ex: Float, ez: Float) {
+        Matrix.setIdentityM(mdl, 0)
+        for (c in City.chunks) {
+            val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
+            if (dx * dx + dz * dz > 235f * 235f) continue
+            if (!boxVisible(c.x0, -0.1f, c.z0, c.x1, c.h, c.z1)) continue
+            draw(c.mesh, mdl, 1f)
+        }
+        City.lightMeshes[City.lightPhase]?.let { draw(it, mdl, 1f) }
+        val cm = City.carMeshes
+        for (car in City.cars) {
+            val dx = car.x - ex; val dz = car.z - ez
+            if (dx * dx + dz * dz > 140f * 140f) continue
+            if (!boxVisible(car.x - 2.7f, 0f, car.z - 2.7f, car.x + 2.7f, 2.4f, car.z + 2.7f)) continue
+            val m = cm.getOrNull(car.mesh) ?: continue
+            Matrix.setIdentityM(mdl, 0)
+            Matrix.translateM(mdl, 0, car.x, 0f, car.z)
+            Matrix.rotateM(mdl, 0, car.yaw, 0f, 1f, 0f)
+            draw(m, mdl, 1f)
+        }
+        val pb = City.pedBody; val pl = City.pedLeg; val pa = City.pedArm
+        for (p in City.peds) {
+            val dx = p.x - ex; val dz = p.z - ez
+            if (dx * dx + dz * dz > 55f * 55f) continue
+            if (!boxVisible(p.x - 0.5f, 0f, p.z - 0.5f, p.x + 0.5f, 2f, p.z + 0.5f)) continue
+            val body = pb.getOrNull(p.look) ?: continue
+            val sw = sin(p.ph) * 28f * min(1f, p.v / 0.6f)
+            val bob = abs(cos(p.ph)) * 0.03f * min(1f, p.v / 0.6f)
+            Matrix.setIdentityM(pmdl, 0)
+            Matrix.translateM(pmdl, 0, p.x, City.CURB + bob, p.z)
+            Matrix.rotateM(pmdl, 0, p.yaw, 0f, 1f, 0f)
+            draw(body, pmdl, 1f)
+            for (side in 0..1) {
+                val sg = if (side == 0) 1f else -1f
+                pl.getOrNull(p.look)?.let { lg ->
+                    System.arraycopy(pmdl, 0, mdl, 0, 16)
+                    Matrix.translateM(mdl, 0, 0.1f * sg, 0.88f, 0f)
+                    Matrix.rotateM(mdl, 0, sw * sg, 1f, 0f, 0f)
+                    draw(lg, mdl, 1f)
+                }
+                pa.getOrNull(p.look)?.let { ar ->
+                    System.arraycopy(pmdl, 0, mdl, 0, 16)
+                    Matrix.translateM(mdl, 0, 0.27f * sg, 1.42f, 0f)
+                    Matrix.rotateM(mdl, 0, -sw * sg * 0.8f, 1f, 0f, 0f)
+                    draw(ar, mdl, 1f)
+                }
+            }
+        }
+        Matrix.setIdentityM(mdl, 0)
+    }
+    private val pmdl = FloatArray(16)
 
     /** Vista aérea: manda o personagem andar até o ponto (x, z) do chão (chamado pela thread de toque). */
     fun walkTo(x: Float, z: Float) { walkReq = floatArrayOf(x, z) }
@@ -543,7 +609,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
             val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
             if (!ins && !door) return true
-        } else if (!(x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f)) return true   // fora do quintal
+        } else if (!yardOk(x, z)) return true   // fora do quintal (ou prédio/carro da cidade)
         if (Pool.blocksWalker(st.gw, x, z)) return true   // Etapa 118: piscina
         for (o in st.items) {
             if (o.type.rug || o.type.dyn || Foot.height(o.type) < 0.12f) continue
@@ -688,6 +754,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     }
 
     private fun updateFP(dt: Float) {
+        City.update(dt, px, pz)   // Etapa 121: trânsito e pedestres
         if (!posInit) {
             px = st.gw / 2f
             pz = st.gh - 0.9f
@@ -1006,6 +1073,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Altura do chão sob (x, z): varanda, degrau e caminho de pedras ficam acima da grama. */
     private fun groundH(x: Float, z: Float): Float {
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
+        if (City.on && !City.inLot(x, z)) return City.groundH(x, z)   // Etapa 121: calçada 15 cm acima do asfalto
         val cx = abs(x - gw / 2f)
         if (z > gh + 0.15f) {
             if (cx < 1.4f && z < gh + 1.75f) return 0.09f
@@ -1360,6 +1428,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
         Matrix.setIdentityM(mdl, 0)
         yardM?.let { draw(it, mdl, 1f) }
+        if (City.on) drawCity(ex, ez)
+        Matrix.setIdentityM(mdl, 0)
         floorM?.let { draw(it, mdl, 1f) }
 
         val shown = BooleanArray(4)
@@ -1494,7 +1564,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         // vidros por último
         run {   // Etapa 120: água com ondas, reflexo e ondinhas (programa próprio); se não compilar, volta ao plano de vidro da Etapa 118
             val ym = yardM
-            if (ym != null) {
+            if (ym != null && boxVisible(Pool.x0(st.gw), -2f, Pool.Z0, Pool.x1(st.gw), 0.2f, Pool.Z1)) {   // Etapa 121: fora da câmera não desenha
                 val ok = Water.draw(vp, frameU[0], frameU[1], frameU[2], st.gw)
                 useProg(curProg)
                 if (!ok) { Matrix.setIdentityM(mdl, 0); draw(ym, mdl, 1f, true) }
