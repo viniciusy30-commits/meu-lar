@@ -816,20 +816,7 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
             c.drawCircle(cx, cy, 1.8f * d, p)
             if (g && f != null) label(c, "Carregando: ${f.type.nome}", cx, cy + 34f * d, 12f, Color.parseColor("#E62A2046"), Pal.TEXT)
 
-            val r = game.joyR
-            if (game.joyActive) {
-                p.style = Paint.Style.FILL; p.color = Color.argb(70, 58, 45, 94)
-                c.drawCircle(game.joyBx, game.joyBy, r, p)
-                p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(190, 187, 174, 219)
-                c.drawCircle(game.joyBx, game.joyBy, r, p)
-                p.style = Paint.Style.FILL; p.color = if (game.r.pRun) Color.argb(240, 109, 232, 180) else Color.argb(215, 255, 244, 230)
-                c.drawCircle(game.joyKx, game.joyKy, r * 0.42f, p)
-            } else {
-                p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(110, 187, 174, 219)
-                c.drawCircle(w * 0.15f, h * 0.72f, r, p)
-                p.style = Paint.Style.FILL; p.color = Color.argb(90, 255, 244, 230)
-                c.drawCircle(w * 0.15f, h * 0.72f, r * 0.42f, p)
-            }
+            drawJoy(c, w, h, d)
 
             val age = SystemClock.uptimeMillis() - t0
             if (age < 9000L) {
@@ -837,6 +824,26 @@ class Overlay(ctx: Context, private val game: GameView) : View(ctx) {
                 label(c, "Esquerda: andar   •   Direita: olhar", cx, h * 0.26f, 11f, Color.argb((225 * al).toInt(), 42, 32, 70), Color.argb((255 * al).toInt(), 255, 244, 230))
             }
         }
+        if (game.r.mode == 1 && game.r.streetAerial) drawJoy(c, width.toFloat(), height.toFloat(), d)   // Etapa 126: vista de cima na rua também anda pelo analógico
         postInvalidateOnAnimation()
     }
+
+    private fun drawJoy(c: Canvas, w: Float, h: Float, d: Float) {
+        val p = joyP
+        val r = game.joyR
+        if (game.joyActive) {
+            p.style = Paint.Style.FILL; p.color = Color.argb(70, 58, 45, 94)
+            c.drawCircle(game.joyBx, game.joyBy, r, p)
+            p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(190, 187, 174, 219)
+            c.drawCircle(game.joyBx, game.joyBy, r, p)
+            p.style = Paint.Style.FILL; p.color = if (game.r.pRun) Color.argb(240, 109, 232, 180) else Color.argb(215, 255, 244, 230)
+            c.drawCircle(game.joyKx, game.joyKy, r * 0.42f, p)
+        } else {
+            p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f * d; p.color = Color.argb(110, 187, 174, 219)
+            c.drawCircle(w * 0.15f, h * 0.72f, r, p)
+            p.style = Paint.Style.FILL; p.color = Color.argb(90, 255, 244, 230)
+            c.drawCircle(w * 0.15f, h * 0.72f, r * 0.42f, p)
+        }
+    }
+    private val joyP = Paint(Paint.ANTI_ALIAS_FLAG)
 }

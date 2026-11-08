@@ -48,9 +48,12 @@ object Mt {
     const val LEAF2 = 19
     const val BARK = 20
     const val LEAFB = 21
-    const val COUNT = 22
+    /** Etapa 126: frente de prateleira com mercadorias (embalagens com rótulo) e lombadas de livros — realismo sem polígonos. */
+    const val GOODS = 22
+    const val BOOKS = 23
+    const val COUNT = 24
     fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f)
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f)
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -78,7 +81,11 @@ class Part(val mat: Int, var buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var ibo = 0
     var gpuGen = 0
 
-    fun upload() {
+    /** Etapa 126: a cópia na memória já foi solta e o contexto do GL caiu: não há o que reenviar (a cidade é remontada). */
+    @Volatile var lost = false
+
+    fun upload(): Boolean {
+        if (buf.capacity() < count * STRIDE) { lost = true; vbo = 0; return false }
         val ids = IntArray(2)
         GLES20.glGenBuffers(if (idx != null) 2 else 1, ids, 0)
         vbo = ids[0]
@@ -96,6 +103,7 @@ class Part(val mat: Int, var buf: FloatBuffer, val count: Int, val idx: ShortBuf
             GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         }
         gpuGen = GlGen.gen
+        return true
     }
 
     /** Libera os buffers da placa (chamar quando a malha for descartada, na thread do GL). */
@@ -286,6 +294,8 @@ object Tex {
                     px(k, k, k * 1.03f)
                 }
                 Mt.FACADE -> facade(x, y, u, v)
+                Mt.GOODS -> goods(x, y)
+                Mt.BOOKS -> books(x, y)
                 else -> Color.WHITE
             }
         }
@@ -309,6 +319,52 @@ object Tex {
         if (v < 0.06f) return px(wall * 0.82f, wall * 0.82f, wall * 0.82f)   // faixa entre andares
         if (v > 0.19f && v < 0.22f && frX) return px(0.62f, 0.62f, 0.64f)   // peitoril
         return px(wall, wall, wall)
+    }
+
+    private val GOODS_PAL = floatArrayOf(
+        0.85f, 0.18f, 0.16f, 0.98f, 0.80f, 0.15f, 0.20f, 0.55f, 0.25f, 0.15f, 0.42f, 0.80f, 0.95f, 0.55f, 0.12f, 0.55f, 0.25f, 0.62f,
+        0.96f, 0.96f, 0.94f, 0.45f, 0.28f, 0.18f, 0.10f, 0.65f, 0.72f, 0.92f, 0.45f, 0.62f, 0.15f, 0.15f, 0.18f, 0.70f, 0.82f, 0.30f)
+
+    /** Duas fileiras (128 px cada) de embalagens de larguras variadas: cor da marca, rótulo claro, faixa, tampa e brilho; sombra da prateleira em cima. */
+    private fun goods(x: Int, y: Int): Int {
+        val row = y / 128; val ly = 127 - y % 128
+        // larguras das embalagens na fileira: sequência pseudo-aleatória fixa
+        var x0 = 0; var k = 0; var w = 0
+        while (true) { w = 18 + (Noise.h(k, row, 401) * 34f).toInt(); if (x < x0 + w || k > 40) break; x0 += w; k++ }
+        val lx = x - x0
+        if (ly < 10) return px(0.16f, 0.15f, 0.15f)                          // vão escuro em cima
+        val hTop = 10 + (Noise.h(k, row, 409) * 40f).toInt()                    // altura variada
+        if (ly < hTop) return px(0.22f, 0.21f, 0.2f)
+        if (lx == 0 || lx == w - 1) return px(0.25f, 0.24f, 0.23f)          // fresta entre produtos
+        val ci = (Noise.h(k / (1 + (Noise.h(k, 7, 411) * 3f).toInt()), row, 419) * 12f).toInt().coerceIn(0, 11) * 3
+        var r = GOODS_PAL[ci]; var g = GOODS_PAL[ci + 1]; var b = GOODS_PAL[ci + 2]
+        val rel = (ly - hTop).toFloat() / (128 - hTop)
+        if (rel < 0.08f) { r *= 0.7f; g *= 0.7f; b *= 0.7f }                  // tampa/topo
+        else if (rel > 0.38f && rel < 0.66f && lx > 3 && lx < w - 4) {       // rótulo claro com "texto"
+            val tx = (lx / 3 + ly / 5) % 4 == 0 && rel > 0.45f && rel < 0.58f
+            r = if (tx) 0.3f else 0.95f; g = if (tx) 0.3f else 0.94f; b = if (tx) 0.32f else 0.9f
+        } else if (rel > 0.7f && rel < 0.76f) { r = r * 0.5f + 0.5f; g = g * 0.5f + 0.5f; b = b * 0.5f + 0.5f }
+        val sh = 1f - 0.25f * abs(lx.toFloat() / w - 0.35f) + (if (lx in 2..4) 0.18f else 0f)   // volume e brilho
+        val bottom = if (ly > 120) 0.75f else 1f
+        return px(r * sh * bottom, g * sh * bottom, b * sh * bottom)
+    }
+
+    /** Lombadas de livros: duas fileiras, alturas e larguras variadas, faixas douradas. */
+    private fun books(x: Int, y: Int): Int {
+        val row = y / 128; val ly = 127 - y % 128
+        var x0 = 0; var k = 0; var w = 0
+        while (true) { w = 7 + (Noise.h(k, row, 431) * 14f).toInt(); if (x < x0 + w || k > 60) break; x0 += w; k++ }
+        val lx = x - x0
+        val top = 12 + (Noise.h(k, row, 433) * 30f).toInt()
+        if (ly < top) return px(0.18f, 0.13f, 0.1f)
+        if (lx == w - 1) return px(0.12f, 0.1f, 0.08f)
+        val ci = (Noise.h(k, row, 439) * 12f).toInt().coerceIn(0, 11) * 3
+        var r = GOODS_PAL[ci] * 0.75f; var g = GOODS_PAL[ci + 1] * 0.75f; var b = GOODS_PAL[ci + 2] * 0.75f
+        val rel = (ly - top).toFloat() / (128 - top)
+        if ((rel > 0.12f && rel < 0.15f) || (rel > 0.82f && rel < 0.85f)) { r = 0.85f; g = 0.7f; b = 0.3f }
+        if (rel > 0.3f && rel < 0.6f && lx > 1 && lx < w - 2 && (ly / 3) % 2 == 0) { r = r * 0.6f + 0.35f; g = g * 0.6f + 0.33f; b = b * 0.6f + 0.3f }
+        val sh = 0.85f + 0.3f * (1f - abs(lx.toFloat() / w - 0.4f) * 2f).coerceIn(0f, 1f)
+        return px(r * sh, g * sh, b * sh)
     }
 
     private fun rug(x: Int, y: Int, u: Float, v: Float): Int {

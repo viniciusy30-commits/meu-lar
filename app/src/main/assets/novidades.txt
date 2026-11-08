@@ -1,3 +1,14 @@
+#id 2026-11-22-interiores-direcao
+#titulo Interiores de verdade, direção de jogo de corrida e paredes que não somem
+- Cada lugar tem seu interior: hospital com recepção, painel de senhas, espera, consultórios com maca e pia, enfermaria, posto de enfermagem, raio-x e lanchonete
+- Barbearia com piso xadrez, cadeiras clássicas de couro, espelhos com bancada, lavatório e poste listrado; salão de beleza com lavatórios, manicure e secador
+- Supermercado, mercadinho e conveniência com gôndolas cheias de produtos, caixas com esteira, carrinhos, hortifrúti, geladeiras, freezers e açougue
+- Banco com guichês de vidro, fila com pedestais, caixas eletrônicos e cofre; academia com aparelhos, gaiola de agachamento e saco de pancada
+- Hotel com lustre de cristal, colunas, chaves e carrinho de malas; escola com salas de aula; polícia com cela; bombeiros com armários, beliches e o poste
+- Direção nova estilo jogo de corrida: pedais de acelerar, freio/ré e freio de mão (derrapa!), marchas no painel e câmera que abre com a velocidade
+- Entrando em lojas e prédios as paredes e o teto continuam lá; só somem na vista de cima (que agora segue você pela cidade)
+- Janelas e calçadas pararam de piscar; corrigido o fechamento ao sair e voltar ao jogo
+
 #id 2026-11-15-cidade-detalhe
 #titulo Cidade mais bonita, mapa de verdade e minimapa no lugar certo
 - Mapa: agora é a cidade de verdade vista de cima, em miniatura (telhados, ruas, árvores, praia). Nome dos lugares principais; lojas aparecem com zoom

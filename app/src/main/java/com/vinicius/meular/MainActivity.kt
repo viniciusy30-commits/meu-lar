@@ -9,6 +9,7 @@ import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.FrameLayout
@@ -45,6 +46,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var crouchBtn: FrameLayout
     private lateinit var crouchIc: IconView
     private lateinit var actBox: FrameLayout
+    private lateinit var drivePad: FrameLayout
+    private var wasDriving = false
     private lateinit var dockR: LinearLayout
     private lateinit var creator: CreatorUi
     private var prevMode = 0
@@ -348,7 +351,16 @@ class MainActivity : AppCompatActivity() {
                 if (show) gpsHud.invalidate()
                 val dv = game.r.driving
                 speedTv.visibility = if (dv) View.VISIBLE else View.GONE
-                if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h"
+                if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h   ${game.r.gear}" + (if (game.r.drifting) "   DRIFT!" else "")
+                if (dv != wasDriving) {
+                    // Etapa 126: dirigindo, os pedais substituem pular/agachar
+                    wasDriving = dv
+                    drivePad.visibility = if (dv) View.VISIBLE else View.GONE
+                    jumpBtn.visibility = if (!dv && game.mode == 0) View.VISIBLE else View.GONE
+                    crouchBtn.visibility = jumpBtn.visibility
+                    actBox.translationY = if (dv) -dpf(150f) else 0f
+                    if (!dv) { game.r.gasIn = false; game.r.brakeIn = false; game.r.hbIn = false }
+                }
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
                 portrait.visibility = if (mm) View.GONE else View.VISIBLE   // o retrato volta quando não há cidade (sala de testes, vista aérea)
@@ -400,6 +412,34 @@ class MainActivity : AppCompatActivity() {
         press(useBtn) { game.r.interact() }
         actBox.addView(useBtn, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(14), dp(116)) })
         root.addView(actBox, FrameLayout.LayoutParams(dp(300), dp(220), Gravity.BOTTOM or Gravity.END))
+        // Etapa 126: pedais de jogo de corrida (segurar): acelerador, freio/ré e freio de mão; o analógico vira o volante
+        drivePad = FrameLayout(this)
+        drivePad.clipChildren = false
+        fun pedal(txt: String, tint: Int, w: Int, h: Int, endM: Int, botM: Int, on: (Boolean) -> Unit): FrameLayout {
+            val f = FrameLayout(this)
+            f.background = Ui.frost(dpf(18f), tint, 0xE0, 0xA8, dpf(2f), edge = 0xEEFFFFFF.toInt())
+            f.elevation = dpf(6f)
+            // ranhuras do pedal
+            val lines = LinearLayout(this); lines.orientation = LinearLayout.VERTICAL; lines.gravity = Gravity.CENTER
+            for (i in 0 until 3) { val v = View(this); v.setBackgroundColor(0x55FFFFFF); lines.addView(v, LinearLayout.LayoutParams(dp(w - 34), dp(3)).also { it.topMargin = dp(7) }) }
+            f.addView(lines, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER or Gravity.TOP).also { it.topMargin = dp(12) })
+            val t = tvShadow(tv(txt, 12f, Color.WHITE, true)); t.gravity = Gravity.CENTER
+            f.addView(t, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).also { it.bottomMargin = dp(10) })
+            f.setOnTouchListener { v, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { on(true); v.animate().scaleX(0.92f).scaleY(0.9f).setDuration(60).start() }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { on(false); v.animate().scaleX(1f).scaleY(1f).setDuration(90).start() }
+                }
+                true
+            }
+            drivePad.addView(f, FrameLayout.LayoutParams(dp(w), dp(h), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(endM), dp(botM)) })
+            return f
+        }
+        pedal("ACELERAR", 0x22B35A, 84, 128, 16, 20) { game.r.gasIn = it }
+        pedal("FREIO / RÉ", 0xD83A3A, 78, 96, 112, 20) { game.r.brakeIn = it }
+        pedal("FREIO DE MÃO", 0x3A4A66, 140, 50, 206, 20) { game.r.hbIn = it }
+        drivePad.visibility = View.GONE
+        root.addView(drivePad, FrameLayout.LayoutParams(dp(360), dp(170), Gravity.BOTTOM or Gravity.END))
         var lastUseKey = ""
         val useTick = object : Runnable {
             override fun run() {

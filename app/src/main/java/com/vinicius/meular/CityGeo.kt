@@ -328,7 +328,7 @@ object CityGeo {
             b.m(matOut, if (matOut == Mt.FACADE) 1f / 3f else 0.5f)
             if (axis == 0) b.box((u0 + u1) / 2, (v0 + v1) / 2, fix, u1 - u0, v1 - v0, th, cOut) else b.box(fix, (v0 + v1) / 2, (u0 + u1) / 2, th, v1 - v0, u1 - u0, cOut)
             b.m(Mt.PLASTER, 0.5f)
-            val d = fix - out * (th / 2 + 0.003f)
+            val d = fix - out * (th / 2 + 0.012f)   // Etapa 126: 1,2 cm da face (3 mm piscava de longe)
             if (axis == 0) {
                 if (out > 0) q(b, P(u0, v0, d) + P(u0, v1, d) + P(u1, v1, d) + P(u1, v0, d), cIn) else q(b, P(u1, v0, d) + P(u1, v1, d) + P(u0, v1, d) + P(u0, v0, d), cIn)
             } else {
@@ -435,16 +435,7 @@ object CityGeo {
         lb(b, l, 0f, FL + 1.0f, 0.15f, 1.0f, 2.0f, 0.04f, shade(wood, -15))
         for (s in floatArrayOf(-0.48f, 0.48f)) lb(b, l, s, FL + 1.0f, 0f, 0.04f, 2.0f, 0.34f, wood)
         for (k in 0..4) lb(b, l, 0f, FL + 0.03f + k * 0.48f, 0f, 0.96f, 0.03f, 0.34f, wood)
-        b.m(Mt.PLAIN)
-        for (k in 0..3) {
-            var x = -0.44f
-            while (x < 0.4f) {
-                val bw = rng.r(0.09f, 0.17f); val bh = rng.r(0.26f, 0.38f)
-                lb(b, l, x + bw / 2, FL + 0.045f + k * 0.48f + bh / 2, 0.02f, bw, bh, 0.24f, rng.pick(arrayOf(C("#8E2C2C"), C("#2C4A8E"), C("#2E7D32"), C("#E0A030"), C("#EEEEEE"), C("#5D4037"), C("#455A64"))))
-                x += bw + 0.005f
-                if (rng.chance(0.08f)) x += 0.12f
-            }
-        }
+        for (k in 0..3) CityInt.goods(b, l.wx(0f, 0.03f), FL + 0.045f + k * 0.48f, l.wz(0f, 0.03f), if (l.alongX) 0.92f else 0.24f, 0.4f, if (l.alongX) 0.24f else 0.92f, C("#FFFFFF"), Mt.BOOKS)
     }
 
     fun plant(b: MB, x: Float, z: Float, s: Float, rng: City.Rng, y: Float = FL) {
@@ -974,7 +965,9 @@ object CityGeo {
         val bd = g.begin(x0, z0, x1, z1, shop?.let { it.lowercase().replaceFirstChar { c -> c.uppercase() } } ?: "Prédio")
         val A = g.A; val H = g.H
         A.m(Mt.STONE, 0.6f); A.box(cx, FL / 2, cz, w, FL, d, C("#9E9E9E"))
-        A.m(if (kind == 3) Mt.TILE else rng.pick(arrayOf(Mt.TILE, Mt.STONE, Mt.FLOOR_L)), 0.6f); A.box(cx, FL - 0.005f, cz, w - 0.3f, 0.012f, d - 0.3f, C("#F2F2F2"))
+        val fm0 = if (kind == 3) Mt.TILE else rng.pick(arrayOf(Mt.TILE, Mt.STONE, Mt.FLOOR_L))
+        val fl0 = shop?.let { CityInt.floor(it) }
+        A.m(fl0?.first ?: fm0, fl0?.third ?: 0.6f); A.box(cx, FL - 0.005f, cz, w - 0.3f, 0.012f, d - 0.3f, fl0?.second ?: C("#F2F2F2"))
         // térreo: vitrine de vidro na frente com porta, paredes nos outros lados
         val fOps = ArrayList<Op>()
         val nv = max(1, (w / 4f).toInt())
@@ -1018,7 +1011,7 @@ object CityGeo {
         H.m(Mt.PLASTER, 0.5f)
         H.box(cx, topY + 0.5f, z0 + 0.1f, w + 0.3f, 1.0f, 0.2f, shade(col, -28)); H.box(cx, topY + 0.5f, z1 - 0.1f, w + 0.3f, 1.0f, 0.2f, shade(col, -28))
         H.box(x0 + 0.1f, topY + 0.5f, cz, 0.2f, 1.0f, d + 0.3f, shade(col, -28)); H.box(x1 - 0.1f, topY + 0.5f, cz, 0.2f, 1.0f, d + 0.3f, shade(col, -28))
-        H.m(Mt.STONE, 0.5f); H.box(cx, topY + 0.03f, cz, w - 0.2f, 0.06f, d - 0.2f, C("#9A9A9A"))
+        H.m(Mt.STONE, 0.5f); H.box(cx, topY + 0.09f, cz, w - 0.2f, 0.18f, d - 0.2f, C("#9A9A9A"))   // Etapa 126: laje mais alta (não briga com o topo da fachada)
         if (balcony) {
             for (fl in 1 until floors) for (k in 0 until (w / 5.5f).toInt()) {
                 val bx = x0 + 2.75f + k * 5.5f
@@ -1154,6 +1147,7 @@ object CityGeo {
      * Devolve false para tipos sem interior especial (usa o genérico).
      */
     fun shopInterior(g: Gen, name: String, x0: Float, z0: Float, x1: Float, z1: Float, zf: Float, fz: Float, doorX: Float): Boolean {
+        if (CityInt.build(g, name, x0, z0, x1, z1, zf, fz, doorX)) return true   // Etapa 126: interiores próprios e realistas
         val A = g.A; val rng = g.rng
         val w = x1 - x0; val cx = (x0 + x1) / 2; val cz = (z0 + z1) / 2
         val inF = -fz
@@ -1178,7 +1172,7 @@ object CityGeo {
                     val l = L(sx, Zi(d), if (sx < cx) 1f else -1f, 0f)
                     A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 1.1f, 0.12f, 1.6f, 2.2f, 0.04f, col)
                     for (k in 0..3) lb(A, l, 0f, FL + 0.3f + k * 0.55f, 0f, 1.6f, 0.04f, 0.38f, col)
-                    if (items) { A.m(Mt.PLAIN); for (k in 0..3) for (i in 0 until 4) lb(A, l, -0.6f + i * 0.4f, FL + 0.43f + k * 0.55f, 0.02f, 0.3f, 0.22f, 0.28f, rng.pick(PROD), false) }
+                    if (items) for (k in 0..3) CityInt.goods(A, l.wx(0f, 0.02f), FL + 0.32f + k * 0.55f, l.wz(0f, 0.02f), if (l.alongX) 1.56f else 0.3f, 0.3f, if (l.alongX) 0.3f else 1.56f)
                     d += 1.7f
                 }
                 g.solid(sx - 0.45f, min(Zi(1.4f), Zi(depth - 2.3f)), sx + 0.45f, max(Zi(1.4f), Zi(depth - 2.3f)))
@@ -1344,19 +1338,12 @@ object CityGeo {
 
     fun shelf(b: MB, x: Float, z: Float, w: Float, rng: City.Rng) {
         b.m(Mt.METAL, 1f)
-        b.box(x, FL + 0.9f, z, w, 1.8f, 0.08f, C("#E0E0E0"))
-        b.box(x, FL + 0.05f, z, w, 0.1f, 0.6f, C("#BDBDBD"))
-        for (k in 0..3) b.box(x, FL + 0.25f + k * 0.45f, z, w, 0.025f, 0.6f, C("#EEEEEE"))
-        b.m(Mt.PLAIN)
-        val pal = arrayOf(C("#E53935"), C("#FDD835"), C("#43A047"), C("#1E88E5"), C("#FB8C00"), C("#8E24AA"), C("#FFFFFF"), C("#6D4C41"), C("#00ACC1"))
+        b.box(x, FL + 0.9f, z, w, 1.8f, 0.06f, C("#DADDE0"))
+        b.box(x, FL + 0.08f, z, w, 0.16f, 0.62f, C("#8A8F94"))
+        for (k in 0..3) b.box(x, FL + 0.25f + k * 0.42f, z, w, 0.025f, 0.62f, C("#ECEEF0"))
         for (k in 0..3) for (side in floatArrayOf(-1f, 1f)) {
-            var px = x - w / 2 + 0.05f
-            val c = rng.pick(pal)
-            val ph = rng.r(0.18f, 0.32f); val pw = w - 0.1f
-            while (px < x + w / 2 - pw) {
-                b.box(px + pw / 2, FL + 0.27f + k * 0.45f + ph / 2, z + side * 0.17f, pw - 0.015f, ph, 0.22f, if (rng.chance(0.25f)) rng.pick(pal) else c)
-                px += pw
-            }
+            CityInt.goods(b, x, FL + 0.265f + k * 0.42f, z + side * 0.17f, w - 0.04f, 0.34f, 0.26f)
+            b.m(Mt.PLAIN); b.box(x, FL + 0.24f + k * 0.42f, z + side * 0.312f, w, 0.045f, 0.006f, C("#FFF59D"), false)
         }
     }
 
@@ -1492,7 +1479,9 @@ object CityGeo {
             val bd = g.begin(x0, z0, x1, z1, signName.lowercase().replaceFirstChar { it.uppercase() })
             val A = g.A; val H = g.H
             A.m(Mt.STONE, 0.6f); A.box(cx, FL / 2, (z0 + z1) / 2, x1 - x0, FL, depth, C("#A8A39B"))
-            A.m(rng.pick(arrayOf(Mt.TILE, Mt.FLOOR_L, Mt.FLOOR_D)), 0.6f); A.box(cx, FL - 0.005f, (z0 + z1) / 2, x1 - x0 - 0.3f, 0.012f, depth - 0.3f, C("#FFFFFF"))
+            val fm0 = rng.pick(arrayOf(Mt.TILE, Mt.FLOOR_L, Mt.FLOOR_D))
+            val fl0 = CityInt.floor(signName)
+            A.m(fl0?.first ?: fm0, fl0?.third ?: 0.6f); A.box(cx, FL - 0.005f, (z0 + z1) / 2, x1 - x0 - 0.3f, 0.012f, depth - 0.3f, fl0?.second ?: C("#FFFFFF"))
             val hh = 4.4f
             val ops = listOf(Op(cx + sw * 0.28f, 1.3f, FL, FL + 2.5f, true), Op(cx - sw * 0.12f, sw * 0.5f, FL + 0.4f, FL + 3.0f, false))
             val inW = innerColor(signName)
@@ -1519,8 +1508,9 @@ object CityGeo {
                 val y2 = FL + hh + 0.6f
                 H.m(Mt.PLASTER, 0.5f); H.box(cx, y2 + 1.5f, (z0 + z1) / 2, x1 - x0, 3.0f, depth, col)
                 for (s in floatArrayOf(-1f, 1f)) {
-                    H.m(Mt.PLAIN); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.03f, 1.4f, 1.5f, 0.06f, C("#FFFFFF"))
-                    H.m(Mt.METAL, 1f); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.05f, 1.25f, 1.35f, 0.02f, C("#5D7A93"))
+                    // Etapa 126: moldura descolada da parede e vidro à frente dela (antes as faces coincidiam e piscavam)
+                    H.m(Mt.PLAIN); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.036f, 1.4f, 1.5f, 0.05f, C("#FFFFFF"))
+                    H.m(Mt.METAL, 1f); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.072f, 1.25f, 1.35f, 0.012f, C("#5D7A93"))
                     H.m(Mt.WOOD, 1f); H.box(cx + s * sw * 0.22f - 0.85f, y2 + 1.5f, zf + fz * 0.06f, 0.3f, 1.5f, 0.04f, C("#2E7D32")); H.box(cx + s * sw * 0.22f + 0.85f, y2 + 1.5f, zf + fz * 0.06f, 0.3f, 1.5f, 0.04f, C("#2E7D32"))
                 }
                 H.m(Mt.ROOF, 0.6f); H.box(cx, y2 + 3.1f, (z0 + z1) / 2, x1 - x0 + 0.3f, 0.2f, depth + 0.3f, C("#8E4B3A"))
@@ -2014,6 +2004,8 @@ object CityGeo {
 
     // ============================================================ ruas
 
+    private const val CW = 0.24f   // largura da guia
+
     fun roads(out: ArrayList<City.Chunk>) {
         val asph = C("#FFFFFF"); val walk = C("#E3E0DA"); val curbC = C("#C9C6C0")
         val yel = C("#F2C230"); val wht = C("#F4F4F4")
@@ -2027,13 +2019,12 @@ object CityGeo {
             b.m(Mt.ASPHALT, 0.25f); b.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             g.f.m(Mt.ASPHALT, 0.25f); g.f.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {   // Etapa 125: calçada cobre também os cantos dos cruzamentos
-                for (bb in arrayOf(b, g.f)) {
-                    groundBox(bb, iv[0], za, iv[1], za + SIDE, Mt.PAVER, 0.9f, walk)
-                    groundBox(bb, iv[0], zb - SIDE, iv[1], zb, Mt.PAVER, 0.9f, walk)
-                }
+                // Etapa 126: calçada até a guia (sem sobrepor) e guia um pouco mais alta e saliente: nada de faces no mesmo plano piscando
+                groundBox(b, iv[0], za, iv[1], za + SIDE - CW, Mt.PAVER, 0.9f, walk); groundBox(g.f, iv[0], za, iv[1], za + SIDE, Mt.PAVER, 0.9f, walk)
+                groundBox(b, iv[0], zb - SIDE + CW, iv[1], zb, Mt.PAVER, 0.9f, walk); groundBox(g.f, iv[0], zb - SIDE, iv[1], zb, Mt.PAVER, 0.9f, walk)
                 b.m(Mt.STONE, 1f)
-                b.box((iv[0] + iv[1]) / 2, CURB / 2 + 0.005f, za + SIDE - 0.12f, iv[1] - iv[0], CURB + 0.01f, 0.24f, curbC)
-                b.box((iv[0] + iv[1]) / 2, CURB / 2 + 0.005f, zb - SIDE + 0.12f, iv[1] - iv[0], CURB + 0.01f, 0.24f, curbC)
+                b.box((iv[0] + iv[1]) / 2, (CURB + 0.03f) / 2, za + SIDE - CW / 2 + 0.01f, iv[1] - iv[0], CURB + 0.03f, CW + 0.02f, curbC)
+                b.box((iv[0] + iv[1]) / 2, (CURB + 0.03f) / 2, zb - SIDE + CW / 2 - 0.01f, iv[1] - iv[0], CURB + 0.03f, CW + 0.02f, curbC)
             }
             b.m(Mt.PLAIN)
             for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {
@@ -2071,13 +2062,11 @@ object CityGeo {
             val segs = freeIntervals(Z0, Z1, bandZ, -SIDE)
             for (bb in arrayOf(b, g.f)) { bb.m(Mt.ASPHALT, 0.25f); for (iv in segs) bb.plane(xa + SIDE, iv[0], xb - SIDE, iv[1], 0f, asph) }
             for (iv in freeIntervals(Z0, Z1, bandZ)) {
-                for (bb in arrayOf(b, g.f)) {
-                    groundBox(bb, xa, iv[0], xa + SIDE, iv[1], Mt.PAVER, 0.9f, walk)
-                    groundBox(bb, xb - SIDE, iv[0], xb, iv[1], Mt.PAVER, 0.9f, walk)
-                }
+                groundBox(b, xa, iv[0], xa + SIDE - CW, iv[1], Mt.PAVER, 0.9f, walk); groundBox(g.f, xa, iv[0], xa + SIDE, iv[1], Mt.PAVER, 0.9f, walk)
+                groundBox(b, xb - SIDE + CW, iv[0], xb, iv[1], Mt.PAVER, 0.9f, walk); groundBox(g.f, xb - SIDE, iv[0], xb, iv[1], Mt.PAVER, 0.9f, walk)
                 b.m(Mt.STONE, 1f)
-                b.box(xa + SIDE - 0.12f, CURB / 2 + 0.005f, (iv[0] + iv[1]) / 2, 0.24f, CURB + 0.01f, iv[1] - iv[0], curbC)
-                b.box(xb - SIDE + 0.12f, CURB / 2 + 0.005f, (iv[0] + iv[1]) / 2, 0.24f, CURB + 0.01f, iv[1] - iv[0], curbC)
+                b.box(xa + SIDE - CW / 2 + 0.01f, (CURB + 0.03f) / 2, (iv[0] + iv[1]) / 2, CW + 0.02f, CURB + 0.03f, iv[1] - iv[0], curbC)
+                b.box(xb - SIDE + CW / 2 - 0.01f, (CURB + 0.03f) / 2, (iv[0] + iv[1]) / 2, CW + 0.02f, CURB + 0.03f, iv[1] - iv[0], curbC)
             }
             b.m(Mt.PLAIN)
             for (iv in segs) {

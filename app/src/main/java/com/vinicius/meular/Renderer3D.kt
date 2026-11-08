@@ -502,7 +502,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (p.solid) GLES20.glDisable(GLES20.GL_BLEND)
             val bytes = STRIDE * 4
             if (p.gpu) {
-                if (p.vbo == 0 || p.gpuGen != GlGen.gen) p.upload()
+                if (p.vbo == 0 || p.gpuGen != GlGen.gen) {
+                    if (!p.upload()) {
+                        // Etapa 126: malha só da placa perdida junto com o contexto: pula e pede a cidade de novo
+                        if (p.cull) GLES20.glDisable(GLES20.GL_CULL_FACE)
+                        if (p.solid) GLES20.glEnable(GLES20.GL_BLEND)
+                        City.builtGen = -1
+                        continue
+                    }
+                }
                 GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, p.vbo)
                 GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, bytes, 0)
                 GLES20.glVertexAttribPointer(aNor, 3, GLES20.GL_FLOAT, false, bytes, 12)
@@ -664,7 +672,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** O jogador some e assume o veículo; a câmera passa a seguir de trás. */
     private fun enterCar() {
         if (carMesh == null) return
-        driving = true; carSpeed = 0f; steerS = 0f
+        driving = true; carSpeed = 0f; steerS = 0f; carVx = 0f; carVz = 0f; yawRate = 0f; gasIn = false; brakeIn = false; hbIn = false
         thirdBefore = third; third = true
         path = null; markX = Float.NaN; jumping = false; crouch = false
         px = carX; pz = carZ
@@ -675,7 +683,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun exitCar() {
         driving = false
         City.driverHalf = 0f
-        carSpeed = 0f
+        carSpeed = 0f; carVx = 0f; carVz = 0f; yawRate = 0f; gasIn = false; brakeIn = false; hbIn = false
         val rx = cos(carH); val rz = sin(carH)
         // sai pelo lado do motorista (esquerda); se estiver bloqueado, pela direita
         var ok = false
@@ -689,45 +697,104 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         City.ownCar = floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
     }
 
-    /** Física simples de carro: acelerador e ré no analógico (cima/baixo), volante (lados); bate e para em prédios, muros e carros. */
+    /** Etapa 126: pedais na tela (segurar). */
+    @Volatile var gasIn = false
+    @Volatile var brakeIn = false
+    @Volatile var hbIn = false
+    /** marcha mostrada no painel (R, N, 1..6) */
+    @Volatile var gear = "N"; private set
+    @Volatile var drifting = false; private set
+    private var carVx = 0f
+    private var carVz = 0f
+    private var yawRate = 0f
+    private var camRoll = 0f
+
+    /**
+     * Etapa 126: direção estilo jogo de corrida (arcade): acelerador e freio/ré nos pedais (ou analógico para cima/baixo),
+     * volante no analógico; o carro tem aderência lateral — nas curvas rápidas ou com o freio de mão ele derrapa e volta.
+     */
     private fun updateDrive(dt: Float) {
         val moto = isMoto()
-        val vmax = when (st.vehKind) { Vehicles.SPORT -> 34f; Vehicles.MOTO -> 30f; Vehicles.SCOOTER -> 17f; Vehicles.BUS, Vehicles.VAN -> 20f; else -> 26f }
-        val acc = when (st.vehKind) { Vehicles.SPORT -> 9f; Vehicles.MOTO -> 8.5f; Vehicles.SCOOTER -> 4.5f; Vehicles.BUS, Vehicles.VAN -> 3.8f; else -> 6f }
-        val thr = moveY.coerceIn(-1f, 1f)
-        val st0 = moveX.coerceIn(-1f, 1f)
-        if (thr > 0.05f) {
-            carSpeed += (if (carSpeed < 0f) 14f else acc * (1f - (carSpeed / vmax).coerceIn(0f, 1f) * 0.7f)) * thr * dt
-        } else if (thr < -0.05f) {
-            carSpeed += (if (carSpeed > 0.3f) -16f else -4f) * -thr * dt
-        } else {
-            val drag = 2.2f * dt + abs(carSpeed) * 0.02f * dt
-            carSpeed = if (carSpeed > 0f) max(0f, carSpeed - drag) else min(0f, carSpeed + drag)
+        val k = st.vehKind
+        val vmax = when (k) { Vehicles.SPORT -> 52f; Vehicles.MOTO -> 44f; Vehicles.SCOOTER -> 20f; Vehicles.BUS -> 24f; Vehicles.VAN -> 30f; Vehicles.PICKUP -> 38f; else -> 42f }
+        val acc = when (k) { Vehicles.SPORT -> 11.5f; Vehicles.MOTO -> 11f; Vehicles.SCOOTER -> 4.5f; Vehicles.BUS -> 3.2f; Vehicles.VAN -> 4.8f; else -> 7.6f }
+        val grip = when (k) { Vehicles.SPORT -> 9.5f; Vehicles.MOTO -> 8.5f; Vehicles.BUS, Vehicles.VAN -> 6.5f; else -> 8f }
+        val wb = if (moto) 1.45f else if (k == Vehicles.BUS) 5.5f else 2.7f
+        val joyT = moveY.coerceIn(-1f, 1f)
+        val thr = if (gasIn) 1f else max(0f, joyT)
+        val brk = if (brakeIn) 1f else max(0f, -joyT)
+        val hb = hbIn
+        val fx = sin(carH); val fz = -cos(carH); val rx = cos(carH); val rz = sin(carH)
+        // velocidade separada em frente e lado (o carro desliza de lado conforme a aderência)
+        var vF = carVx * fx + carVz * fz
+        var vS = carVx * rx + carVz * rz
+        // motor: força cai perto da final (curva de torque); "marchas" dão pequenos trancos de aceleração
+        val sp01 = (abs(vF) / vmax).coerceIn(0f, 1f)
+        if (thr > 0.02f) {
+            if (vF < -0.4f) vF += 16f * thr * dt                       // estava de ré: freia primeiro
+            else vF += acc * (1f - sp01 * sp01) * (0.85f + 0.15f * sin(sp01 * 18.8f).let { it * it }) * thr * dt
         }
-        carSpeed = carSpeed.coerceIn(-7f, vmax)
-        // volante: mais fechado parado, mais suave rápido
-        val maxSteer = 0.62f * (1f - min(0.65f, abs(carSpeed) / 40f))
-        steerS += (st0 * maxSteer - steerS) * min(1f, dt * 6f)
-        val wb = if (moto) 1.45f else 2.7f
-        carH += carSpeed / wb * kotlin.math.tan(steerS) * dt
-        val fx = sin(carH); val fz = -cos(carH)
-        val nx = carX + fx * carSpeed * dt; val nz = carZ + fz * carSpeed * dt
+        if (brk > 0.02f) {
+            if (vF > 0.6f) vF -= 22f * brk * dt                        // freio forte
+            else if (thr < 0.02f) vF = max(-11f, vF - 6f * brk * dt)   // parado: ré
+        }
+        // arrasto do ar + rolagem
+        val drag = (0.9f + abs(vF) * 0.018f + if (thr < 0.02f && brk < 0.02f) 1.6f else 0f) * dt
+        vF = if (vF > 0f) max(0f, vF - drag) else min(0f, vF + drag)
+        if (hb) vF = if (vF > 0f) max(0f, vF - 7f * dt) else min(0f, vF + 7f * dt)
+        vF = vF.coerceIn(-11f, vmax)
+        // volante: rápido de virar, menos ângulo em alta velocidade (sensibilidade de jogo de corrida)
+        val st0 = moveX.coerceIn(-1f, 1f)
+        val stIn = st0 * abs(st0) * 0.35f + st0 * 0.65f               // curva de resposta: suave no centro
+        val maxSteer = (if (moto) 0.55f else 0.6f) / (1f + abs(vF) / 15f)
+        val rate = if (abs(stIn * maxSteer) > abs(steerS)) 7f else 10f      // volta ao centro mais rápido
+        steerS += (stIn * maxSteer - steerS) * min(1f, dt * rate)
+        // giro: o carro tende ao giro "ideal" do volante; com freio de mão a traseira solta
+        val ideal = vF / wb * kotlin.math.tan(steerS) * (if (hb) 1.55f else 1f)
+        yawRate += (ideal - yawRate) * min(1f, dt * (if (hb) 3f else 9f))
+        carH += yawRate * dt
+        // aderência lateral: com freio de mão ou rápido demais na curva, desliza (drift)
+        val latGrip = if (hb) 1.3f else grip * (1f - 0.45f * sp01 * min(1f, abs(steerS) * 3f))
+        vS *= kotlin.math.exp(-latGrip * dt)
+        drifting = abs(vS) > 2.2f && abs(vF) > 6f
+        if (drifting) vF -= kotlin.math.sign(vF) * abs(vS) * 0.35f * dt      // derrapar segura um pouco
+        // de volta ao mundo, já com a nova direção do carro
+        val nfx = sin(carH); val nfz = -cos(carH); val nrx = cos(carH); val nrz = sin(carH)
+        carVx = nfx * vF + nrx * vS; carVz = nfz * vF + nrz * vS
+        carSpeed = vF
+        val nx = carX + carVx * dt; val nz = carZ + carVz * dt
         if (carFree(nx, nz, carH)) { carX = nx; carZ = nz }
         else {
-            // bateu: tenta deslizar em um eixo, senão para e volta um pouco
-            if (carFree(nx, carZ, carH)) carX = nx
-            else if (carFree(carX, nz, carH)) carZ = nz
-            else carSpeed = -carSpeed * 0.25f
-            carSpeed *= 0.6f
+            // batida: raspa na parede (desliza no eixo livre) ou quica para trás
+            val hard = abs(vF) > 9f
+            if (carFree(nx, carZ, carH)) { carX = nx; carVz = 0f }
+            else if (carFree(carX, nz, carH)) { carZ = nz; carVx = 0f }
+            else { carVx = -carVx * 0.25f; carVz = -carVz * 0.25f; yawRate *= 0.3f }
+            carVx *= if (hard) 0.45f else 0.75f; carVz *= if (hard) 0.45f else 0.75f
+            if (!carFree(carX, carZ, carH)) carH -= yawRate * dt   // não deixa a quina entrar girando
+            carSpeed = carVx * nfx + carVz * nfz
         }
         carY += (groundH(carX, carZ) - carY) * min(1f, dt * 10f)
         px = carX; pz = carZ
         City.driverHalf = carHalfL()
-        // câmera vem para trás do carro aos poucos
-        var dl = carH - fyaw
+        val kmh = abs(carSpeed) * 3.6f
+        gear = when {
+            carSpeed < -0.3f -> "R"
+            kmh < 1f -> "N"
+            else -> (1 + (kmh / (vmax * 3.6f) * 5.6f).toInt()).coerceAtMost(6).toString()
+        }
+        // câmera: segue a direção em que o carro anda (mostra a derrapagem), mais rápida em alta velocidade
+        val mvYaw = if (abs(vF) > 3f && vF > 0f) kotlin.math.atan2(carVx, -carVz) else carH
+        var dv = mvYaw - carH
+        while (dv > Math.PI) dv -= (2 * Math.PI).toFloat()
+        while (dv < -Math.PI) dv += (2 * Math.PI).toFloat()
+        val tgt = if (vF < -2f) carH else carH + dv * 0.35f
+        var dl = tgt - fyaw
         while (dl > Math.PI) dl -= (2 * Math.PI).toFloat()
         while (dl < -Math.PI) dl += (2 * Math.PI).toFloat()
-        if (abs(carSpeed) > 0.5f) fyaw += dl * min(1f, dt * 2.5f)
+        if (abs(carSpeed) > 0.5f) fyaw += dl * min(1f, dt * (2.2f + abs(carSpeed) * 0.08f))
+        fpitch += (-0.16f - fpitch) * min(1f, dt * 1.5f)
+        camRoll += (-yawRate * min(1f, abs(vF) / 20f) * 0.06f - camRoll) * min(1f, dt * 4f)
     }
 
     private fun carFree(x: Float, z: Float, h: Float): Boolean {
@@ -770,6 +837,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         b?.let { applySkip(it, true) }
     }
 
+    /** Etapa 126: prédio da cidade em que o jogador está (para a câmera de 3ª pessoa não atravessar a parede). */
+    private var camBld: City.Bld? = null
+
     private fun applySkip(b: City.Bld, on: Boolean) {
         val c = City.chunks.getOrNull(b.chunk) ?: return
         for ((mat, r) in b.ranges) {
@@ -782,7 +852,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Desenha a cidade: quarteirões perto em detalhe, longe simplificados; semáforos, veículos, pedestres, brinquedos. */
     private fun drawCity(ex: Float, ez: Float) {
         City.service(ex, ez)
-        setInside(if (mode == 0) City.bldAt(px, pz) else null)
+        setInside(if (mode == 1 && !driving) City.bldAt(px, pz) else null)   // Etapa 126: paredes e teto só somem na vista de cima
         inBld?.let { applySkip(it, true) }   // a malha detalhada pode ter sido recarregada
         cityGlass.clear()
         Matrix.setIdentityM(mdl, 0)
@@ -936,6 +1006,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     fun stopWalk() { stopReq = true }
 
     /** Ao voltar para a câmera de perto, a câmera fica atrás do personagem, olhando para onde ele está virado. */
+    /** Etapa 126: área da casa e do quintal (onde vale a grade de caminho e a câmera aérea da casa). */
+    private fun atHome(x: Float, z: Float): Boolean {
+        val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
+        return x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f
+    }
+    /** Etapa 126: vista aérea na rua: a câmera segue o personagem pela cidade. */
+    private fun cityAer() = mode == 1 && City.on && !atHome(px, pz)
+    val streetAerial: Boolean get() = cityAer()
+    private var acx = Float.NaN
+    private var acz = 0f
+
     fun faceCameraBehindPlayer() {
         fyaw = (Math.PI - Math.toRadians(pYaw.toDouble())).toFloat()
         fpitch = -0.06f
@@ -1047,6 +1128,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     }
 
     private fun startWalk(tx: Float, tz: Float) {
+        if (cityAer() && !atHome(tx, tz)) {
+            // na cidade: vai em linha reta até o ponto (para se esbarrar em algo)
+            path = arrayListOf(floatArrayOf(tx, tz)); markX = tx; markZ = tz; return
+        }
         val p = planPath(tx, tz)
         if (p == null) { path = null; markX = Float.NaN; return }
         path = p
@@ -1144,8 +1229,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // depois de pousar, termina a recuperação do clipe; se o jogador andar, volta logo ao andar/correr
             if (jumpLaunched && py <= 0f && (jumpT >= clipLen * 0.999f || (pMoving && jumpT > jumpPre + 0.8f))) jumping = false
         }
-        if (mode == 1) { followPath(dt); return }
-        if (path != null) { path = null; markX = Float.NaN }   // câmera de perto: o analógico manda
+        val joyOn = moveX * moveX + moveY * moveY > 0.0004f
+        if (mode == 1 && !(cityAer() && joyOn)) { followPath(dt); return }
+        if (path != null) { path = null; markX = Float.NaN }   // câmera de perto (ou analógico na rua): o analógico manda
         pMoving = false
         if (moveX * moveX + moveY * moveY <= 0.0004f) pRun = false
         val mx = moveX
@@ -1161,10 +1247,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             pRun = if (crouch) false else if (pRun) mag > 0.70f else mag > 0.88f
             // andar: velocidade proporcional ao arrasto (como antes); correr: velocidade fixa (casada com o clipe)
             val sp = if (crouch) CROUCH_SPEED * dt else if (pRun) RUN_SPEED * dt / mag else WALK_SPEED * dt  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
-            val fx = sin(fyaw)
-            val fz = -cos(fyaw)
-            val rx = cos(fyaw)
-            val rz = sin(fyaw)
+            val fyw = if (mode == 1) -yaw else fyaw   // vista aérea: o analógico segue a direção da câmera
+            val fx = sin(fyw)
+            val fz = -cos(fyw)
+            val rx = cos(fyw)
+            val rz = sin(fyw)
             val dx = (fx * my + rx * mx) * sp
             val dz = (fz * my + rz * mx) * sp
             if (walkable(px + dx, pz, px, pz)) px += dx
@@ -1174,7 +1261,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             var dl = dir - pYaw
             while (dl > 180f) dl -= 360f
             while (dl < -180f) dl += 360f
-            if (third) pYaw += dl * min(1f, dt * 12f)
+            if (third || mode == 1) pYaw += dl * min(1f, dt * 12f)
             // Etapa 119: andando (sem correr) contra a água por um instante: senta na borda e entra na piscina
             if (!pRun && !crouch && mode == 0 && Pool.blocksWalker(st.gw, px + dx * 2f, pz + dz * 2f)) {
                 edgeHold += dt
@@ -1700,26 +1787,35 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             fwdX = sin(fyaw); fwdZ = -cos(fyaw)
             if (third && driving) {
                 // Etapa 123: câmera de perseguição atrás do veículo
-                val dist = if (isMoto()) 4.6f else 7.2f
-                val tx = carX; val ty = carY + (if (isMoto()) 1.3f else 1.5f); val tz = carZ
-                ex = tx - fx * dist; ey = maxOf(ty - fy * dist + 1.2f, carY + 0.6f); ez = tz - fz * dist
-                Matrix.perspectiveM(proj, 0, 62f + min(10f, abs(carSpeed) * 0.35f), aspect, 0.1f, 260f)
-                Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
+                // Etapa 126: câmera de corrida: afasta e abre o campo de visão com a velocidade, inclina de leve nas curvas
+                val spd = min(1f, abs(carSpeed) / 40f)
+                val dist = (if (isMoto()) 4.4f else if (st.vehKind == Vehicles.BUS) 11f else 6.6f) + spd * 1.8f
+                val tx = carX + sin(carH) * spd * 2.5f; val ty = carY + (if (isMoto()) 1.2f else 1.35f); val tz = carZ - cos(carH) * spd * 2.5f
+                ex = tx - fx * dist; ey = maxOf(ty - fy * dist + 0.9f - spd * 0.25f, carY + 0.6f); ez = tz - fz * dist
+                Matrix.perspectiveM(proj, 0, 60f + spd * 16f, aspect, 0.35f, 300f)
+                Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, sin(camRoll) * fz, cos(camRoll), -sin(camRoll) * fx)
             } else if (third) {
                 // 3ª pessoa: câmera atrás do personagem, orbitando com o olhar
                 crouchK += ((if (crouch) 1f else 0f) - crouchK) * 0.15f
                 val tx = px; val ty = py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
                 val inRoom = px > 0.32f && px < gw - 0.32f && pz > 0.32f && pz < gh - 0.32f
+                val cb = if (City.on) City.bldAt(px, pz) else null
+                camBld = cb
                 var t = 1f
                 var ox = tx; var oy = ty; var oz = tz
                 for (i in 0..12) {
                     ox = tx - fx * 2.7f * t; oy = ty - fy * 2.7f * t; oz = tz - fz * 2.7f * t
                     val okRoom = !inRoom || (ox > 0.2f && ox < gw - 0.2f && oz > 0.2f && oz < gh - 0.2f && oy < 2.3f)
-                    if (okRoom) break
+                    // Etapa 126: dentro de loja/prédio a câmera fica do lado de dentro das paredes e abaixo do teto
+                    val okBld = cb == null || (ox > cb.x0 + 0.45f && ox < cb.x1 - 0.45f && oz > cb.z0 + 0.45f && oz < cb.z1 - 0.45f && oy < 2.75f)
+                    if (okRoom && okBld) break
                     t -= 0.07f
                 }
+                if (t < 0.12f) t = 0.12f
                 ex = ox; ey = maxOf(oy, 0.25f); ez = oz
-                Matrix.perspectiveM(proj, 0, 60f, aspect, 0.08f, 260f)
+                // Etapa 126: plano próximo maior fora de casa = profundidade bem mais precisa ao longe (janelas, guias e lajes paravam de piscar)
+                val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else 0.3f
+                Matrix.perspectiveM(proj, 0, 60f, aspect, nearP, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
                 // 1ª pessoa: a câmera fica no olho do personagem, seguindo a cabeça animada (corrida, pulo...)
@@ -1741,10 +1837,22 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     ey = plM[1] * e0 + plM[5] * e1 + plM[9] * e2 + plM[13]
                     ez = plM[2] * e0 + plM[6] * e1 + plM[10] * e2 + plM[14]
                 }
-                Matrix.perspectiveM(proj, 0, 72f, aspect, 0.04f, 260f)
+                Matrix.perspectiveM(proj, 0, 72f, aspect, if (atHome(px, pz)) 0.04f else 0.09f, 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
+        } else if (cityAer()) {
+            // Etapa 126: vista de cima na cidade, seguindo o personagem (o prédio em que ele está fica sem teto e paredes altas)
+            if (acx.isNaN()) { acx = px; acz = pz }
+            val k = min(1f, dt * 5f)
+            acx += (px - acx) * k; acz += (pz - acz) * k
+            val dist = 19f / minOf(aspect, 1f) * zoom
+            ex = acx + dist * cos(pitch) * sin(yaw)
+            ey = 0.5f + dist * sin(pitch)
+            ez = acz + dist * cos(pitch) * cos(yaw)
+            Matrix.perspectiveM(proj, 0, 40f, aspect, 0.3f, 300f)
+            Matrix.setLookAtM(view, 0, ex, ey, ez, acx, 0.4f, acz, 0f, 1f, 0f)
         } else {
+            acx = Float.NaN
             val dist = maxOf(gw, gh) * 2.0f / minOf(aspect, 1f) * zoom
             ex = cx + dist * cos(pitch) * sin(yaw)
             ey = 0.5f + dist * sin(pitch)
@@ -1752,7 +1860,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.perspectiveM(proj, 0, 40f, aspect, 0.3f, 260f)
             Matrix.setLookAtM(view, 0, ex, ey, ez, cx, 0.4f, cz, 0f, 1f, 0f)
         }
-        if (fp && third) { eyeX = px; eyeZ = pz } else { eyeX = ex; eyeZ = ez }
+        if ((fp && third) || cityAer()) { eyeX = px; eyeZ = pz } else { eyeX = ex; eyeZ = ez }
         Matrix.multiplyMM(vp, 0, proj, 0, view, 0)
         if (Matrix.invertM(tmp, 0, vp, 0)) {
             synchronized(inv) { System.arraycopy(tmp, 0, inv, 0, 16); invOk = true }

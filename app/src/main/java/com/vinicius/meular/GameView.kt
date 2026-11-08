@@ -149,6 +149,39 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
 
     private fun dist(e: MotionEvent): Float = hypot(e.getX(0) - e.getX(1), e.getY(0) - e.getY(1))
 
+    /** Etapa 126: vista de cima na rua: analógico no canto esquerdo; o resto da tela continua girando/tocando para andar. */
+    private fun aerialCityTouch(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val i = e.actionIndex
+                val x = e.getX(i); val y = e.getY(i)
+                if (joyId == -1 && amode == 0 && x < width * 0.45f && y > height * 0.35f) {
+                    joyId = e.getPointerId(i); joyBx = x; joyBy = y; joyKx = x; joyKy = y; joyActive = true
+                    r.stopWalk()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> if (joyId != -1) {
+                val i = e.findPointerIndex(joyId)
+                if (i >= 0) {
+                    var dx = e.getX(i) - joyBx; var dy = e.getY(i) - joyBy
+                    val d = hypot(dx, dy)
+                    if (d > joyR) { dx = dx / d * joyR; dy = dy / d * joyR }
+                    joyKx = joyBx + dx; joyKy = joyBy + dy
+                    if (d < 8f) { r.moveX = 0f; r.moveY = 0f } else { r.moveX = dx / joyR; r.moveY = -dy / joyR }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> if (e.getPointerId(e.actionIndex) == joyId) {
+                joyId = -1; joyActive = false; r.moveX = 0f; r.moveY = 0f
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> clearFp()
+        }
+        if (joyId != -1) return true
+        return aerialTouch(e)
+    }
+
     private fun aerialTouch(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -263,7 +296,7 @@ class GameView(ctx: Context, private val st: GameState) : GLSurfaceView(ctx) {
 
     override fun onTouchEvent(e: MotionEvent): Boolean = when (r.mode) {
         0 -> fpTouch(e)
-        1 -> aerialTouch(e)
+        1 -> if (r.streetAerial) aerialCityTouch(e) else aerialTouch(e)
         else -> creatorTouch(e)
     }
 }

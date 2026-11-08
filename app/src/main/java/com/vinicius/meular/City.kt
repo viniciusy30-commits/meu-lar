@@ -194,6 +194,7 @@ object City {
     @Volatile var progress = 0f
     /** Geração do contexto GL em que a cidade foi montada (sem cópia na memória, é preciso montar de novo se o contexto cair). */
     @Volatile var builtGen = -1
+    @Volatile private var startGen = -1
     @Volatile var builds = 0
     /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
     @Volatile var error: String? = null
@@ -227,6 +228,7 @@ object City {
     /** Monta a cidade numa thread separada (o jogo continua rodando dentro de casa enquanto isso). */
     fun buildAsync(gw: Int, gh: Int) {
         val tk = token
+        startGen = GlGen.gen
         Thread {
             try { error = null; build(gw, gh, tk) } catch (e: Throwable) { error = e.toString(); android.util.Log.e("City", "falha ao montar a cidade", e) }
         }.apply { priority = Thread.NORM_PRIORITY - 1 }.start()
@@ -302,7 +304,7 @@ object City {
         farAll?.gpuOnly(); lightMeshes.forEach { it?.gpuOnly() }; Vehicles.meshes.forEach { it?.gpuOnly() }
         pedBody.forEach { it?.gpuOnly() }; pedLeg.forEach { it?.gpuOnly() }; pedArm.forEach { it?.gpuOnly() }
         for (d in CityFun.dyn) d.mesh.gpuOnly()
-        builtGen = GlGen.gen
+        builtGen = startGen   // Etapa 126: se o contexto caiu durante a montagem, monta de novo
         builds++
         on = true
     }
