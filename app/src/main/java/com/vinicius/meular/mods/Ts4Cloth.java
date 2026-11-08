@@ -45,6 +45,11 @@ public final class Ts4Cloth {
             if (m == null || c.nv() > m.nv()) m = c;
         }
         if (m == null || m.uv == null) throw new Exception("GEOM/UV ausente");
+        // Etapa 112: sapatos são baixos (até 45 cm no espaço do app). A sola é horizontal,
+        // mas não é uma "tampa de barra" de calça; preservar esses triângulos.
+        float rawYmax = -Float.MAX_VALUE;
+        for (int i = 1; i < m.pos.length; i += 3) rawYmax = Math.max(rawYmax, m.pos[i] * body.s0);
+        final boolean shoeLike = rawYmax < 45f;
         final int nv0 = m.nv();
         // ---- só tecido: remove apenas triângulos CUJO CENTRO e VÉRTICES estão 100% em área transparente (casca de pele do TS4)
         int nt0 = m.nt();
@@ -68,8 +73,8 @@ public final class Ts4Cloth {
             if (cx*cx+cy*cy+cz*cz < 1e-14f) keepT[t] = false;
             if (keepT[t]) kept++;
         }
-        // tampas horizontais da barra de calça/short (triângulos deitados no fundo do tubo): não aparecem no jogo e, ao empurrar, viravam aletas pretas
-        {
+        // Tampas horizontais da barra de calça/short. Não remover a sola de sapatos.
+        if (!shoeLike) {
             float yl = Float.MAX_VALUE, yh = -Float.MAX_VALUE;
             for (int t = 0; t < nt0; t++) if (keepT[t]) for (int k = 0; k < 3; k++) { float y = m.pos[m.idx[t*3+k]*3+1] * body.s0; yl = Math.min(yl, y); yh = Math.max(yh, y); }
             if (yh < 125f && yl < 70f) {
@@ -87,6 +92,8 @@ public final class Ts4Cloth {
                 }
                 out.notes.add("tampas da barra removidas: " + capped);
             }
+        } else {
+            out.notes.add("sola preservada: peça classificada como sapato");
         }
         out.srcTris = nt0;
         if (kept < 20) throw new Exception("quase nenhum triângulo de tecido (" + kept + ")");
@@ -106,7 +113,7 @@ public final class Ts4Cloth {
         float ymin = Float.MAX_VALUE, ymax = -Float.MAX_VALUE;
         for (int i = 0; i < nv; i++) { ymin = Math.min(ymin, pos[i*3+1]); ymax = Math.max(ymax, pos[i*3+1]); }
         // antes do encaixe: calça/short = peça que não chega ao tronco; camiseta = peça que não chega às pernas
-        final boolean preBottom = ymax < 125f && ymin < 70f, preTop = ymax > 125f && ymin > 60f;
+        final boolean preBottom = !shoeLike && ymax < 125f && ymin < 70f, preTop = ymax > 125f && ymin > 60f;
         // ---- pernas: cada perna é um tubo separado (componente conexo abaixo da virilha)
         float[] legT = null;
         if (preBottom) {
@@ -118,7 +125,7 @@ public final class Ts4Cloth {
             }
             if (legT == null) out.notes.add("AVISO: não achei as duas pernas separadas; pesos por posição x");
         }
-        pushOut(body, pos, idx, clear, out);
+        pushOut(body, pos, idx, clear, out, shoeLike);
         if (preTop) { int pulled = collarPull(body, pos, idx, ymax, clear); out.notes.add("gola: " + pulled + " vértices puxados ao pescoço"); }
         ymin = Float.MAX_VALUE; ymax = -Float.MAX_VALUE;
         for (int i = 0; i < nv; i++) { ymin = Math.min(ymin, pos[i*3+1]); ymax = Math.max(ymax, pos[i*3+1]); }
@@ -277,23 +284,23 @@ public final class Ts4Cloth {
     }
 
     // ------------------------------------------------------------------ encaixe
-    private static void pushOut(BodyRef b, float[] pos, int[] idx, float clear, Out out) {
+    private static void pushOut(BodyRef b, float[] pos, int[] idx, float clear, Out out, boolean shoeLike) {
         // várias passadas: a direção suavizada não garante a folga na primeira; repete até não haver penetração
         int total = 0; float mxAll = 0;
         extra = new float[pos.length / 3];
         for (int pass = 0; pass < 8; pass++) {
             Out o = new Out();
-            pushOnce(b, pos, idx, clear, o, pass);
+            pushOnce(b, pos, idx, clear, o, pass, shoeLike);
             total += o.pushed; mxAll = Math.max(mxAll, o.maxPush);
             if (o.pushed == 0 || o.maxPush < 0.03f) break;
         }
         out.pushed = total; out.maxPush = mxAll;
     }
-    private static void pushOnce(BodyRef b, float[] pos, int[] idx, float clear, Out out, int pass) {
+    private static void pushOnce(BodyRef b, float[] pos, int[] idx, float clear, Out out, int pass, boolean shoeLike) {
         // nas passadas de refinamento a barra da calça/short fica de fora: só a 1ª passada mexe nela (evita boca de sino)
         float yminAll = Float.MAX_VALUE, ymaxAll = -Float.MAX_VALUE;
         for (int i = 1; i < pos.length; i += 3) { yminAll = Math.min(yminAll, pos[i]); ymaxAll = Math.max(ymaxAll, pos[i]); }
-        final float hemY = (pass > 0 && ymaxAll < 125f) ? yminAll + HEM_BAND : -Float.MAX_VALUE;
+        final float hemY = (pass > 0 && ymaxAll < 125f && !shoeLike) ? yminAll + HEM_BAND : -Float.MAX_VALUE;
         int nv = pos.length / 3;
         float[] bp = b.pos, bn = b.nor; int[] bi = b.idx; int bt = bi.length / 3;
         // grade simples sobre os centros dos triângulos do corpo para limitar candidatos

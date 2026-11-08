@@ -29,6 +29,7 @@ object ModStore {
     // Etapa 107: as mesmas peças refeitas para o corpo masculino do Sims 4 (am5)
     const val HOOD_M_ID = "hood_am5"
     const val HCARGO_M_ID = "hcargo_am5"
+    const val DUNK_ID = "dunk_high_am5"
 
     val LOTUS = listOf(
         VarColor("preto", "Preto", 0xFF262326.toInt()),
@@ -132,10 +133,52 @@ object ModStore {
         VarColor("c10", "Laranja 1", 0xFFBEB0A1.toInt()),
         VarColor("c11", "Laranja 2", 0xFFBBB0A4.toInt())
     )
+    // Etapa 112: VHSync Dunk High masculino, 38 swatches originais do package.
+    val DUNK = listOf(
+        VarColor("c01", "Preto e branco", 0xFF666666.toInt()),
+        VarColor("c02", "Vermelho", 0xFFBD4B4B.toInt()),
+        VarColor("c03", "Azul royal", 0xFF3564AC.toInt()),
+        VarColor("c04", "Rosa", 0xFFBD4B85.toInt()),
+        VarColor("c05", "Roxo", 0xFF954BAC.toInt()),
+        VarColor("c06", "Verde", 0xFF2E764F.toInt()),
+        VarColor("c07", "Oliva", 0xFFACA33D.toInt()),
+        VarColor("c08", "Caramelo", 0xFFB87348.toInt()),
+        VarColor("c09", "Verde menta", 0xFF4FAE83.toInt()),
+        VarColor("c10", "Marrom", 0xFF715F4B.toInt()),
+        VarColor("c11", "Ameixa", 0xFF5A4C6D.toInt()),
+        VarColor("c12", "Vinho", 0xFF693534.toInt()),
+        VarColor("c13", "Azul-marinho", 0xFF333862.toInt()),
+        VarColor("c14", "Azul lavanda", 0xFF7880C3.toInt()),
+        VarColor("c15", "Bege", 0xFFC8A678.toInt()),
+        VarColor("c16", "Rosa pink", 0xFFD17AB4.toInt()),
+        VarColor("c17", "Cinza quente", 0xFFAEA193.toInt()),
+        VarColor("c18", "Cinza", 0xFF9E9E9E.toInt()),
+        VarColor("c19", "Vinho claro", 0xFF9C4F4F.toInt()),
+        VarColor("c20", "Roxo escuro", 0xFF594F8E.toInt()),
+        VarColor("c21", "Malva", 0xFF9C4F8E.toInt()),
+        VarColor("c22", "Azul petróleo", 0xFF30798C.toInt()),
+        VarColor("c23", "Verde oliva", 0xFF5C7653.toInt()),
+        VarColor("c24", "Mostarda", 0xFFA28C3C.toInt()),
+        VarColor("c25", "Cinza claro", 0xFF9C9B9C.toInt()),
+        VarColor("c26", "Taupe", 0xFF73685C.toInt()),
+        VarColor("c27", "Verde água", 0xFF4A998C.toInt()),
+        VarColor("c28", "Azul aço", 0xFF46659D.toInt()),
+        VarColor("c29", "Violeta", 0xFF58469D.toInt()),
+        VarColor("c30", "Caramelo claro", 0xFFB88355.toInt()),
+        VarColor("c31", "Vermelho escuro", 0xFF8B3131.toInt()),
+        VarColor("c32", "Terracota", 0xFF9E5638.toInt()),
+        VarColor("c33", "Ocre", 0xFF9E7738.toInt()),
+        VarColor("c34", "Verde oliva claro", 0xFF969D38.toInt()),
+        VarColor("c35", "Verde", 0xFF569D38.toInt()),
+        VarColor("c36", "Verde jade", 0xFF389D6C.toInt()),
+        VarColor("c37", "Turquesa", 0xFF389D99.toInt()),
+        VarColor("c38", "Azul petróleo claro", 0xFF38809E.toInt())
+    )
     val VARS: Map<String, Var> = mapOf(
         "minimalist_top_am5" to Var("Camiseta Minimalist", MIN_TOP, "minimalist_top_am5", { _ -> "minimalist_top_am5" }, { c -> if (c == "c01") "minimalist_top_am5" else "minimalist_top_${c}_am5" }),
         "minimalist_short_am5" to Var("Short Minimalist", MIN_SHORT, "minimalist_short_am5", { _ -> "minimalist_short_am5" }, { c -> if (c == "c01") "minimalist_short_am5" else "minimalist_short_${c}_am5" }),
         "minimalist_jeans_am5" to Var("Calça jeans Minimalist", MIN_JEANS, "minimalist_jeans_am5", { _ -> "minimalist_jeans_am5" }, { c -> if (c == "c01") "minimalist_jeans_am5" else "minimalist_jeans_${c}_am5" }),
+        DUNK_ID to Var("Tênis Dunk High", DUNK, DUNK_ID, { _ -> DUNK_ID }, { c -> if (c == "c01") DUNK_ID else "dunk_high_${c}_am5" }),
         "ross1_am5" to Var("Cabelo Ross masculino", ROSS, "ross1_am5", { _ -> "ross1_am5" }, { _ -> "ross1_am5" }),
         "ross1_af5" to Var("Cabelo Ross feminino", ROSS, "ross1_af5", { _ -> "ross1_af5" }, { _ -> "ross1_af5" }),
         LOTUS_ID to Var("Cabelo Lotus — coque", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),
@@ -206,6 +249,8 @@ object ModStore {
         items.add(Item("minimalist_top_am5", "Camiseta Minimalist", "top", "am", 0, true, false, true))
         items.add(Item("minimalist_short_am5", "Short Minimalist", "bottom", "am", 0, true, false, true))
         items.add(Item("minimalist_jeans_am5", "Calça jeans Minimalist", "bottom", "am", 0, true, false, true))
+        // Etapa 112: tênis Dunk High do VHSync, masculino adulto, 38 cores.
+        items.add(Item(DUNK_ID, "Tênis Dunk High", "feet", "am", 0, true, false, true))
         loadVariants(d)
         // quem já tinha Lotus/Bloom vestido num item por cor (Etapas 92/93) passa para o item único, com a mesma cor
         for (k in worn.toList()) {
