@@ -1,3 +1,13 @@
+#id 2026-11-15-cidade-detalhe
+#titulo Cidade mais bonita, mapa de verdade e minimapa no lugar certo
+- Mapa: agora é a cidade de verdade vista de cima, em miniatura (telhados, ruas, árvores, praia). Nome dos lugares principais; lojas aparecem com zoom
+- Minimapa no canto de cima (no lugar do retrato); tocar nele abre o mapa
+- Árvores novas com tronco, galhos e folhas de verdade (carvalho, ipê roxo e amarelo...), com sombra no chão
+- Ruas: corrigidos os buracos nas esquinas dos cruzamentos; piso tátil, bueiros, tampas de esgoto, frades, canteiros com grade, postes e semáforos novos
+- Calçadão com as ondas de Copacabana e palmeiras com tronco inteiro
+- Cada loja tem seu interior: padaria, farmácia, pizzaria com forno, sushi bar, hamburgueria, pet shop com aquários, salão, floricultura, ótica, eletrônicos, livraria, moda...
+- Parque de diversões com grade vazada; sem muros estranhos virados para a rua
+
 #id 2026-11-14-menu-ts4
 #titulo Menu novo e carregamento sem travar
 - Menu inicial no estilo da tela inicial do The Sims 4: sala ilustrada, seu personagem de corpo inteiro no tapete, cartões de novidades

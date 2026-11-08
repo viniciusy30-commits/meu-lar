@@ -174,7 +174,13 @@ object Gps {
 
 // ============================================================ desenho comum do mapa
 
-private object MapPaint {
+object MapPaint {
+    /** Etapa 125: foto da cidade vista de cima (tirada pelo jogo) e o retângulo do mundo que ela cobre. */
+    @Volatile var photo: android.graphics.Bitmap? = null
+    @Volatile var photoRect = FloatArray(4)
+    private val photoPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    /** Lugares que sempre aparecem; os outros (lojas) só com zoom. */
+    val MAIN = setOf("Sua casa", "Praia", "Píer", "Parque de Diversões", "Hospital", "Shopping", "Praça Central", "Igreja Matriz", "Escola", "Polícia", "Supermercado", "Parque", "Mansões", "Hotel", "Posto")
     val bg = Paint().apply { color = 0xFFCFE6C0.toInt() }
     val sea = Paint().apply { color = 0xFF5FB4DC.toInt() }
     val sand = Paint().apply { color = 0xFFF2E1B5.toInt() }
@@ -208,21 +214,24 @@ private object MapPaint {
         c.drawRect(City.X0 - 400f, City.SEA_Z - 4f, City.X1 + 400f, City.SEA_Z + 600f, sea)
         fill.color = 0xFFF4F1EA.toInt(); c.drawRect(City.X0 - 400f, City.Z1, City.X1 + 400f, City.BEACH_Z, fill)
         fill.color = 0xFF8D6E63.toInt(); c.drawRect(City.PIER_X - 2.5f, City.BEACH_Z + 4f, City.PIER_X + 2.5f, City.SEA_Z + 62f, fill); c.drawRect(City.PIER_X - 6f, City.SEA_Z + 62f, City.PIER_X + 6f, City.SEA_Z + 70f, fill)
-        // quarteirões
-        for (i in 0 until City.NB) for (j in 0 until City.NB) {
+        val ph = photo
+        if (ph != null) {
+            val r = photoRect
+            c.drawBitmap(ph, null, RectF(r[0], r[1], r[2], r[3]), photoPaint)
+        } else for (i in 0 until City.NB) for (j in 0 until City.NB) {
             val t = City.types.getOrNull(i)?.getOrNull(j) ?: continue
             fill.color = if (t == "home") 0xFFC8E6C9.toInt() else blockColor(t)
             c.drawRect(City.blkX[i * 2], City.blkZ[j * 2], City.blkX[i * 2 + 1], City.blkZ[j * 2 + 1], fill)
         }
-        // ruas (calçada e asfalto)
         val bx = City.bandX; val bz = City.bandZ
-        fill.color = 0xFFDCD8D0.toInt()
-        for (k in 0 until bz.size / 2) c.drawRect(City.X0, bz[k * 2], City.X1, bz[k * 2 + 1], fill)
-        for (k in 0 until bx.size / 2) c.drawRect(bx[k * 2], City.Z0, bx[k * 2 + 1], City.Z1, fill)
-        for (k in 0 until bz.size / 2) c.drawRect(City.X0, bz[k * 2] + City.SIDE, City.X1, bz[k * 2 + 1] - City.SIDE, road)
-        for (k in 0 until bx.size / 2) c.drawRect(bx[k * 2] + City.SIDE, City.Z0, bx[k * 2 + 1] - City.SIDE, City.Z1, road)
-        if (detail) {
-            for (b in City.blds) { c.drawRect(b.x0, b.z0, b.x1, b.z1, bld); c.drawRect(b.x0, b.z0, b.x1, b.z1, bldEdge) }
+        if (ph == null) {
+            fill.color = 0xFFDCD8D0.toInt()
+            for (k in 0 until bz.size / 2) c.drawRect(City.X0, bz[k * 2], City.X1, bz[k * 2 + 1], fill)
+            for (k in 0 until bx.size / 2) c.drawRect(bx[k * 2], City.Z0, bx[k * 2 + 1], City.Z1, fill)
+            for (k in 0 until bz.size / 2) c.drawRect(City.X0, bz[k * 2] + City.SIDE, City.X1, bz[k * 2 + 1] - City.SIDE, road)
+            for (k in 0 until bx.size / 2) c.drawRect(bx[k * 2] + City.SIDE, City.Z0, bx[k * 2 + 1] - City.SIDE, City.Z1, road)
+        }
+        if (detail && s > 1.1f) {
             // nomes das ruas
             label.textSize = 5.5f; halo.textSize = 5.5f
             for (k in 1 until bz.size / 2 - 1) {
@@ -253,6 +262,11 @@ private object MapPaint {
         fill.color = col; c.drawCircle(x, y, r * 0.9f, fill)
         text.textSize = r * 1.05f
         c.drawText(ch.toString(), x, y + r * 0.37f, text)
+    }
+
+    fun tag(c: Canvas, t: String, x: Float, y: Float, size: Float) {
+        label.textSize = size; halo.textSize = size; halo.strokeWidth = size * 0.35f
+        c.drawText(t, x, y, halo); c.drawText(t, x, y, label)
     }
 
     fun arrow(c: Canvas, x: Float, y: Float, ang: Float, r: Float) {
@@ -291,7 +305,13 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
                 MapPaint.drawCity(c, scale, cx, cz, width / 2f, height / 2f, 0f, true)
                 fun sx(x: Float) = width / 2f + (x - cx) * scale
                 fun sy(z: Float) = height / 2f + (z - cz) * scale
-                for (pl2 in City.places) MapPaint.pin(c, sx(pl2.x), sy(pl2.z), pl2.color, pl2.icon, dp(10f) * min(1f, max(0.55f, scale / 1.4f)))
+                // lugares principais sempre; lojas e terrenos só com zoom (com o nome embaixo)
+                for (pl2 in City.places) {
+                    val main = pl2.name in MapPaint.MAIN
+                    if (!main && scale < 2.2f) continue
+                    MapPaint.pin(c, sx(pl2.x), sy(pl2.z), pl2.color, pl2.icon, dp(if (main) 11f else 8f))
+                    if (main || scale > 3f) MapPaint.tag(c, pl2.name, sx(pl2.x), sy(pl2.z) + dp(if (main) 22f else 17f), dp(11f))
+                }
                 if (!selX.isNaN()) {
                     val x = sx(selX); val y = sy(selZ)
                     MapPaint.fill.color = 0xFFE53935.toInt()
@@ -483,7 +503,7 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
         c.save(); c.clipPath(clip)
         // gira com a câmera: para onde se olha fica para cima
         val rot = -Math.toDegrees(pl[2].toDouble()).toFloat()
-        val s = r / 70f
+        val s = r / 55f
         MapPaint.drawCity(c, s, pl[0], pl[1], r, r, rot, false)
         if (Gps.active) {
             c.save(); c.translate(r, r); c.rotate(rot); c.scale(s, s); c.translate(-pl[0], -pl[1])

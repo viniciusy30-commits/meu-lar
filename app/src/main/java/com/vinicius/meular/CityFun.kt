@@ -43,13 +43,13 @@ object CityFun {
         CityGeo.groundBox(g.f, X0 - 60f, Z1, X1 + 60f, BZ, Mt.STONE, 1.2f, C("#F4F1EA"))
         b.m(Mt.PLAIN)
         val black = C("#2B2B2B")
-        for (band in 0 until 3) {
-            val zc = Z1 + 2.2f + band * 2.6f
+        for (band in 0 until 5) {
+            val zc = Z1 + 1.0f + band * 2.0f
             var x = X0 - 60f
             val st = 0.5f
             while (x < X1 + 60f) {
-                val z0 = zc + 0.8f * sin(x * 0.75f); val z1 = zc + 0.8f * sin((x + st) * 0.75f)
-                CityGeo.q(b, CityGeo.P(x, CURB + 0.006f, z0 - 0.35f) + CityGeo.P(x + st, CURB + 0.006f, z1 - 0.35f) + CityGeo.P(x + st, CURB + 0.006f, z1 + 0.35f) + CityGeo.P(x, CURB + 0.006f, z0 + 0.35f), black)
+                val z0 = zc + 0.55f * sin(x * 0.9f); val z1 = zc + 0.55f * sin((x + st) * 0.9f)
+                CityGeo.q(b, CityGeo.P(x, CURB + 0.006f, z0 - 0.5f) + CityGeo.P(x, CURB + 0.006f, z0 + 0.5f) + CityGeo.P(x + st, CURB + 0.006f, z1 + 0.5f) + CityGeo.P(x + st, CURB + 0.006f, z1 - 0.5f), black)
                 x += st
             }
         }
@@ -221,16 +221,19 @@ object CityFun {
         b.m(Mt.GRASS, 0.3f)
         for (k in 0 until 6) { val gx = px0 + 6f + (k % 3) * 34f; val gz = pz0 + 6f + (k / 3) * 46f; b.box(gx, CURB + 0.02f, gz, 6f, 0.04f, 4f, C("#BFE0A4")) }
         // cerca com entrada (lado -z)
+        // grade baixa e vazada (de longe dá para ver o parque por trás) + cerca viva
         b.m(Mt.METAL, 1f)
-        val fc = C("#6A1B9A")
-        for (seg in arrayOf(floatArrayOf(px0, cx - 5f), floatArrayOf(cx + 5f, px1))) {
-            b.box((seg[0] + seg[1]) / 2, CURB + 1.0f, pz0 + 0.2f, seg[1] - seg[0], 0.06f, 0.06f, fc); b.box((seg[0] + seg[1]) / 2, CURB + 2.0f, pz0 + 0.2f, seg[1] - seg[0], 0.06f, 0.06f, fc)
-            var x = seg[0]; while (x <= seg[1]) { b.box(x, CURB + 1.05f, pz0 + 0.2f, 0.06f, 2.1f, 0.06f, fc); x += 0.25f }
-            g.solid(seg[0], pz0, seg[1], pz0 + 0.4f)
+        val fc = C("#7E57C2")
+        fun rail(ax: Float, az: Float, bx: Float, bz: Float) {
+            val len = kotlin.math.hypot(bx - ax, bz - az); val ux = (bx - ax) / len; val uz = (bz - az) / len
+            val alongX = abs(ux) > 0.5f
+            for (h in floatArrayOf(0.15f, 1.3f)) if (alongX) b.box((ax + bx) / 2, CURB + h, az, len, 0.06f, 0.06f, fc) else b.box(ax, CURB + h, (az + bz) / 2, 0.06f, 0.06f, len, fc)
+            var t = 0f
+            while (t <= len) { b.box(ax + ux * t, CURB + 0.7f, az + uz * t, 0.05f, 1.3f, 0.05f, fc); if ((t / 0.5f).toInt() % 6 == 0) { b.box(ax + ux * t, CURB + 0.75f, az + uz * t, 0.12f, 1.5f, 0.12f, C("#5E35B1")); b.m(Mt.PLAIN); CityGeo.ball(b, ax + ux * t, CURB + 1.58f, az + uz * t, 0.1f, C("#FFD54F"), 0.1f, 6); b.m(Mt.METAL, 1f) }; t += 0.5f }
+            g.solid(min(ax, bx) - 0.2f, min(az, bz) - 0.2f, max(ax, bx) + 0.2f, max(az, bz) + 0.2f)
         }
-        b.box(cx, CURB + 1.0f, pz1 - 0.2f, px1 - px0, 2.0f, 0.06f, fc); g.solid(px0, pz1 - 0.4f, px1, pz1)
-        b.box(px0 + 0.2f, CURB + 1.0f, (pz0 + pz1) / 2, 0.06f, 2.0f, pz1 - pz0, fc); g.solid(px0, pz0, px0 + 0.4f, pz1)
-        b.box(px1 - 0.2f, CURB + 1.0f, (pz0 + pz1) / 2, 0.06f, 2.0f, pz1 - pz0, fc); g.solid(px1 - 0.4f, pz0, px1, pz1)
+        rail(px0, pz0 + 0.2f, cx - 5f, pz0 + 0.2f); rail(cx + 5f, pz0 + 0.2f, px1, pz0 + 0.2f)
+        rail(px0, pz1 - 0.2f, px1, pz1 - 0.2f); rail(px0 + 0.2f, pz0, px0 + 0.2f, pz1); rail(px1 - 0.2f, pz0, px1 - 0.2f, pz1)
         // arco de entrada com letreiro e bilheterias
         b.m(Mt.PLASTER, 0.5f)
         for (s in floatArrayOf(-1f, 1f)) { b.box(cx + s * 5.6f, CURB + 3.5f, pz0 + 0.2f, 1.2f, 7f, 1.2f, C("#8E24AA")); b.m(Mt.PLAIN); CityGeo.ball(b, cx + s * 5.6f, CURB + 7.6f, pz0 + 0.2f, 0.8f, C("#FFD54F"), 0.8f, 10); b.m(Mt.PLASTER, 0.5f) }

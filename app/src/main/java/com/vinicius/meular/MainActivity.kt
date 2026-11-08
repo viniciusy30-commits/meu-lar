@@ -331,7 +331,10 @@ class MainActivity : AppCompatActivity() {
         miniMap = MiniMap(this) { floatArrayOf(game.r.px, game.r.pz, game.r.fyaw) }
         miniMap.visibility = View.GONE
         miniMap.elevation = dpf(5f)
-        root.addView(miniMap, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(12), 0, 0, dp(14)) })
+        // Etapa 125: minimapa no canto de cima (no lugar do retrato); tocar abre o mapa
+        root.addView(miniMap, FrameLayout.LayoutParams(dp(118), dp(118), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
+        miniMap.setOnClickListener { abrirMapa() }
+        game.r.onMap = { bmp, rect -> runOnUiThread { MapPaint.photo?.let { if (it !== bmp) it.recycle() }; MapPaint.photo = bmp; MapPaint.photoRect = rect; miniMap.invalidate(); mapView?.invalidate() } }
         mapRoot = root
         speedTv = tvShadow(tv("", 22f, Color.WHITE, true))
         speedTv.setPadding(dp(16), dp(6), dp(16), dp(8))
@@ -348,6 +351,8 @@ class MainActivity : AppCompatActivity() {
                 if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h"
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
+                portrait.visibility = if (mm) View.GONE else View.VISIBLE   // o retrato volta quando não há cidade (sala de testes, vista aérea)
+                (sideCol.layoutParams as FrameLayout.LayoutParams).topMargin = topInset + dp(if (mm) 134 else 76); sideCol.requestLayout()
                 if (mm) miniMap.invalidate()
                 miniMap.postDelayed(this, 120)
             }
@@ -437,6 +442,8 @@ class MainActivity : AppCompatActivity() {
             (actBox.layoutParams as FrameLayout.LayoutParams).setMargins(0, 0, b.right, b.bottom)
             (portrait.layoutParams as FrameLayout.LayoutParams).setMargins(dp(12) + b.left, b.top + dp(8), 0, 0)
             (sideCol.layoutParams as FrameLayout.LayoutParams).setMargins(dp(17) + b.left, b.top + dp(76), 0, 0)
+            topInset = b.top
+            if (::miniMap.isInitialized) { (miniMap.layoutParams as FrameLayout.LayoutParams).setMargins(dp(12) + b.left, b.top + dp(8), 0, 0); miniMap.requestLayout() }
             portrait.requestLayout(); sideCol.requestLayout()
             (dockR.layoutParams as FrameLayout.LayoutParams).setMargins(0, b.top + dp(8), dp(10) + b.right, 0)
             dockR.requestLayout()
@@ -564,6 +571,7 @@ class MainActivity : AppCompatActivity() {
     private fun iconeCamera(mode: Int, third: Boolean) = if (mode == 1) Ic.CAMAIR else if (third) Ic.CAM3P else Ic.CAM1P
 
     private lateinit var speedTv: TextView
+    private var topInset = 0
     private lateinit var gpsHud: GpsHud
     private lateinit var miniMap: MiniMap
     private lateinit var mapRoot: FrameLayout

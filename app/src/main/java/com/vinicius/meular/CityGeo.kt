@@ -1,6 +1,8 @@
 package com.vinicius.meular
 
 import kotlin.math.PI
+import kotlin.math.acos
+import android.graphics.Color
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -160,31 +162,98 @@ object CityGeo {
     private val LEAF = arrayOf(C("#5E9E48"), C("#4F8F3F"), C("#6DAA4F"), C("#7FB25A"), C("#3F7F3A"), C("#8DBF5E"))
 
     /** Árvore de copa redonda feita de várias bolas (perto) e uma bola só (longe). */
-    fun tree(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB) {
+    /** Galho/tronco: tubo octogonal afinando de (x0,y0,z0) a (x1,y1,z1), com casca. */
+    fun limb(b: MB, x0: Float, y0: Float, z0: Float, x1: Float, y1: Float, z1: Float, r0: Float, r1: Float, c: Int, sides: Int = 7) {
+        var tx = x1 - x0; var ty = y1 - y0; var tz = z1 - z0
+        val tl = sqrt(tx * tx + ty * ty + tz * tz).coerceAtLeast(1e-4f); tx /= tl; ty /= tl; tz /= tl
+        // base perpendicular
+        var ax = if (abs(ty) < 0.9f) 0f else 1f; var ay = if (abs(ty) < 0.9f) 1f else 0f; var az = 0f
+        var ux = ty * az - tz * ay; var uy = tz * ax - tx * az; var uz = tx * ay - ty * ax
+        val ul = sqrt(ux * ux + uy * uy + uz * uz); ux /= ul; uy /= ul; uz /= ul
+        val vx = ty * uz - tz * uy; val vy = tz * ux - tx * uz; val vz = tx * uy - ty * ux
+        b.m(Mt.BARK, 1f)
+        for (i in 0 until sides) {
+            val a0 = 2f * PI.toFloat() * i / sides; val a1 = 2f * PI.toFloat() * (i + 1) / sides
+            val c0 = cos(a0); val s0 = sin(a0); val c1 = cos(a1); val s1 = sin(a1)
+            val n0x = ux * c0 + vx * s0; val n0y = uy * c0 + vy * s0; val n0z = uz * c0 + vz * s0
+            val n1x = ux * c1 + vx * s1; val n1y = uy * c1 + vy * s1; val n1z = uz * c1 + vz * s1
+            val u0 = i.toFloat() / sides; val u1 = (i + 1f) / sides; val vv = tl / (r0 * 6f + 0.3f)
+            fun v(nx: Float, ny: Float, nz: Float, r: Float, px: Float, py: Float, pz: Float, u: Float, w: Float) = b.v(px + nx * r, py + ny * r, pz + nz * r, nx, ny, nz, c, u, w)
+            v(n0x, n0y, n0z, r0, x0, y0, z0, u0, 0f); v(n1x, n1y, n1z, r0, x0, y0, z0, u1, 0f); v(n1x, n1y, n1z, r1, x1, y1, z1, u1, vv)
+            v(n0x, n0y, n0z, r0, x0, y0, z0, u0, 0f); v(n1x, n1y, n1z, r1, x1, y1, z1, u1, vv); v(n0x, n0y, n0z, r1, x1, y1, z1, u0, vv)
+        }
+    }
+
+    /**
+     * Etapa 125: árvore de verdade — tronco com casca, galhos e copa feita de cartões de folhas (textura com recorte),
+     * normais "esféricas" (a copa fica com volume e luz macia) e sombra embaixo da copa.
+     * kind: 0 carvalho, 1 bordo claro, 2 ipê roxo, 3 ipê amarelo, 4 copa alta (rua).
+     */
+    fun tree(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB, kind0: Int = -1) {
         val b = g.b; val rng = g.rng
-        b.m(Mt.WOOD, 1f)
-        b.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.3f * s, C("#6E5038"), true, 6)
-        b.m(Mt.PLAIN)
-        val gc = rng.pick(LEAF)
-        ball(b, x, y + 3.0f * s, z, 1.45f * s, gc, 1.2f * s, 8)
-        ball(b, x + 0.6f * s, y + 3.5f * s, z + 0.3f * s, 1.0f * s, shade(gc, 16), 0.8f * s, 7)
+        val kind = if (kind0 >= 0) kind0 else rng.pick(arrayOf(0, 0, 1, 4, 4, 2, 3, 0, 1))
+        val H = (if (kind == 4) 3.4f else 2.6f) * s
+        val R = (if (kind == 4) 1.9f else 2.3f) * s
+        val trunk = C(rng.pick(arrayOf("#6B5442", "#7A604A", "#5E4A3A")))
+        // tronco levemente torto e galhos
+        val lx = rng.r(-0.25f, 0.25f) * s; val lz = rng.r(-0.25f, 0.25f) * s
+        limb(b, x, y - 0.05f, z, x + lx, y + H, z + lz, 0.2f * s, 0.12f * s, trunk)
+        val cy = y + H + R * 0.55f
+        val nb = 3 + rng.i(2)
+        for (k in 0 until nb) {
+            val a = k * 6.283f / nb + rng.r(-0.4f, 0.4f)
+            limb(b, x + lx * 0.8f, y + H * 0.82f, z + lz * 0.8f, x + lx + cos(a) * R * 0.6f, cy + rng.r(-0.3f, 0.6f) * s, z + lz + sin(a) * R * 0.6f, 0.09f * s, 0.04f * s, trunk, 5)
+        }
+        // canteiro: terra e grade em volta (só na calçada)
+        val base = when (kind) { 1 -> C("#8FCB5A"); 2 -> C("#B07ACB"); 3 -> C("#F2C94C"); else -> C(rng.pick(arrayOf("#5E9E48", "#6AA84F", "#4F8F3F"))) }
+        val mat = if (kind == 1 || kind == 2 || kind == 3) Mt.LEAF2 else Mt.LEAF
+        b.m(mat, 1f)
+        val nc = (if (kind == 4) 13 else 16)
+        val ccx = x + lx; val ccz = z + lz
+        for (k in 0 until nc) {
+            // pontos espalhados num elipsoide (mais em cima)
+            val u = (k + 0.5f) / nc
+            val phi = acos(1f - 1.6f * u)
+            val th = k * 2.39996f + rng.r(-0.3f, 0.3f)
+            val dx = sin(phi) * cos(th); val dy = cos(phi); val dz = sin(phi) * sin(th)
+            val px = ccx + dx * R * 0.78f; val py = cy + dy * R * 0.62f; val pz = ccz + dz * R * 0.78f
+            val sz = R * rng.r(0.85f, 1.15f)
+            // cor: mais escuro embaixo/dentro, variação por cartão
+            val lum = 0.72f + 0.38f * (dy * 0.5f + 0.5f) + rng.r(-0.08f, 0.08f)
+            val cc = Color.rgb(((base shr 16 and 255) * lum).toInt().coerceIn(0, 255), ((base shr 8 and 255) * lum).toInt().coerceIn(0, 255), ((base and 255) * lum).toInt().coerceIn(0, 255))
+            for (j in 0 until 2) {
+                val ang = th + j * 1.5708f + rng.r(-0.2f, 0.2f)
+                val rx = cos(ang) * sz * 0.5f; val rz = sin(ang) * sz * 0.5f
+                val tilt = 0.25f * sz
+                val y0 = py - sz * 0.45f; val y1 = py + sz * 0.55f
+                // normal suave: do centro da copa para fora
+                val nl = sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(0.01f)
+                val nx = dx / nl; val ny = dy / nl * 0.8f + 0.2f; val nz = dz / nl
+                b.v(px - rx, y0, pz - rz, nx, ny, nz, cc, 0.02f, 0.98f); b.v(px + rx, y0, pz + rz, nx, ny, nz, cc, 0.98f, 0.98f); b.v(px + rx + dx * tilt, y1, pz + rz + dz * tilt, nx, ny, nz, cc, 0.98f, 0.02f)
+                b.v(px - rx, y0, pz - rz, nx, ny, nz, cc, 0.02f, 0.98f); b.v(px + rx + dx * tilt, y1, pz + rz + dz * tilt, nx, ny, nz, cc, 0.98f, 0.02f); b.v(px - rx + dx * tilt, y1, pz - rz + dz * tilt, nx, ny, nz, cc, 0.02f, 0.02f)
+            }
+        }
+        // sombra macia no chão
+        b.m(Mt.PLAIN); b.al = 0.22f
+        b.cyl(ccx, y + 0.012f, ccz, R * 0.95f, R * 0.95f, 0.002f, C("#1B2A12"), false, 12)
+        b.al = 1f
+        // longe: tronco e bola
         g.f.m(Mt.PLAIN)
-        g.f.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.0f * s, C("#6E5038"), true, 4)
-        ball(g.f, x, y + 3.0f * s, z, 1.6f * s, gc, 1.3f * s, 5)
+        g.f.cyl(x, y, z, 0.15f * s, 0.1f * s, H, trunk, true, 4)
+        ball(g.f, ccx, cy, ccz, R * 0.95f, shade(base, -10), R * 0.75f, 6)
     }
 
     /** Palmeira: tronco curvo em gomos e folhas compridas caídas. */
     fun palm(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB) {
         val b = g.b; val rng = g.rng
         val lean = rng.r(-0.35f, 0.35f); val leanZ = rng.r(-0.35f, 0.35f)
-        b.m(Mt.WOOD, 1f)
         val segs = 9; val hh = 6.5f * s
-        var px = x; var pz = z
-        for (k in 0 until segs) {
+        var px = x; var pz = z; var py = y - 0.05f
+        for (k in 1..segs) {
             val t = k.toFloat() / segs
-            val nx = x + lean * hh * t * t; val nz = z + leanZ * hh * t * t
-            b.cyl(nx, y + hh * t, nz, 0.2f * s * (1f - 0.35f * t), 0.18f * s * (1f - 0.35f * t), hh / segs + 0.02f, if (k % 2 == 0) C("#8A6D4E") else C("#7A5E42"), true, 7)
-            px = nx; pz = nz
+            val nx = x + lean * hh * t * t; val nz = z + leanZ * hh * t * t; val ny = y + hh * t
+            limb(b, px, py, pz, nx, ny, nz, 0.21f * s * (1f - 0.3f * (t - 1f / segs)), 0.21f * s * (1f - 0.3f * t), if (k % 2 == 0) C("#B59A7A") else C("#A88C6C"), 8)
+            px = nx; pz = nz; py = ny
         }
         val tx = x + lean * hh; val tz = z + leanZ * hh; val ty = y + hh
         b.m(Mt.PLAIN)
@@ -226,8 +295,9 @@ object CityGeo {
 
     fun streetLamp(b: MB, x: Float, z: Float, ax: Float, az: Float, y: Float = CURB) {
         b.m(Mt.METAL, 1f)
-        b.box(x, y + 0.25f, z, 0.3f, 0.5f, 0.3f, C("#3B4046"))
-        b.cyl(x, y, z, 0.09f, 0.06f, 6.4f, C("#4A4F55"), true, 6)
+        b.cyl(x, y, z, 0.2f, 0.12f, 0.7f, C("#3B4046"), true, 8)
+        b.cyl(x, y + 0.7f, z, 0.1f, 0.06f, 5.7f, C("#4A4F55"), true, 7)
+        b.cyl(x, y + 0.68f, z, 0.14f, 0.14f, 0.06f, C("#2E3236"), true, 8)
         if (ax != 0f || az != 0f) {
             b.box(x + ax * 0.75f, y + 6.3f, z + az * 0.75f, if (ax != 0f) 1.5f else 0.1f, 0.09f, if (az != 0f) 1.5f else 0.1f, C("#4A4F55"))
             b.box(x + ax * 1.45f, y + 6.22f, z + az * 1.45f, if (ax != 0f) 0.7f else 0.32f, 0.16f, if (az != 0f) 0.7f else 0.32f, C("#3B4046"))
@@ -921,7 +991,7 @@ object CityGeo {
         g.solid(x0 - 0.2f, z0 - 0.2f, x0 + 0.25f, z1 + 0.2f); g.solid(x1 - 0.25f, z0 - 0.2f, x1 + 0.2f, z1 + 0.2f); g.solid(x0, zb - 0.25f, x1, zb + 0.25f)
         g.solid(x0, zf - 0.25f, door.c - 0.95f, zf + 0.25f); g.solid(door.c + 0.95f, zf - 0.25f, x1, zf + 0.25f)
         // interior do térreo
-        interior(g, kind, x0 + 0.3f, z0 + 0.3f, x1 - 0.3f, z1 - 0.3f, zf, fz, door.c)
+        if (shop == null || !shopInterior(g, shop, x0 + 0.3f, z0 + 0.3f, x1 - 0.3f, z1 - 0.3f, zf, fz, door.c)) interior(g, kind, x0 + 0.3f, z0 + 0.3f, x1 - 0.3f, z1 - 0.3f, zf, fz, door.c)
         // marquise, letreiro
         H.m(Mt.METAL, 1f)
         H.box(cx, FL + gh - 0.9f, Z(set - 1.0f), w - 0.4f, 0.14f, 2.0f, C("#4A4F55"))
@@ -1070,6 +1140,207 @@ object CityGeo {
             }
         }
     }
+
+    /** Cor das paredes de dentro, por tipo de loja. */
+    fun innerColor(n: String): Int = C(when (n) {
+        "PADARIA" -> "#F6E6CC"; "FARMÁCIA" -> "#F4FBF6"; "CAFÉ" -> "#E9DCCB"; "PET SHOP" -> "#DDF1FB"; "SALÃO DE BELEZA" -> "#FBE4EE"
+        "PIZZARIA" -> "#F3DDC9"; "FLORICULTURA" -> "#EAF5DF"; "SORVETERIA" -> "#FDE7F0"; "ACADEMIA" -> "#3B4148"; "LANCHONETE" -> "#FFF1C9"
+        "ÓTICA" -> "#F7F7F7"; "MODA" -> "#F2EFEA"; "HAMBÚRGUER" -> "#3D2A22"; "BARBEARIA" -> "#2F3A40"; "PAPELARIA" -> "#FFF8D6"
+        "AÇAÍ" -> "#EADCF5"; "MERCADINHO" -> "#F5F5F0"; "SUSHI" -> "#EFE3CF"; "ELETRÔNICOS" -> "#E8EEF6"; "LIVRARIA" -> "#EDE2D0"
+        else -> "#F7F3EC" })
+
+    /**
+     * Etapa 125: interior próprio de cada tipo de loja (balcão, vitrines, mesas, prateleiras e objetos diferentes).
+     * Devolve false para tipos sem interior especial (usa o genérico).
+     */
+    fun shopInterior(g: Gen, name: String, x0: Float, z0: Float, x1: Float, z1: Float, zf: Float, fz: Float, doorX: Float): Boolean {
+        val A = g.A; val rng = g.rng
+        val w = x1 - x0; val cx = (x0 + x1) / 2; val cz = (z0 + z1) / 2
+        val inF = -fz
+        val back = if (fz > 0) z0 else z1
+        fun Zi(d: Float) = zf + inF * d                      // d metros para dentro a partir da porta
+        val depth = abs(back - zf)
+        // luminárias e forro (somem ao entrar)
+        g.H.m(Mt.PLAIN)
+        var lx = x0 + 1.5f
+        while (lx < x1 - 1f) { g.H.box(lx, FL + 4.2f, cz, 0.9f, 0.04f, 0.9f, C("#FFFDF2"), false); lx += 2.6f }
+        g.H.m(Mt.PLASTER, 0.5f); g.H.box(cx, FL + 4.35f, cz, w, 0.1f, depth, C("#F4F4F4"))
+        val wood = rng.pick(WOODS)
+        fun backCounter(col: Int, wd: Float = min(w - 2f, 5f)) {
+            counter(A, L(cx, Zi(depth - 1.3f), 0f, fz), wd, col, rng, false)
+            g.solid(cx - wd / 2, min(Zi(depth - 1.7f), Zi(depth - 0.9f)), cx + wd / 2, max(Zi(depth - 1.7f), Zi(depth - 0.9f)))
+        }
+        fun wallShelves(col: Int, items: Boolean) {
+            // prateleiras nas duas paredes laterais
+            for (sx in floatArrayOf(x0 + 0.3f, x1 - 0.3f)) {
+                var d = 1.5f
+                while (d < depth - 2.4f) {
+                    val l = L(sx, Zi(d), if (sx < cx) 1f else -1f, 0f)
+                    A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 1.1f, 0.12f, 1.6f, 2.2f, 0.04f, col)
+                    for (k in 0..3) lb(A, l, 0f, FL + 0.3f + k * 0.55f, 0f, 1.6f, 0.04f, 0.38f, col)
+                    if (items) { A.m(Mt.PLAIN); for (k in 0..3) for (i in 0 until 4) lb(A, l, -0.6f + i * 0.4f, FL + 0.43f + k * 0.55f, 0.02f, 0.3f, 0.22f, 0.28f, rng.pick(PROD), false) }
+                    d += 1.7f
+                }
+                g.solid(sx - 0.45f, min(Zi(1.4f), Zi(depth - 2.3f)), sx + 0.45f, max(Zi(1.4f), Zi(depth - 2.3f)))
+            }
+        }
+        fun tables(n: Int, round: Boolean) {
+            var i = 0
+            var x = x0 + 1.6f
+            while (x < x1 - 1.4f && i < n) {
+                var d = 1.8f
+                while (d < depth - 3.2f && i < n) {
+                    if (round) cafeTable(A, x, Zi(d), rng) else { diningSet(A, L(x, Zi(d), 0f, fz), wood, 4, rng.pick(FABRICS)) }
+                    g.solid(x - 0.5f, Zi(d) - 0.5f, x + 0.5f, Zi(d) + 0.5f)
+                    d += 2.4f; i++
+                }
+                x += 2.6f
+            }
+        }
+        when (name) {
+            "PADARIA" -> {
+                // vitrine refrigerada de pães e doces, prateleira de pães atrás, mesinhas
+                counter(A, L(cx, Zi(depth - 1.6f), 0f, fz), min(w - 2f, 5.5f), C("#8D6E63"), rng, true)
+                g.solid(cx - 2.8f, min(Zi(depth - 2f), Zi(depth - 1.2f)), cx + 2.8f, max(Zi(depth - 2f), Zi(depth - 1.2f)))
+                val l = L(cx, back - inF * 0.25f, 0f, fz)
+                A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 1.2f, 0.05f, min(w - 2f, 5f), 2.0f, 0.1f, C("#6D4C41"))
+                for (k in 0..2) { lb(A, l, 0f, FL + 0.6f + k * 0.55f, -0.12f, min(w - 2f, 5f), 0.04f, 0.35f, C("#8D6E63"))
+                    A.m(Mt.PLAIN); for (i in 0 until 9) ball(A, l.wx(-2.1f + i * 0.52f, -0.12f), FL + 0.7f + k * 0.55f, l.wz(-2.1f + i * 0.52f, -0.12f), 0.13f, rng.pick(arrayOf(C("#C68A4A"), C("#E0B070"), C("#A86A30"))), 0.08f, 6); A.m(Mt.WOOD, 1f) }
+                tables(4, true)
+            }
+            "FARMÁCIA", "MERCADINHO", "PAPELARIA" -> {
+                wallShelves(if (name == "FARMÁCIA") C("#FFFFFF") else C("#E0E0E0"), true)
+                // gôndola no meio
+                shelf(A, cx, Zi(depth * 0.45f), min(3.4f, w - 4f), rng)
+                g.solid(cx - 1.8f, Zi(depth * 0.45f) - 0.4f, cx + 1.8f, Zi(depth * 0.45f) + 0.4f)
+                backCounter(C("#FFFFFF"), 3f)
+                if (name == "FARMÁCIA") { A.m(Mt.PLAIN); val l = L(cx, back - inF * 0.12f, 0f, fz); lb(A, l, 0f, FL + 2.8f, 0f, 0.9f, 0.3f, 0.04f, C("#1E9E5A"), false); lb(A, l, 0f, FL + 2.8f, 0f, 0.3f, 0.9f, 0.04f, C("#1E9E5A"), false) }
+            }
+            "CAFÉ", "SORVETERIA", "AÇAÍ", "LANCHONETE" -> {
+                counter(A, L(cx, Zi(depth - 1.6f), 0f, fz), min(w - 2f, 5f), C(if (name == "CAFÉ") "#4E342E" else if (name == "AÇAÍ") "#6A1B9A" else "#FFFFFF"), rng, name == "CAFÉ" || name == "LANCHONETE")
+                g.solid(cx - 2.6f, min(Zi(depth - 2f), Zi(depth - 1.2f)), cx + 2.6f, max(Zi(depth - 2f), Zi(depth - 1.2f)))
+                if (name == "SORVETERIA" || name == "AÇAÍ") {
+                    // freezer com cubas coloridas
+                    val l = L(cx, Zi(depth - 1.6f), 0f, fz)
+                    A.m(Mt.PLAIN); for (i in 0 until 8) lb(A, l, -1.6f + i * 0.45f, FL + 1.04f, -0.05f, 0.38f, 0.04f, 0.42f, rng.pick(arrayOf(C("#F8BBD0"), C("#FFF59D"), C("#A5D6A7"), C("#8D6E63"), C("#CE93D8"), C("#FFFFFF"))), false)
+                }
+                // quadro de cardápio na parede do fundo
+                A.m(Mt.PLAIN); val lm = L(cx, back - inF * 0.1f, 0f, fz)
+                lb(A, lm, 0f, FL + 2.6f, 0f, min(w - 3f, 4f), 1.0f, 0.04f, C("#263238"))
+                for (i in 0 until 4) lb(A, lm, -1.3f + i * 0.85f, FL + 2.6f, -0.03f, 0.7f, 0.7f, 0.01f, C(rng.pick(arrayOf("#FFCC80", "#EF9A9A", "#A5D6A7", "#FFF59D"))), false)
+                tables(5, true)
+            }
+            "HAMBÚRGUER", "PIZZARIA", "SUSHI", "RESTAURANTE" -> {
+                if (name == "PIZZARIA") {
+                    // forno a lenha de tijolo no fundo
+                    val ox = x1 - 1.6f; val oz = back - inF * 1.2f
+                    A.m(Mt.STONE, 1f); A.box(ox, FL + 0.5f, oz, 2.0f, 1.0f, 1.8f, C("#B5654A"))
+                    A.m(Mt.STONE, 1f); ball(A, ox, FL + 1.0f, oz, 0.95f, C("#C0705A"), 0.8f, 9)
+                    A.m(Mt.PLAIN); A.box(ox, FL + 1.25f, oz - inF * -0.9f, 0.6f, 0.4f, 0.05f, C("#1A1A1A")); A.box(ox, FL + 1.18f, oz - inF * -0.92f, 0.4f, 0.2f, 0.02f, C("#FF8F00"), false)
+                    g.solid(ox - 1.1f, oz - 1f, ox + 1.1f, oz + 1f)
+                }
+                if (name == "SUSHI") {
+                    // balcão em L com banquinhos
+                    val l = L(cx, Zi(depth - 1.5f), 0f, fz)
+                    A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 0.55f, 0f, min(w - 2f, 5.5f), 1.1f, 0.6f, C("#D7B98E")); lb(A, l, 0f, FL + 1.12f, -0.1f, min(w - 2f, 5.5f) + 0.1f, 0.05f, 0.85f, C("#3E2723"))
+                    A.m(Mt.METAL, 1f); for (i in 0 until 6) { val sx = -2.2f + i * 0.88f; lcyl(A, l, sx, FL, -0.75f, 0.04f, 0.04f, 0.75f, C("#555555"), 6); lcyl(A, l, sx, FL + 0.75f, -0.75f, 0.2f, 0.2f, 0.06f, C("#B71C1C"), 10) }
+                    g.solid(cx - 2.8f, min(Zi(depth - 2.1f), Zi(depth - 1.2f)), cx + 2.8f, max(Zi(depth - 2.1f), Zi(depth - 1.2f)))
+                } else backCounter(C(if (name == "HAMBÚRGUER") "#C62828" else "#5D4037"), 3.5f)
+                if (name == "HAMBÚRGUER") {
+                    // sofás de lanchonete (boxes) na parede lateral
+                    var d = 1.8f
+                    while (d < depth - 3f) {
+                        sofa(A, L(x0 + 0.7f, Zi(d), 1f, 0f), 1.4f, C("#C62828"))
+                        A.m(Mt.WOOD, 1f); A.box(x0 + 1.6f, FL + 0.74f, Zi(d), 0.8f, 0.05f, 1.1f, C("#ECEFF1"))
+                        g.solid(x0, Zi(d) - 0.8f, x0 + 2f, Zi(d) + 0.8f)
+                        d += 2.2f
+                    }
+                    tables(3, true)
+                } else tables(5, false)
+            }
+            "PET SHOP" -> {
+                // aquários iluminados, gaiolas, ração nas prateleiras
+                for (i in 0 until 3) {
+                    val ax = x0 + 1.2f + i * 1.4f; val az = back - inF * 0.5f
+                    A.m(Mt.WOOD, 1f); A.box(ax, FL + 0.45f, az, 1.2f, 0.9f, 0.5f, C("#37474F"))
+                    A.m(Mt.PLAIN); A.box(ax, FL + 1.25f, az, 1.15f, 0.7f, 0.45f, C("#4FC3F7"), false)
+                    for (k in 0 until 3) ball(A, ax - 0.3f + k * 0.3f, FL + 1.15f + k * 0.12f, az, 0.06f, rng.pick(arrayOf(C("#FF7043"), C("#FFEE58"), C("#AB47BC"))), 0.04f, 5, false)
+                }
+                for (i in 0 until 2) {
+                    val gx = x1 - 1.2f; val gz = Zi(2f + i * 1.8f)
+                    A.m(Mt.METAL, 1f); A.box(gx, FL + 0.4f, gz, 1.0f, 0.8f, 0.8f, C("#B0BEC5"))
+                    A.m(Mt.PLAIN); A.box(gx, FL + 0.41f, gz, 0.94f, 0.74f, 0.74f, C("#ECEFF1"), false)
+                    ball(A, gx, FL + 0.25f, gz, 0.2f, C(rng.pick(arrayOf("#D7A86E", "#FFFFFF", "#5D4037"))), 0.15f, 6)
+                    g.solid(gx - 0.55f, gz - 0.45f, gx + 0.55f, gz + 0.45f)
+                }
+                g.solid(x0, back - inF * 0.8f - 0.4f, x0 + 4.6f, back + 0.4f)
+                backCounter(C("#25A8E0"), 2.4f)
+            }
+            "SALÃO DE BELEZA", "BARBEARIA" -> {
+                // cadeiras viradas para espelhos na parede lateral, lavatório no fundo
+                var d = 1.6f
+                while (d < depth - 2.4f) {
+                    mirrorWall(A, x0 + 0.04f, Zi(d))
+                    A.m(Mt.WOOD, 1f); A.box(x0 + 0.3f, FL + 0.85f, Zi(d), 0.5f, 0.06f, 1.0f, C("#FFFFFF"))
+                    officeChair(A, L(x0 + 1.2f, Zi(d), 1f, 0f), C(if (name == "BARBEARIA") "#4E342E" else "#EC407A"))
+                    g.solid(x0, Zi(d) - 0.5f, x0 + 1.6f, Zi(d) + 0.5f)
+                    d += 1.6f
+                }
+                val l = L(x1 - 1.0f, back - inF * 0.5f, 0f, fz)
+                A.m(Mt.PLAIN); lb(A, l, 0f, FL + 0.8f, 0f, 0.7f, 0.3f, 0.6f, C("#212121")); lcyl(A, l, 0f, FL + 0.95f, 0f, 0.25f, 0.2f, 0.12f, C("#FAFAFA"), 10)
+                sofa(A, L(x1 - 1f, Zi(1.8f), -1f, 0f), 1.8f, C("#455A64"))
+                plant(A, x1 - 0.5f, Zi(0.7f), 1f, rng)
+            }
+            "FLORICULTURA" -> {
+                // baldes de flores em degraus e vasos grandes
+                for (row in 0 until 3) {
+                    val zz = Zi(1.6f + row * 1.6f)
+                    A.m(Mt.WOOD, 1f); A.box(cx, FL + 0.25f + row * 0.0f, zz, w - 2.5f, 0.5f, 0.8f, C("#A1887F"))
+                    g.solid(cx - (w - 2.5f) / 2, zz - 0.45f, cx + (w - 2.5f) / 2, zz + 0.45f)
+                    var x = x0 + 1.6f
+                    while (x < x1 - 1.4f) {
+                        A.m(Mt.METAL, 1f); A.cyl(x, FL + 0.5f, zz, 0.2f, 0.17f, 0.35f, C("#90A4AE"), true, 8)
+                        g.fl.place(arrayOf("fl_tulip", "fl_daisy", "fl_poppy", "fl_lav", "fl_yellow")[rng.i(5)], x.toDouble(), (FL + 0.8f).toDouble(), zz.toDouble(), 2.4, rng.r(0f, 6f).toDouble())
+                        x += 0.65f
+                    }
+                }
+                for (i in 0 until 3) plant(A, x1 - 0.6f, back - inF * (0.6f + i * 1.2f), 1.5f, rng)
+                backCounter(C("#7CB342"), 2.2f)
+            }
+            "MODA", "ÓTICA", "ELETRÔNICOS", "LIVRARIA" -> {
+                when (name) {
+                    "LIVRARIA" -> { var d = 1.4f; while (d < depth - 2f) { for (sx in floatArrayOf(x0 + 0.3f, x1 - 0.3f)) bookshelf(A, L(sx, Zi(d), if (sx < cx) 1f else -1f, 0f), wood, rng); d += 1.05f }
+                        g.solid(x0, min(Zi(1f), Zi(depth - 1.8f)), x0 + 0.7f, max(Zi(1f), Zi(depth - 1.8f))); g.solid(x1 - 0.7f, min(Zi(1f), Zi(depth - 1.8f)), x1, max(Zi(1f), Zi(depth - 1.8f)))
+                        displayTable(A, cx, Zi(depth * 0.45f), rng); armchair(A, L(cx + 1.6f, Zi(depth * 0.45f), -1f, 0f), rng.pick(FABRICS)) }
+                    "ELETRÔNICOS" -> { // parede de TVs e mesas com celulares
+                        val l = L(cx, back - inF * 0.12f, 0f, fz)
+                        A.m(Mt.METAL, 1f)
+                        for (r in 0..1) for (i in -2..2) { lb(A, l, i * 1.05f, FL + 1.3f + r * 0.75f, 0f, 0.95f, 0.6f, 0.05f, C("#111111")); A.m(Mt.PLAIN); lb(A, l, i * 1.05f, FL + 1.3f + r * 0.75f, -0.03f, 0.88f, 0.52f, 0.01f, C(rng.pick(arrayOf("#29B6F6", "#66BB6A", "#FFA726", "#AB47BC"))), false); A.m(Mt.METAL, 1f) }
+                        for (i in 0 until 2) { val tz = Zi(1.8f + i * 2.2f); displayTable(A, cx, tz, rng); g.solid(cx - 0.75f, tz - 0.45f, cx + 0.75f, tz + 0.45f) } }
+                    "ÓTICA" -> { // vitrines de óculos
+                        for (sx in floatArrayOf(x0 + 0.35f, x1 - 0.35f)) { val l = L(sx, cz, if (sx < cx) 1f else -1f, 0f)
+                            A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 1.1f, 0.1f, depth - 3f, 2.2f, 0.05f, C("#FFFFFF"))
+                            A.m(Mt.PLAIN); for (r in 0 until 5) for (i in 0 until ((depth - 3.4f) / 0.35f).toInt()) lb(A, l, -(depth - 3.4f) / 2 + i * 0.35f, FL + 0.6f + r * 0.35f, 0.05f, 0.22f, 0.07f, 0.03f, C(rng.pick(arrayOf("#212121", "#6D4C41", "#C62828", "#1565C0"))), false) }
+                        for (i in 0 until 2) { val tz = Zi(1.8f + i * 2.0f); displayTable(A, cx, tz, rng); g.solid(cx - 0.75f, tz - 0.45f, cx + 0.75f, tz + 0.45f) }
+                        mirrorWall(A, cx, back - inF * 0.04f) }
+                    else -> { // moda: araras e manequins
+                        for (i in 0 until max(1, (w / 2.6f).toInt())) { val rx = x0 + 1.4f + i * 2.6f; rack(A, L(rx, cz, 0f, fz), rng); g.solid(rx - 0.7f, cz - 0.4f, rx + 0.7f, cz + 0.4f) }
+                        for (i in 0 until 2) { val mx = x0 + 1.2f + i * (w - 2.4f); val mz = Zi(1.0f)
+                            A.m(Mt.PLAIN); A.cyl(mx, FL, mz, 0.2f, 0.2f, 0.04f, C("#424242"), true, 10); A.box(mx, FL + 0.6f, mz, 0.04f, 1.2f, 0.04f, C("#9E9E9E"))
+                            A.m(Mt.FABRIC, 1f); A.box(mx, FL + 1.35f, mz, 0.42f, 0.6f, 0.24f, rng.pick(FABRICS)); A.box(mx, FL + 0.85f, mz, 0.36f, 0.45f, 0.22f, rng.pick(FABRICS))
+                            A.m(Mt.PLAIN); ball(A, mx, FL + 1.8f, mz, 0.12f, C("#ECEFF1"), 0.15f, 7) }
+                        mirrorWall(A, x1 - 0.04f, cz) }
+                }
+                backCounter(C("#FFFFFF"), 2.4f)
+            }
+            else -> return false
+        }
+        // tapete de entrada e vaso perto da porta
+        rug(A, doorX - 0.7f, min(Zi(0.2f), Zi(1.2f)), doorX + 0.7f, max(Zi(0.2f), Zi(1.2f)), C("#455A64"))
+        return true
+    }
+
+    private val PROD = arrayOf(C("#E53935"), C("#FDD835"), C("#43A047"), C("#1E88E5"), C("#FB8C00"), C("#8E24AA"), C("#FFFFFF"), C("#6D4C41"), C("#00ACC1"))
 
     fun shelf(b: MB, x: Float, z: Float, w: Float, rng: City.Rng) {
         b.m(Mt.METAL, 1f)
@@ -1224,13 +1495,14 @@ object CityGeo {
             A.m(rng.pick(arrayOf(Mt.TILE, Mt.FLOOR_L, Mt.FLOOR_D)), 0.6f); A.box(cx, FL - 0.005f, (z0 + z1) / 2, x1 - x0 - 0.3f, 0.012f, depth - 0.3f, C("#FFFFFF"))
             val hh = 4.4f
             val ops = listOf(Op(cx + sw * 0.28f, 1.3f, FL, FL + 2.5f, true), Op(cx - sw * 0.12f, sw * 0.5f, FL + 0.4f, FL + 3.0f, false))
-            wall(g, 0, zf, x0, x1, FL, FL + hh, if (fz > 0) 1 else -1, ops, col, C("#F7F3EC"), Mt.PLASTER, 0.24f)
-            wall(g, 0, zb, x0, x1, FL, FL + hh, if (fz > 0) -1 else 1, emptyList(), col, C("#F7F3EC"), Mt.PLASTER, 0.24f)
-            wall(g, 1, x0, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, -1, emptyList(), col, C("#F7F3EC"), Mt.PLASTER, 0.24f)
-            wall(g, 1, x1, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, 1, emptyList(), col, C("#F7F3EC"), Mt.PLASTER, 0.24f)
+            val inW = innerColor(signName)
+            wall(g, 0, zf, x0, x1, FL, FL + hh, if (fz > 0) 1 else -1, ops, col, inW, Mt.PLASTER, 0.24f)
+            wall(g, 0, zb, x0, x1, FL, FL + hh, if (fz > 0) -1 else 1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
+            wall(g, 1, x0, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, -1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
+            wall(g, 1, x1, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, 1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
             g.solid(x0 - 0.15f, z0 - 0.15f, x0 + 0.2f, z1 + 0.15f); g.solid(x1 - 0.2f, z0 - 0.15f, x1 + 0.15f, z1 + 0.15f); g.solid(x0, zb - 0.2f, x1, zb + 0.2f)
             g.solid(x0, zf - 0.2f, cx + sw * 0.28f - 0.7f, zf + 0.2f); g.solid(cx + sw * 0.28f + 0.7f, zf - 0.2f, x1, zf + 0.2f)
-            interior(g, kind, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)
+            if (!shopInterior(g, signName, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)) interior(g, kind, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)
             // platibanda, toldo, letreiro, andar de cima
             H.m(Mt.STONE, 0.5f)
             H.box(cx, FL + hh + 0.3f, (z0 + z1) / 2, x1 - x0 + 0.1f, 0.6f, depth + 0.1f, shade(col, -28))
@@ -1330,10 +1602,12 @@ object CityGeo {
                 val empty = if (lots) rng.chance(0.6f) else rng.chance(0.08f)
                 if (empty) emptyLot(g, x, x + lw, fz0, fz, depth)
                 else house(g, x, x + lw, fz0, fz, depth, if (rng.chance(0.6f)) main else rng.i(5), rng.chance(0.18f))
-                // muro de fundo e divisa
-                g.b.m(Mt.STONE, 0.8f)
-                g.b.box(x + lw, CURB + 0.9f, (g.z0 + g.z1) / 2 - fz * depth / 2, 0.15f, 1.8f, depth - 1.5f, C("#D9D2C5"))
-                g.solid(x + lw - 0.15f, min(fz0, fz0 - fz * depth) + 1f, x + lw + 0.15f, max(fz0, fz0 - fz * depth) - 0.5f)
+                // divisa entre lotes (não no fim do quarteirão: ali é a rua)
+                if (x + lw < g.x1 - 1f) {
+                    g.b.m(Mt.STONE, 0.8f)
+                    g.b.box(x + lw, CURB + 0.9f, (g.z0 + g.z1) / 2 - fz * depth / 2 - fz * 2f, 0.15f, 1.8f, depth - 5f, C("#D9D2C5"))
+                    g.solid(x + lw - 0.15f, min(fz0, fz0 - fz * depth) + 3f, x + lw + 0.15f, max(fz0, fz0 - fz * depth) - 2f)
+                }
                 x += lw
             }
         }
@@ -1752,7 +2026,7 @@ object CityGeo {
             val za = bandZ[k * 2]; val zb = bandZ[k * 2 + 1]; val zc = (za + zb) / 2
             b.m(Mt.ASPHALT, 0.25f); b.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             g.f.m(Mt.ASPHALT, 0.25f); g.f.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
-            for (iv in freeIntervals(X0, X1, bandX)) {
+            for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {   // Etapa 125: calçada cobre também os cantos dos cruzamentos
                 for (bb in arrayOf(b, g.f)) {
                     groundBox(bb, iv[0], za, iv[1], za + SIDE, Mt.PAVER, 0.9f, walk)
                     groundBox(bb, iv[0], zb - SIDE, iv[1], zb, Mt.PAVER, 0.9f, walk)
@@ -1784,7 +2058,8 @@ object CityGeo {
                 var x = iv[0] + 6f; var n = 0
                 while (x < iv[1] - 6f) {
                     if (n % 2 == 0) { streetLamp(b, x, za + 0.6f, 0f, 1f); streetLamp(b, x + 9f, zb - 0.6f, 0f, -1f) }
-                    else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x + 9f, zb - 1.3f, 0.9f) } else { tree(g, x, za + 1.3f, g.rng.r(0.8f, 1.0f)); tree(g, x + 9f, zb - 1.3f, g.rng.r(0.8f, 1.0f)) } }
+                    else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x + 9f, zb - 1.3f, 0.9f) } else { streetTree(g, x, za + 1.4f); streetTree(g, x + 9f, zb - 1.4f) } }
+                    manhole(b, x + 4f, zc + (if (n % 2 == 0) 2.2f else -2.2f)); drain(b, x + 7f, za + SIDE + 0.25f, true); drain(b, x + 1f, zb - SIDE - 0.25f, true)
                     if (n % 5 == 3) { trashBin(b, x + 2f, za + 0.5f); hydrant(b, x + 4f, zb - 0.45f) }
                     if (n == 2 && ii % 2 == 0) busStop(g, x + 4.5f, za + 1.3f, 1f)
                     x += 18f; n++
@@ -1823,7 +2098,8 @@ object CityGeo {
                 var z = iv[0] + 6f; var n = 0
                 while (z < iv[1] - 6f) {
                     if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z + 9f, -1f, 0f) }
-                    else { tree(g, xa + 1.3f, z, g.rng.r(0.8f, 1.0f)); tree(g, xb - 1.3f, z + 9f, g.rng.r(0.8f, 1.0f)) }
+                    else { streetTree(g, xa + 1.4f, z); streetTree(g, xb - 1.4f, z + 9f) }
+                    manhole(b, xc + (if (n % 2 == 0) 2.2f else -2.2f), z + 4f); drain(b, xa + SIDE + 0.25f, z + 7f, false); drain(b, xb - SIDE - 0.25f, z + 1f, false)
                     if (n % 5 == 3) { trashBin(b, xa + 0.5f, z + 2f); hydrant(b, xb - 0.45f, z + 4f) }
                     z += 18f; n++
                 }
@@ -1836,13 +2112,30 @@ object CityGeo {
                     val x = if (cx == 0) xa + 1.0f else xb - 1.0f
                     val z = if (cz == 0) za + 1.0f else zb - 1.0f
                     b.m(Mt.METAL, 1f)
-                    b.cyl(x, CURB, z, 0.11f, 0.08f, 4.3f, C("#2E3236"), true, 8)
-                    for (h in headPos(x, z, cx, cz)) {
+                    b.cyl(x, CURB, z, 0.16f, 0.12f, 0.5f, C("#2E3236"), true, 8)
+                    b.cyl(x, CURB + 0.5f, z, 0.1f, 0.08f, 3.9f, C("#3A3F44"), true, 8)
+                    for ((hi, h) in headPos(x, z, cx, cz).withIndex()) {
+                        // caixa com placa de fundo amarela e pretas, e "bonés" sobre cada luz (virados para o trânsito do eixo)
+                        val alongX = hi == 0
                         b.box(h[0], h[1], h[2], 0.36f, 1.0f, 0.36f, C("#1E1F22"))
-                        b.box(h[0], h[1] + 0.56f, h[2], 0.42f, 0.06f, 0.42f, C("#1E1F22"))
+                        b.m(Mt.PLAIN)
+                        if (alongX) b.box(h[0], h[1], h[2], 0.06f, 1.2f, 0.56f, C("#F2C230")) else b.box(h[0], h[1], h[2], 0.56f, 1.2f, 0.06f, C("#F2C230"))
+                        b.m(Mt.METAL, 1f)
+                        for (k in -1..1) for (sd in floatArrayOf(-1f, 1f)) {
+                            if (alongX) b.box(h[0] + sd * 0.23f, h[1] + k * 0.3f + 0.13f, h[2], 0.12f, 0.03f, 0.3f, C("#141516"))
+                            else b.box(h[0], h[1] + k * 0.3f + 0.13f, h[2] + sd * 0.23f, 0.3f, 0.03f, 0.12f, C("#141516"))
+                        }
                     }
                     b.m(Mt.PLAIN)
-                    b.box(x, CURB + 1.1f, z, 0.16f, 0.2f, 0.16f, C("#F2C230"))   // botoeira de pedestre
+                    b.box(x, CURB + 1.1f, z, 0.16f, 0.22f, 0.16f, C("#F2C230"))   // botoeira de pedestre
+                    b.box(x, CURB + 1.13f, z + (if (cz == 0) 0.081f else -0.081f), 0.08f, 0.08f, 0.01f, C("#212121"))
+                    // piso tátil amarelo nas duas rampas da esquina e frades
+                    b.m(Mt.STONE, 4f)
+                    val dxs = if (cx == 0) 1f else -1f; val dzs = if (cz == 0) 1f else -1f
+                    b.plane(x + dxs * 1.2f - 0.6f, z - 0.55f + dzs * 0.2f, x + dxs * 1.2f + 0.6f, z + 0.55f + dzs * 0.2f, CURB + 0.006f, C("#F7C948"))
+                    b.plane(x - 0.55f + dxs * 0.2f, z + dzs * 1.2f - 0.6f, x + 0.55f + dxs * 0.2f, z + dzs * 1.2f + 0.6f, CURB + 0.006f, C("#F7C948"))
+                    b.m(Mt.METAL, 1f)
+                    b.cyl(x - dxs * 0.6f, CURB, z - dzs * 0.6f, 0.08f, 0.07f, 0.85f, C("#455A64"), true, 6)
                     if (cx == 1 && cz == 1) {
                         b.m(Mt.METAL, 1f)
                         b.cyl(x - 0.4f, CURB, z - 0.4f, 0.05f, 0.05f, 3.0f, C("#7D868F"), true, 6)
@@ -1854,6 +2147,31 @@ object CityGeo {
         }
         g.f.clear()
         out.add(g.finish(7f))
+    }
+
+    /** Árvore de calçada: canteiro de terra com grade de ferro e a árvore no meio. */
+    private fun streetTree(g: Gen, x: Float, z: Float) {
+        val b = g.b
+        b.m(Mt.PLAIN)
+        b.plane(x - 0.6f, z - 0.6f, x + 0.6f, z + 0.6f, CURB + 0.004f, C("#4A3A2A"))
+        b.m(Mt.METAL, 1f)
+        for (s in floatArrayOf(-0.6f, 0.6f)) { b.box(x + s, CURB + 0.02f, z, 0.06f, 0.04f, 1.26f, C("#2F3336")); b.box(x, CURB + 0.02f, z + s, 1.26f, 0.04f, 0.06f, C("#2F3336")) }
+        for (k in -2..2) b.box(x + k * 0.22f, CURB + 0.015f, z, 0.03f, 0.03f, 1.2f, C("#3A3F44"))
+        tree(g, x, z, g.rng.r(0.85f, 1.05f), CURB, if (g.rng.chance(0.25f)) 2 + g.rng.i(2) else 4)
+    }
+
+    private fun manhole(b: MB, x: Float, z: Float) {
+        b.m(Mt.METAL, 1f)
+        b.cyl(x, 0.006f, z, 0.42f, 0.42f, 0.012f, C("#3C3F42"), true, 14)
+        b.m(Mt.PLAIN)
+        for (k in -2..2) b.plane(x - 0.3f, z + k * 0.12f - 0.015f, x + 0.3f, z + k * 0.12f + 0.015f, 0.02f, C("#2A2C2E"))
+    }
+
+    private fun drain(b: MB, x: Float, z: Float, alongX: Boolean) {
+        b.m(Mt.METAL, 1f)
+        if (alongX) b.box(x, 0.008f, z, 0.9f, 0.016f, 0.35f, C("#2B2D30")) else b.box(x, 0.008f, z, 0.35f, 0.016f, 0.9f, C("#2B2D30"))
+        b.m(Mt.PLAIN)
+        for (k in -3..3) if (alongX) b.plane(x + k * 0.11f - 0.02f, z - 0.15f, x + k * 0.11f + 0.02f, z + 0.15f, 0.018f, C("#111214")) else b.plane(x - 0.15f, z + k * 0.11f - 0.02f, x + 0.15f, z + k * 0.11f + 0.02f, 0.018f, C("#111214"))
     }
 
     /** Placa de rua verde com o nome (usa o atlas quando o nome existe; senão uma placa lisa). */

@@ -43,8 +43,14 @@ object Mt {
     const val ASPHALT = 15
     const val FACADE = 16
     const val SIGN = 17
-    const val COUNT = 18
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f)
+    /** Etapa 125: folhas (cartões com recorte de alfa) e casca de árvore, das texturas da flora. */
+    const val LEAF = 18
+    const val LEAF2 = 19
+    const val BARK = 20
+    const val LEAFB = 21
+    const val COUNT = 22
+    fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f)
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -164,6 +170,8 @@ object Noise {
 // ---------------------------------------------------------------- texturas procedurais
 
 object Tex {
+    /** Etapa 125: materiais que vêm de PNG da flora (o simulador de testes também lê). */
+    @JvmStatic val EXTRA = mapOf(Mt.LEAF to "leaf_oak", Mt.LEAF2 to "leaf_maple", Mt.BARK to "bark_oak", Mt.LEAFB to "leaf_bush")
     val ids = IntArray(Mt.COUNT)
     private val cache = arrayOfNulls<IntArray>(Mt.COUNT)
     private const val S = 256
@@ -341,7 +349,7 @@ object Tex {
     }
 
     private val FILES = arrayOf(null, "mat_floor_l", "mat_floor_d", "mat_tile", "mat_stone", "mat_plaster",
-        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null)
+        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null, "leaf_oak", "leaf_maple", "bark_oak", "leaf_bush")
 
     /** Etapa 69: texturas de material pintadas (assets/flora/tex/mat_*.png); se faltar, usa a procedural. */
     private fun fileTex(m: Int): Bitmap? {
@@ -672,7 +680,7 @@ class MB {
             val bb = ByteBuffer.allocateDirect(f.n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             bb.put(f.a, 0, f.n)
             bb.position(0)
-            parts.add(Part(mat, bb, f.n / STRIDE).also { it.gpu = gpu })
+            parts.add(Part(mat, bb, f.n / STRIDE).also { it.gpu = gpu; if (Mt.isLeaf(mat)) it.cut = 0.42f })
         }
         return Mesh(parts)
     }

@@ -187,6 +187,66 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Porta aberta/fechada (agora por interação, não mais automática). */
     @Volatile var doorOpen = false
     /** O que está ao alcance do personagem: 0 nada, 1 porta, 2 cortina (para o botão de interação). */
+    /** Etapa 125: foto da cidade vista de cima (mapa e minimapa). Devolve o bitmap e o retângulo do mundo (x0, z0, x1, z1). */
+    @Volatile var mapReq = false
+    var onMap: ((android.graphics.Bitmap, FloatArray) -> Unit)? = null
+    private var fogOn = 1f
+    private var mapGen = -1
+    private var mapBuilt = -1
+
+    private fun captureMap() {
+        if (!City.on) return
+        mapReq = false
+        val x0 = City.X0 - 6f; val x1 = City.X1 + 6f; val z0 = City.Z0 - 6f; val z1 = City.SEA_Z + 75f
+        val wW = x1 - x0; val wH = z1 - z0
+        val n = 2048; val nh = (n * wH / wW).toInt().coerceAtMost(2048)
+        val fb = IntArray(1); val tx = IntArray(1); val rb = IntArray(1)
+        GLES20.glGenFramebuffers(1, fb, 0); GLES20.glGenTextures(1, tx, 0); GLES20.glGenRenderbuffers(1, rb, 0)
+        val saved = vp.copyOf()
+        try {
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tx[0])
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, n, nh, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null)
+            GLES20.glBindRenderbuffer(GLES20.GL_RENDERBUFFER, rb[0])
+            GLES20.glRenderbufferStorage(GLES20.GL_RENDERBUFFER, GLES20.GL_DEPTH_COMPONENT16, n, nh)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fb[0])
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, tx[0], 0)
+            GLES20.glFramebufferRenderbuffer(GLES20.GL_FRAMEBUFFER, GLES20.GL_DEPTH_ATTACHMENT, GLES20.GL_RENDERBUFFER, rb[0])
+            if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) return
+            GLES20.glViewport(0, 0, n, nh)
+            GLES20.glClearColor(0f, 0f, 0f, 0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            val pj = FloatArray(16); val vw = FloatArray(16)
+            Matrix.orthoM(pj, 0, -wW / 2, wW / 2, -wH / 2, wH / 2, 1f, 900f)
+            val cx = (x0 + x1) / 2; val cz = (z0 + z1) / 2
+            Matrix.setLookAtM(vw, 0, cx, 500f, cz, cx, 0f, cz, 0f, 0f, -1f)
+            Matrix.multiplyMM(vp, 0, pj, 0, vw, 0)
+            fogOn = 0f
+            frameUniforms(cx, 500f, cz, 0f, 0f, cx, -100f, cz)
+            useProg(0)
+            Matrix.setIdentityM(mdl, 0)
+            City.farAll?.let { fa -> for (p in fa.parts) p.skips = null; draw(fa, mdl, 1f) }
+            for (c in City.chunks) if (c.lazyI < 0 && c.x1 - c.x0 < 900f) c.near?.let { draw(it, mdl, 1f) }   // ruas, praia, parque (sem o anel de morros)
+            yardM?.let { draw(it, mdl, 1f) }
+            City.lightMeshes[0]?.let { draw(it, mdl, 1f) }
+            val bb = java.nio.ByteBuffer.allocateDirect(n * nh * 4).order(java.nio.ByteOrder.nativeOrder())
+            GLES20.glReadPixels(0, 0, n, nh, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb)
+            val raw = android.graphics.Bitmap.createBitmap(n, nh, android.graphics.Bitmap.Config.ARGB_8888)
+            raw.copyPixelsFromBuffer(bb)
+            val fl = android.graphics.Matrix(); fl.preScale(1f, -1f)
+            val bmp = android.graphics.Bitmap.createBitmap(raw, 0, 0, n, nh, fl, true)
+            raw.recycle()
+            mapGen = GlGen.gen; mapBuilt = City.builds
+            onMap?.invoke(bmp, floatArrayOf(x0, z0, x1, z1))
+        } finally {
+            fogOn = 1f
+            System.arraycopy(saved, 0, vp, 0, 16)
+            useProg(0)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            GLES20.glDeleteFramebuffers(1, fb, 0); GLES20.glDeleteTextures(1, tx, 0); GLES20.glDeleteRenderbuffers(1, rb, 0)
+            GLES20.glViewport(0, 0, surfW, surfH)
+        }
+    }
+
     /** Etapa 124: pedido de foto de corpo inteiro (menu inicial). */
     @Volatile var fullReq = false
     var onFullBody: ((android.graphics.Bitmap) -> Unit)? = null
@@ -284,7 +344,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         precision mediump float;
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
         uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec; uniform float uCut;
-        uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight; uniform float uSoft;
+        uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight; uniform float uSoft; uniform float uFog;
         void main() {
             vec4 t = texture2D(uTex, vUV);
             CUT_LINE
@@ -321,7 +381,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            if (fz > 0.49) col = mix(col, vec3(0.86, 0.92, 0.96), smoothstep(0.49, 5.29, fz) * 0.85);
+            if (fz > 0.49) col = mix(col, vec3(0.86, 0.92, 0.96), smoothstep(0.49, 5.29, fz) * 0.85 * uFog);
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -329,7 +389,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // Etapa 89: dois programas — opaco (sem "discard", o que deixa a GPU do celular descartar pixels escondidos antes de
     // pintar) e recorte (folhas, cabelo). O programa ativo troca só quando a peça pede; os uniformes do quadro são reaplicados.
     private class Loc { var prog = 0; var uMVP = 0; var uModel = 0; var uAlpha = 0; var uTex = 0; var uCut = 0; var uSpec = 0; var uPush = 0
-        var uEye = 0; var uRoom = 0; var uLight = 0; var uSoft = 0 }
+        var uEye = 0; var uRoom = 0; var uLight = 0; var uSoft = 0; var uFog = 0 }
     private val locs = arrayOf(Loc(), Loc())
     private var curProg = 0
     private val frameU = FloatArray(8)       // olho (3), sala (2), luz (3)
@@ -347,6 +407,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         l.uPush = GLES20.glGetUniformLocation(l.prog, "uPush"); l.uEye = GLES20.glGetUniformLocation(l.prog, "uEye")
         l.uRoom = GLES20.glGetUniformLocation(l.prog, "uRoom"); l.uLight = GLES20.glGetUniformLocation(l.prog, "uLight")
         l.uSoft = GLES20.glGetUniformLocation(l.prog, "uSoft")
+        l.uFog = GLES20.glGetUniformLocation(l.prog, "uFog")
     }
 
     private fun useProg(i: Int) {
@@ -356,6 +417,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glUseProgram(l.prog)
         prog = l.prog; uMVP = l.uMVP; uModel = l.uModel; uAlpha = l.uAlpha; uTex = l.uTex; uCut = l.uCut; uSpec = l.uSpec; uPush = l.uPush
         uEye = l.uEye; uRoom = l.uRoom; uLight = l.uLight; uSoft = l.uSoft
+        GLES20.glUniform1f(l.uFog, fogOn)
         GLES20.glUniform3f(uEye, frameU[0], frameU[1], frameU[2])
         GLES20.glUniform2f(uRoom, frameU[3], frameU[4])
         GLES20.glUniform3f(uLight, frameU[5], frameU[6], frameU[7])
@@ -1706,6 +1768,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         AvatarBuilder.take()?.let { avMesh = it }
         if (portraitReq) capturePortrait()
         if (fullReq) captureShot(true)
+        if (City.on && (mapReq || mapGen != GlGen.gen || mapBuilt != City.builds) && onMap != null) captureMap()
         if (cr) {
             drawCreator(now)
             return

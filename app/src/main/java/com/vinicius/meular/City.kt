@@ -194,6 +194,7 @@ object City {
     @Volatile var progress = 0f
     /** Geração do contexto GL em que a cidade foi montada (sem cópia na memória, é preciso montar de novo se o contexto cair). */
     @Volatile var builtGen = -1
+    @Volatile var builds = 0
     /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
     @Volatile var error: String? = null
 
@@ -302,6 +303,7 @@ object City {
         pedBody.forEach { it?.gpuOnly() }; pedLeg.forEach { it?.gpuOnly() }; pedArm.forEach { it?.gpuOnly() }
         for (d in CityFun.dyn) d.mesh.gpuOnly()
         builtGen = GlGen.gen
+        builds++
         on = true
     }
 
