@@ -11,3 +11,7 @@ Triângulos da parte de baixo do queixo usavam a área clara do pescoço/peito d
 - Ligações: `CuteColor.setColors/start` chamam `S4Skin`; `CuteChar.frame` chama `S4Skin.upload`.
 
 Limites: Kotlin NÃO foi compilado aqui (sem Gradle); testado só o algoritmo em Python, renderizado offline. A aba Sobrancelhas aparece também com corpo do Sims 3, onde não faz efeito. Máscara dos lábios é aproximada (pega a pele escura ao redor do lábio inferior em alguns tons).
+
+## 3) Boca "comida" (atualização)
+Na textura (`sk_s4m.png` / `sk_s4f.png`) havia um contorno claro em volta dos lábios e uma emenda vertical no lábio de cima; no jogo, com a luz, isso lê como boca "mordida". Limpei os dois (pele suave no lugar do contorno; brilho da emenda igualado). Ferramenta: `ferramentas/etapa116_limpar_boca_s4.py` (rodar UMA vez sobre o atlas original). As máscaras de cor foram regeneradas em cima das texturas novas.
+Não resolvido: uma fresta fina na malha entre o lábio de cima e o de baixo (linha escura). Depende da malha e não mexi.
