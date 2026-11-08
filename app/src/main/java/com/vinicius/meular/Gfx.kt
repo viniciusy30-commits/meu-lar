@@ -63,6 +63,8 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     /** Etapa 122: faixa de vértices [skipA, skipB) que não é desenhada neste quadro (paredes/telhado do prédio em que o jogador entrou). */
     var skipA = -1
     var skipB = -1
+    /** Etapa 122: várias faixas puladas (pares início, fim; ordenados) — malha única dos quarteirões vistos de longe. */
+    var skips: IntArray? = null
     var vbo = 0
     var ibo = 0
     var gpuGen = 0
@@ -654,6 +656,8 @@ class MB {
     }
 
     fun isEmpty(): Boolean = bufs.values.all { it.n == 0 }
+
+    fun clear() { for (f in bufs.values) f.n = 0 }
 
     fun toMesh(gpu: Boolean = false): Mesh {
         val parts = ArrayList<Part>()

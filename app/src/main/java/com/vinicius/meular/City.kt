@@ -46,7 +46,14 @@ object City {
         @Volatile var loading = false
         @Volatile var result: Pair<Mesh, Flora.Batch>? = null
         var lastNear = 0L
+        /** Faixas (material -> início, fim) desta parte dentro da malha única de longe [farAll]. */
+        var farRanges: HashMap<Int, IntArray>? = null
+        var farMB: MB? = null
     }
+
+    /** Etapa 122: todos os quarteirões vistos de longe numa malha só (poucas chamadas de desenho). */
+    @Volatile var farAll: Mesh? = null
+        private set
 
     /** Ponto de interesse do mapa. */
     class Place(val name: String, val x: Float, val z: Float, val color: Int, val icon: Char)
@@ -186,6 +193,7 @@ object City {
         token++
         on = false
         chunks.forEach { it.near?.release(); it.far?.release() }; chunks = emptyList()
+        farAll?.release(); farAll = null
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
         Vehicles.release(); CityFun.release()
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
@@ -234,8 +242,20 @@ object City {
             val g = CityGeo.Gen(out.size, Rng(i * 131 + j * 17 + 7), x0, z0, x1, z1)
             val h = CityGeo.block(g, t, i, j)
             if (t == "fun") out.add(g.finish(h))
-            else { val c = g.finishFar(h); c.lazyI = i; c.lazyJ = j; out.add(c) }   // detalhe carregado quando o jogador chegar perto
+            else { val c = g.finishFar(h); c.lazyI = i; c.lazyJ = j; c.farMB = g.f; out.add(c) }   // detalhe carregado quando o jogador chegar perto
             if (tk != token) return
+        }
+        // junta as versões de longe numa malha só, guardando a faixa de cada quarteirão
+        run {
+            val all = MB()
+            for (c in out) {
+                val f = c.farMB ?: continue
+                val c0 = all.counts(); all.append(f); val c1 = all.counts()
+                val r = HashMap<Int, IntArray>()
+                for ((m, n1) in c1) { val n0 = c0[m] ?: 0; if (n1 > n0) r[m] = intArrayOf(n0, n1) }
+                c.farRanges = r; c.farMB = null
+            }
+            farAll = all.toMesh(true)
         }
         out.add(CityFun.beach(out.size))
         out.add(CityGeo.ring())

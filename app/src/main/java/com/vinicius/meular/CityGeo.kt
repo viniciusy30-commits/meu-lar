@@ -62,7 +62,7 @@ object CityGeo {
         }
 
         /** Só a versão de longe; a detalhada é gerada de novo quando o jogador chega perto. */
-        fun finishFar(h: Float): City.Chunk = City.Chunk(null, if (f.isEmpty()) null else f.toMesh(true), x0, z0, x1, z1, h)
+        fun finishFar(h: Float): City.Chunk = City.Chunk(null, null, x0, z0, x1, z1, h)
     }
 
     // ============================================================ primitivas
@@ -544,7 +544,7 @@ object CityGeo {
         val lotW = x1 - x0
         val wall = C(rng.pick(WALLS)); val roof = C(rng.pick(ROOFS)); val trim = C("#FFFFFF")
         val wood = rng.pick(WOODS)
-        val hw = if (mansion) min(lotW - 8f, rng.r(18f, 24f)) else min(lotW - 4.2f, rng.r(8.5f, 11f))
+        val hw = if (mansion) min(lotW - 8f, rng.r(18f, 24f)) else min(lotW - 4.3f, rng.r(8.5f, 11f))
         val hd = if (mansion) rng.r(13f, 15f) else rng.r(8.2f, 10f)
         val set = if (mansion) rng.r(9f, 11f) else rng.r(5.5f, 7f)
         val sideGar = rng.chance(0.5f)
@@ -1304,7 +1304,7 @@ object CityGeo {
         for (side in intArrayOf(0, 1)) {
             var x = g.x0
             while (x < g.x1 - 9f) {
-                val lw = min(g.x1 - x, rng.r(11f, 14.5f)).let { if (g.x1 - x - it < 10f) g.x1 - x else it }
+                val lw = min(g.x1 - x, rng.r(12.5f, 15.5f)).let { if (g.x1 - x - it < 11f) g.x1 - x else it }
                 val fz0 = if (side == 0) g.z1 else g.z0
                 val fz = if (side == 0) 1f else -1f
                 val empty = if (lots) rng.chance(0.6f) else rng.chance(0.08f)
@@ -1536,7 +1536,7 @@ object CityGeo {
         val rng = g.rng
         var x = g.x0
         while (x < g.x1 - 9f) {
-            val lw = min(g.x1 - x, rng.r(11f, 14f)).let { if (g.x1 - x - it < 10f) g.x1 - x else it }
+            val lw = min(g.x1 - x, rng.r(12.5f, 15.5f)).let { if (g.x1 - x - it < 11f) g.x1 - x else it }
             house(g, x, x + lw, fz0, fz, depth, rng.i(5), rng.chance(0.2f))
             x += lw
         }
@@ -1725,10 +1725,11 @@ object CityGeo {
         val yel = C("#F2C230"); val wht = C("#F4F4F4")
         val bandX = City.bandX; val bandZ = City.bandZ
         val X0 = City.X0; val X1 = City.X1; val Z0 = City.Z0; val Z1 = City.Z1
+        // Etapa 122: todas as ruas num pedaço só (uma chamada por material)
+        val g = Gen(out.size, City.Rng(13), X0, Z0, X1, Z1)
+        val b = g.b
         for (k in 0 until 8) {
             val za = bandZ[k * 2]; val zb = bandZ[k * 2 + 1]; val zc = (za + zb) / 2
-            val g = Gen(out.size, City.Rng(k * 13 + 1), X0, za, X1, zb)
-            val b = g.b
             b.m(Mt.ASPHALT, 0.25f); b.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             g.f.m(Mt.ASPHALT, 0.25f); g.f.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             for (iv in freeIntervals(X0, X1, bandX)) {
@@ -1769,12 +1770,9 @@ object CityGeo {
                     x += 12f; n++
                 }
             }
-            out.add(g.finish(7f))
         }
         for (k in 0 until 8) {
             val xa = bandX[k * 2]; val xb = bandX[k * 2 + 1]; val xc = (xa + xb) / 2
-            val g = Gen(out.size, City.Rng(k * 17 + 5), xa, Z0, xb, Z1)
-            val b = g.b
             val segs = freeIntervals(Z0, Z1, bandZ, -SIDE)
             for (bb in arrayOf(b, g.f)) { bb.m(Mt.ASPHALT, 0.25f); for (iv in segs) bb.plane(xa + SIDE, iv[0], xb - SIDE, iv[1], 0f, asph) }
             for (iv in freeIntervals(Z0, Z1, bandZ)) {
@@ -1833,8 +1831,9 @@ object CityGeo {
                     }
                 }
             }
-            out.add(g.finish(7f))
         }
+        g.f.clear()
+        out.add(g.finish(7f))
     }
 
     /** Placa de rua verde com o nome (usa o atlas quando o nome existe; senão uma placa lisa). */

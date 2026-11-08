@@ -16,7 +16,7 @@ import kotlin.math.sin
 object Flora {
     @Volatile var assets: AssetManager? = null
     private val texIds = HashMap<String, Int>()
-    private val cache = HashMap<String, List<Src>>()
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, List<Src>>()   // Etapa 122: a cidade lê da thread de fundo
 
     fun reset() { texIds.clear() }
 

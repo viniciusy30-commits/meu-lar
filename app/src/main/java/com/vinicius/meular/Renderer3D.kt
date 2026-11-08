@@ -447,6 +447,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, p.ibo)
                     GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, 0)
                     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+                } else if (p.skips != null) {
+                    val sk = p.skips!!
+                    var from = 0
+                    var k = 0
+                    while (k + 1 < sk.size) {
+                        if (sk[k] > from) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, from, sk[k] - from)
+                        from = max(from, sk[k + 1]); k += 2
+                    }
+                    if (p.count > from) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, from, p.count - from)
                 } else if (p.skipA >= 0 && p.skipB > p.skipA) {
                     if (p.skipA > 0) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.skipA)
                     if (p.count > p.skipB) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, p.skipB, p.count - p.skipB)
@@ -555,6 +564,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // ================================================================ Etapa 122: cidade
     private var inBld: City.Bld? = null
     private val cityGlass = ArrayList<Mesh>()
+    private val farHide = ArrayList<HashMap<Int, IntArray>>()
     private var routeMesh: Mesh? = null
     private var routeVer = -1
     private var beaconMesh: Mesh? = null
@@ -589,11 +599,28 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val d2 = dx * dx + dz * dz
             if (d2 > 245f * 245f) continue
             if (!boxVisible(c.x0, -0.6f, c.z0, c.x1, c.h, c.z1)) continue
-            val wantNear = d2 < City.NEAR * City.NEAR || c.far == null || (ib != null && ib.chunk == ci)
+            val wantNear = d2 < City.NEAR * City.NEAR || (c.far == null && c.farRanges == null) || (ib != null && ib.chunk == ci)
             val nm = c.near
-            if (wantNear && nm != null) { draw(nm, mdl, 1f); if (c.glass) cityGlass.add(nm) }
-            else { val fm = c.far ?: nm ?: continue; draw(fm, mdl, 1f) }
+            if (wantNear && nm != null) {
+                draw(nm, mdl, 1f); if (c.glass) cityGlass.add(nm)
+                c.farRanges?.let { farHide.add(it) }   // a versão de longe dele sai da malha única
+            } else if (c.farRanges == null) { val fm = c.far ?: nm ?: continue; draw(fm, mdl, 1f) }
         }
+        // quarteirões vistos de longe: uma malha só, pulando os que já foram desenhados em detalhe
+        City.farAll?.let { fa ->
+            for ((pi, p) in fa.parts.withIndex()) {
+                val mat = p.mat
+                val list = ArrayList<IntArray>()
+                for (r in farHide) r[mat]?.let { list.add(it) }
+                if (list.isEmpty()) { p.skips = null; continue }
+                list.sortBy { it[0] }
+                val arr = IntArray(list.size * 2)
+                for ((k, it) in list.withIndex()) { arr[k * 2] = it[0]; arr[k * 2 + 1] = it[1] }
+                p.skips = arr
+            }
+            draw(fa, mdl, 1f)
+        }
+        farHide.clear()
         City.lightMeshes[City.lightPhase]?.let { draw(it, mdl, 1f) }
         val cm = Vehicles.meshes
         for (car in City.cars) {
@@ -614,7 +641,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val pb = City.pedBody; val pl = City.pedLeg; val pa = City.pedArm
         for (p in City.peds) {
             val dx = p.x - ex; val dz = p.z - ez
-            if (dx * dx + dz * dz > 55f * 55f) continue
+            if (dx * dx + dz * dz > 45f * 45f) continue
             if (!boxVisible(p.x - 0.5f, 0f, p.z - 0.5f, p.x + 0.5f, 2f, p.z + 0.5f)) continue
             val body = pb.getOrNull(p.look) ?: continue
             val sw = sin(p.ph) * 28f * min(1f, p.v / 0.6f)
