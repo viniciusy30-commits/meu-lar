@@ -35,8 +35,8 @@ object Flora {
                 GLES20.glGenTextures(1, ids, 0)
                 id = ids[0]
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, id)
-                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
-                GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+                if (clamp) Tex.uploadCoverageMips(bmp, 0.5f)   // Etapa 127: recorte estável de longe
+                else { GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0); GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D) }
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
                 val w = if (clamp) GLES20.GL_CLAMP_TO_EDGE else GLES20.GL_REPEAT
@@ -155,7 +155,7 @@ object Flora {
                 ib.position(0)
                 val p = Part(a.mat, fb, a.nv, ib, a.ni, texture(a.tex, a.cut))
                 p.gpu = true
-                if (a.cut) p.cut = 0.4f
+                if (a.cut) { p.cut = 0.5f; p.solid = true }
                 parts.add(p)
             }
             return parts

@@ -25,6 +25,8 @@ import kotlin.math.sqrt
 object City {
     const val ROAD = 16f
     const val SIDE = 3.5f
+    /** raio médio da margem do lago em relação à meia largura da malha da água */
+    const val LAKE_EDGE = 0.78f
     const val CURB = 0.15f
     const val FLOOR = 0.27f          // piso de dentro das construções
     const val NEAR = 70f             // até aqui o quarteirão usa a malha detalhada
@@ -194,6 +196,10 @@ object City {
     @Volatile var progress = 0f
     /** Geração do contexto GL em que a cidade foi montada (sem cópia na memória, é preciso montar de novo se o contexto cair). */
     @Volatile var builtGen = -1
+    /** Etapa 127: lagos (centro x, z, meia largura da malha, altura da água). */
+    val lakes = java.util.concurrent.CopyOnWriteArrayList<FloatArray>()
+    /** pontes em arco (x0, z0, x1, z1, altura da ponta, altura do arco) — andando por cima */
+    val bridges = java.util.concurrent.CopyOnWriteArrayList<FloatArray>()
     @Volatile private var startGen = -1
     @Volatile var builds = 0
     /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
@@ -218,6 +224,8 @@ object City {
         progress = 0f
         chunks.forEach { it.near?.release(); it.far?.release() }; chunks = emptyList()
         farAll?.release(); farAll = null
+        Shade.mesh?.release(); Shade.mesh = null
+        lakes.clear(); bridges.clear()
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
         Vehicles.release(); CityFun.release()
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
@@ -259,6 +267,7 @@ object City {
         types = Array(NB) { i -> Array(NB) { j -> T[j][i] } }
 
         val out = ArrayList<Chunk>()
+        Shade.reset()   // Etapa 127: sombras projetadas
         progress = 0.04f
         CityGeo.roads(out)
         progress = 0.12f
@@ -300,6 +309,7 @@ object City {
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
         places.add(Place("Píer", PIER_X, SEA_Z + 20f, 0xFF8D6E63.toInt(), 'Í'))
         if (tk != token) return
+        Shade.finish(); Shade.mesh?.gpuOnly()
         for (c in out) { c.near?.gpuOnly(); c.far?.gpuOnly() }
         farAll?.gpuOnly(); lightMeshes.forEach { it?.gpuOnly() }; Vehicles.meshes.forEach { it?.gpuOnly() }
         pedBody.forEach { it?.gpuOnly() }; pedLeg.forEach { it?.gpuOnly() }; pedArm.forEach { it?.gpuOnly() }
@@ -379,6 +389,7 @@ object City {
 
     fun groundH(x: Float, z: Float): Float {
         if (!on || inLot(x, z)) return 0f
+        for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
         bldAt(x, z)?.let { return FLOOR }
         if (z > Z1) {
             if (z < BEACH_Z) return CURB

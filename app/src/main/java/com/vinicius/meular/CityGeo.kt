@@ -46,7 +46,11 @@ object CityGeo {
             b.append(H)
             val c1 = b.counts()
             for ((m, n1) in c1) { val n0 = c0[m] ?: 0; if (n1 > n0) bd.ranges[m] = intArrayOf(n0, n1) }
-            if (reg) City.addBld(bd)
+            if (reg) {
+                City.addBld(bd)
+                val top = max(A.maxY(), H.maxY())   // Etapa 127: sombra projetada do prédio
+                if (top > 1f) Shade.box(bd.x0, bd.z0, bd.x1, bd.z1, top * 0.94f)
+            }
             A = b; H = b; cur = null
         }
 
@@ -133,9 +137,8 @@ object CityGeo {
 
     /** Placa com texto [idx] virada para (fx, fz), centro (cx, cz), base y. */
     fun sign(b: MB, cx: Float, y: Float, cz: Float, fx: Float, fz: Float, w: Float, h: Float, idx: Int, frame: Boolean = true) {
-        val col = idx % 4; val row = idx / 4
-        val u0 = col * 0.25f + 0.0015f; val u1 = u0 + 0.247f
-        val v0 = row / 16f + 0.003f; val v1 = (row + 1) / 16f - 0.003f
+        val uvs = Signs.uv(idx)   // Etapa 127: atlas novo 2048 × 2048
+        val u0 = uvs[0]; val u1 = uvs[2]; val v0 = uvs[1]; val v1 = uvs[3]
         val rx = fz; val rz = -fx
         if (frame) {
             b.m(Mt.METAL, 1f)
@@ -233,10 +236,8 @@ object CityGeo {
                 b.v(px - rx, y0, pz - rz, nx, ny, nz, cc, 0.02f, 0.98f); b.v(px + rx + dx * tilt, y1, pz + rz + dz * tilt, nx, ny, nz, cc, 0.98f, 0.02f); b.v(px - rx + dx * tilt, y1, pz - rz + dz * tilt, nx, ny, nz, cc, 0.02f, 0.02f)
             }
         }
-        // sombra macia no chão
-        b.m(Mt.PLAIN); b.al = 0.22f
-        b.cyl(ccx, y + 0.012f, ccz, R * 0.95f, R * 0.95f, 0.002f, C("#1B2A12"), false, 12)
-        b.al = 1f
+        // Etapa 127: sombra projetada pelo sol (antes um disco translúcido embaixo que piscava)
+        if (g.reg) Shade.tree(x, z, ccx, ccz, cy, R * 0.82f, R * 0.62f, y)
         // longe: tronco e bola
         g.f.m(Mt.PLAIN)
         g.f.cyl(x, y, z, 0.15f * s, 0.1f * s, H, trunk, true, 4)
@@ -258,26 +259,39 @@ object CityGeo {
         val tx = x + lean * hh; val tz = z + leanZ * hh; val ty = y + hh
         b.m(Mt.PLAIN)
         CityGeo.ball(b, tx, ty, tz, 0.35f * s, C("#6B5A2E"), 0.3f * s, 6)
-        val nf = 9
+        // Etapa 127: folhas de verdade — raque curva com dezenas de folíolos finos caindo dos dois lados
+        val nf = 11
         for (k in 0 until nf) {
             val a = k * 2f * PI.toFloat() / nf + rng.r(-0.2f, 0.2f)
             val dx = cos(a); val dz = sin(a)
-            val len = rng.r(3.0f, 3.8f) * s
-            val gc = if (k % 2 == 0) C("#3E8E41") else C("#4FA34A")
+            val len = rng.r(3.0f, 3.9f) * s
+            val up = rng.r(0.6f, 1.2f)
+            val gc = C(rng.pick(arrayOf("#3E8E41", "#4C9A47", "#357F3A", "#58A34E")))
+            val steps = 14
             var lx = tx; var ly = ty; var lz = tz
-            val steps = 5
             for (st in 1..steps) {
                 val t = st.toFloat() / steps
                 val nx = tx + dx * len * t; val nz = tz + dz * len * t
-                val ny = ty + 0.9f * s * t - 2.6f * s * t * t
-                val w = 0.55f * s * sin(PI.toFloat() * min(1f, t * 1.15f)) + 0.05f
-                val pxw = -dz * w; val pzw = dx * w
-                val w0 = 0.55f * s * sin(PI.toFloat() * min(1f, (t - 1f / steps) * 1.15f)) + 0.05f
-                val p0x = -dz * w0; val p0z = dx * w0
-                q(b, P(lx - p0x, ly, lz - p0z) + P(lx + p0x, ly, lz + p0z) + P(nx + pxw, ny - 0.12f * s, nz + pzw) + P(nx - pxw, ny - 0.12f * s, nz - pzw), gc)
+                val ny = ty + up * s * t - 2.4f * s * t * t
+                // raque
+                val rw = 0.05f * s * (1f - t * 0.7f)
+                q(b, P(lx - dz * rw, ly, lz + dx * rw) + P(lx + dz * rw, ly, lz - dx * rw) + P(nx + dz * rw, ny, nz - dx * rw) + P(nx - dz * rw, ny, nz + dx * rw), shade(gc, -25))
+                // folíolos dos dois lados (compridos no meio da folha, curtos na ponta)
+                val ll = (0.75f * sin(PI.toFloat() * min(1f, t * 1.1f)) + 0.12f) * s
+                for (sd in floatArrayOf(-1f, 1f)) {
+                    val px = -dz * sd; val pz = dx * sd
+                    val ex = nx + px * ll * 0.85f + dx * ll * 0.35f; val ez = nz + pz * ll * 0.85f + dz * ll * 0.35f
+                    val ey = ny - ll * 0.55f
+                    val w = 0.045f * s
+                    tri(b, P(nx - dx * w, ny, nz - dz * w) + P(nx + dx * w, ny, nz + dz * w) + P(ex, ey, ez), if (st % 2 == 0) gc else shade(gc, 12))
+                    tri(b, P((nx + ex) / 2, (ny + ey) / 2 + 0.06f * s, (nz + ez) / 2) + P(nx + dx * w * 0.5f, ny, nz + dz * w * 0.5f) + P(ex, ey, ez), shade(gc, -12))
+                }
                 lx = nx; ly = ny; lz = nz
             }
         }
+        // cachos de coco embaixo da copa
+        for (k in 0 until 4) { val a = k * 1.7f; ball(b, tx + cos(a) * 0.22f * s, ty - 0.25f * s, tz + sin(a) * 0.22f * s, 0.12f * s, C("#7A5A2E"), 0.13f * s, 6) }
+        if (g.reg) Shade.tree(x, z, tx, tz, ty - 0.6f * s, 2.6f * s, 0.5f * s, y, 0.22f)
         g.f.m(Mt.PLAIN)
         g.f.cyl(x, y, z, 0.2f * s, 0.14f * s, hh, C("#8A6D4E"), true, 5)
         CityGeo.ball(g.f, tx, ty - 0.4f * s, tz, 2.6f * s, C("#4A9A45"), 0.9f * s, 6)
@@ -294,6 +308,7 @@ object CityGeo {
     }
 
     fun streetLamp(b: MB, x: Float, z: Float, ax: Float, az: Float, y: Float = CURB) {
+        Shade.pole(x, z, 6.4f, 0.09f)
         b.m(Mt.METAL, 1f)
         b.cyl(x, y, z, 0.2f, 0.12f, 0.7f, C("#3B4046"), true, 8)
         b.cyl(x, y + 0.7f, z, 0.1f, 0.06f, 5.7f, C("#4A4F55"), true, 7)
@@ -376,28 +391,55 @@ object CityGeo {
     private val WOODS = arrayOf(C("#8B5E3C"), C("#A47551"), C("#5C3D2E"), C("#C8A27A"), C("#3E2C23"), C("#D9C2A3"))
     private val FABRICS = arrayOf(C("#4A6FA5"), C("#8E9AAF"), C("#C9ADA7"), C("#5B8E7D"), C("#E9C46A"), C("#B5838D"), C("#6D597A"), C("#D8D8D8"), C("#2F3E46"), C("#A3B18A"))
 
+    /** Etapa 127: caixa "macia" (cantos chanfrados) — almofadas e estofados sem cara de tijolo. */
+    fun soft(b: MB, l: L, lx: Float, y: Float, lz: Float, sx: Float, sy: Float, sz: Float, c: Int, r: Float = 0.035f) {
+        val rr = min(r, min(sy, sz) * 0.45f)
+        lb(b, l, lx, y, lz, sx, sy - 2 * rr, sz, c)
+        lb(b, l, lx, y, lz, sx - 2 * min(rr, sx * 0.3f), sy, sz - 2 * rr, shade(c, 4))
+    }
+
+    /** Sofá: base com pés de madeira torneados, assentos com almofadas arredondadas, encosto inclinado em duas camadas, braços com rolo. */
     fun sofa(b: MB, l: L, w: Float, col: Int) {
         val y = FL
         b.m(Mt.FABRIC, 1f)
-        lb(b, l, 0f, y + 0.22f, 0f, w, 0.3f, 0.9f, shade(col, -15))
-        val n = max(2, (w / 0.8f).toInt()); val cw = (w - 0.3f) / n
-        for (k in 0 until n) lb(b, l, -w / 2 + 0.15f + cw * (k + 0.5f), y + 0.44f, -0.05f, cw - 0.03f, 0.16f, 0.7f, col)
-        lb(b, l, 0f, y + 0.65f, 0.36f, w, 0.6f, 0.2f, shade(col, -8))
-        for (k in 0 until n) lb(b, l, -w / 2 + 0.15f + cw * (k + 0.5f), y + 0.7f, 0.22f, cw - 0.06f, 0.42f, 0.14f, col)
-        for (s in floatArrayOf(-1f, 1f)) lb(b, l, s * (w / 2 - 0.08f), y + 0.42f, 0f, 0.16f, 0.36f, 0.9f, shade(col, -8))
-        b.m(Mt.FABRIC, 1f)
-        lb(b, l, -w / 2 + 0.45f, y + 0.62f, 0.12f, 0.36f, 0.32f, 0.1f, C("#F2E8CF"))   // almofada
+        val dark = shade(col, -16)
+        soft(b, l, 0f, y + 0.25f, 0.02f, w - 0.1f, 0.22f, 0.86f, dark, 0.05f)
+        val n = max(2, (w / 0.8f).toInt()); val cw = (w - 0.42f) / n
+        for (k in 0 until n) {
+            val cx = -w / 2 + 0.21f + cw * (k + 0.5f)
+            soft(b, l, cx, y + 0.44f, -0.06f, cw - 0.025f, 0.17f, 0.68f, col, 0.06f)
+            CityGeo.limb(b, l.wx(cx - cw / 2 + 0.03f, -0.39f), y + 0.44f, l.wz(cx - cw / 2 + 0.03f, -0.39f), l.wx(cx + cw / 2 - 0.03f, -0.39f), y + 0.44f, l.wz(cx + cw / 2 - 0.03f, -0.39f), 0.07f, 0.07f, col, 8)
+            // encosto: almofada solta inclinada (duas peças escalonadas)
+            soft(b, l, cx, y + 0.66f, 0.2f, cw - 0.04f, 0.3f, 0.18f, shade(col, 3), 0.07f)
+            soft(b, l, cx, y + 0.86f, 0.27f, cw - 0.05f, 0.22f, 0.16f, shade(col, 6), 0.07f)
+        }
+        soft(b, l, 0f, y + 0.66f, 0.38f, w - 0.1f, 0.62f, 0.12f, dark, 0.04f)
+        for (s in floatArrayOf(-1f, 1f)) {
+            soft(b, l, s * (w / 2 - 0.11f), y + 0.42f, 0.02f, 0.2f, 0.4f, 0.86f, shade(col, -6), 0.05f)
+            CityGeo.limb(b, l.wx(s * (w / 2 - 0.11f), -0.4f), y + 0.64f, l.wz(s * (w / 2 - 0.11f), -0.4f), l.wx(s * (w / 2 - 0.11f), 0.42f), y + 0.64f, l.wz(s * (w / 2 - 0.11f), 0.42f), 0.1f, 0.1f, shade(col, -3), 8)
+        }
+        // almofadas decorativas (uma de cada lado, cores que combinam)
+        val pc = arrayOf(C("#F2E8CF"), mix(col, C("#FFFFFF"), 0.45f), C("#C9A227"))
+        for ((i, s) in floatArrayOf(-1f, 1f).withIndex()) soft(b, l, s * (w / 2 - 0.42f), y + 0.68f, 0.12f, 0.4f, 0.38f, 0.12f, pc[(i + w.toInt()) % 3], 0.05f)
         b.m(Mt.WOOD, 1f)
-        for (s in floatArrayOf(-1f, 1f)) for (t in floatArrayOf(-0.35f, 0.35f)) lb(b, l, s * (w / 2 - 0.1f), y + 0.04f, t, 0.05f, 0.08f, 0.05f, C("#3E2C23"))
+        for (s in floatArrayOf(-1f, 1f)) for (t in floatArrayOf(-0.34f, 0.36f)) lcyl(b, l, s * (w / 2 - 0.12f), y, t, 0.025f, 0.04f, 0.14f, C("#3E2C23"), 7)
     }
 
+    /** Poltrona: estofado com braços em rolo, almofada solta, encosto alto e pés palito. */
     fun armchair(b: MB, l: L, col: Int) {
         val y = FL
         b.m(Mt.FABRIC, 1f)
-        lb(b, l, 0f, y + 0.24f, 0f, 0.85f, 0.32f, 0.85f, shade(col, -12))
-        lb(b, l, 0f, y + 0.45f, -0.04f, 0.58f, 0.14f, 0.66f, col)
-        lb(b, l, 0f, y + 0.68f, 0.34f, 0.85f, 0.6f, 0.18f, shade(col, -6))
-        for (s in floatArrayOf(-1f, 1f)) lb(b, l, s * 0.36f, y + 0.47f, 0f, 0.14f, 0.3f, 0.85f, shade(col, -6))
+        soft(b, l, 0f, y + 0.26f, 0.02f, 0.8f, 0.2f, 0.8f, shade(col, -14), 0.05f)
+        soft(b, l, 0f, y + 0.44f, -0.06f, 0.52f, 0.16f, 0.62f, col, 0.06f)
+        CityGeo.limb(b, l.wx(-0.24f, -0.36f), y + 0.44f, l.wz(-0.24f, -0.36f), l.wx(0.24f, -0.36f), y + 0.44f, l.wz(0.24f, -0.36f), 0.07f, 0.07f, col, 8)
+        soft(b, l, 0f, y + 0.72f, 0.32f, 0.78f, 0.66f, 0.16f, shade(col, -6), 0.06f)
+        soft(b, l, 0f, y + 0.74f, 0.21f, 0.5f, 0.46f, 0.1f, shade(col, 4), 0.05f)
+        for (s in floatArrayOf(-1f, 1f)) {
+            soft(b, l, s * 0.33f, y + 0.44f, 0.02f, 0.14f, 0.34f, 0.8f, shade(col, -6), 0.04f)
+            CityGeo.limb(b, l.wx(s * 0.33f, -0.38f), y + 0.62f, l.wz(s * 0.33f, -0.38f), l.wx(s * 0.33f, 0.38f), y + 0.62f, l.wz(s * 0.33f, 0.38f), 0.08f, 0.08f, shade(col, -2), 8)
+        }
+        b.m(Mt.WOOD, 1f)
+        for (s in floatArrayOf(-0.32f, 0.32f)) for (t in floatArrayOf(-0.32f, 0.32f)) lcyl(b, l, s, y, t, 0.02f, 0.035f, 0.16f, C("#4A3428"), 7)
     }
 
     fun rug(b: MB, x0: Float, z0: Float, x1: Float, z1: Float, col: Int) {
@@ -405,14 +447,20 @@ object CityGeo {
         b.box((x0 + x1) / 2, FL + 0.006f, (z0 + z1) / 2, x1 - x0, 0.012f, z1 - z0, col)
     }
 
+    /** Mesa de centro: tampo com borda, prateleira de baixo com revistas, bandeja, vaso com flores e livros. */
     fun coffeeTable(b: MB, l: L, wood: Int) {
         b.m(Mt.WOOD, 1f)
-        lb(b, l, 0f, FL + 0.4f, 0f, 1.1f, 0.05f, 0.6f, wood)
-        lb(b, l, 0f, FL + 0.12f, 0f, 1.0f, 0.03f, 0.5f, wood)
-        for (s in floatArrayOf(-0.5f, 0.5f)) for (t in floatArrayOf(-0.25f, 0.25f)) lb(b, l, s, FL + 0.2f, t, 0.05f, 0.4f, 0.05f, shade(wood, -20))
+        lb(b, l, 0f, FL + 0.41f, 0f, 1.1f, 0.035f, 0.6f, wood)
+        lb(b, l, 0f, FL + 0.385f, 0f, 1.06f, 0.02f, 0.56f, shade(wood, -12))
+        lb(b, l, 0f, FL + 0.12f, 0f, 0.98f, 0.025f, 0.5f, shade(wood, -6))
+        for (s in floatArrayOf(-0.5f, 0.5f)) for (t in floatArrayOf(-0.25f, 0.25f)) lcyl(b, l, s, FL, t, 0.022f, 0.03f, 0.39f, shade(wood, -22), 7)
         b.m(Mt.PLAIN)
-        lcyl(b, l, 0.25f, FL + 0.425f, 0f, 0.09f, 0.07f, 0.12f, C("#EDE7E3"), 10)
-        lb(b, l, -0.2f, FL + 0.44f, 0.05f, 0.3f, 0.03f, 0.22f, C("#C0392B"))
+        lb(b, l, -0.2f, FL + 0.14f, 0.05f, 0.3f, 0.02f, 0.22f, C("#C0392B")); lb(b, l, -0.18f, FL + 0.155f, 0.04f, 0.28f, 0.012f, 0.2f, C("#ECEFF1"))
+        lb(b, l, 0.18f, FL + 0.433f, 0.04f, 0.26f, 0.01f, 0.2f, C("#263238")); lb(b, l, 0.2f, FL + 0.443f, 0.03f, 0.22f, 0.01f, 0.17f, C("#E3C567"))
+        b.m(Mt.METAL, 1f); lb(b, l, -0.25f, FL + 0.435f, -0.02f, 0.38f, 0.015f, 0.26f, C("#B08D57"))
+        b.m(Mt.PLAIN)
+        lcyl(b, l, -0.25f, FL + 0.44f, -0.02f, 0.045f, 0.035f, 0.14f, C("#FFFFFF"), 10)
+        for (k in 0 until 4) lsph(b, l, -0.25f + cos(k * 1.6f) * 0.04f, FL + 0.6f + (k % 2) * 0.03f, -0.02f + sin(k * 1.6f) * 0.04f, 0.035f, C(arrayOf("#E57373", "#FFF176", "#F48FB1", "#FFFFFF")[k]), 0.03f, 5)
     }
 
     fun tvUnit(b: MB, l: L, wood: Int, w: Float = 1.8f) {
@@ -438,23 +486,84 @@ object CityGeo {
         for (k in 0..3) CityInt.goods(b, l.wx(0f, 0.03f), FL + 0.045f + k * 0.48f, l.wz(0f, 0.03f), if (l.alongX) 0.92f else 0.24f, 0.4f, if (l.alongX) 0.24f else 0.92f, C("#FFFFFF"), Mt.BOOKS)
     }
 
+    /**
+     * Etapa 127: planta de vaso com folhas de verdade (cartões com a textura de folha, com recorte) em vez de bolas verdes.
+     * Vaso com borda, terra e pedrinhas; tipos: costela-de-adão, palmeira-areca, ficus, espada-de-são-jorge.
+     */
     fun plant(b: MB, x: Float, z: Float, s: Float, rng: City.Rng, y: Float = FL) {
-        b.m(Mt.PLAIN)
-        b.cyl(x, y, z, 0.18f * s, 0.22f * s, 0.42f * s, rng.pick(arrayOf(C("#D9D2C5"), C("#3A3A3A"), C("#B5643C"), C("#FFFFFF"))), true, 12)
-        b.cyl(x, y + 0.4f * s, z, 0.2f * s, 0.2f * s, 0.02f, C("#4E3B2A"), true, 12)
-        val gc = rng.pick(arrayOf(C("#3E8E41"), C("#2E7D32"), C("#558B2F")))
-        for (k in 0 until 3) {
-            val a = k * 2.09f
-            CityGeo.ball(b, x + cos(a) * 0.14f * s, y + (0.7f + (k % 2) * 0.25f) * s, z + sin(a) * 0.14f * s, 0.2f * s, shade(gc, k * 6), 0.28f * s, 7)
+        val pot = rng.pick(arrayOf(C("#D9D2C5"), C("#3A3A3A"), C("#B5643C"), C("#FFFFFF"), C("#5B6F5A"), C("#C9B79C")))
+        b.m(Mt.STONE, 1.5f)
+        b.cyl(x, y, z, 0.15f * s, 0.2f * s, 0.4f * s, pot, true, 14)
+        b.cyl(x, y + 0.38f * s, z, 0.215f * s, 0.215f * s, 0.05f * s, shade(pot, -10), true, 14)
+        b.m(Mt.PLAIN); b.cyl(x, y + 0.42f * s, z, 0.19f * s, 0.19f * s, 0.012f, C("#4E3B2A"), true, 12)
+        for (k in 0 until 5) CityGeo.ball(b, x + cos(k * 1.3f) * 0.1f * s, y + 0.435f * s, z + sin(k * 1.3f) * 0.1f * s, 0.025f * s, C("#BDB5A6"), 0.015f * s, 4)
+        val kind = rng.i(4)
+        val base = y + 0.43f * s
+        if (kind == 3) {
+            // espada-de-são-jorge: folhas retas listradas
+            b.m(Mt.PLAIN)
+            for (k in 0 until 9) {
+                val a = k * 0.7f + rng.r(-0.2f, 0.2f); val h = rng.r(0.5f, 0.85f) * s
+                val ox = cos(a) * 0.06f * s; val oz = sin(a) * 0.06f * s
+                val tx = ox * 2.2f; val tz = oz * 2.2f
+                val w = 0.035f * s
+                val c = if (k % 2 == 0) C("#3F6B3A") else C("#56804A")
+                q(b, P(x + ox - oz / 0.06f * w * 0.016f - w, base, z + oz) + P(x + ox + w, base, z + oz) + P(x + tx + w * 0.3f, base + h, z + tz) + P(x + tx - w * 0.3f, base + h, z + tz), c)
+                q(b, P(x + ox, base, z + oz - w) + P(x + ox, base, z + oz + w) + P(x + tx, base + h, z + tz + w * 0.3f) + P(x + tx, base + h, z + tz - w * 0.3f), shade(c, -12))
+            }
+            return
         }
+        // caules
+        b.m(Mt.PLAIN)
+        val n = when (kind) { 0 -> 7; 1 -> 9; else -> 11 }
+        val tips = ArrayList<FloatArray>()
+        for (k in 0 until n) {
+            val a = k * 2.39996f + rng.r(-0.3f, 0.3f)
+            val rr = when (kind) { 0 -> rng.r(0.22f, 0.4f); 1 -> rng.r(0.18f, 0.36f); else -> rng.r(0.08f, 0.24f) } * s
+            val hh = when (kind) { 0 -> rng.r(0.35f, 0.75f); 1 -> rng.r(0.7f, 1.25f); else -> rng.r(0.6f, 1.15f) } * s
+            val tx = x + cos(a) * rr; val tz = z + sin(a) * rr; val ty = base + hh
+            CityGeo.limb(b, x + cos(a) * 0.03f * s, base, z + sin(a) * 0.03f * s, tx, ty, tz, 0.012f * s, 0.006f * s, C(if (kind == 2) "#5D4632" else "#4E7A3A"), 4)
+            tips.add(floatArrayOf(tx, ty, tz, a))
+        }
+        // folhas: cartões cruzados com a textura (folhagem densa no ficus, folhas grandes na costela e na areca)
+        b.m(if (kind == 2) Mt.LEAF else Mt.LEAFB, 1f)
+        val gc = C(when (kind) { 0 -> "#3E7D3A"; 1 -> "#5E9A45"; else -> "#4A8A3E" })
+        for (t in tips) {
+            val sz = when (kind) { 0 -> 0.42f; 1 -> 0.55f; else -> 0.34f } * s
+            for (j in 0 until 2) {
+                val ang = t[3] + j * 1.5708f
+                val rx = cos(ang) * sz * 0.5f; val rz = sin(ang) * sz * 0.5f
+                val y0 = t[1] - sz * 0.45f; val y1 = t[1] + sz * 0.45f
+                val dx = cos(t[3]) * sz * 0.25f; val dz = sin(t[3]) * sz * 0.25f
+                val nx = cos(t[3]); val nz = sin(t[3])
+                val cc = shade(gc, rng.r(-10f, 14f).toInt())
+                b.v(t[0] - rx, y0, t[2] - rz, nx, 0.6f, nz, cc, 0.02f, 0.98f); b.v(t[0] + rx, y0, t[2] + rz, nx, 0.6f, nz, cc, 0.98f, 0.98f); b.v(t[0] + rx + dx, y1, t[2] + rz + dz, nx, 0.6f, nz, cc, 0.98f, 0.02f)
+                b.v(t[0] - rx, y0, t[2] - rz, nx, 0.6f, nz, cc, 0.02f, 0.98f); b.v(t[0] + rx + dx, y1, t[2] + rz + dz, nx, 0.6f, nz, cc, 0.98f, 0.02f); b.v(t[0] - rx + dx, y1, t[2] - rz + dz, nx, 0.6f, nz, cc, 0.02f, 0.02f)
+            }
+        }
+        if (kind == 2) for (k in 0 until 4) {
+            // copa do ficus: mais cartões no alto
+            val a = k * 1.57f; val px = x + cos(a) * 0.12f * s; val pz = z + sin(a) * 0.12f * s; val py = base + 1.0f * s
+            val sz = 0.42f * s
+            for (j in 0 until 2) {
+                val ang = a + j * 1.5708f; val rx = cos(ang) * sz * 0.5f; val rz = sin(ang) * sz * 0.5f
+                b.v(px - rx, py - sz * 0.4f, pz - rz, cos(a), 0.6f, sin(a), gc, 0.02f, 0.98f); b.v(px + rx, py - sz * 0.4f, pz + rz, cos(a), 0.6f, sin(a), gc, 0.98f, 0.98f); b.v(px + rx, py + sz * 0.5f, pz + rz, cos(a), 0.6f, sin(a), gc, 0.98f, 0.02f)
+                b.v(px - rx, py - sz * 0.4f, pz - rz, cos(a), 0.6f, sin(a), gc, 0.02f, 0.98f); b.v(px + rx, py + sz * 0.5f, pz + rz, cos(a), 0.6f, sin(a), gc, 0.98f, 0.02f); b.v(px - rx, py + sz * 0.5f, pz - rz, cos(a), 0.6f, sin(a), gc, 0.02f, 0.02f)
+            }
+        }
+        b.m(Mt.PLAIN)
     }
 
+    /** Luminária de piso em arco: base de mármore, haste curva, cúpula. */
     fun floorLamp(b: MB, x: Float, z: Float) {
+        b.m(Mt.STONE, 0.8f)
+        b.cyl(x, FL, z, 0.17f, 0.18f, 0.06f, C("#E8E4DC"), true, 14)
         b.m(Mt.METAL, 1f)
-        b.cyl(x, FL, z, 0.17f, 0.17f, 0.03f, C("#2B2B2B"), true, 12)
-        b.cyl(x, FL, z, 0.02f, 0.02f, 1.5f, C("#2B2B2B"), true, 6)
+        var px = x; var py = FL + 0.06f
+        for (k in 1..6) { val t = k / 6f; val nx = x + 0.45f * t * t; val ny = FL + 0.06f + 1.55f * kotlin.math.sin(t * 1.4f) / kotlin.math.sin(1.4f); CityGeo.limb(b, px, py, z, nx, ny, z, 0.014f, 0.014f, C("#B8A06A"), 5); px = nx; py = ny }
         b.m(Mt.FABRIC, 1f)
-        b.cyl(x, FL + 1.4f, z, 0.24f, 0.16f, 0.3f, C("#F3E9D2"), true, 14)
+        b.cyl(px, py - 0.25f, z, 0.24f, 0.13f, 0.24f, C("#F3E9D2"), true, 16)
+        b.m(Mt.PLAIN); b.cyl(px, py - 0.25f, z, 0.2f, 0.2f, 0.01f, C("#FFF6DC"), false, 14)
     }
 
     fun diningSet(b: MB, l: L, wood: Int, n: Int, fab: Int) {
@@ -476,13 +585,19 @@ object CityGeo {
     /** Cadeira com a frente (onde se senta) para F. */
     fun chair(b: MB, l: L, wood: Int, fab: Int) {
         val y = FL
+        val dk = shade(wood, -15)
         b.m(Mt.WOOD, 1f)
-        lb(b, l, 0f, y + 0.46f, 0f, 0.44f, 0.04f, 0.44f, wood)
-        for (s in floatArrayOf(-0.19f, 0.19f)) for (t in floatArrayOf(-0.19f, 0.19f)) lb(b, l, s, y + 0.23f, t, 0.04f, 0.46f, 0.04f, shade(wood, -15))
-        for (s in floatArrayOf(-0.19f, 0.19f)) lb(b, l, s, y + 0.72f, 0.2f, 0.04f, 0.52f, 0.04f, shade(wood, -15))
-        lb(b, l, 0f, y + 0.86f, 0.2f, 0.42f, 0.16f, 0.03f, wood)
+        // assento com borda e pés levemente cônicos, travessas
+        lb(b, l, 0f, y + 0.445f, 0f, 0.44f, 0.035f, 0.43f, wood)
+        for (s in floatArrayOf(-0.185f, 0.185f)) for (t in floatArrayOf(-0.18f, 0.18f)) lb(b, l, s, y + 0.215f, t, 0.035f, 0.43f, 0.035f, dk)
+        for (s in floatArrayOf(-0.185f, 0.185f)) lb(b, l, s, y + 0.16f, 0f, 0.02f, 0.025f, 0.36f, dk)
+        lb(b, l, 0f, y + 0.16f, 0.18f, 0.36f, 0.025f, 0.02f, dk)
+        // encosto: dois montantes curvos + travessa alta + três réguas
+        for (s in floatArrayOf(-0.185f, 0.185f)) CityGeo.limb(b, l.wx(s, 0.19f), y + 0.46f, l.wz(s, 0.19f), l.wx(s, 0.23f), y + 0.9f, l.wz(s, 0.23f), 0.02f, 0.018f, dk, 5)
+        lb(b, l, 0f, y + 0.86f, 0.22f, 0.4f, 0.09f, 0.025f, wood)
+        for (k in -1..1) lb(b, l, k * 0.1f, y + 0.66f, 0.205f, 0.035f, 0.3f, 0.018f, wood)
         b.m(Mt.FABRIC, 1f)
-        lb(b, l, 0f, y + 0.5f, 0f, 0.4f, 0.04f, 0.4f, fab)
+        soft(b, l, 0f, y + 0.485f, -0.01f, 0.4f, 0.045f, 0.38f, fab, 0.015f)
     }
 
     /** Bancada de cozinha encostada na parede atrás de [l] (largura [w]): armários, pia, fogão, armários de cima. */
@@ -563,25 +678,59 @@ object CityGeo {
         for (k in 0 until n) lb(b, l, -w / 2 + w * (k + 0.5f) / n + (if (k % 2 == 0) 0.17f else -0.17f) * w / n * 2f, FL + 1.05f, -0.315f, 0.025f, 0.3f, 0.02f, C("#B0B0B0"))
     }
 
+    /** Mesa de trabalho: gaveteiro, monitor com suporte, teclado, mouse, luminária, papéis, caneca, porta-lápis. */
     fun desk(b: MB, l: L, wood: Int, fab: Int) {
         b.m(Mt.WOOD, 1f)
-        lb(b, l, 0f, FL + 0.74f, 0f, 1.3f, 0.04f, 0.65f, wood)
-        for (s in floatArrayOf(-0.6f, 0.6f)) lb(b, l, s, FL + 0.37f, 0f, 0.05f, 0.74f, 0.6f, shade(wood, -15))
+        lb(b, l, 0f, FL + 0.74f, 0f, 1.3f, 0.035f, 0.66f, wood)
+        lb(b, l, -0.62f, FL + 0.37f, 0f, 0.04f, 0.72f, 0.62f, shade(wood, -15))
+        lb(b, l, 0.38f, FL + 0.36f, 0f, 0.48f, 0.7f, 0.6f, shade(wood, -8))   // gaveteiro
+        b.m(Mt.PLAIN)
+        for (k in 0 until 3) { lb(b, l, 0.38f, FL + 0.15f + k * 0.21f, -0.302f, 0.44f, 0.19f, 0.006f, shade(wood, -2)); lb(b, l, 0.38f, FL + 0.22f + k * 0.21f, -0.31f, 0.12f, 0.015f, 0.012f, C("#9E9E9E")) }
+        lb(b, l, 0f, FL + 0.55f, 0.3f, 1.2f, 0.36f, 0.015f, shade(wood, -18))   // painel de fundo
         b.m(Mt.METAL, 1f)
-        lb(b, l, 0.1f, FL + 1.05f, 0.18f, 0.6f, 0.36f, 0.03f, C("#1A1A1A"))
-        lb(b, l, 0.1f, FL + 1.05f, 0.163f, 0.56f, 0.32f, 0.005f, C("#26476B"))
-        lb(b, l, 0.1f, FL + 0.82f, 0.2f, 0.05f, 0.14f, 0.05f, C("#1A1A1A"))
-        lb(b, l, 0.05f, FL + 0.77f, -0.08f, 0.45f, 0.02f, 0.15f, C("#2A2A2A"))
+        lb(b, l, 0.05f, FL + 0.765f, 0.15f, 0.22f, 0.015f, 0.18f, C("#2A2A2A"))
+        lb(b, l, 0.05f, FL + 0.86f, 0.17f, 0.04f, 0.2f, 0.03f, C("#2A2A2A"))
+        lb(b, l, 0.05f, FL + 1.08f, 0.16f, 0.62f, 0.36f, 0.03f, C("#151515"))
+        b.m(Mt.PLAIN)
+        lb(b, l, 0.05f, FL + 1.085f, 0.143f, 0.58f, 0.32f, 0.004f, C("#2F5D8C"), false)
+        lb(b, l, -0.08f, FL + 1.13f, 0.14f, 0.24f, 0.14f, 0.003f, C("#E8F1FA"), false); lb(b, l, 0.2f, FL + 1.04f, 0.14f, 0.2f, 0.18f, 0.003f, C("#9FC3E6"), false)
+        b.m(Mt.METAL, 1f)
+        lb(b, l, 0.02f, FL + 0.765f, -0.1f, 0.44f, 0.018f, 0.15f, C("#303030"))
+        b.m(Mt.PLAIN); lb(b, l, 0.02f, FL + 0.776f, -0.1f, 0.4f, 0.004f, 0.11f, C("#555555"))
+        lsph(b, l, 0.33f, FL + 0.77f, -0.1f, 0.03f, C("#303030"), 0.018f, 6)
+        lb(b, l, -0.38f, FL + 0.762f, -0.02f, 0.22f, 0.006f, 0.3f, C("#FAFAFA")); lb(b, l, -0.36f, FL + 0.768f, -0.04f, 0.21f, 0.006f, 0.29f, C("#FFFDE7"))
+        lcyl(b, l, -0.5f, FL + 0.758f, 0.12f, 0.04f, 0.04f, 0.1f, C("#C62828"), 8)
+        lcyl(b, l, -0.55f, FL + 0.758f, -0.15f, 0.035f, 0.035f, 0.1f, C("#37474F"), 8)
+        for (k in 0 until 3) CityGeo.limb(b, l.wx(-0.55f + (k - 1) * 0.012f, -0.15f), FL + 0.8f, l.wz(-0.55f + (k - 1) * 0.012f, -0.15f), l.wx(-0.55f + (k - 1) * 0.02f, -0.15f), FL + 0.92f, l.wz(-0.55f + (k - 1) * 0.02f, -0.15f), 0.005f, 0.005f, C(arrayOf("#1565C0", "#F9A825", "#C62828")[k]), 3)
+        // luminária de mesa articulada
+        b.m(Mt.METAL, 1f)
+        lcyl(b, l, -0.52f, FL + 0.758f, 0.2f, 0.07f, 0.07f, 0.02f, C("#212121"), 10)
+        CityGeo.limb(b, l.wx(-0.52f, 0.2f), FL + 0.77f, l.wz(-0.52f, 0.2f), l.wx(-0.45f, 0.1f), FL + 1.12f, l.wz(-0.45f, 0.1f), 0.01f, 0.01f, C("#212121"), 4)
+        CityGeo.limb(b, l.wx(-0.45f, 0.1f), FL + 1.12f, l.wz(-0.45f, 0.1f), l.wx(-0.32f, -0.05f), FL + 1.08f, l.wz(-0.32f, -0.05f), 0.01f, 0.01f, C("#212121"), 4)
+        lcyl(b, l, -0.32f, FL + 1.0f, -0.05f, 0.07f, 0.03f, 0.08f, C("#212121"), 10)
         officeChair(b, L(l.wx(0f, -0.65f), l.wz(0f, -0.65f), -l.fx, -l.fz), fab)
     }
 
+    /** Cadeira de escritório: base estrela de 5 pontas com rodízios, pistão, assento e encosto estofados, braços. */
     fun officeChair(b: MB, l: L, fab: Int) {
         b.m(Mt.METAL, 1f)
-        lcyl(b, l, 0f, FL + 0.05f, 0f, 0.28f, 0.28f, 0.04f, C("#222222"), 5)
-        lcyl(b, l, 0f, FL + 0.05f, 0f, 0.03f, 0.03f, 0.4f, C("#555555"), 6)
+        val cx = l.wx(0f, 0f); val cz = l.wz(0f, 0f)
+        for (k in 0 until 5) {
+            val a = k * 1.2566f + 0.3f
+            val ex = cx + cos(a) * 0.3f; val ez = cz + sin(a) * 0.3f
+            CityGeo.limb(b, cx, FL + 0.1f, cz, ex, FL + 0.07f, ez, 0.022f, 0.016f, C("#1E1E1E"), 4)
+            CityGeo.ball(b, ex, FL + 0.035f, ez, 0.03f, C("#111111"), 0.035f, 5)
+        }
+        lcyl(b, l, 0f, FL + 0.09f, 0f, 0.04f, 0.04f, 0.08f, C("#1E1E1E"), 8)
+        lcyl(b, l, 0f, FL + 0.17f, 0f, 0.025f, 0.025f, 0.26f, C("#9E9E9E"), 8)
+        lb(b, l, 0f, FL + 0.43f, 0f, 0.3f, 0.03f, 0.3f, C("#1E1E1E"))
         b.m(Mt.FABRIC, 1f)
-        lb(b, l, 0f, FL + 0.47f, 0f, 0.48f, 0.08f, 0.46f, fab)
-        lb(b, l, 0f, FL + 0.82f, 0.22f, 0.44f, 0.56f, 0.07f, fab)
+        soft(b, l, 0f, FL + 0.48f, -0.01f, 0.5f, 0.08f, 0.48f, fab, 0.03f)
+        CityGeo.limb(b, l.wx(0f, 0.18f), FL + 0.45f, l.wz(0f, 0.18f), l.wx(0f, 0.25f), FL + 0.62f, l.wz(0f, 0.25f), 0.03f, 0.03f, C("#1E1E1E"), 5)
+        soft(b, l, 0f, FL + 0.86f, 0.26f, 0.46f, 0.5f, 0.07f, fab, 0.03f)
+        soft(b, l, 0f, FL + 0.75f, 0.23f, 0.36f, 0.14f, 0.04f, shade(fab, -10), 0.02f)   // apoio lombar
+        b.m(Mt.METAL, 1f)
+        for (s in floatArrayOf(-0.26f, 0.26f)) { lb(b, l, s, FL + 0.56f, 0.04f, 0.03f, 0.16f, 0.03f, C("#1E1E1E")); lb(b, l, s, FL + 0.65f, 0f, 0.06f, 0.025f, 0.26f, C("#2A2A2A")) }
     }
 
     fun bathroom(b: MB, x0: Float, z0: Float, x1: Float, z1: Float, backZ: Float, fz: Float) {
@@ -990,7 +1139,14 @@ object CityGeo {
         H.box(cx, FL + gh - 0.9f, Z(set - 1.0f), w - 0.4f, 0.14f, 2.0f, C("#4A4F55"))
         H.m(Mt.PLAIN)
         H.box(cx, FL + gh - 0.98f, Z(set - 1.0f), w - 0.6f, 0.02f, 1.8f, C("#FFF6D8"), false)
-        if (shop != null) sign(H, cx, FL + gh - 0.7f, Z(set - 0.17f), 0f, fz, min(w - 2f, 9f), 0.85f, City.signIdx(shop))
+        if (shop != null) {
+            val si = Signs.pick(shop, rng)
+            val sp = Signs.spec(si)
+            // letreiro em pé na borda da marquise (como nas fachadas de verdade); a faixa da marquise ganha frente mais alta
+            H.m(Mt.METAL, 1f); H.box(cx, FL + gh - 0.95f, Z(set - 2.0f), w - 0.4f, 0.38f, 0.06f, C("#3A3F45"))
+            Signs.mount(H, si, cx, FL + gh - 0.8f, Z(set - 2.0f), fz, min(w - 2f, 9f), if (sp.style == Signs.LETTERS) 0.9f else 0.75f, 0.04f)
+            if (sp.blade >= 0) Signs.blade(H, sp.blade, x0 + 0.6f, FL + gh + 0.4f, Z(set), fz, 0.9f)
+        }
         // andares
         H.m(Mt.STONE, 0.5f)
         H.box(cx, FL + gh + 0.1f, cz, w + 0.3f, 0.2f, d + 0.3f, shade(stoneC, 10))
@@ -1495,15 +1651,21 @@ object CityGeo {
             // platibanda, toldo, letreiro, andar de cima
             H.m(Mt.STONE, 0.5f)
             H.box(cx, FL + hh + 0.3f, (z0 + z1) / 2, x1 - x0 + 0.1f, 0.6f, depth + 0.1f, shade(col, -28))
-            val ac = C(rng.pick(arrayOf("#D7263D", "#1B98E0", "#2A9D8F", "#F4A261", "#6A4C93", "#2E7D32", "#795548")))
-            val stripes = 10
-            for (s in 0 until stripes) {
-                val a0 = x0 + 0.3f + (x1 - x0 - 0.6f) * s / stripes; val a1 = a0 + (x1 - x0 - 0.6f) / stripes
-                H.m(Mt.FABRIC, 1f)
-                q(H, P(a0, FL + 3.25f, Z(1.42f)) + P(a1, FL + 3.25f, Z(1.42f)) + P(a1, FL + 2.7f, Z(0.2f)) + P(a0, FL + 2.7f, Z(0.2f)), if (s % 2 == 0) ac else C("#FFFFFF"))
-                q(H, P(a0, FL + 2.7f, Z(0.2f)) + P(a1, FL + 2.7f, Z(0.2f)) + P(a1, FL + 2.5f, Z(0.18f)) + P(a0, FL + 2.5f, Z(0.18f)), if (s % 2 == 0) ac else C("#FFFFFF"))
+            // Etapa 127: cada loja com marca, letreiro e toldo próprios (caixa luminosa, letra-caixa, neon, madeira, toldo com nome)
+            val si = Signs.pick(signName, rng)
+            val sp = Signs.spec(si)
+            val doorX = cx + sw * 0.28f
+            val awnT = if (sp.style == Signs.AWNING) 1 else sp.awn
+            val awnC = if (sp.style == Signs.AWNING) C(sp.bg) else C(rng.pick(arrayOf("#B3261E", "#1F5E8C", "#2A7D6F", "#C46A1C", "#5B3F86", "#2E6B30", "#6B4A3A", "#22313F")))
+            if (awnT > 0) Signs.awning(H, awnT, x0 + 0.45f, x1 - 0.45f, FL + 3.22f, zf, fz, 1.15f, awnC, if (sp.style == Signs.AWNING) si else -1)
+            if (sp.style != Signs.AWNING) {
+                val sh = if (sp.style == Signs.LETTERS) 0.82f else 0.7f
+                Signs.mount(H, si, cx, FL + 3.4f, zf, fz, min(x1 - x0 - 1.4f, 6.2f), sh)
             }
-            sign(H, cx, FL + 3.45f, Z(1.4f) + fz * 0.03f, 0f, fz, min(x1 - x0 - 1.2f, 6.5f), 0.75f, City.signIdx(signName))
+            if (sp.blade >= 0) Signs.blade(H, sp.blade, if (doorX > cx) x0 + 0.3f else x1 - 0.3f, FL + 3.35f, zf, fz, 0.62f)
+            Signs.doorDetails(H, doorX, FL, zf, fz, cx - sw * 0.12f, sw * 0.5f, C(sp.fg.let { if (sp.style == Signs.LETTERS || sp.style == Signs.NEON) it else sp.bg }), k + 1)
+            if (sp.awn == 1 || sp.awn == 3 || kind == 2) Signs.aframe(H, doorX + 0.95f, CURB, zf + fz * 0.85f, fz)
+            if (rng.chance(0.55f)) Signs.planter(H, cx - sw * 0.12f, CURB, zf + fz * 0.3f, min(sw * 0.45f, 2.4f), rng)
             if (two) {
                 val y2 = FL + hh + 0.6f
                 H.m(Mt.PLASTER, 0.5f); H.box(cx, y2 + 1.5f, (z0 + z1) / 2, x1 - x0, 3.0f, depth, col)
@@ -1522,12 +1684,12 @@ object CityGeo {
             if (kind == 2) {
                 for (t in 0 until 2) {
                     val tx = cx - 1.6f + t * 3.2f
-                    cafeTableOut(g.b, tx, Z(0.6f), ac)
+                    cafeTableOut(g.b, tx, Z(0.6f), awnC)
                 }
             }
             // longe
             g.f.m(Mt.PLASTER, 0.5f); g.f.box(cx, (FL + hh + (if (two) 3.6f else 0.6f)) / 2, (z0 + z1) / 2, x1 - x0, FL + hh + (if (two) 3.6f else 0.6f), depth, col)
-            g.f.m(Mt.FABRIC, 1f); g.f.box(cx, FL + 3.0f, Z(0.8f), x1 - x0 - 0.6f, 0.4f, 1.2f, ac)
+            if (awnT > 0) { g.f.m(Mt.FABRIC, 1f); g.f.box(cx, FL + 3.0f, Z(0.8f), x1 - x0 - 0.9f, 0.4f, 1.15f, awnC) }
         }
     }
 
@@ -1569,10 +1731,147 @@ object CityGeo {
             "police" -> { plaza(g); police(g) }
             "church" -> { lawn(g); church(g) }
             "praca" -> { lawn(g); praca(g) }
-            "park" -> { lawn(g); park(g) }
+            "park" -> { lawnHole(g, (g.x0 + g.x1) / 2 + 4f, (g.z0 + g.z1) / 2 - 3f, 12.5f + 2f); park(g) }
             "fun" -> { CityFun.park(g); 30f }
             else -> { lawn(g); 1f }
         }
+    }
+
+    /** Gramado com um buraco quadrado (onde entra o terreno do lago). */
+    private fun lawnHole(g: Gen, hx: Float, hz: Float, hr: Float) {
+        val c = C("#D6EEC4")
+        groundBox(g.b, g.x0, g.z0, g.x1, hz - hr, Mt.GRASS, 0.3f, c); groundBox(g.b, g.x0, hz + hr, g.x1, g.z1, Mt.GRASS, 0.3f, c)
+        groundBox(g.b, g.x0, hz - hr, hx - hr, hz + hr, Mt.GRASS, 0.3f, c); groundBox(g.b, hx + hr, hz - hr, g.x1, hz + hr, Mt.GRASS, 0.3f, c)
+        groundBox(g.f, g.x0, g.z0, g.x1, g.z1, Mt.GRASS, 0.3f, c)
+    }
+
+    /**
+     * Etapa 127: lago natural. Terreno em grade com margem irregular: grama → barranco de terra → fundo escuro;
+     * a água (shader próprio) fica um palmo abaixo do gramado. Pedras na margem, taboas, vitórias-régias, ponte em arco
+     * de madeira com corrimão, deque com bancos e patos.
+     */
+    fun lake(g: Gen, lx: Float, lz: Float, r: Float) {
+        val b = g.b; val rng = g.rng
+        val wy = CURB - 0.28f
+        val er = r * City.LAKE_EDGE
+        fun edge(a: Float) = er * (1f + 0.10f * sin(a * 3f + 0.7f) + 0.06f * sin(a * 5f + 2.1f) + 0.04f * cos(a * 2f))
+        fun h(x: Float, z: Float): Float {
+            val dx = x - lx; val dz = z - lz
+            val d = sqrt(dx * dx + dz * dz); val e = edge(kotlin.math.atan2(dz, dx))
+            val t = d / e
+            return when {
+                t > 1.16f -> CURB
+                t > 1.0f -> wy + 0.06f + (CURB - wy - 0.06f) * ((t - 1f) / 0.16f).let { it * it * (3 - 2 * it) }
+                else -> wy + 0.06f - 1.3f * (1f - t * t).let { kotlin.math.sqrt(it) }
+            }
+        }
+        val hr = r + 2f
+        val n = 46
+        val step = 2 * hr / n
+        val grass = C("#CFE6B8"); val mud = C("#7A6448"); val bed = C("#3E4A3A")
+        for (j in 0 until n) for (i in 0 until n) {
+            val x0 = lx - hr + i * step; val z0 = lz - hr + j * step; val x1 = x0 + step; val z1 = z0 + step
+            val h00 = h(x0, z0); val h10 = h(x1, z0); val h01 = h(x0, z1); val h11 = h(x1, z1)
+            val hm = (h00 + h10 + h01 + h11) / 4
+            val (mat, col) = when {
+                hm > CURB - 0.02f -> Pair(Mt.GRASS, grass)
+                hm > wy - 0.08f -> Pair(Mt.STONE, mud)
+                else -> Pair(Mt.PLAIN, bed)
+            }
+            b.m(mat, if (mat == Mt.GRASS) 0.3f else 0.8f)
+            q(b, P(x0, h00, z0) + P(x0, h01, z1) + P(x1, h11, z1) + P(x1, h10, z0), col)
+        }
+        g.f.m(Mt.PLAIN); g.f.cyl(lx, CURB - 0.1f, lz, er * 1.05f, er * 1.05f, 0.11f, C("#3F6E7A"), true, 20)
+        if (g.reg) City.lakes.add(floatArrayOf(lx, lz, r, wy))
+        // água: bloqueia andando (menos o corredor da ponte)
+        g.solid(lx - er * 0.95f, lz - er * 0.95f, lx - 1.25f, lz + er * 0.95f); g.solid(lx + 1.25f, lz - er * 0.95f, lx + er * 0.95f, lz + er * 0.95f)
+        // pedras na margem
+        b.m(Mt.STONE, 1.2f)
+        for (k in 0 until 46) {
+            val a = k * 6.2832f / 46 + rng.r(-0.05f, 0.05f)
+            val e = edge(a) * rng.r(0.98f, 1.06f)
+            val sz = rng.r(0.18f, 0.45f)
+            ball(b, lx + cos(a) * e, wy + 0.05f, lz + sin(a) * e, sz, C(rng.pick(arrayOf("#8E8A80", "#A29D92", "#7D786E", "#9A948A"))), sz * rng.r(0.45f, 0.7f), 7)
+        }
+        // taboas e capim alto em moitas na margem
+        b.m(Mt.PLAIN)
+        for (k in 0 until 16) {
+            val a = rng.r(0f, 6.2832f)
+            if (abs(sin(a)) < 0.25f) continue   // deixa a frente da ponte livre
+            val e = edge(a) * rng.r(0.9f, 1.0f)
+            val bx = lx + cos(a) * e; val bz = lz + sin(a) * e
+            for (m in 0 until 9) {
+                val ox = rng.r(-0.45f, 0.45f); val oz = rng.r(-0.45f, 0.45f)
+                val hh = rng.r(0.9f, 1.6f); val lean = rng.r(-0.18f, 0.18f)
+                val c = C(rng.pick(arrayOf("#5C7F3A", "#6E8F45", "#4E6E33", "#7A9A50")))
+                val x = bx + ox; val z = bz + oz
+                q(b, P(x - 0.04f, wy, z) + P(x + 0.04f, wy, z) + P(x + lean + 0.012f, wy + hh, z + lean * 0.5f) + P(x + lean - 0.012f, wy + hh, z + lean * 0.5f), c)
+                q(b, P(x, wy, z - 0.04f) + P(x, wy, z + 0.04f) + P(x + lean, wy + hh, z + lean * 0.5f + 0.012f) + P(x + lean, wy + hh, z + lean * 0.5f - 0.012f), shade(c, -15))
+                if (m % 3 == 0) { b.cyl(x + lean * 0.78f, wy + hh * 0.72f, z + lean * 0.39f, 0.03f, 0.03f, 0.18f, C("#5D3A1F"), true, 5) }
+            }
+        }
+        // vitórias-régias (com uma flor rosa de vez em quando)
+        for (k in 0 until 22) {
+            val a = rng.r(0f, 6.2832f); val d = edge(a) * rng.r(0.35f, 0.85f)
+            val px = lx + cos(a) * d; val pz = lz + sin(a) * d
+            if (abs(px - lx) < 1.6f) continue   // embaixo da ponte não
+            val rr = rng.r(0.25f, 0.5f)
+            b.m(Mt.PLAIN)
+            val nseg = 10; val gap = rng.r(0f, 6.28f)
+            for (sgi in 0 until nseg) {
+                val a0 = gap + 0.35f + sgi * (6.2832f - 0.5f) / nseg; val a1 = gap + 0.35f + (sgi + 1) * (6.2832f - 0.5f) / nseg
+                tri(b, P(px, wy + 0.035f, pz) + P(px + cos(a1) * rr, wy + 0.03f, pz + sin(a1) * rr) + P(px + cos(a0) * rr, wy + 0.03f, pz + sin(a0) * rr), C(if (k % 2 == 0) "#4F8A3A" else "#5E9944"))
+            }
+            if (k % 5 == 0) { ball(b, px + 0.05f, wy + 0.08f, pz, 0.07f, C("#F48FB1"), 0.05f, 6); ball(b, px + 0.05f, wy + 0.11f, pz, 0.03f, C("#FFF176"), 0.02f, 5) }
+        }
+        // ponte em arco de madeira atravessando o lago (norte-sul)
+        val bl = er * 2.5f
+        val bw = 2.0f
+        b.m(Mt.WOOD, 1f)
+        val np = (bl / 0.3f).toInt()
+        fun deck(t: Float) = CURB + 0.12f + 0.75f * sin(PI.toFloat() * t)
+        for (k in 0 until np) {
+            val t = (k + 0.5f) / np
+            val z = lz - bl / 2 + t * bl
+            b.box(lx, deck(t), z, bw, 0.06f, 0.27f, C(if (k % 2 == 0) "#9B7350" else "#8E6A49"))
+        }
+        // vigas, pilares e corrimão
+        for (sd in floatArrayOf(-1f, 1f)) {
+            for (k in 0 until 12) {
+                val t0 = k / 12f; val t1 = (k + 1) / 12f
+                limb(b, lx + sd * bw * 0.48f, deck(t0) - 0.08f, lz - bl / 2 + t0 * bl, lx + sd * bw * 0.48f, deck(t1) - 0.08f, lz - bl / 2 + t1 * bl, 0.07f, 0.07f, C("#6E4E33"), 4)
+                limb(b, lx + sd * bw * 0.5f, deck(t0) + 0.92f, lz - bl / 2 + t0 * bl, lx + sd * bw * 0.5f, deck(t1) + 0.92f, lz - bl / 2 + t1 * bl, 0.05f, 0.05f, C("#7A5638"), 5)
+                limb(b, lx + sd * bw * 0.5f, deck(t0) + 0.5f, lz - bl / 2 + t0 * bl, lx + sd * bw * 0.5f, deck(t1) + 0.5f, lz - bl / 2 + t1 * bl, 0.025f, 0.025f, C("#7A5638"), 4)
+            }
+            for (k in 0..12) {
+                val t = k / 12f
+                b.box(lx + sd * bw * 0.5f, deck(t) + 0.47f, lz - bl / 2 + t * bl, 0.09f, 0.94f, 0.09f, C("#6E4E33"))
+                if (k % 3 == 0 && k in 1..11) b.box(lx + sd * bw * 0.48f, (wy - 0.4f + deck(t)) / 2, lz - bl / 2 + t * bl, 0.14f, deck(t) - wy + 0.4f, 0.14f, C("#5B4029"))
+            }
+            // lanterninhas nas pontas
+            for (e in floatArrayOf(0f, 1f)) { b.box(lx + sd * bw * 0.5f, deck(e) + 1.05f, lz - bl / 2 + e * bl, 0.16f, 0.22f, 0.16f, C("#2E2E2E")); b.m(Mt.PLAIN); b.box(lx + sd * bw * 0.5f, deck(e) + 1.05f, lz - bl / 2 + e * bl, 0.12f, 0.16f, 0.17f, C("#FFF3C4"), false); b.m(Mt.WOOD, 1f) }
+        }
+        // deque de madeira na margem leste com bancos
+        val dx0 = lx + er * 0.82f
+        b.m(Mt.WOOD, 1f)
+        for (k in 0 until 14) b.box(dx0 + 1.4f, CURB + 0.1f, lz - 2.6f + k * 0.37f, 3.2f, 0.06f, 0.33f, C(if (k % 2 == 0) "#A57B55" else "#987150"))
+        for (s2 in floatArrayOf(-2.5f, 2.5f)) for (t in floatArrayOf(0.1f, 2.7f)) b.box(dx0 + t, (wy - 0.3f + CURB) / 2, lz + s2, 0.14f, CURB - wy + 0.3f, 0.14f, C("#5B4029"))
+        b.box(dx0 + 0.05f, CURB + 0.6f, lz, 0.06f, 0.06f, 5.2f, C("#7A5638")); for (k in 0..4) b.box(dx0 + 0.05f, CURB + 0.35f, lz - 2.5f + k * 1.25f, 0.08f, 0.5f, 0.08f, C("#6E4E33"))
+        publicBench(b, dx0 + 2.4f, lz - 1.3f, -1f, 0f); publicBench(b, dx0 + 2.4f, lz + 1.3f, -1f, 0f)
+        // patos (corpo, cabeça, bico, cauda)
+        for (k in 0 until 5) {
+            val a = 1.0f + k * 0.5f; val d = er * 0.55f
+            val px = lx + cos(a) * d + (k % 2) * 0.6f; val pz = lz + sin(a) * d
+            val fx = -sin(a); val fz = cos(a)
+            val wh = k != 2
+            b.m(Mt.PLAIN)
+            ball(b, px, wy + 0.1f, pz, 0.2f, C(if (wh) "#F5F5F0" else "#7A6A55"), 0.12f, 8)
+            ball(b, px + fx * 0.17f, wy + 0.27f, pz + fz * 0.17f, 0.085f, C(if (wh) "#FAFAF5" else "#2E6B3A"), 0.085f, 7)
+            b.box(px + fx * 0.27f, wy + 0.26f, pz + fz * 0.27f, 0.08f, 0.03f, 0.08f, C("#F39C12"))
+            ball(b, px - fx * 0.2f, wy + 0.17f, pz - fz * 0.2f, 0.07f, C(if (wh) "#ECECE6" else "#5E4E3C"), 0.05f, 5)
+        }
+        g.solid(lx - bw / 2 - 0.2f, lz - bl / 2, lx - bw / 2, lz + bl / 2); g.solid(lx + bw / 2, lz - bl / 2, lx + bw / 2 + 0.2f, lz + bl / 2)
+        if (g.reg) City.bridges.add(floatArrayOf(lx - bw / 2, lz - bl / 2, lx + bw / 2, lz + bl / 2, CURB + 0.15f, 0.75f))
     }
 
     private fun lawn(g: Gen) { groundBox(g.b, g.x0, g.z0, g.x1, g.z1, Mt.GRASS, 0.3f, C("#D6EEC4")); groundBox(g.f, g.x0, g.z0, g.x1, g.z1, Mt.GRASS, 0.3f, C("#D6EEC4")) }
@@ -1959,18 +2258,24 @@ object CityGeo {
     private fun park(g: Gen): Float {
         val b = g.b; val rng = g.rng
         val cx = (g.x0 + g.x1) / 2; val cz = (g.z0 + g.z1) / 2
-        b.m(Mt.PLAIN)
-        b.cyl(cx + 4f, CURB - 0.05f, cz - 3f, 11f, 11f, 0.08f, C("#C9B79A"), true, 36)
-        b.cyl(cx + 4f, CURB - 0.04f, cz - 3f, 10f, 10f, 0.1f, C("#3FA4C8"), true, 36)
-        for (k in 0 until 6) { val a = k * 1.05f; CityGeo.ball(b, cx + 4f + 10.4f * cos(a), CURB, cz - 3f + 10.4f * sin(a), 0.5f, C("#9E9E9E"), 0.3f, 6) }
-        g.solid(cx - 6f, cz - 13f, cx + 14f, cz + 7f)
-        // ponte de madeira no lago e patinhos
-        b.m(Mt.WOOD, 1f); b.box(cx + 4f, CURB + 0.25f, cz - 3f, 2f, 0.12f, 21f, C("#A47551"))
-        b.m(Mt.PLAIN); for (k in 0 until 3) { CityGeo.ball(b, cx + 8f + k * 0.8f, CURB + 0.1f, cz - 6f + k * 0.5f, 0.15f, C("#FFFFFF"), 0.11f, 6); b.box(cx + 8.12f + k * 0.8f, CURB + 0.14f, cz - 6f + k * 0.5f, 0.05f, 0.03f, 0.05f, C("#FF9800")) }
-        b.m(Mt.PAVER, 0.7f)
-        for (k in 0 until 48) {
-            val a0 = k * 6.283f / 48; val r = 19f
-            b.box(cx + r * cos(a0 + 0.065f), CURB + 0.012f, cz + r * sin(a0 + 0.065f), 2.8f, 0.02f, 2.8f, C("#E1D2B6"))
+        lake(g, cx + 4f, cz - 3f, 12.5f)
+        // caminho circular contínuo em volta do lago (piso intertravado com meio-fio de pedra)
+        run {
+            val r0 = 18.0f; val r1 = 20.4f; val n = 72
+            b.m(Mt.PAVER, 0.7f)
+            for (k in 0 until n) {
+                val a0 = k * 6.2832f / n; val a1 = (k + 1) * 6.2832f / n
+                q(b, P(cx + r0 * cos(a0), CURB + 0.03f, cz + r0 * sin(a0)) + P(cx + r1 * cos(a0), CURB + 0.03f, cz + r1 * sin(a0)) + P(cx + r1 * cos(a1), CURB + 0.03f, cz + r1 * sin(a1)) + P(cx + r0 * cos(a1), CURB + 0.03f, cz + r0 * sin(a1)), C("#E4D6BC"))
+            }
+            b.m(Mt.STONE, 1f)
+            for (k in 0 until n) {
+                val a0 = k * 6.2832f / n; val a1 = (k + 1) * 6.2832f / n
+                for (rr in floatArrayOf(r0 - 0.08f, r1 + 0.08f)) {
+                    val x0 = cx + rr * cos(a0); val z0 = cz + rr * sin(a0); val x1 = cx + rr * cos(a1); val z1 = cz + rr * sin(a1)
+                    val nx = cos((a0 + a1) / 2) * 0.08f; val nz = sin((a0 + a1) / 2) * 0.08f
+                    q(b, P(x0 - nx, CURB + 0.07f, z0 - nz) + P(x0 + nx, CURB + 0.07f, z0 + nz) + P(x1 + nx, CURB + 0.07f, z1 + nz) + P(x1 - nx, CURB + 0.07f, z1 - nz), C("#B8B2A6"))
+                }
+            }
         }
         val px = g.x0 + 7f; val pz = g.z0 + 7f
         b.m(Mt.PLAIN); b.box(px, CURB + 0.02f, pz, 10f, 0.04f, 10f, C("#E8C99A"))

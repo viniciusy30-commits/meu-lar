@@ -407,6 +407,50 @@ object Tex {
     private val FILES = arrayOf(null, "mat_floor_l", "mat_floor_d", "mat_tile", "mat_stone", "mat_plaster",
         "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null, "leaf_oak", "leaf_maple", "bark_oak", "leaf_bush")
 
+    /**
+     * Etapa 127: mipmaps que preservam a cobertura do recorte (folhas, letras). Com o mipmap comum o alfa vira média,
+     * cai abaixo do corte e as folhas "somem"/piscam de longe. Aqui cada nível tem o alfa reescalado para cobrir a mesma área.
+     */
+    fun uploadCoverageMips(src: Bitmap, cut: Float) {
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, src, 0)
+        var w = src.width; var h = src.height
+        val a0 = IntArray(w * h); src.getPixels(a0, 0, w, 0, 0, w, h)
+        var cov0 = 0; val ct = (cut * 255).toInt()
+        for (c in a0) if ((c ushr 24) > ct) cov0++
+        val target = cov0.toFloat() / (w * h)
+        var cur = a0
+        var level = 1
+        while (w > 1 || h > 1) {
+            val nw = max(1, w / 2); val nh = max(1, h / 2)
+            val nx = IntArray(nw * nh)
+            // média 2×2 com cor ponderada pelo alfa (sem franja escura nas bordas das folhas)
+            for (y in 0 until nh) for (x in 0 until nw) {
+                var ar = 0; var rr = 0; var gg = 0; var bb = 0
+                for (dy in 0..1) for (dx in 0..1) {
+                    val c = cur[min(h - 1, y * 2 + dy) * w + min(w - 1, x * 2 + dx)]
+                    val a = c ushr 24
+                    ar += a; rr += ((c shr 16) and 255) * a; gg += ((c shr 8) and 255) * a; bb += (c and 255) * a
+                }
+                val ad = max(1, ar)
+                nx[y * nw + x] = ((ar / 4) shl 24) or ((rr / ad) shl 16) or ((gg / ad) shl 8) or (bb / ad)
+            }
+            // escala do alfa que mantém a cobertura (busca binária)
+            var lo = 0.5f; var hi = 8f
+            for (it in 0 until 12) {
+                val sc = (lo + hi) / 2
+                var cv = 0
+                for (c in nx) if (((c ushr 24) * sc) > ct) cv++
+                if (cv.toFloat() / (nw * nh) < target) lo = sc else hi = sc
+            }
+            val sc = (lo + hi) / 2
+            val out = IntArray(nw * nh) { i -> val c = nx[i]; val a = min(255, ((c ushr 24) * sc).toInt()); (a shl 24) or (c and 0xFFFFFF) }
+            val bm = Bitmap.createBitmap(out, nw, nh, Bitmap.Config.ARGB_8888)
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, level, bm, 0)
+            bm.recycle()
+            cur = nx; w = nw; h = nh; level++
+        }
+    }
+
     /** Etapa 69: texturas de material pintadas (assets/flora/tex/mat_*.png); se faltar, usa a procedural. */
     private fun fileTex(m: Int): Bitmap? {
         val n = FILES.getOrNull(m) ?: return null
@@ -423,14 +467,17 @@ object Tex {
         for (m in 0 until Mt.COUNT) {
             val small = m == Mt.PLAIN || m == Mt.GLASS
             val sz = if (small) 4 else S
-            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) City.signBitmap() else fileTex(m)
+            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) Signs.atlas() else fileTex(m)
             if (bmp == null) {
                 val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
                 bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)
             }
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[m])
-            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
-            if (!small) GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            if (Mt.isLeaf(m) || m == Mt.SIGN) uploadCoverageMips(bmp, 0.5f)
+            else {
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+                if (!small) GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            }
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, if (small) GLES20.GL_LINEAR else GLES20.GL_LINEAR_MIPMAP_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
@@ -727,6 +774,9 @@ class MB {
 
     fun isEmpty(): Boolean = bufs.values.all { it.n == 0 }
 
+    /** Etapa 127: altura máxima (y) de toda a geometria (sombra dos prédios). */
+    fun maxY(): Float { var m = -1e9f; for (f in bufs.values) { var i = 1; while (i < f.n) { if (f.a[i] > m) m = f.a[i]; i += STRIDE } }; return m }
+
     fun clear() { for (f in bufs.values) f.n = 0 }
 
     fun toMesh(gpu: Boolean = false): Mesh {
@@ -736,7 +786,7 @@ class MB {
             val bb = ByteBuffer.allocateDirect(f.n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             bb.put(f.a, 0, f.n)
             bb.position(0)
-            parts.add(Part(mat, bb, f.n / STRIDE).also { it.gpu = gpu; if (Mt.isLeaf(mat)) it.cut = 0.42f })
+            parts.add(Part(mat, bb, f.n / STRIDE).also { it.gpu = gpu; if (Mt.isLeaf(mat) || mat == Mt.SIGN) { it.cut = 0.5f; it.solid = true } })   // Etapa 127: folhas/letreiros só com recorte (sem mistura: nada de piscar por ordem de desenho)
         }
         return Mesh(parts)
     }

@@ -122,6 +122,87 @@ object Water {
         }
     """.trimIndent()
 
+    /**
+     * Etapa 127: água natural (mar e lago). Ondulação fina por pixel (5 trens de onda que somem com a distância),
+     * cor que vai do raso transparente (areia/fundo aparecendo) ao fundo escuro, reflexo do mesmo céu do jogo,
+     * brilho do sol cintilando, espuma em faixas que chegam na praia e névoa igual à da cidade.
+     */
+    val FSN = """
+        precision mediump float;
+        varying vec3 vW; varying vec3 vN; varying float vFoam;
+        uniform vec3 uEye; uniform float uTime; uniform float uMode; uniform float uShoreZ; uniform vec3 uLake;
+        uniform vec3 uDeep; uniform vec3 uShal;
+        void main() {
+            vec2 p = vW.xz; float t = uTime;
+            vec3 dv = uEye - vW; float dist = length(dv); vec3 V = dv / dist;
+            float fade = 1.0 / (1.0 + dist * 0.025);
+            vec2 g = vec2(0.0); float a;
+            a = dot(p, vec2(0.83, 0.55)) * 1.9 + t * 1.7;  g += vec2(0.83, 0.55) * cos(a) * 0.060;
+            a = dot(p, vec2(-0.45, 0.89)) * 2.7 - t * 1.9; g += vec2(-0.45, 0.89) * cos(a) * 0.050;
+            a = dot(p, vec2(0.97, -0.24)) * 4.3 + t * 2.6; g += vec2(0.97, -0.24) * cos(a) * 0.034;
+            a = dot(p, vec2(-0.71, -0.70)) * 6.9 + t * 3.3; g += vec2(-0.71, -0.70) * cos(a) * 0.024;
+            a = dot(p, vec2(0.20, 0.98)) * 11.0 - t * 4.1; g += vec2(0.20, 0.98) * cos(a) * 0.016;
+            g *= fade * (uMode > 1.5 ? 0.55 : 1.0);
+            vec3 n = normalize(normalize(vN) + vec3(-g.x, 0.0, -g.y));
+            float cosv = clamp(dot(n, V), 0.0, 1.0);
+            float f1 = 1.0 - cosv; float f2 = f1 * f1;
+            float fres = 0.02 + 0.98 * f2 * f2 * f1;
+            // distância da margem: mar = da linha da praia; lago = do contorno
+            float d = uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
+            float k = 1.0 - exp(-max(d, 0.0) * (uMode < 1.5 ? 0.12 : 0.35));
+            vec3 body = mix(uShal, uDeep, k);
+            // céu refletido (mesma fórmula do céu)
+            vec3 R = reflect(-V, n);
+            float ry = max(R.y, 0.0);
+            vec3 sky = mix(vec3(0.80, 0.88, 0.96), vec3(0.24, 0.48, 0.86), 1.0 - exp(-ry * 3.2));
+            vec3 L = vec3(0.3592, 0.7982, 0.5188);
+            float sd = max(dot(R, L), 0.0);
+            float s2 = sd * sd; float s4 = s2 * s2; float s8 = s4 * s4; float s16 = s8 * s8; float s32 = s16 * s16; float s64 = s32 * s32;
+            float s256 = s64 * s64; s256 *= s256; float s512 = s256 * s256;
+            sky += vec3(1.0, 0.95, 0.8) * (s16 * 0.12 + s64 * 0.2);
+            vec3 col = mix(body, sky, fres);
+            col += vec3(1.0, 0.97, 0.88) * (s512 * 4.0 + s64 * 0.12) * (0.6 + 0.4 * fade);
+            // espuma
+            float foam = 0.0;
+            if (uMode < 1.5) {
+                float br = 0.5 + 0.5 * sin(p.x * 0.31 + sin(p.y * 0.23 + t * 0.4) * 2.0);
+                float band = smoothstep(0.55, 0.95, sin(d * 0.85 - t * 1.25 + br * 2.0)) * exp(-d * 0.18);
+                float edge = smoothstep(1.6, 0.0, d + 0.4 * sin(p.x * 0.7 + t * 1.3));
+                float spec = 0.5 + 0.5 * sin(p.x * 3.1 + p.y * 2.3 + t) * sin(p.x * 1.7 - p.y * 3.7 - t * 1.3);
+                foam = clamp(band * (0.55 + 0.45 * spec) + edge * 0.9, 0.0, 1.0);
+            } else {
+                foam = smoothstep(0.35, 0.0, d) * 0.35;
+            }
+            col = mix(col, vec3(0.97, 0.98, 1.0), foam);
+            float al = uMode < 1.5 ? mix(0.30, 0.97, clamp(d * 0.22, 0.0, 1.0)) : mix(0.55, 0.96, clamp(d * 0.6, 0.0, 1.0));
+            al = clamp(max(al, fres) + foam * 0.5, 0.0, 1.0);
+            vec3 fd = (vW - uEye) * 0.01;
+            float fz = dot(fd, fd);
+            float fog = smoothstep(0.49, 5.29, fz) * 0.85;
+            col = mix(col, vec3(0.80, 0.88, 0.96), fog);
+            al = mix(al, 1.0, fog);
+            gl_FragColor = vec4(col, al);
+        }
+    """.trimIndent()
+
+    private var progN = 0
+    private var nVP = 0; private var nEye = 0; private var nTime = 0; private var nBox = 0; private var nRip = 0; private var nWav = 0
+    private var nMode = 0; private var nShore = 0; private var nLake = 0; private var nDeep = 0; private var nShal = 0
+
+    private fun buildN() {
+        progN = GLES20.glCreateProgram()
+        GLES20.glAttachShader(progN, sh(GLES20.GL_VERTEX_SHADER, VS))
+        GLES20.glAttachShader(progN, sh(GLES20.GL_FRAGMENT_SHADER, FSN))
+        GLES20.glBindAttribLocation(progN, 0, "aXZ")
+        GLES20.glLinkProgram(progN)
+        val ok = IntArray(1)
+        GLES20.glGetProgramiv(progN, GLES20.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) { GLES20.glDeleteProgram(progN); progN = 0; return }
+        fun u(n: String) = GLES20.glGetUniformLocation(progN, n)
+        nVP = u("uVP"); nEye = u("uEye"); nTime = u("uTime"); nBox = u("uBox"); nRip = u("uRip"); nWav = u("uWav")
+        nMode = u("uMode"); nShore = u("uShoreZ"); nLake = u("uLake"); nDeep = u("uDeep"); nShal = u("uShal")
+    }
+
     private fun sh(type: Int, src: String): Int {
         val s = GLES20.glCreateShader(type)
         GLES20.glShaderSource(s, src)
@@ -170,6 +251,7 @@ object Water {
     }
 
     private var builtGw = -1
+    private var nGen = -1
 
     /** Desenha a água (passe transparente, depth mask desligado). Devolve false se o programa não compilou. */
     fun draw(vp: FloatArray, ex: Float, ey: Float, ez: Float, gw: Int): Boolean {
@@ -229,15 +311,17 @@ object Water {
             GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaIbo); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaCount * 2, ib, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
             seaKey = key
         }
-        GLES20.glUseProgram(prog)
-        GLES20.glUniformMatrix4fv(uVP, 1, false, vp, 0)
-        GLES20.glUniform3f(uEye, ex, ey, ez)
-        GLES20.glUniform1f(uTime, now())
-        GLES20.glUniform4f(uBox, x0 - 1000f, z0, x1 + 1000f, z1 + 1000f)
-        GLES20.glUniform1f(uDepth, 7f)
-        GLES20.glUniform3f(uWav, 0f, 7f, 0.32f)
-        GLES20.glUniform2f(uShore, 1.6f, 1f)
-        GLES20.glUniform4fv(uRip, NRIP, zeroRip, 0)
+        if (progN == 0 || nGen != GlGen.gen) { nGen = GlGen.gen; buildN() }
+        if (progN == 0) return false
+        GLES20.glUseProgram(progN)
+        GLES20.glUniformMatrix4fv(nVP, 1, false, vp, 0)
+        GLES20.glUniform3f(nEye, ex, ey, ez)
+        GLES20.glUniform1f(nTime, now())
+        GLES20.glUniform4f(nBox, x0 - 1000f, z0 - 1000f, x1 + 1000f, z1 + 1000f)
+        GLES20.glUniform3f(nWav, 0f, 5f, 0.3f)
+        GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
+        GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, z0 + 6f); GLES20.glUniform3f(nLake, 0f, 0f, 1f)
+        GLES20.glUniform3f(nDeep, 0.03f, 0.22f, 0.40f); GLES20.glUniform3f(nShal, 0.30f, 0.72f, 0.70f)
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, seaVbo)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
@@ -248,4 +332,55 @@ object Water {
         GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)
         return true
     }
+
+    private var lakeVbo = 0; private var lakeIbo = 0; private var lakeCount = 0; private var lakeGen = -1
+    private const val LN = 28
+
+    /** Etapa 127: lago (malha unitária −1..1 escalada no shader pelo uWav/uBox? não: refeita por lago). */
+    fun drawLake(vp: FloatArray, ex: Float, ey: Float, ez: Float, cx: Float, cz: Float, r: Float, y: Float): Boolean {
+        if (progN == 0 || nGen != GlGen.gen) { nGen = GlGen.gen; buildN(); lakeGen = -1 }
+        if (progN == 0) return false
+        val ids = IntArray(2)
+        if (lakeGen != GlGen.gen || lakeVbo == 0) {
+            if (lakeVbo != 0 && lakeGen == GlGen.gen) GLES20.glDeleteBuffers(2, intArrayOf(lakeVbo, lakeIbo), 0)
+            lakeGen = GlGen.gen
+            GLES20.glGenBuffers(2, ids, 0); lakeVbo = ids[0]; lakeIbo = ids[1]
+            lakeKey = ""
+        }
+        val key = "$cx|$cz|$r"
+        if (key != lakeKey) {
+            val fb = ByteBuffer.allocateDirect((LN + 1) * (LN + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (j in 0..LN) for (i in 0..LN) { fb.put(cx - r + 2 * r * i / LN); fb.put(cz - r + 2 * r * j / LN) }
+            fb.position(0)
+            lakeCount = LN * LN * 6
+            val ib = ByteBuffer.allocateDirect(lakeCount * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (j in 0 until LN) for (i in 0 until LN) {
+                val a = (j * (LN + 1) + i).toShort(); val b = (a + 1).toShort(); val c = ((j + 1) * (LN + 1) + i).toShort(); val d = (c + 1).toShort()
+                ib.put(a); ib.put(c); ib.put(b); ib.put(b); ib.put(c); ib.put(d)
+            }
+            ib.position(0)
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, lakeVbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, fb.capacity() * 4, fb, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, lakeIbo); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, lakeCount * 2, ib, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+            lakeKey = key
+        }
+        GLES20.glUseProgram(progN)
+        GLES20.glUniformMatrix4fv(nVP, 1, false, vp, 0)
+        GLES20.glUniform3f(nEye, ex, ey, ez)
+        GLES20.glUniform1f(nTime, now())
+        GLES20.glUniform4f(nBox, cx - r - 50f, cz - r - 50f, cx + r + 50f, cz + r + 50f)
+        GLES20.glUniform3f(nWav, y, 0.35f, 1.0f)
+        GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
+        GLES20.glUniform1f(nMode, 2f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, r * City.LAKE_EDGE)
+        GLES20.glUniform3f(nDeep, 0.05f, 0.20f, 0.22f); GLES20.glUniform3f(nShal, 0.22f, 0.40f, 0.34f)
+        GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, lakeVbo)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, lakeIbo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, lakeCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)
+        return true
+    }
+    private var lakeKey = ""
 }

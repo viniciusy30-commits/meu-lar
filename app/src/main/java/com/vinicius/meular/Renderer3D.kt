@@ -312,6 +312,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private val sm = HashMap<Int, Mesh>()
     private val rm = HashMap<String, Mesh>()
     private var skyM: Mesh? = null
+    private var cloudM: Mesh? = null
+    private val skyPrep = Sky.prepare()   // nuvens calculadas fora da thread do GL
     private var yardM: Mesh? = null
     private var floorM: Mesh? = null
     private var ceilM: Mesh? = null
@@ -381,7 +383,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            if (fz > 0.49) col = mix(col, vec3(0.86, 0.92, 0.96), smoothstep(0.49, 5.29, fz) * 0.85 * uFog);
+            if (fz > 0.49) col = mix(col, vec3(0.80, 0.88, 0.96), smoothstep(0.49, 5.29, fz) * 0.85 * uFog);
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -438,7 +440,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GlGen.gen++
-        GLES20.glClearColor(0.66f, 0.85f, 0.94f, 1f)
+        GLES20.glClearColor(0.80f, 0.88f, 0.96f, 1f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -454,7 +456,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         fm.clear()          // móveis do pack: as texturas do contexto antigo não valem mais
         Flora.reset()
         CuteChar.initGl()
-        skyM = Models.sky()
+        skyM = Sky.dome()
+        cloudM = Sky.clouds()   // Etapa 127: céu com degradê real, sol e nuvens
         stageM = AvatarModel.stage()
         avDirty = true
         bw = -1
@@ -940,7 +943,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Water.drawSea(vp, ex, ey, ez, City.X0 - 500f, City.SEA_Z - 6f, City.X1 + 500f, City.SEA_Z + 450f, st.gw)
             useProg(curProg)
         }
+        // Etapa 127: lagos com água de verdade
+        for (lk in City.lakes) {
+            val dx = lk[0] - ex; val dz = lk[1] - ez
+            if (dx * dx + dz * dz > 220f * 220f) continue
+            if (!boxVisible(lk[0] - lk[2], lk[3] - 1f, lk[1] - lk[2], lk[0] + lk[2], lk[3] + 0.5f, lk[1] + lk[2])) continue
+            Water.drawLake(vp, ex, ey, ez, lk[0], lk[1], lk[2], lk[3])
+            useProg(curProg)
+        }
         Matrix.setIdentityM(mdl, 0)
+        // Etapa 127: sombras do sol (grava profundidade: sombras sobrepostas no mesmo plano não escurecem em dobro)
+        Shade.mesh?.let { GLES20.glDepthMask(true); draw(it, mdl, 1f, true); GLES20.glDepthMask(false) }
         for (m in cityGlass) draw(m, mdl, 1f, true)
         if (Gps.ver != routeVer) {
             routeVer = Gps.ver
@@ -1881,7 +1894,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             drawCreator(now)
             return
         }
-        GLES20.glClearColor(0.66f, 0.85f, 0.94f, 1f)
+        GLES20.glClearColor(0.80f, 0.88f, 0.96f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         frameUniforms(ex, ey, ez, gw.toFloat(), gh.toFloat(), cx, 2.1f, cz)
 
@@ -1890,6 +1903,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, ex, ey, ez)
         skyM?.let { draw(it, mdl, 1f) }
+        cloudM?.let {
+            // as nuvens andam devagar (uma volta a cada ~1 h)
+            val ang = ((now / 1_000_000L) % 3_600_000L) / 3_600_000f * 360f
+            Matrix.rotateM(mdl, 0, ang, 0f, 1f, 0f)
+            draw(it, mdl, 1f)
+        }
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
 
         Matrix.setIdentityM(mdl, 0)

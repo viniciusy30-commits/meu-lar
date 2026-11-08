@@ -1379,7 +1379,7 @@ object CityInt {
         A.m(Mt.METAL, 1f); lb(A, r.toDoor(r.x1 - 1.5f, r.depth - 0.08f), 0f, FL + 1.4f, 0f, 1.8f, 0.8f, 0.04f, C("#B0BEC5")); A.m(Mt.PLAIN); lb(A, r.toDoor(r.x1 - 1.5f, r.depth - 0.11f), 0f, FL + 1.4f, 0f, 1.6f, 0.6f, 0.01f, C("#FFF3E0"), false)
         // mesas com toalha branca, taças, pratos e cadeiras estofadas (grade uniforme, no máximo ~28 mesas)
         val area = (r.w - 2.4f) * (r.depth - 5f)
-        val cell = max(2.5f, kotlin.math.sqrt(area / 40f))
+        val cell = max(2.6f, kotlin.math.sqrt(area / 30f))
         val H = r.g.H
         grid(r, 1.6f, r.depth - 3.2f, cell, cell * 1.08f) { x, d, _ ->
             val l = L(x, r.Zi(d), 0f, r.fz)
