@@ -149,11 +149,11 @@ object Vehicles {
 
     private fun wheel(f: XF, lx: Float, lz: Float, r: Float, w: Float, rim: Int, spokes: Int = 5) {
         val tire = C("#1B1B1B")
-        f.cylX(lx, r, lz, r, w, tire, 16, C("#262626"))
+        f.cylX(lx, r, lz, r, w, tire, 12, C("#262626"))
         val s = if (lx > 0) 1f else -1f
         val face = lx + s * (w / 2 + 0.004f)
-        f.discX(face, r, lz, r * 0.66f, rim, s, false, 16)
-        f.discX(face + s * 0.004f, r, lz, r * 0.5f, shade(rim, -45), s, false, 12)
+        f.discX(face, r, lz, r * 0.66f, rim, s, false, 12)
+        f.discX(face + s * 0.004f, r, lz, r * 0.5f, shade(rim, -45), s, false, 10)
         for (k in 0 until spokes) {
             val a = 2f * PI.toFloat() * k / spokes
             val cy = r + sin(a) * r * 0.33f; val cz = lz + cos(a) * r * 0.33f
@@ -409,7 +409,7 @@ object Vehicles {
             f.box(s * 0.3f, 1.08f, 0.45f, 0.1f, 0.08f, 0.1f, dark)                        // luva
         }
         b.m(Mt.METAL, 1f)
-        b.sphere(f.px(0f, -0.2f + lean), f.oy + 1.62f, f.pz(0f, -0.2f + lean), 0.17f, if (kind == MOTO) col else C("#FAFAFA"), 0.17f, 10)
+        CityGeo.ball(b, f.px(0f, -0.2f + lean), f.oy + 1.62f, f.pz(0f, -0.2f + lean), 0.17f, if (kind == MOTO) col else C("#FAFAFA"), 0.17f, 10)
         f.box(0f, 1.62f, -0.06f + lean, 0.22f, 0.09f, 0.04f, C("#111111"))
     }
 }

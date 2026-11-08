@@ -225,6 +225,9 @@ object Ic {
     const val BED = 138
     /** Etapa 122: mapa da cidade */
     const val MAP = 139
+    /** Etapa 123: veículos */
+    const val CAR = 140
+    const val MOTO = 141
 }
 
 
@@ -513,6 +516,20 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 rf.set(8f, 58f, 92f, 92f); c.drawOval(rf, p); p.pathEffect = null
                 fill(w); poly(c, 50f, 42f, 74f, 62f, 68f, 62f, 68f, 82f, 32f, 82f, 32f, 62f, 26f, 62f)
                 fill(a); rr(c, 44f, 68f, 56f, 82f, 3f)
+            }
+            Ic.CAR -> {
+                // carro de lado: carroceria, cabine com vidro e duas rodas
+                fill(w)
+                path.reset(); path.moveTo(8f, 66f); path.lineTo(8f, 52f); path.lineTo(24f, 46f); path.lineTo(36f, 30f); path.lineTo(66f, 30f); path.lineTo(80f, 46f); path.lineTo(92f, 50f); path.lineTo(92f, 66f); path.close(); c.drawPath(path, p)
+                fill(a); poly(c, 40f, 35f, 50f, 35f, 50f, 46f, 31f, 46f); poly(c, 55f, 35f, 64f, 35f, 74f, 46f, 55f, 46f)
+                fill(a); c.drawCircle(28f, 68f, 12f, p); c.drawCircle(72f, 68f, 12f, p)
+                fill(w); c.drawCircle(28f, 68f, 5f, p); c.drawCircle(72f, 68f, 5f, p)
+            }
+            Ic.MOTO -> {
+                fill(a); c.drawCircle(22f, 68f, 14f, p); c.drawCircle(78f, 68f, 14f, p)
+                fill(w); c.drawCircle(22f, 68f, 6f, p); c.drawCircle(78f, 68f, 6f, p)
+                fill(w); poly(c, 30f, 52f, 46f, 40f, 62f, 40f, 70f, 54f, 52f, 60f, 36f, 60f)
+                stroke(w, 6f); c.drawLine(62f, 40f, 78f, 68f, p); c.drawLine(58f, 30f, 70f, 28f, p); c.drawLine(64f, 29f, 66f, 40f, p)
             }
             Ic.MAP -> {
                 // mapa dobrado em 3 painéis com um pino

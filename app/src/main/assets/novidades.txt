@@ -1,3 +1,12 @@
+#id 2026-11-13-menu-carros
+#titulo Menu inicial, carregamento e dirigir
+- Novo menu inicial no estilo The Sims 4, com o plumbob girando
+- Tela de carregamento: a cidade é montada antes de você entrar (nada de esperar ela aparecer)
+- A cidade não aparecia em vários celulares: ela usava memória demais. Agora é bem mais leve e carrega rápido
+- Loja > Veículos: escolha carro ou moto e a cor. Ele fica na rua em frente de casa
+- Chegue perto e toque em Dirigir: o analógico acelera, dá ré e vira. Velocímetro na tela, câmera atrás do carro
+- O trânsito para atrás de você e não atravessa seu carro
+
 #id 2026-11-12-cidade2
 #titulo Cidade de verdade, praia, parque de diversões e GPS
 - Cidade bem maior: 48 quarteirões com bairros diferentes — casas tradicionais, modernas, sobrados, chalés, casas de praia e mansões com piscina

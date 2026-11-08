@@ -561,6 +561,134 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         return !City.blocked(x, z)
     }
 
+    // ================================================================ Etapa 123: dirigir
+    /** Veículo do jogador (tipo/cor escolhidos na loja). Fica estacionado na rua em frente de casa. */
+    @Volatile var driving = false; private set
+    @Volatile var carSpeed = 0f; private set
+    private var carX = Float.NaN; private var carZ = 0f; private var carH = 0f   // posição e rumo (rad: frente = (sin h, -cos h))
+    private var carY = 0f
+    private var carMesh: Mesh? = null
+    private var carKey = ""
+    private var steerS = 0f
+    private var thirdBefore = true
+    private var camYawPull = 0f
+
+    /** Loja: "Trazer para casa" — o veículo volta para a vaga em frente de casa. */
+    fun resetCar() { if (!driving) carX = Float.NaN }
+    private fun isMoto() = st.vehKind == Vehicles.MOTO || st.vehKind == Vehicles.SCOOTER
+    private fun carHalfL() = if (isMoto()) 1.05f else if (st.vehKind == Vehicles.VAN || st.vehKind == Vehicles.PICKUP) 2.7f else 2.35f
+    private fun carHalfW() = if (isMoto()) 0.45f else 1.0f
+
+    /** Garante a malha e a vaga do carro; põe na rua em frente de casa na primeira vez. */
+    private fun ensureCar() {
+        if (st.vehKind < 0 || !City.on) { carMesh?.release(); carMesh = null; carKey = ""; City.ownCar = null; return }
+        val key = "${st.vehKind}|${st.vehColor}|${GlGen.gen}"
+        if (key != carKey) {
+            carMesh?.release()
+            val b = MB(); Vehicles.geom(Vehicles.XF(b, 0f, 0f, 0f, 1), st.vehKind, st.vehColor)
+            carMesh = b.toMesh(true); carKey = key
+        }
+        if (carX.isNaN()) {
+            // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
+            val zc = (City.bandZ[8] + City.bandZ[9]) / 2f
+            carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
+        }
+        City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
+    }
+
+    /** O jogador some e assume o veículo; a câmera passa a seguir de trás. */
+    private fun enterCar() {
+        if (carMesh == null) return
+        driving = true; carSpeed = 0f; steerS = 0f
+        thirdBefore = third; third = true
+        path = null; markX = Float.NaN; jumping = false; crouch = false
+        px = carX; pz = carZ
+        fyaw = carH
+        City.ownCar = null
+    }
+
+    private fun exitCar() {
+        driving = false
+        City.driverHalf = 0f
+        carSpeed = 0f
+        val rx = cos(carH); val rz = sin(carH)
+        // sai pelo lado do motorista (esquerda); se estiver bloqueado, pela direita
+        var ok = false
+        for (side in floatArrayOf(-1f, 1f)) {
+            val ex = carX + rx * side * (carHalfW() + 0.8f); val ez = carZ + rz * side * (carHalfW() + 0.8f)
+            if (!City.on || !City.blocked(ex, ez)) { px = ex; pz = ez; ok = true; break }
+        }
+        if (!ok) { px = carX - sin(carH) * (carHalfL() + 1f); pz = carZ + cos(carH) * (carHalfL() + 1f) }
+        pYaw = Math.toDegrees(carH.toDouble()).toFloat() + 90f
+        third = thirdBefore
+        City.ownCar = floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
+    }
+
+    /** Física simples de carro: acelerador e ré no analógico (cima/baixo), volante (lados); bate e para em prédios, muros e carros. */
+    private fun updateDrive(dt: Float) {
+        val moto = isMoto()
+        val vmax = when (st.vehKind) { Vehicles.SPORT -> 34f; Vehicles.MOTO -> 30f; Vehicles.SCOOTER -> 17f; Vehicles.BUS, Vehicles.VAN -> 20f; else -> 26f }
+        val acc = when (st.vehKind) { Vehicles.SPORT -> 9f; Vehicles.MOTO -> 8.5f; Vehicles.SCOOTER -> 4.5f; Vehicles.BUS, Vehicles.VAN -> 3.8f; else -> 6f }
+        val thr = moveY.coerceIn(-1f, 1f)
+        val st0 = moveX.coerceIn(-1f, 1f)
+        if (thr > 0.05f) {
+            carSpeed += (if (carSpeed < 0f) 14f else acc * (1f - (carSpeed / vmax).coerceIn(0f, 1f) * 0.7f)) * thr * dt
+        } else if (thr < -0.05f) {
+            carSpeed += (if (carSpeed > 0.3f) -16f else -4f) * -thr * dt
+        } else {
+            val drag = 2.2f * dt + abs(carSpeed) * 0.02f * dt
+            carSpeed = if (carSpeed > 0f) max(0f, carSpeed - drag) else min(0f, carSpeed + drag)
+        }
+        carSpeed = carSpeed.coerceIn(-7f, vmax)
+        // volante: mais fechado parado, mais suave rápido
+        val maxSteer = 0.62f * (1f - min(0.65f, abs(carSpeed) / 40f))
+        steerS += (st0 * maxSteer - steerS) * min(1f, dt * 6f)
+        val wb = if (moto) 1.45f else 2.7f
+        carH += carSpeed / wb * kotlin.math.tan(steerS) * dt
+        val fx = sin(carH); val fz = -cos(carH)
+        val nx = carX + fx * carSpeed * dt; val nz = carZ + fz * carSpeed * dt
+        if (carFree(nx, nz, carH)) { carX = nx; carZ = nz }
+        else {
+            // bateu: tenta deslizar em um eixo, senão para e volta um pouco
+            if (carFree(nx, carZ, carH)) carX = nx
+            else if (carFree(carX, nz, carH)) carZ = nz
+            else carSpeed = -carSpeed * 0.25f
+            carSpeed *= 0.6f
+        }
+        carY += (groundH(carX, carZ) - carY) * min(1f, dt * 10f)
+        px = carX; pz = carZ
+        City.driverHalf = carHalfL()
+        // câmera vem para trás do carro aos poucos
+        var dl = carH - fyaw
+        while (dl > Math.PI) dl -= (2 * Math.PI).toFloat()
+        while (dl < -Math.PI) dl += (2 * Math.PI).toFloat()
+        if (abs(carSpeed) > 0.5f) fyaw += dl * min(1f, dt * 2.5f)
+    }
+
+    private fun carFree(x: Float, z: Float, h: Float): Boolean {
+        if (!City.on) return true
+        val fx = sin(h); val fz = -cos(h); val rx = cos(h); val rz = sin(h)
+        val hl = carHalfL(); val hw = carHalfW()
+        for (a in floatArrayOf(-hl, 0f, hl)) for (b in floatArrayOf(-hw, hw)) {
+            val qx = x + fx * a + rx * b; val qz = z + fz * a + rz * b
+            if (City.inLot(qx, qz)) return false
+            if (City.blocked(qx, qz)) return false
+        }
+        return true
+    }
+
+    private fun drawOwnCar() {
+        val m = carMesh ?: return
+        if (carX.isNaN()) return
+        if (!boxVisible(carX - 6f, 0f, carZ - 6f, carX + 6f, 3.5f, carZ + 6f)) return
+        Matrix.setIdentityM(mdl, 0)
+        Matrix.translateM(mdl, 0, carX, if (driving) carY else groundH(carX, carZ), carZ)
+        Matrix.rotateM(mdl, 0, 180f - Math.toDegrees(carH.toDouble()).toFloat(), 0f, 1f, 0f)
+        if (driving && isMoto()) Matrix.rotateM(mdl, 0, -steerS * min(1f, abs(carSpeed) / 8f) * 40f, 0f, 0f, 1f)   // moto inclina na curva
+        draw(m, mdl, 1f)
+        Matrix.setIdentityM(mdl, 0)
+    }
+
     // ================================================================ Etapa 122: cidade
     private var inBld: City.Bld? = null
     private val cityGlass = ArrayList<Mesh>()
@@ -638,6 +766,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (dx * dx + dz * dz > 230f * 230f) continue
             draw(d.mesh, d.m, 1f)
         }
+        drawOwnCar()
         val pb = City.pedBody; val pl = City.pedLeg; val pa = City.pedArm
         for (p in City.peds) {
             val dx = p.x - ex; val dz = p.z - ez
@@ -916,6 +1045,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (sitPh == 10) o.sleep = seat
             }
         }
+        ensureCar()
+        if (driving) { if (mode != 0) mode = 0; updateDrive(dt); return }
         if (stopReq) { stopReq = false; path = null; markX = Float.NaN }
         val req = walkReq
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
@@ -1496,7 +1627,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val fy = sin(fpitch)
             val fz = -cos(fyaw) * cp
             fwdX = sin(fyaw); fwdZ = -cos(fyaw)
-            if (third) {
+            if (third && driving) {
+                // Etapa 123: câmera de perseguição atrás do veículo
+                val dist = if (isMoto()) 4.6f else 7.2f
+                val tx = carX; val ty = carY + (if (isMoto()) 1.3f else 1.5f); val tz = carZ
+                ex = tx - fx * dist; ey = maxOf(ty - fy * dist + 1.2f, carY + 0.6f); ez = tz - fz * dist
+                Matrix.perspectiveM(proj, 0, 62f + min(10f, abs(carSpeed) * 0.35f), aspect, 0.1f, 260f)
+                Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
+            } else if (third) {
                 // 3ª pessoa: câmera atrás do personagem, orbitando com o olhar
                 crouchK += ((if (crouch) 1f else 0f) - crouchK) * 0.15f
                 val tx = px; val ty = py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
@@ -1597,6 +1735,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 83: peças animadas, física dos objetos soltos e o que dá para usar daqui
             stepObjects(dtc)
             findNear(dtc)
+            // Etapa 123: veículo
+            if (driving) { nearKind = 21; nearLabel = if (isMoto()) "Descer da moto" else "Sair do carro" }
+            else if (mode == 0 && sitPh == 0 && swimPh == 0 && !carX.isNaN() && carMesh != null && kotlin.math.hypot(px - carX, pz - carZ) < carHalfL() + 1.6f) {
+                nearKind = 20; nearLabel = if (isMoto()) "Subir na moto" else "Dirigir"
+            }
             if (useReq) {
                 useReq = false
                 when (nearKind) {
@@ -1613,6 +1756,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                         else if (sitPh == 10) { sitPh = 7; o.sleep = ""; saveReq = true }
                     }
                     9 -> nearItem?.let { startWash(it, nearSeat) }
+                    20 -> enterCar()
+                    21 -> exitCar()
                 }
             }
             for (pn in cloth.panels) if (shown[pn.wall]) {
@@ -1668,7 +1813,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(mesh, mdl, 1f)
         }
 
-        if (mode == 1 || fp) drawPlayer(now)
+        if ((mode == 1 || fp) && !driving) drawPlayer(now)
 
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f

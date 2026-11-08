@@ -175,7 +175,7 @@ object CityFun {
         b.box(x, y + 2.5f, z, 9f, 0.06f, 0.02f, C("#FFFFFF"))
         b.box(x, y + 0.01f, z, 9.2f, 0.01f, 0.06f, C("#1E88E5")); b.box(x, y + 0.01f, z - 8f, 9.2f, 0.01f, 0.06f, C("#1E88E5")); b.box(x, y + 0.01f, z + 8f, 9.2f, 0.01f, 0.06f, C("#1E88E5"))
         b.box(x - 4.6f, y + 0.01f, z, 0.06f, 0.01f, 16f, C("#1E88E5")); b.box(x + 4.6f, y + 0.01f, z, 0.06f, 0.01f, 16f, C("#1E88E5"))
-        b.m(Mt.PLAIN); b.sphere(x + 2f, y + 0.11f, z + 3f, 0.11f, C("#FFEB3B"), 0.11f, 8)
+        b.m(Mt.PLAIN); CityGeo.ball(b, x + 2f, y + 0.11f, z + 3f, 0.11f, C("#FFEB3B"), 0.11f, 8)
     }
 
     private fun pier(g: CityGeo.Gen) {
@@ -233,7 +233,7 @@ object CityFun {
         b.box(px1 - 0.2f, CURB + 1.0f, (pz0 + pz1) / 2, 0.06f, 2.0f, pz1 - pz0, fc); g.solid(px1 - 0.4f, pz0, px1, pz1)
         // arco de entrada com letreiro e bilheterias
         b.m(Mt.PLASTER, 0.5f)
-        for (s in floatArrayOf(-1f, 1f)) { b.box(cx + s * 5.6f, CURB + 3.5f, pz0 + 0.2f, 1.2f, 7f, 1.2f, C("#8E24AA")); b.m(Mt.PLAIN); b.sphere(cx + s * 5.6f, CURB + 7.6f, pz0 + 0.2f, 0.8f, C("#FFD54F"), 0.8f, 10); b.m(Mt.PLASTER, 0.5f) }
+        for (s in floatArrayOf(-1f, 1f)) { b.box(cx + s * 5.6f, CURB + 3.5f, pz0 + 0.2f, 1.2f, 7f, 1.2f, C("#8E24AA")); b.m(Mt.PLAIN); CityGeo.ball(b, cx + s * 5.6f, CURB + 7.6f, pz0 + 0.2f, 0.8f, C("#FFD54F"), 0.8f, 10); b.m(Mt.PLASTER, 0.5f) }
         b.box(cx, CURB + 7.2f, pz0 + 0.2f, 12.4f, 1.6f, 0.8f, C("#6A1B9A"))
         CityGeo.sign(b, cx, CURB + 6.6f, pz0 - 0.22f, 0f, -1f, 10f, 1.25f, City.signIdx("PARQUE DE DIVERSÕES"))
         CityGeo.sign(b, cx, CURB + 6.6f, pz0 + 0.62f, 0f, 1f, 10f, 1.25f, City.signIdx("PARQUE DE DIVERSÕES"))
@@ -267,7 +267,7 @@ object CityFun {
         val tx = px1 - 10f; val tz = pz1 - 12f
         b.m(Mt.METAL, 1f); b.box(tx, CURB + 22f, tz, 1.6f, 44f, 1.6f, C("#455A64"))
         for (k in 0 until 22) b.box(tx, CURB + 1f + k * 2f, tz, 1.75f, 0.12f, 1.75f, C("#78909C"))
-        b.m(Mt.PLAIN); b.sphere(tx, CURB + 44.5f, tz, 0.6f, C("#FF1744"), 0.6f, 8, false)
+        b.m(Mt.PLAIN); CityGeo.ball(b, tx, CURB + 44.5f, tz, 0.6f, C("#FF1744"), 0.6f, 8, false)
         b.m(Mt.STONE, 0.6f); b.cyl(tx, CURB, tz, 4.5f, 4.5f, 0.3f, C("#90A4AE"), true, 20)
         g.solid(tx - 3.6f, tz - 3.6f, tx + 3.6f, tz + 3.6f)
         // bate-bate (pista coberta)
@@ -310,7 +310,7 @@ object CityFun {
         for (k in 0..n) {
             val t = k.toFloat() / n
             val sag = 0.8f * sin(PI.toFloat() * t)
-            b.sphere(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - sag, z0 + (z1 - z0) * t, 0.09f, pal[k % pal.size], 0.09f, 5, false)
+            CityGeo.ball(b, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t - sag, z0 + (z1 - z0) * t, 0.09f, pal[k % pal.size], 0.09f, 5, false)
         }
     }
 
@@ -422,7 +422,7 @@ object CityFun {
                     prism(b, R * 0.6f * cos(a0), R * 0.6f * sin(a0), side, R * 0.6f * cos(a1), R * 0.6f * sin(a1), side, floatArrayOf(-sin(a0), cos(a0), 0f, 0f, 0f, 1f), 0.07f, C("#ECEFF1"))
                     if (i % 3 == 0) {
                         prism(b, 0f, 0f, side, R * cos(a0), R * sin(a0), side, floatArrayOf(-sin(a0), cos(a0), 0f, 0f, 0f, 1f), 0.05f, C("#CFD8DC"))
-                        b.m(Mt.PLAIN); b.sphere(R * cos(a0), R * sin(a0), side * 1.2f, 0.14f, if (i % 2 == 0) C("#FFEB3B") else C("#FF4081"), 0.14f, 5, false); b.m(Mt.METAL, 1f)
+                        b.m(Mt.PLAIN); CityGeo.ball(b, R * cos(a0), R * sin(a0), side * 1.2f, 0.14f, if (i % 2 == 0) C("#FFEB3B") else C("#FF4081"), 0.14f, 5, false); b.m(Mt.METAL, 1f)
                     }
                 }
             }
@@ -451,7 +451,7 @@ object CityFun {
                 CityGeo.tri(b, CityGeo.P(0f, 7.6f, 0f) + CityGeo.P(7.4f * cos(a0), 5.2f, 7.4f * sin(a0)) + CityGeo.P(7.4f * cos(a1), 5.2f, 7.4f * sin(a1)), if (i % 2 == 0) C("#E91E63") else C("#FFF59D"))
                 CityGeo.q(b, CityGeo.P(7.4f * cos(a0), 5.2f, 7.4f * sin(a0)) + CityGeo.P(7.4f * cos(a1), 5.2f, 7.4f * sin(a1)) + CityGeo.P(7.4f * cos(a1), 4.6f, 7.4f * sin(a1)) + CityGeo.P(7.4f * cos(a0), 4.6f, 7.4f * sin(a0)), if (i % 2 == 0) C("#FFF59D") else C("#E91E63"))
             }
-            b.m(Mt.PLAIN); b.sphere(0f, 8f, 0f, 0.5f, C("#FFD54F"), 0.5f, 8)
+            b.m(Mt.PLAIN); CityGeo.ball(b, 0f, 8f, 0f, 0.5f, C("#FFD54F"), 0.5f, 8)
             b.m(Mt.WOOD, 1f); b.cyl(0f, 0.45f, 0f, 6.9f, 6.9f, 0.12f, C("#FFE0B2"), true, 28)
             val hc = arrayOf(C("#FFFFFF"), C("#8D6E63"), C("#F5F5F5"), C("#212121"))
             for (k in 0 until 12) {
@@ -492,7 +492,7 @@ object CityFun {
             if (k == 0) { b.m(Mt.METAL, 1f); b.box(0f, 0.75f, 0.95f, 1.2f, 0.5f, 0.3f, C("#0D47A1")) }
             // passageiros
             b.m(Mt.FABRIC, 1f)
-            for (s in floatArrayOf(-0.35f, 0.35f)) { b.box(s, 1.25f, -0.2f, 0.36f, 0.5f, 0.3f, if ((k + s.toInt()) % 2 == 0) C("#43A047") else C("#E53935")); b.m(Mt.PLAIN); b.sphere(s, 1.62f, -0.2f, 0.14f, C("#E0B48A"), 0.16f, 7); b.m(Mt.FABRIC, 1f) }
+            for (s in floatArrayOf(-0.35f, 0.35f)) { b.box(s, 1.25f, -0.2f, 0.36f, 0.5f, 0.3f, if ((k + s.toInt()) % 2 == 0) C("#43A047") else C("#E53935")); b.m(Mt.PLAIN); CityGeo.ball(b, s, 1.62f, -0.2f, 0.14f, C("#E0B48A"), 0.16f, 7); b.m(Mt.FABRIC, 1f) }
             val m = b.toMesh(true); own.add(m)
             train.add(Dyn(m, coaster.getOrElse(0) { 0f }, coaster.getOrElse(2) { 0f }).also { dyn.add(it) })
         }
@@ -504,7 +504,7 @@ object CityFun {
             b.m(Mt.FABRIC, 1f); b.box(0f, 0.3f, 0f, 1.45f, 0.25f, 2.05f, C("#212121"))
             b.m(Mt.METAL, 1f); b.cyl(0f, 0.55f, -0.7f, 0.03f, 0.03f, 4.3f, C("#9E9E9E"), true, 5)
             b.box(0f, 0.8f, 0.4f, 0.3f, 0.3f, 0.05f, C("#212121"))
-            b.m(Mt.FABRIC, 1f); b.box(0f, 0.95f, -0.2f, 0.4f, 0.5f, 0.3f, bc[(k + 2) % 6]); b.m(Mt.PLAIN); b.sphere(0f, 1.33f, -0.2f, 0.14f, C("#E0B48A"), 0.16f, 7)
+            b.m(Mt.FABRIC, 1f); b.box(0f, 0.95f, -0.2f, 0.4f, 0.5f, 0.3f, bc[(k + 2) % 6]); b.m(Mt.PLAIN); CityGeo.ball(b, 0f, 1.33f, -0.2f, 0.14f, C("#E0B48A"), 0.16f, 7)
             val m = b.toMesh(true); own.add(m)
             bumpers.add(Dyn(m, (bumper[0] + bumper[2]) / 2, (bumper[1] + bumper[3]) / 2).also { dyn.add(it) })
         }

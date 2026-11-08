@@ -93,6 +93,26 @@ object CityGeo {
 
     fun P(x: Float, y: Float, z: Float) = floatArrayOf(x, y, z)
 
+    /** Etapa 122: esfera leve (a do MB tem seg × 2seg faixas — quase 1000 vértices; esta, ~150). */
+    fun ball(b: MB, cx: Number, cy: Number, cz: Number, r: Number, c: Int, ry: Number = r, seg: Int = 8, lit: Boolean = true) {
+        val x = cx.toFloat(); val y = cy.toFloat(); val z = cz.toFloat(); val rr = r.toFloat(); val rv = ry.toFloat()
+        val lon = max(5, min(seg, 10)); val lat = max(3, lon / 2)
+        val l = if (lit) 1f else 0f
+        val pi = PI.toFloat()
+        for (i in 0 until lat) {
+            val t0 = pi * i / lat; val t1 = pi * (i + 1) / lat
+            for (j in 0 until lon) {
+                val p0 = 2f * pi * j / lon; val p1 = 2f * pi * (j + 1) / lon
+                fun pt(t: Float, p: Float) {
+                    val nx = sin(t) * cos(p); val ny = cos(t); val nz = sin(t) * sin(p)
+                    b.v(x + rr * nx, y + rv * ny, z + rr * nz, nx * l, ny * l, nz * l, c, p * rr, t * rv)
+                }
+                if (i > 0) { pt(t0, p0); pt(t1, p0); pt(t0, p1) }
+                if (i < lat - 1) { pt(t0, p1); pt(t1, p0); pt(t1, p1) } else { pt(t0, p1); pt(t1, p0); pt(t1, p1) }
+            }
+        }
+    }
+
     /** Referencial de uma peça: origem (ox, oz), F = frente. lx para a direita (de quem olha a frente), lz para trás. */
     class L(val ox: Float, val oz: Float, val fx: Float, val fz: Float) {
         val rx = fz; val rz = -fx
@@ -107,7 +127,7 @@ object CityGeo {
     }
 
     fun lcyl(b: MB, l: L, lx: Float, y: Float, lz: Float, r1: Float, r2: Float, h: Float, c: Int, seg: Int = 10) = b.cyl(l.wx(lx, lz), y, l.wz(lx, lz), r1, r2, h, c, true, seg)
-    fun lsph(b: MB, l: L, lx: Float, y: Float, lz: Float, r: Float, c: Int, ry: Float = r, seg: Int = 8) = b.sphere(l.wx(lx, lz), y, l.wz(lx, lz), r, c, ry, seg)
+    fun lsph(b: MB, l: L, lx: Float, y: Float, lz: Float, r: Float, c: Int, ry: Float = r, seg: Int = 8) = CityGeo.ball(b, l.wx(lx, lz), y, l.wz(lx, lz), r, c, ry, seg)
 
     /** Placa com texto [idx] virada para (fx, fz), centro (cx, cz), base y. */
     fun sign(b: MB, cx: Float, y: Float, cz: Float, fx: Float, fz: Float, w: Float, h: Float, idx: Int, frame: Boolean = true) {
@@ -129,6 +149,9 @@ object CityGeo {
         b.m(Mt.PLAIN)
     }
 
+    /** Marca pintada no chão (um retângulo plano, 6 vértices em vez de 36). */
+    fun flat(b: MB, cx: Float, cz: Float, sx: Float, sz: Float, c: Int) = b.plane(cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2, 0.022f, c)
+
     fun groundBox(b: MB, x0: Float, z0: Float, x1: Float, z1: Float, mat: Int, s: Float, c: Int, top: Float = CURB) {
         b.m(mat, s)
         b.box((x0 + x1) / 2, top / 2, (z0 + z1) / 2, x1 - x0, top, z1 - z0, c)
@@ -140,17 +163,14 @@ object CityGeo {
     fun tree(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB) {
         val b = g.b; val rng = g.rng
         b.m(Mt.WOOD, 1f)
-        b.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.3f * s, C("#6E5038"), true, 8)
-        b.cyl(x + 0.25f * s, y + 1.7f * s, z, 0.06f * s, 0.04f * s, 0.9f * s, C("#6E5038"), true, 6)
+        b.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.3f * s, C("#6E5038"), true, 6)
         b.m(Mt.PLAIN)
         val gc = rng.pick(LEAF)
-        b.sphere(x, y + 3.0f * s, z, 1.4f * s, gc, 1.15f * s, 9)
-        b.sphere(x + 0.75f * s, y + 2.6f * s, z + 0.35f * s, 1.0f * s, shade(gc, 12), 0.85f * s, 8)
-        b.sphere(x - 0.6f * s, y + 2.7f * s, z - 0.45f * s, 0.95f * s, shade(gc, -10), 0.82f * s, 8)
-        b.sphere(x - 0.2f * s, y + 3.7f * s, z + 0.3f * s, 0.85f * s, shade(gc, 20), 0.7f * s, 8)
+        ball(b, x, y + 3.0f * s, z, 1.45f * s, gc, 1.2f * s, 8)
+        ball(b, x + 0.6f * s, y + 3.5f * s, z + 0.3f * s, 1.0f * s, shade(gc, 16), 0.8f * s, 7)
         g.f.m(Mt.PLAIN)
-        g.f.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.0f * s, C("#6E5038"), true, 5)
-        g.f.sphere(x, y + 3.0f * s, z, 1.6f * s, gc, 1.3f * s, 6)
+        g.f.cyl(x, y, z, 0.15f * s, 0.1f * s, 2.0f * s, C("#6E5038"), true, 4)
+        ball(g.f, x, y + 3.0f * s, z, 1.6f * s, gc, 1.3f * s, 5)
     }
 
     /** Palmeira: tronco curvo em gomos e folhas compridas caídas. */
@@ -168,7 +188,7 @@ object CityGeo {
         }
         val tx = x + lean * hh; val tz = z + leanZ * hh; val ty = y + hh
         b.m(Mt.PLAIN)
-        b.sphere(tx, ty, tz, 0.35f * s, C("#6B5A2E"), 0.3f * s, 6)
+        CityGeo.ball(b, tx, ty, tz, 0.35f * s, C("#6B5A2E"), 0.3f * s, 6)
         val nf = 9
         for (k in 0 until nf) {
             val a = k * 2f * PI.toFloat() / nf + rng.r(-0.2f, 0.2f)
@@ -191,7 +211,7 @@ object CityGeo {
         }
         g.f.m(Mt.PLAIN)
         g.f.cyl(x, y, z, 0.2f * s, 0.14f * s, hh, C("#8A6D4E"), true, 5)
-        g.f.sphere(tx, ty - 0.4f * s, tz, 2.6f * s, C("#4A9A45"), 0.9f * s, 6)
+        CityGeo.ball(g.f, tx, ty - 0.4f * s, tz, 2.6f * s, C("#4A9A45"), 0.9f * s, 6)
     }
 
     fun bush(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB) {
@@ -206,14 +226,14 @@ object CityGeo {
 
     fun streetLamp(b: MB, x: Float, z: Float, ax: Float, az: Float, y: Float = CURB) {
         b.m(Mt.METAL, 1f)
-        b.cyl(x, y, z, 0.16f, 0.16f, 0.5f, C("#3B4046"), true, 10)
-        b.cyl(x, y, z, 0.09f, 0.06f, 6.4f, C("#4A4F55"), true, 8)
+        b.box(x, y + 0.25f, z, 0.3f, 0.5f, 0.3f, C("#3B4046"))
+        b.cyl(x, y, z, 0.09f, 0.06f, 6.4f, C("#4A4F55"), true, 6)
         if (ax != 0f || az != 0f) {
             b.box(x + ax * 0.75f, y + 6.3f, z + az * 0.75f, if (ax != 0f) 1.5f else 0.1f, 0.09f, if (az != 0f) 1.5f else 0.1f, C("#4A4F55"))
             b.box(x + ax * 1.45f, y + 6.22f, z + az * 1.45f, if (ax != 0f) 0.7f else 0.32f, 0.16f, if (az != 0f) 0.7f else 0.32f, C("#3B4046"))
             b.m(Mt.PLAIN); b.box(x + ax * 1.45f, y + 6.13f, z + az * 1.45f, if (ax != 0f) 0.6f else 0.26f, 0.03f, if (az != 0f) 0.6f else 0.26f, C("#FFF6D8"), false)
         } else {
-            b.m(Mt.PLAIN); b.sphere(x, y + 6.55f, z, 0.28f, C("#FFF6D8"), 0.28f, 8, false)
+            b.m(Mt.PLAIN); CityGeo.ball(b, x, y + 6.55f, z, 0.28f, C("#FFF6D8"), 0.28f, 8, false)
         }
     }
 
@@ -362,9 +382,9 @@ object CityGeo {
         b.cyl(x, y, z, 0.18f * s, 0.22f * s, 0.42f * s, rng.pick(arrayOf(C("#D9D2C5"), C("#3A3A3A"), C("#B5643C"), C("#FFFFFF"))), true, 12)
         b.cyl(x, y + 0.4f * s, z, 0.2f * s, 0.2f * s, 0.02f, C("#4E3B2A"), true, 12)
         val gc = rng.pick(arrayOf(C("#3E8E41"), C("#2E7D32"), C("#558B2F")))
-        for (k in 0 until 5) {
-            val a = k * 1.256f
-            b.sphere(x + cos(a) * 0.14f * s, y + (0.7f + (k % 2) * 0.25f) * s, z + sin(a) * 0.14f * s, 0.2f * s, shade(gc, k * 6), 0.28f * s, 7)
+        for (k in 0 until 3) {
+            val a = k * 2.09f
+            CityGeo.ball(b, x + cos(a) * 0.14f * s, y + (0.7f + (k % 2) * 0.25f) * s, z + sin(a) * 0.14f * s, 0.2f * s, shade(gc, k * 6), 0.28f * s, 7)
         }
     }
 
@@ -935,7 +955,7 @@ object CityGeo {
                 H.m(Mt.STONE, 0.5f); H.box(bx, FL + gh + fl * 3f + 0.05f, Z(set - 0.6f), 3.6f, 0.14f, 1.2f, C("#EDEDED"))
                 H.m(Mt.GLASS); H.al = 0.45f; H.box(bx, FL + gh + fl * 3f + 0.6f, Z(set - 1.18f), 3.6f, 0.95f, 0.03f, C("#A8C7D8")); H.al = 1f
                 H.m(Mt.METAL, 1f); H.box(bx, FL + gh + fl * 3f + 1.1f, Z(set - 1.18f), 3.6f, 0.04f, 0.05f, C("#9E9E9E"))
-                if (rng.chance(0.3f)) { H.m(Mt.PLAIN); H.cyl(bx - 1.3f, FL + gh + fl * 3f + 0.12f, Z(set - 0.6f), 0.18f, 0.2f, 0.4f, C("#B5643C"), true, 8); H.sphere(bx - 1.3f, FL + gh + fl * 3f + 0.75f, Z(set - 0.6f), 0.3f, C("#3E8E41"), 0.35f, 7) }
+                if (rng.chance(0.3f)) { H.m(Mt.PLAIN); H.cyl(bx - 1.3f, FL + gh + fl * 3f + 0.12f, Z(set - 0.6f), 0.18f, 0.2f, 0.4f, C("#B5643C"), true, 8); CityGeo.ball(H, bx - 1.3f, FL + gh + fl * 3f + 0.75f, Z(set - 0.6f), 0.3f, C("#3E8E41"), 0.35f, 7) }
             }
         }
         // teto
@@ -943,7 +963,7 @@ object CityGeo {
         for (k in 0 until 3) H.box(cx + rng.r(-w / 3, w / 3), topY + 0.5f, cz + rng.r(-d / 3, d / 3), 1.4f, 0.9f, 1.1f, C("#C8CCD0"))
         if (rng.chance(0.7f)) { H.box(x0 + 3f, topY + 1.6f, cz, 3.2f, 3.2f, 3.6f, C("#B0B6BC")); H.box(x0 + 3f, topY + 3.25f, cz, 3.4f, 0.1f, 3.8f, C("#8E959C")) }   // casa de máquinas
         if (rng.chance(0.5f)) H.cyl(x1 - 2.5f, topY, cz, 1.2f, 1.2f, 2.2f, C("#6F7A84"), true, 12)
-        if (floors > 14) { H.cyl(cx, topY, cz, 0.06f, 0.03f, 9f, C("#777777"), true, 5); H.m(Mt.PLAIN); H.sphere(cx, topY + 9f, cz, 0.18f, C("#FF3B30"), 0.18f, 6, false) }
+        if (floors > 14) { H.cyl(cx, topY, cz, 0.06f, 0.03f, 9f, C("#777777"), true, 5); H.m(Mt.PLAIN); CityGeo.ball(H, cx, topY + 9f, cz, 0.18f, C("#FF3B30"), 0.18f, 6, false) }
         g.end()
         // longe
         g.f.m(Mt.STONE, 0.5f); g.f.box(cx, FL + gh / 2, cz, w, gh, d, stoneC)
@@ -973,7 +993,7 @@ object CityGeo {
         val counterZ = back - inF * 1.3f
         when (kind) {
             1 -> {   // prateleiras de mercado
-                val rows = max(2, ((d - 4f) / 2.2f).toInt())
+                val rows = min(3, max(2, ((d - 4f) / 2.2f).toInt()))
                 for (r in 0 until rows) {
                     val sz = zf + inF * (3.2f + r * 2.2f)
                     var x = x0 + 1.2f
@@ -1061,7 +1081,7 @@ object CityGeo {
         for (k in 0..3) for (side in floatArrayOf(-1f, 1f)) {
             var px = x - w / 2 + 0.05f
             val c = rng.pick(pal)
-            val ph = rng.r(0.16f, 0.32f); val pw = rng.r(0.32f, 0.55f)
+            val ph = rng.r(0.18f, 0.32f); val pw = w - 0.1f
             while (px < x + w / 2 - pw) {
                 b.box(px + pw / 2, FL + 0.27f + k * 0.45f + ph / 2, z + side * 0.17f, pw - 0.015f, ph, 0.22f, if (rng.chance(0.25f)) rng.pick(pal) else c)
                 px += pw
@@ -1074,7 +1094,7 @@ object CityGeo {
         lb(b, l, 0f, FL + 1.0f, 0f, 1.3f, 2.0f, 0.7f, C("#ECEFF1"))
         b.m(Mt.PLAIN)
         val pal = arrayOf(C("#D32F2F"), C("#388E3C"), C("#FBC02D"), C("#1976D2"), C("#F57C00"))
-        for (k in 0 until 4) for (n in 0 until 7) lb(b, l, -0.55f + n * 0.18f, FL + 0.35f + k * 0.42f, -0.2f, 0.1f, 0.28f, 0.1f, pal[(k + n) % pal.size], false)
+        for (k in 0 until 4) lb(b, l, 0f, FL + 0.35f + k * 0.42f, -0.2f, 1.15f, 0.28f, 0.1f, pal[k % pal.size], false)
         b.m(Mt.GLASS); b.al = 0.3f
         lb(b, l, 0f, FL + 1.0f, -0.36f, 1.24f, 1.9f, 0.02f, C("#DDF3FF"))
         b.al = 1f
@@ -1678,11 +1698,11 @@ object CityGeo {
         b.m(Mt.PLAIN)
         b.cyl(cx + 4f, CURB - 0.05f, cz - 3f, 11f, 11f, 0.08f, C("#C9B79A"), true, 36)
         b.cyl(cx + 4f, CURB - 0.04f, cz - 3f, 10f, 10f, 0.1f, C("#3FA4C8"), true, 36)
-        for (k in 0 until 6) { val a = k * 1.05f; b.sphere(cx + 4f + 10.4f * cos(a), CURB, cz - 3f + 10.4f * sin(a), 0.5f, C("#9E9E9E"), 0.3f, 6) }
+        for (k in 0 until 6) { val a = k * 1.05f; CityGeo.ball(b, cx + 4f + 10.4f * cos(a), CURB, cz - 3f + 10.4f * sin(a), 0.5f, C("#9E9E9E"), 0.3f, 6) }
         g.solid(cx - 6f, cz - 13f, cx + 14f, cz + 7f)
         // ponte de madeira no lago e patinhos
         b.m(Mt.WOOD, 1f); b.box(cx + 4f, CURB + 0.25f, cz - 3f, 2f, 0.12f, 21f, C("#A47551"))
-        b.m(Mt.PLAIN); for (k in 0 until 3) { b.sphere(cx + 8f + k * 0.8f, CURB + 0.1f, cz - 6f + k * 0.5f, 0.15f, C("#FFFFFF"), 0.11f, 6); b.box(cx + 8.12f + k * 0.8f, CURB + 0.14f, cz - 6f + k * 0.5f, 0.05f, 0.03f, 0.05f, C("#FF9800")) }
+        b.m(Mt.PLAIN); for (k in 0 until 3) { CityGeo.ball(b, cx + 8f + k * 0.8f, CURB + 0.1f, cz - 6f + k * 0.5f, 0.15f, C("#FFFFFF"), 0.11f, 6); b.box(cx + 8.12f + k * 0.8f, CURB + 0.14f, cz - 6f + k * 0.5f, 0.05f, 0.03f, 0.05f, C("#FF9800")) }
         b.m(Mt.PAVER, 0.7f)
         for (k in 0 until 48) {
             val a0 = k * 6.283f / 48; val r = 19f
@@ -1745,18 +1765,18 @@ object CityGeo {
             for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {
                 val a = iv[0] + 3.2f; val e = iv[1] - 3.2f
                 if (e <= a) continue
-                b.box((a + e) / 2, 0.012f, zc - 0.12f, e - a, 0.02f, 0.1f, yel); b.box((a + e) / 2, 0.012f, zc + 0.12f, e - a, 0.02f, 0.1f, yel)
-                b.box((a + e) / 2, 0.012f, za + SIDE + 0.35f, e - a, 0.02f, 0.12f, wht); b.box((a + e) / 2, 0.012f, zb - SIDE - 0.35f, e - a, 0.02f, 0.12f, wht)
+                flat(b, (a + e) / 2, zc - 0.12f, e - a, 0.1f, yel); flat(b, (a + e) / 2, zc + 0.12f, e - a, 0.1f, yel)
+                flat(b, (a + e) / 2, za + SIDE + 0.35f, e - a, 0.12f, wht); flat(b, (a + e) / 2, zb - SIDE - 0.35f, e - a, 0.12f, wht)
                 for (side in intArrayOf(0, 1)) {
                     if ((side == 0 && iv[0] <= X0 + 0.1f) || (side == 1 && iv[1] >= X1 - 0.1f)) continue
                     val x = if (side == 0) iv[0] else iv[1]; val dx = if (side == 0) 1f else -1f
                     var zz = za + SIDE + 0.5f
-                    while (zz < zb - SIDE - 0.4f) { b.box(x + dx * 1.6f, 0.012f, zz + 0.25f, 2.4f, 0.02f, 0.5f, wht); zz += 1.0f }
+                    while (zz < zb - SIDE - 0.4f) { flat(b, x + dx * 1.6f, zz + 0.25f, 2.4f, 0.5f, wht); zz += 1.0f }
                     val s0 = if (side == 0) za + SIDE else zc; val s1 = if (side == 0) zc else zb - SIDE
-                    b.box(x + dx * 3.3f, 0.012f, (s0 + s1) / 2, 0.35f, 0.02f, s1 - s0, wht)
+                    flat(b, x + dx * 3.3f, (s0 + s1) / 2, 0.35f, s1 - s0, wht)
                     // seta no asfalto
                     val ax = x + dx * 7f; val az = (s0 + s1) / 2
-                    b.box(ax + dx * 0.6f, 0.012f, az, 1.6f, 0.02f, 0.18f, wht)
+                    flat(b, ax + dx * 0.6f, az, 1.6f, 0.18f, wht)
                     tri(b, P(ax - dx * 0.4f, 0.013f, az - 0.4f) + P(ax - dx * 0.4f, 0.013f, az + 0.4f) + P(ax - dx * 1.1f, 0.013f, az), wht)
                 }
             }
@@ -1767,7 +1787,7 @@ object CityGeo {
                     else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x + 9f, zb - 1.3f, 0.9f) } else { tree(g, x, za + 1.3f, g.rng.r(0.8f, 1.0f)); tree(g, x + 9f, zb - 1.3f, g.rng.r(0.8f, 1.0f)) } }
                     if (n % 5 == 3) { trashBin(b, x + 2f, za + 0.5f); hydrant(b, x + 4f, zb - 0.45f) }
                     if (n == 2 && ii % 2 == 0) busStop(g, x + 4.5f, za + 1.3f, 1f)
-                    x += 12f; n++
+                    x += 18f; n++
                 }
             }
         }
@@ -1788,15 +1808,15 @@ object CityGeo {
             for (iv in segs) {
                 val a = iv[0] + 3.2f; val e = iv[1] - 3.2f
                 if (e <= a) continue
-                b.box(xc - 0.12f, 0.012f, (a + e) / 2, 0.1f, 0.02f, e - a, yel); b.box(xc + 0.12f, 0.012f, (a + e) / 2, 0.1f, 0.02f, e - a, yel)
-                b.box(xa + SIDE + 0.35f, 0.012f, (a + e) / 2, 0.12f, 0.02f, e - a, wht); b.box(xb - SIDE - 0.35f, 0.012f, (a + e) / 2, 0.12f, 0.02f, e - a, wht)
+                flat(b, xc - 0.12f, (a + e) / 2, 0.1f, e - a, yel); flat(b, xc + 0.12f, (a + e) / 2, 0.1f, e - a, yel)
+                flat(b, xa + SIDE + 0.35f, (a + e) / 2, 0.12f, e - a, wht); flat(b, xb - SIDE - 0.35f, (a + e) / 2, 0.12f, e - a, wht)
                 for (side in intArrayOf(0, 1)) {
                     if ((side == 0 && iv[0] <= Z0 + 0.1f) || (side == 1 && iv[1] >= Z1 - 0.1f)) continue
                     val z = if (side == 0) iv[0] else iv[1]; val dz = if (side == 0) 1f else -1f
                     var xx = xa + SIDE + 0.5f
-                    while (xx < xb - SIDE - 0.4f) { b.box(xx + 0.25f, 0.012f, z + dz * 1.6f, 0.5f, 0.02f, 2.4f, wht); xx += 1.0f }
+                    while (xx < xb - SIDE - 0.4f) { flat(b, xx + 0.25f, z + dz * 1.6f, 0.5f, 2.4f, wht); xx += 1.0f }
                     val s0 = if (side == 0) xc else xa + SIDE; val s1 = if (side == 0) xb - SIDE else xc
-                    b.box((s0 + s1) / 2, 0.012f, z + dz * 3.3f, s1 - s0, 0.02f, 0.35f, wht)
+                    flat(b, (s0 + s1) / 2, z + dz * 3.3f, s1 - s0, 0.35f, wht)
                 }
             }
             for ((ii, iv) in freeIntervals(Z0, Z1, bandZ).withIndex()) {
@@ -1805,7 +1825,7 @@ object CityGeo {
                     if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z + 9f, -1f, 0f) }
                     else { tree(g, xa + 1.3f, z, g.rng.r(0.8f, 1.0f)); tree(g, xb - 1.3f, z + 9f, g.rng.r(0.8f, 1.0f)) }
                     if (n % 5 == 3) { trashBin(b, xa + 0.5f, z + 2f); hydrant(b, xb - 0.45f, z + 4f) }
-                    z += 12f; n++
+                    z += 18f; n++
                 }
             }
             // semáforos e placas de rua
@@ -1858,7 +1878,7 @@ object CityGeo {
     private fun hydrant(b: MB, x: Float, z: Float) {
         b.m(Mt.METAL, 1f)
         b.cyl(x, CURB, z, 0.13f, 0.12f, 0.55f, C("#D32F2F"), true, 10)
-        b.sphere(x, CURB + 0.6f, z, 0.13f, C("#D32F2F"), 0.1f, 8)
+        CityGeo.ball(b, x, CURB + 0.6f, z, 0.13f, C("#D32F2F"), 0.1f, 8)
         b.box(x, CURB + 0.38f, z, 0.36f, 0.08f, 0.08f, C("#D32F2F"))
     }
 
@@ -1940,7 +1960,7 @@ object CityGeo {
             val ang = PI + k * PI / 15
             val d = 230.0 + (k % 3) * 20
             val cx = ((X0 + X1) / 2 + d * cos(ang)).toFloat(); val cz = ((Z0 + Z1) / 2 + d * sin(ang) * 0.9).toFloat()
-            b.sphere(cx, -8f, cz, 55f + (k % 4) * 12f, mix(C("#7FAE7C"), C("#B9D3BC"), (k % 3) / 3f), 34f + (k % 3) * 8f, 12)
+            CityGeo.ball(b, cx, -8f, cz, 55f + (k % 4) * 12f, mix(C("#7FAE7C"), C("#B9D3BC"), (k % 3) / 3f), 34f + (k % 3) * 8f, 12)
         }
         val c = City.Chunk(b.toMesh(true), null, X0 - 420f, Z0 - 420f, X1 + 420f, Z1 + 420f, 70f)
         c.pend = g.fl

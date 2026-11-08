@@ -5,6 +5,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -187,11 +189,28 @@ object City {
     }
 
     @Volatile private var token = 0
+    /** Etapa 123: andamento da montagem (0..1) para a tela de carregamento. */
+    @Volatile var progress = 0f
+    /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
+    @Volatile var error: String? = null
+
+    /** Fração dos quarteirões perto de (x, z) que já têm o detalhe carregado. */
+    fun nearFraction(x: Float, z: Float): Float {
+        if (!on) return 0f
+        var n = 0; var ok = 0
+        for (c in chunks) {
+            if (c.lazyI < 0) continue
+            val dx = max(0f, max(c.x0 - x, x - c.x1)); val dz = max(0f, max(c.z0 - z, z - c.z1))
+            if (dx * dx + dz * dz < NEAR * NEAR) { n++; if (c.near != null) ok++ }
+        }
+        return if (n == 0) 1f else ok.toFloat() / n
+    }
 
     /** Thread do GL: devolve buffers e zera tudo (antes de montar de novo). */
     fun clear() {
         token++
         on = false
+        progress = 0f
         chunks.forEach { it.near?.release(); it.far?.release() }; chunks = emptyList()
         farAll?.release(); farAll = null
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
@@ -205,7 +224,7 @@ object City {
     fun buildAsync(gw: Int, gh: Int) {
         val tk = token
         Thread {
-            try { build(gw, gh, tk) } catch (e: Throwable) { android.util.Log.e("City", "falha ao montar a cidade", e) }
+            try { error = null; build(gw, gh, tk) } catch (e: Throwable) { error = e.toString(); android.util.Log.e("City", "falha ao montar a cidade", e) }
         }.apply { priority = Thread.NORM_PRIORITY - 1 }.start()
     }
 
@@ -234,7 +253,9 @@ object City {
         types = Array(NB) { i -> Array(NB) { j -> T[j][i] } }
 
         val out = ArrayList<Chunk>()
+        progress = 0.04f
         CityGeo.roads(out)
+        progress = 0.12f
         for (i in 0 until NB) for (j in 0 until NB) {
             val t = types[i][j]
             if (t == "home") continue
@@ -244,6 +265,7 @@ object City {
             if (t == "fun") out.add(g.finish(h))
             else { val c = g.finishFar(h); c.lazyI = i; c.lazyJ = j; c.farMB = g.f; out.add(c) }   // detalhe carregado quando o jogador chegar perto
             if (tk != token) return
+            progress = 0.12f + 0.7f * (i * NB + j + 1) / (NB * NB)
         }
         // junta as versões de longe numa malha só, guardando a faixa de cada quarteirão
         run {
@@ -257,9 +279,11 @@ object City {
             }
             farAll = all.toMesh(true)
         }
+        progress = 0.84f
         out.add(CityFun.beach(out.size))
         out.add(CityGeo.ring())
         chunks = out
+        progress = 0.9f
         CityGeo.buildLights()
         Vehicles.build()
         CityFun.buildRides()
@@ -311,8 +335,8 @@ object City {
             if (c.lazyI < 0) continue
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
-            if (d2 < (NEAR + 25f) * (NEAR + 25f)) { requestNear(ci); c.lastNear = now }
-            else if (c.near != null && d2 > (NEAR + 70f) * (NEAR + 70f) && now - c.lastNear > 4000L) { c.near?.release(); c.near = null }
+            if (d2 < (NEAR + 12f) * (NEAR + 12f)) { requestNear(ci); c.lastNear = now }
+            else if (c.near != null && d2 > (NEAR + 45f) * (NEAR + 45f) && now - c.lastNear > 3000L) { c.near?.release(); c.near = null }
         }
     }
 
@@ -354,7 +378,15 @@ object City {
         return if (onRoad(x, z)) 0f else CURB
     }
 
+    /** Etapa 123: carro do jogador estacionado (x, z, rumo, meio comprimento, meia largura) — bloqueia quem anda e o trânsito para. */
+    @Volatile var ownCar: FloatArray? = null
+
     fun blocked(x: Float, z: Float): Boolean {
+        ownCar?.let { o ->
+            val dx = x - o[0]; val dz = z - o[1]
+            val fx = sin(o[2]); val fz = -cos(o[2])
+            if (abs(dx * fx + dz * fz) < o[3] + 0.2f && abs(dx * fz - dz * fx) < o[4] + 0.2f) return true
+        }
         if (x < X0 + 0.5f || x > X1 - 0.5f || z < Z0 + 0.5f) return true
         if (z > SEA_Z + 2f) {   // mar: dá para molhar os pés; mais fundo, só pelo píer
             val onPier = (abs(x - PIER_X) < 2.3f && z < SEA_Z + 62f) || (abs(x - PIER_X) < 5.8f && z >= SEA_Z + 62f && z < SEA_Z + 67.8f)
@@ -418,6 +450,9 @@ object City {
         else { c.x = ln.c; c.z = c.s; c.yaw = if (ln.dir > 0) 0f else 180f }
     }
 
+    /** Meio comprimento do veículo que o jogador dirige (0 = a pé). */
+    @Volatile var driverHalf = 0f
+
     fun update(dt0: Float, px: Float, pz: Float) {
         if (!on) return
         val dt = dt0.coerceIn(0f, 0.1f)
@@ -448,11 +483,15 @@ object City {
                 if (d < gap) { gap = d; other = o }
             }
             if (other != null && gap < 45f) target = min(target, max(0f, gap - c.halfL - other.halfL - 2.2f) * 1.2f)
-            val ax = if (ln.axis == 0) px else pz; val pc = if (ln.axis == 0) pz else px
-            if (abs(pc - ln.c) < 2.3f) {
-                val d = (ax - c.s) * ln.dir
-                if (d > 0f && d < 16f) target = min(target, max(0f, d - c.halfL - 1.6f) * 1.0f)
+            fun obstacle(ox: Float, oz: Float, half: Float) {
+                val ax = if (ln.axis == 0) ox else oz; val pc = if (ln.axis == 0) oz else ox
+                if (abs(pc - ln.c) < 2.3f) {
+                    val d = (ax - c.s) * ln.dir
+                    if (d > 0f && d < 18f) target = min(target, max(0f, d - c.halfL - half - 1.4f) * 1.0f)
+                }
             }
+            obstacle(px, pz, if (driverHalf > 0f) driverHalf else 0.2f)
+            ownCar?.let { o -> obstacle(o[0], o[1], o[3]) }
             val acc = if (target > c.v) 2.6f else 7f
             c.brake = target < c.v - 0.3f
             c.v += (target - c.v).coerceIn(-acc * dt, acc * dt)
@@ -519,8 +558,8 @@ object City {
             if (woman && k % 4 == 1) b.cyl(0f, 0.6f, 0f, 0.28f, 0.2f, 0.36f, pn, true, 12)
             b.m(Mt.PLAIN)
             b.cyl(0f, 1.44f, 0f, 0.055f, 0.055f, 0.1f, sk, true, 8)
-            b.sphere(0f, 1.62f, 0f, 0.115f, sk, 0.135f, 10)
-            b.sphere(0f, 1.68f, -0.012f, 0.122f, hr, 0.11f, 10)
+            CityGeo.ball(b, 0f, 1.62f, 0f, 0.115f, sk, 0.135f, 10)
+            CityGeo.ball(b, 0f, 1.68f, -0.012f, 0.122f, hr, 0.11f, 10)
             if (woman) b.rbox(0f, 1.48f, -0.09f, 0.22f, 0.34f, 0.06f, 0.03f, hr, true, 2)
             b.box(0.042f, 1.63f, 0.11f, 0.022f, 0.022f, 0.01f, C("#2A2A2A")); b.box(-0.042f, 1.63f, 0.11f, 0.022f, 0.022f, 0.01f, C("#2A2A2A"))
             b.box(0f, 1.575f, 0.115f, 0.04f, 0.008f, 0.01f, C("#B5654E"))

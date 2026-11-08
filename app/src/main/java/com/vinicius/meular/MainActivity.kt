@@ -323,11 +323,19 @@ class MainActivity : AppCompatActivity() {
         miniMap.elevation = dpf(5f)
         root.addView(miniMap, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(12), 0, 0, dp(14)) })
         mapRoot = root
+        speedTv = tvShadow(tv("", 22f, Color.WHITE, true))
+        speedTv.setPadding(dp(16), dp(6), dp(16), dp(8))
+        speedTv.background = Ui.frost(dpf(20f), DARK, 0xB0, 0x80, dpf(1.3f))
+        speedTv.visibility = View.GONE
+        root.addView(speedTv, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(18) })
         val gpsTick = object : Runnable {
             override fun run() {
                 val show = Gps.active && game.mode == 0 && mapView == null
                 gpsHud.visibility = if (show) View.VISIBLE else View.GONE
                 if (show) gpsHud.invalidate()
+                val dv = game.r.driving
+                speedTv.visibility = if (dv) View.VISIBLE else View.GONE
+                if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h"
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
                 if (mm) miniMap.invalidate()
@@ -385,7 +393,7 @@ class MainActivity : AppCompatActivity() {
                 if ((game.mode == 0 || k == 5) && k != 0 && game.mode != 2) {
                     val lab = game.r.nearLabel
                     if (useTxt.text.toString() != lab) useTxt.text = lab
-                    val ic = when (k) { 3 -> Ic.SEAT; 7, 8 -> Ic.BED; 5 -> Ic.BACK; else -> Ic.HAND }
+                    val ic = when (k) { 3 -> Ic.SEAT; 7, 8 -> Ic.BED; 5, 21 -> Ic.BACK; 20 -> Ic.CAR; else -> Ic.HAND }
                     if (useIc.kind != ic) useIc.set(ic)
                     val key = "$k|$lab"
                     if (useBtn.visibility != View.VISIBLE) {
@@ -439,9 +447,8 @@ class MainActivity : AppCompatActivity() {
         game.onFocus = { item, grabbed -> aoMudarFoco(item, grabbed) }
         game.onChanged = { st.save() }
         atualizarDinheiro(false)
-        mostrarNovidades()
         Updater.autoCheck(this)
-        if (!st.avatarSet) root.post { abrirCriador() }
+        abrirMenu(root)
     }
 
     private var modTarget: String? = null
@@ -539,12 +546,14 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (mapView != null) { fecharMapa(); return }
+        if (menuView != null || loadView != null) { finish(); return }
         if (game.mode == 2) fecharCriador() else super.onBackPressed()
     }
 
     /** Ícone da câmera atual: 3ª pessoa, 1ª pessoa (olho do personagem) ou vista aérea. */
     private fun iconeCamera(mode: Int, third: Boolean) = if (mode == 1) Ic.CAMAIR else if (third) Ic.CAM3P else Ic.CAM1P
 
+    private lateinit var speedTv: TextView
     private lateinit var gpsHud: GpsHud
     private lateinit var miniMap: MiniMap
     private lateinit var mapRoot: FrameLayout
@@ -710,6 +719,22 @@ class MainActivity : AppCompatActivity() {
                 val sub = if (st.wallIdx == i) "Em uso" else if (own) "Comprado" else "Grátis"
                 out.add(Entry("Parede\n${w.nome}", sub, 0, w.cor, own || st.money >= w.preco) { comprarParede(i) })
             }
+        } else if (tab == 6) {
+            // Etapa 123: garagem — escolher o veículo (fica na rua em frente de casa) e a cor
+            for ((k, nome) in VEICULOS) {
+                val sel = st.vehKind == k
+                out.add(Entry(nome, if (sel) "Seu veículo" else "Grátis", if (k == Vehicles.MOTO || k == Vehicles.SCOOTER) Ic.MOTO else Ic.CAR, 0, true) {
+                    st.vehKind = k; st.save(); refreshShop()
+                    msg("${nome.replace("\n", " ")} está na rua em frente de casa. Chegue perto e toque em Dirigir.")
+                })
+            }
+            for ((nome, cor) in CORES_VEIC) {
+                out.add(Entry("Pintura\n$nome", if (st.vehColor == cor) "Em uso" else "Grátis", 0, cor, st.vehKind >= 0) {
+                    if (st.vehKind < 0) msg("Escolha um veículo primeiro")
+                    else { st.vehColor = cor; st.save(); refreshShop() }
+                })
+            }
+            if (st.vehKind >= 0) out.add(Entry("Trazer para\ncasa", "Grátis", Ic.HOME, 0, true) { game.r.resetCar(); msg("Seu veículo voltou para a frente de casa") })
         } else {
             if (st.podeAmpliar()) {
                 val p = st.precoAmpliar()
@@ -719,6 +744,54 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return out
+    }
+
+    private val VEICULOS = listOf(Vehicles.SEDAN to "Sedã", Vehicles.HATCH to "Hatch", Vehicles.SUV to "SUV", Vehicles.PICKUP to "Picape", Vehicles.SPORT to "Esportivo",
+        Vehicles.TAXI to "Táxi", Vehicles.VAN to "Van", Vehicles.POLICE to "Viatura", Vehicles.MOTO to "Moto\nesportiva", Vehicles.SCOOTER to "Scooter")
+    private val CORES_VEIC = listOf("Vermelho" to 0xFFC62828.toInt(), "Azul" to 0xFF1565C0.toInt(), "Branco" to 0xFFF5F5F5.toInt(), "Preto" to 0xFF212121.toInt(), "Prata" to 0xFFB0BEC5.toInt(),
+        "Verde" to 0xFF2E7D32.toInt(), "Amarelo" to 0xFFF9A825.toInt(), "Laranja" to 0xFFE65100.toInt(), "Roxo" to 0xFF6A1B9A.toInt(), "Rosa" to 0xFFEC407A.toInt())
+
+    // ---------------------------------------------------------------- Etapa 123: menu inicial e carregamento
+    private var menuView: View? = null
+    private var loadView: View? = null
+    private var jogando = false
+
+    private fun abrirMenu(root: FrameLayout) {
+        val ver = try { "versão " + packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        val m = MainMenu(this, ver, { jogar(root) }, { fecharMenu(); jogando = true; abrirCriador() }, { mostrarNovidades(true) }, { config() })
+        m.elevation = dpf(40f)
+        root.addView(m, FrameLayout.LayoutParams(-1, -1))
+        menuView = m
+    }
+
+    private fun fecharMenu() {
+        val m = menuView ?: return
+        menuView = null
+        m.animate().alpha(0f).setDuration(300).withEndAction { (m.parent as? ViewGroup)?.removeView(m) }.start()
+    }
+
+    /** Jogar: some o menu e entra a tela de carregamento até a cidade e os quarteirões em volta estarem prontos. */
+    private fun jogar(root: FrameLayout) {
+        if (loadView != null) return
+        val ld = LoadingScreen(this, {
+            if (st.testRoom) 1f
+            else if (City.error != null) 1f
+            else if (!City.on) City.progress * 0.85f
+            else 0.85f + 0.15f * City.nearFraction(game.r.px, game.r.pz)
+        }) {
+            val lv = loadView
+            loadView = null
+            jogando = true
+            lv?.animate()?.alpha(0f)?.setDuration(450)?.withEndAction { (lv.parent as? ViewGroup)?.removeView(lv) }?.start()
+            City.error?.let { msg("A cidade não carregou: $it") }
+            mostrarNovidades()
+            if (!st.avatarSet) root.post { abrirCriador() }
+        }
+        ld.elevation = dpf(41f)
+        ld.alpha = 0f
+        root.addView(ld, FrameLayout.LayoutParams(-1, -1))
+        ld.animate().alpha(1f).setDuration(250).withEndAction { fecharMenu() }.start()
+        loadView = ld
     }
 
     private fun refreshShop() {
@@ -802,7 +875,7 @@ class MainActivity : AppCompatActivity() {
             sc.isHorizontalScrollBarEnabled = false
             val row = LinearLayout(this)
             row.orientation = LinearLayout.HORIZONTAL
-            val nomes = listOf("Sala", "Quarto", "Cozinha", "Decoração", "Piso e parede", "Casa")
+            val nomes = listOf("Sala", "Quarto", "Cozinha", "Decoração", "Piso e parede", "Casa", "Veículos")
             nomes.forEachIndexed { i, n ->
                 val t = tv(n, 14f, Pal.SUB, true)
                 t.setPadding(dp(16), dp(8), dp(16), dp(11))

@@ -109,6 +109,9 @@ class GameState(ctx: Context) {
     var ownFloors = 1
     var ownWalls = 1
     var sens = 1
+    /** Etapa 123: veículo escolhido na loja (-1 = nenhum) e cor. */
+    var vehKind = -1
+    var vehColor = 0xFFC62828.toInt()
     var avatar = Avatar()
     var avatarSet = false
     val items = CopyOnWriteArrayList<Item>()
@@ -165,6 +168,8 @@ class GameState(ctx: Context) {
         ownFloors = prefs.getInt("ownF", 1) or 1
         ownWalls = prefs.getInt("ownW", 1) or 1
         sens = prefs.getInt("sens", 1).coerceIn(0, 2)
+        vehKind = prefs.getInt("vehKind", -1)
+        vehColor = prefs.getInt("vehColor", 0xFFC62828.toInt())
         Avatar.decode(prefs.getString("avatar", null))?.let { avatar = it; avatarSet = true }
         CuteColor.setColors(avatar.cc)
         CuteChar.setWear(avatar.wearKeys())
@@ -299,6 +304,7 @@ class GameState(ctx: Context) {
             .putInt("floor", floorIdx).putInt("wall", wallIdx)
             .putInt("ownF", ownFloors).putInt("ownW", ownWalls)
             .putInt("sens", sens)
+            .putInt("vehKind", vehKind).putInt("vehColor", vehColor)
             .putString("avatar", avatar.encode())
             .apply()
     }
