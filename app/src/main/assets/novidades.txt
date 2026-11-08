@@ -1,3 +1,11 @@
+Etapa 129 - Tudo centralizado
+- Praça refeita, simétrica nos dois eixos: chafariz central, 4 canteiros iguais, bancos e postes espelhados, coreto e obelisco no eixo (academia ao ar livre removida)
+- Calçadas: postes, árvores, hidrantes e lixeiras espelhados e em intervalos regulares
+- Casas centralizadas no lote, alinhadas na frente, garagem alternando de lado
+- Lojas: porta no centro com vitrine igual de cada lado; porta dos fundos e ar-condicionado centralizados
+- Prédios com vitrines em número ímpar (porta sempre no centro); casas com janelas laterais simétricas
+- Lago do parque centralizado
+
 #id 2026-11-08-voo-portas
 #titulo Modo voo com turbo, portas de verdade em todo lugar e carro que não trava mais
 - Botão VOAR (ao lado do agachar): sobe e desce segurando os botões, voa para onde olha e tem TURBO para atravessar a cidade rapidinho; POUSAR desce no lugar livre mais perto

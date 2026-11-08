@@ -777,20 +777,23 @@ object CityGeo {
      * Casa de um lote. Frente em z = [fz0] (fachada virada para [fz] = ±1), lote de x0..x1 e profundidade [depth].
      * [style]: 0 tradicional (duas águas), 1 moderna (laje plana), 2 sobrado (2 andares, quatro águas), 3 chalé (telhado alto, madeira), 4 casa de praia (varanda grande).
      */
-    fun house(g: Gen, x0: Float, x1: Float, fz0: Float, fz: Float, depth: Float, style: Int, forSale: Boolean, mansion: Boolean = false) {
+    fun house(g: Gen, x0: Float, x1: Float, fz0: Float, fz: Float, depth: Float, style: Int, forSale: Boolean, mansion: Boolean = false, gar: Int = -1) {
         val rng = g.rng
         val lotW = x1 - x0
         val wall = C(rng.pick(WALLS)); val roof = C(rng.pick(ROOFS)); val trim = C("#FFFFFF")
         val wood = rng.pick(WOODS)
-        val hw = if (mansion) min(lotW - 8f, rng.r(18f, 24f)) else min(lotW - 4.3f, rng.r(8.5f, 11f))
-        var hd = if (mansion) rng.r(13f, 15f) else rng.r(8.2f, 10f)
-        var set = if (mansion) rng.r(9f, 11f) else rng.r(5.5f, 7f)
+        // Etapa 129: todas as casas de uma rua com a mesma frente (recuo) e os mesmos fundos; larguras iguais quando o lote deixa
+        val hw = if (mansion) min(lotW - 9.6f, 21f.also { rng.r(18f, 24f) }) else min(lotW - 4.3f, 9.8f.also { rng.r(8.5f, 11f) })
+        var hd = if (mansion) 14f.also { rng.r(13f, 15f) } else 9f.also { rng.r(8.2f, 10f) }
+        var set = if (mansion) 10f.also { rng.r(9f, 11f) } else 6f.also { rng.r(5.5f, 7f) }
         // Etapa 127: a casa (e o quintal dos fundos) cabem no lote — antes a piscina/árvores do fundo invadiam a casa do lote de trás
         val pool = mansion && set + hd + 10.5f <= depth   // piscina só se o lote for fundo o bastante
         val back = if (pool) 10.5f else 4.6f
         if (set + hd + back > depth) { val k = (depth - back) / (set + hd); set *= max(0.75f, k); hd = min(hd, depth - back - set) }
-        val sideGar = rng.chance(0.5f)
-        val hcx = (x0 + x1) / 2 + (if (mansion) 0f else (if (sideGar) -1.6f else 1.6f))
+        val sideGarRnd = rng.chance(0.5f)
+        val sideGar = if (gar >= 0) gar == 0 else sideGarRnd
+        // casa + entrada de carros formam um conjunto centralizado no lote (a casa fica 1,8 m para o lado oposto à garagem)
+        val hcx = (x0 + x1) / 2 + (if (mansion) 0f else (if (sideGar) -1.8f else 1.8f))
         val hx0 = hcx - hw / 2; val hx1 = hcx + hw / 2
         fun Z(d: Float) = fz0 - fz * d                       // profundidade -> z do mundo
         val zf = Z(set); val zb = Z(set + hd)
@@ -803,7 +806,7 @@ object CityGeo {
         // jardim: caminho, garagem, gramado com flores
         g.b.m(Mt.PAVER, 0.8f)
         g.b.box(hcx, CURB + 0.01f, (fz0 + zf) / 2, 1.3f, 0.02f, abs(zf - fz0), C("#D8CFC2"))
-        val gx = if (mansion) hx1 + 3.5f else if (sideGar) hx1 + 2.0f else hx0 - 2.0f
+        val gx = if (mansion) hx1 + (x1 - hx1) / 2f else if (sideGar) hx1 + 2.0f else hx0 - 2.0f
         val drive = !mansion || true
         if (drive) { g.b.m(Mt.ASPHALT, 0.3f); g.b.box(gx, CURB + 0.012f, (fz0 + Z(set + 6f)) / 2, 3.2f, 0.02f, set + 6f, C("#BDBDBD")) }
         flowers(g, hx0 + 0.3f, min(zf, Z(set - 1.2f)), hx1 - 0.3f, max(zf, Z(set - 1.2f)), if (mansion) 30 else 12, CURB + 0.01f)
@@ -840,7 +843,7 @@ object CityGeo {
         val bOps = arrayListOf(Op(hx0 + hw * 0.25f, 1.2f, FL + 1.0f, winT, false), Op(hx0 + hw * 0.75f, 1.2f, FL + 1.0f, winT, false))
         wall(g, 0, zb, hx0, hx1, FL, topY, if (fz > 0) -1 else 1, bOps, wall, inC, matOut)
         // laterais
-        val sOps = arrayListOf(Op((hz0 + hz1) / 2 + hd * 0.22f, 1.2f, FL + 1.0f, winT, false), Op((hz0 + hz1) / 2 - hd * 0.25f, 1.0f, FL + 1.3f, winT, false))
+        val sOps = arrayListOf(Op((hz0 + hz1) / 2 + hd * 0.23f, 1.1f, FL + 1.1f, winT, false), Op((hz0 + hz1) / 2 - hd * 0.23f, 1.1f, FL + 1.1f, winT, false))
         wall(g, 1, hx0, hz0 + 0.1f, hz1 - 0.1f, FL, topY, -1, sOps, wall, inC, matOut)
         wall(g, 1, hx1, hz0 + 0.1f, hz1 - 0.1f, FL, topY, 1, sOps, wall, inC, matOut)
         // paredes como sólidos (a porta fica aberta)
@@ -1013,7 +1016,7 @@ object CityGeo {
 
         // cerca/muro na frente, caixa de correio, árvore, placa à venda
         val b = g.b
-        val fenceType = if (mansion) 2 else rng.i(3)
+        val fenceType = if (mansion) 2 else (style % 3).also { rng.i(3) }
         val fy = Z(0.35f)
         val gapA = min(hcx - 0.8f, gx - 1.8f); val gapB = max(hcx + 0.8f, gx + 1.8f)
         for (seg in arrayOf(floatArrayOf(x0 + 0.2f, if (sideGar || mansion) hcx - 0.8f else gapA), floatArrayOf(if (sideGar || mansion) hcx + 0.8f else hcx + 0.8f, if (sideGar || mansion) gx - 1.8f else x1 - 0.2f), floatArrayOf(if (sideGar || mansion) gx + 1.8f else x1, x1 - 0.2f))) {
@@ -1046,8 +1049,10 @@ object CityGeo {
         b.m(Mt.METAL, 1f)
         b.box(hcx + 1.3f, CURB + 0.5f, Z(0.7f), 0.06f, 1.0f, 0.06f, C("#444444"))
         b.box(hcx + 1.3f, CURB + 1.05f, Z(0.7f), 0.25f, 0.22f, 0.42f, C(rng.pick(arrayOf("#C0392B", "#2C3E50", "#27AE60", "#F2F2F2"))))
-        if (rng.chance(0.7f)) tree(g, if (sideGar) x0 + 2.2f else x1 - 2.2f, Z(depth - 3.5f), rng.r(0.9f, 1.3f))
-        if (rng.chance(0.6f)) tree(g, if (sideGar) x0 + 1.8f else x1 - 1.8f, Z(2.0f), rng.r(0.7f, 1.0f))
+        // uma árvore no fundo e outra na frente, sempre no canto oposto à garagem
+        rng.chance(0.7f); rng.r(0.9f, 1.3f); rng.chance(0.6f); rng.r(0.7f, 1.0f)
+        tree(g, if (sideGar) x0 + 2.2f else x1 - 2.2f, Z(depth - 3.5f), 1.1f)
+        tree(g, if (sideGar) x0 + 1.8f else x1 - 1.8f, Z(2.0f), 0.85f)
         if (forSale) {
             b.m(Mt.WOOD, 1f); b.box(hcx - 2.2f, CURB + 0.6f, Z(1.4f), 0.08f, 1.2f, 0.08f, C("#5D4037"))
             sign(b, hcx - 2.2f, CURB + 1.0f, Z(1.4f) + fz * 0.06f, 0f, fz, 1.4f, 0.32f, City.signIdx("À VENDA"))
@@ -1129,7 +1134,7 @@ object CityGeo {
         A.m(fl0?.first ?: fm0, fl0?.third ?: 0.6f); A.box(cx, FL - 0.005f, cz, w - 0.3f, 0.012f, d - 0.3f, fl0?.second ?: C("#F2F2F2"))
         // térreo: vitrine de vidro na frente com porta, paredes nos outros lados
         val fOps = ArrayList<Op>()
-        val nv = max(1, (w / 4f).toInt())
+        val nv = max(1, (w / 4f).toInt()).let { if (it % 2 == 0) it + 1 else it }
         for (k in 0 until nv) {
             val c = x0 + w * (k + 0.5f) / nv
             fOps.add(if (k == nv / 2) Op(c, 1.8f, FL, FL + 2.6f, true) else Op(c, w / nv - 0.5f, FL + 0.3f, FL + 3.3f, false))
@@ -1650,23 +1655,28 @@ object CityGeo {
             val fl0 = CityInt.floor(signName)
             A.m(fl0?.first ?: fm0, fl0?.third ?: 0.6f); A.box(cx, FL - 0.005f, (z0 + z1) / 2, x1 - x0 - 0.3f, 0.012f, depth - 0.3f, fl0?.second ?: C("#FFFFFF"))
             val hh = 4.4f
-            val ops = listOf(Op(cx + sw * 0.28f, 1.3f, FL, FL + 2.5f, true), Op(cx - sw * 0.12f, sw * 0.5f, FL + 0.4f, FL + 3.0f, false))
+            // Etapa 129: porta no centro da loja e uma vitrine de cada lado, iguais (antes a porta ficava deslocada)
+            val ww0 = x1 - x0
+            val reg = ww0 / 2f - 0.7f - 0.8f            // espaço de cada lado entre o pilar da porta e o pilar da ponta
+            val vw = min(reg, 4.6f); val vc = 0.7f + reg / 2f + 0.8f * 0f
+            val ops = if (vw > 1.2f) listOf(Op(cx - (0.7f + reg / 2f), vw, FL + 0.4f, FL + 3.0f, false), Op(cx, 1.3f, FL, FL + 2.5f, true), Op(cx + (0.7f + reg / 2f), vw, FL + 0.4f, FL + 3.0f, false))
+                      else listOf(Op(cx, 1.3f, FL, FL + 2.5f, true))
             val inW = innerColor(signName)
             wall(g, 0, zf, x0, x1, FL, FL + hh, if (fz > 0) 1 else -1, ops, col, inW, Mt.PLASTER, 0.24f)
             wall(g, 0, zb, x0, x1, FL, FL + hh, if (fz > 0) -1 else 1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
             wall(g, 1, x0, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, -1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
             wall(g, 1, x1, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, 1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
             g.solid(x0 - 0.15f, z0 - 0.15f, x0 + 0.2f, z1 + 0.15f); g.solid(x1 - 0.2f, z0 - 0.15f, x1 + 0.15f, z1 + 0.15f); g.solid(x0, zb - 0.2f, x1, zb + 0.2f)
-            g.solid(x0, zf - 0.2f, cx + sw * 0.28f - 0.7f, zf + 0.2f); g.solid(cx + sw * 0.28f + 0.7f, zf - 0.2f, x1, zf + 0.2f)
-            g.door(signName, cx + sw * 0.28f, zf, fz, 1.3f, 2.5f, 0.24f)
-            if (!shopInterior(g, signName, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)) interior(g, kind, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)
+            g.solid(x0, zf - 0.2f, cx - 0.7f, zf + 0.2f); g.solid(cx + 0.7f, zf - 0.2f, x1, zf + 0.2f)
+            g.door(signName, cx, zf, fz, 1.3f, 2.5f, 0.24f)
+            if (!shopInterior(g, signName, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx)) interior(g, kind, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx)
             // platibanda, toldo, letreiro, andar de cima
             H.m(Mt.STONE, 0.5f)
             H.box(cx, FL + hh + 0.3f, (z0 + z1) / 2, x1 - x0 + 0.1f, 0.6f, depth + 0.1f, shade(col, -28))
             // Etapa 127: cada loja com marca, letreiro e toldo próprios (caixa luminosa, letra-caixa, neon, madeira, toldo com nome)
             val si = Signs.pick(signName, rng)
             val sp = Signs.spec(si)
-            val doorX = cx + sw * 0.28f
+            val doorX = cx
             val awnT = if (sp.style == Signs.AWNING) 1 else sp.awn
             val awnC = if (sp.style == Signs.AWNING) C(sp.bg) else C(rng.pick(arrayOf("#B3261E", "#1F5E8C", "#2A7D6F", "#C46A1C", "#5B3F86", "#2E6B30", "#6B4A3A", "#22313F")))
             if (awnT > 0) Signs.awning(H, awnT, x0 + 0.45f, x1 - 0.45f, FL + 3.22f, zf, fz, 1.15f, awnC, if (sp.style == Signs.AWNING) si else -1)
@@ -1674,27 +1684,27 @@ object CityGeo {
                 val sh = if (sp.style == Signs.LETTERS) 0.82f else 0.7f
                 Signs.mount(H, si, cx, FL + 3.4f, zf, fz, min(x1 - x0 - 1.4f, 6.2f), sh)
             }
-            if (sp.blade >= 0) Signs.blade(H, sp.blade, if (doorX > cx) x0 + 0.3f else x1 - 0.3f, FL + 3.35f, zf, fz, 0.62f)
-            Signs.doorDetails(H, doorX, FL, zf, fz, cx - sw * 0.12f, sw * 0.5f, C(sp.fg.let { if (sp.style == Signs.LETTERS || sp.style == Signs.NEON) it else sp.bg }), k + 1)
-            if (sp.awn == 1 || sp.awn == 3 || kind == 2) Signs.aframe(H, doorX + 0.95f, CURB, zf + fz * 0.85f, fz)
-            if (rng.chance(0.55f)) Signs.planter(H, cx - sw * 0.12f, CURB, zf + fz * 0.3f, min(sw * 0.45f, 2.4f), rng)
+            if (sp.blade >= 0) Signs.blade(H, sp.blade, x1 - 0.3f, FL + 3.35f, zf, fz, 0.62f)
+            Signs.doorDetails(H, doorX, FL, zf, fz, cx - (0.7f + reg / 2f), vw, C(sp.fg.let { if (sp.style == Signs.LETTERS || sp.style == Signs.NEON) it else sp.bg }), k + 1)
+            if (sp.awn == 1 || sp.awn == 3 || kind == 2) { Signs.aframe(H, doorX - 1.9f, CURB, zf + fz * 0.85f, fz); Signs.aframe(H, doorX + 1.9f, CURB, zf + fz * 0.85f, fz) }
+            if (rng.chance(0.55f) && vw > 1.2f) for (sd in floatArrayOf(-1f, 1f)) Signs.planter(H, cx + sd * (0.7f + reg / 2f), CURB, zf + fz * 0.3f, min(vw * 0.7f, 2.4f), rng)
             // pilastra entre uma loja e a outra (cobre a junta)
             if (k < n - 1) { H.m(Mt.STONE, 0.6f); H.box(x1 + 0.15f, (FL + hh + 0.6f) / 2, (z0 + z1) / 2, 0.36f, FL + hh + 0.6f, depth + 0.3f, shade(col, -22)) }
             // Etapa 127: fundos da loja não ficam lisos — janelas altas com grade, porta de serviço, ar-condicionado e calha
             run {
                 val bz = zb - fz * 0.13f
                 H.m(Mt.PLAIN)
-                for (wx in floatArrayOf(cx - sw * 0.25f, cx + sw * 0.05f)) {
+                for (wx in floatArrayOf(cx - sw * 0.28f, cx + sw * 0.28f)) {
                     H.box(wx, FL + 2.6f, bz, 1.1f, 0.7f, 0.05f, C("#F2F2F2"))
                     H.m(Mt.METAL, 1f); H.box(wx, FL + 2.6f, bz - fz * 0.02f, 0.98f, 0.58f, 0.02f, C("#56708A"))
                     for (m in 0 until 5) H.box(wx - 0.4f + m * 0.2f, FL + 2.6f, bz - fz * 0.05f, 0.025f, 0.62f, 0.025f, C("#3A3A3A"))
                     H.m(Mt.PLAIN)
                 }
                 H.m(Mt.METAL, 1f)
-                H.box(cx + sw * 0.32f, FL + 1.1f, bz, 0.95f, 2.2f, 0.06f, C("#6B7076"))
-                H.box(cx + sw * 0.32f + 0.32f, FL + 1.1f, bz - fz * 0.04f, 0.05f, 0.05f, 0.04f, C("#C9C9C9"))
-                H.box(cx - sw * 0.05f, FL + 1.6f, bz - fz * 0.22f, 0.8f, 0.55f, 0.32f, C("#E6E6E6"))
-                H.m(Mt.PLAIN); for (m in 0 until 6) H.box(cx - sw * 0.05f - 0.3f + m * 0.12f, FL + 1.6f, bz - fz * 0.385f, 0.05f, 0.45f, 0.01f, C("#8A8A8A"))
+                H.box(cx, FL + 1.1f, bz, 0.95f, 2.2f, 0.06f, C("#6B7076"))
+                H.box(cx + 0.32f, FL + 1.1f, bz - fz * 0.04f, 0.05f, 0.05f, 0.04f, C("#C9C9C9"))
+                H.box(cx, FL + 2.9f, bz - fz * 0.22f, 0.8f, 0.55f, 0.32f, C("#E6E6E6"))
+                H.m(Mt.PLAIN); for (m in 0 until 6) H.box(cx - 0.3f + m * 0.12f, FL + 1.6f, bz - fz * 0.385f, 0.05f, 0.45f, 0.01f, C("#8A8A8A"))
                 H.m(Mt.METAL, 1f); H.box(x0 + 0.3f, (FL + hh + 0.5f) / 2, bz - fz * 0.05f, 0.09f, FL + hh + 0.5f, 0.09f, C("#9E9E9E"))
             }
             if (two) {
@@ -1918,21 +1928,21 @@ object CityGeo {
         // estilo predominante do bairro + variações (nenhuma casa igual: cores, tamanhos, móveis e detalhes sorteados)
         val main = rng.i(5)
         for (side in intArrayOf(0, 1)) {
-            var x = g.x0
+            var x = g.x0; var li = 0
             while (x < g.x1 - 9f) {
                 val lw = min(g.x1 - x, rng.r(12.5f, 15.5f)).let { if (g.x1 - x - it < 11f) g.x1 - x else it }
                 val fz0 = if (side == 0) g.z1 else g.z0
                 val fz = if (side == 0) 1f else -1f
                 val empty = if (lots) rng.chance(0.6f) else rng.chance(0.08f)
                 if (empty) emptyLot(g, x, x + lw, fz0, fz, depth)
-                else house(g, x, x + lw, fz0, fz, depth, if (rng.chance(0.6f)) main else rng.i(5), rng.chance(0.18f))
+                else house(g, x, x + lw, fz0, fz, depth, if (rng.chance(0.6f)) main else rng.i(5), rng.chance(0.18f), false, li % 2)
                 // divisa entre lotes (não no fim do quarteirão: ali é a rua)
                 if (x + lw < g.x1 - 1f) {
                     g.b.m(Mt.STONE, 0.8f)
                     g.b.box(x + lw, CURB + 0.9f, (g.z0 + g.z1) / 2 - fz * depth / 2 - fz * 2f, 0.15f, 1.8f, depth - 5f, C("#D9D2C5"))
                     g.solid(x + lw - 0.15f, min(fz0, fz0 - fz * depth) + 3f, x + lw + 0.15f, max(fz0, fz0 - fz * depth) - 2f)
                 }
-                x += lw
+                x += lw; li++
             }
         }
         g.b.m(Mt.STONE, 0.8f)
@@ -2166,11 +2176,11 @@ object CityGeo {
 
     private fun residentialStrip(g: Gen, fz0: Float, fz: Float, depth: Float) {
         val rng = g.rng
-        var x = g.x0
+        var x = g.x0; var li = 0
         while (x < g.x1 - 9f) {
             val lw = min(g.x1 - x, rng.r(12.5f, 15.5f)).let { if (g.x1 - x - it < 11f) g.x1 - x else it }
-            house(g, x, x + lw, fz0, fz, depth, rng.i(5), rng.chance(0.2f))
-            x += lw
+            house(g, x, x + lw, fz0, fz, depth, rng.i(5), rng.chance(0.2f), false, li % 2)
+            x += lw; li++
         }
     }
 
@@ -2388,101 +2398,102 @@ object CityGeo {
         Shade.box(min(l.wx(-1.3f, -0.6f), l.wx(1.3f, 1.0f)), min(l.wz(-1.3f, -0.6f), l.wz(1.3f, 1.0f)), max(l.wx(-1.3f, -0.6f), l.wx(1.3f, 1.0f)), max(l.wz(-1.3f, -0.6f), l.wz(1.3f, 1.0f)), 2.6f)
     }
 
+    /** Etapa 129: canteiro retangular com mureta de pedra, cerca viva só nos lados de fora, grama, flores e uma árvore no centro. */
+    private fun bed(g: Gen, x0: Float, z0: Float, x1: Float, z1: Float, kind: Int) {
+        val b = g.b
+        val mx = (x0 + x1) / 2; val mz = (z0 + z1) / 2; val w = x1 - x0; val d = z1 - z0
+        b.m(Mt.STONE, 0.8f)
+        val cc = C("#CFC6B4")
+        b.box(mx, CURB + 0.15f, z0 + 0.12f, w, 0.3f, 0.24f, cc); b.box(mx, CURB + 0.15f, z1 - 0.12f, w, 0.3f, 0.24f, cc)
+        b.box(x0 + 0.12f, CURB + 0.15f, mz, 0.24f, 0.3f, d - 0.48f, cc); b.box(x1 - 0.12f, CURB + 0.15f, mz, 0.24f, 0.3f, d - 0.48f, cc)
+        b.m(Mt.GRASS, 0.3f); b.box(mx, CURB + 0.12f, mz, w - 0.4f, 0.24f, d - 0.4f, C("#9CC77A"))
+        // cerca viva baixa em todo o perímetro, espaçada igual
+        b.m(Mt.LEAFB, 1f)
+        val nx = max(2, (w / 0.7f).toInt()); val nz = max(2, (d / 0.7f).toInt())
+        for (k in 0 until nx) { val x = x0 + 0.55f + (w - 1.1f) * (k + 0.5f) / nx
+            for (zz in floatArrayOf(z0 + 0.55f, z1 - 0.55f)) b.box(x, CURB + 0.5f, zz, (w - 1.1f) / nx * 0.92f, 0.46f, 0.6f, C(if (k % 2 == 0) "#3F7A35" else "#467F3A")) }
+        for (k in 0 until nz) { val z = z0 + 1.15f + (d - 2.3f) * (k + 0.5f) / nz
+            for (xx in floatArrayOf(x0 + 0.55f, x1 - 0.55f)) b.box(xx, CURB + 0.5f, z, 0.6f, 0.46f, (d - 2.3f) / nz * 0.92f, C(if (k % 2 == 0) "#3F7A35" else "#467F3A")) }
+        flowers(g, x0 + 1.4f, z0 + 1.4f, x1 - 1.4f, z1 - 1.4f, 30, CURB + 0.24f)
+        tree(g, mx, mz, 1.15f, CURB + 0.24f, kind)
+        g.solid(x0, z0, x1, z1)
+    }
+
     /**
-     * Etapa 127: praça refeita. Piso de pedra portuguesa em ondas em volta do chafariz, alamedas com guias de granito,
-     * canteiros com cerca viva e flores, bancos de ferro fundido, postes coloniais, coreto, banca de jornal,
-     * obelisco com placa, carrinho de pipoca, pombos, ipês e academia ao ar livre.
+     * Etapa 127/129: praça. O quarteirão é estreito (26 × 48 m), então tudo é simétrico nos dois eixos do centro:
+     * alamedas em cruz até o largo redondo com chafariz; quatro canteiros retangulares iguais; no fim norte o obelisco
+     * (com banca e pipoca dos lados) e no fim sul o coreto, ambos no eixo; bancos e postes em posições espelhadas.
      */
     private fun praca(g: Gen): Float {
         val b = g.b; val rng = g.rng
         val cx = (g.x0 + g.x1) / 2; val cz = (g.z0 + g.z1) / 2
+        val hw = (g.x1 - g.x0) / 2; val hd = (g.z1 - g.z0) / 2
         val light = C("#ECE6D8"); val dark = C("#3B3936"); val gran = C("#9C978E")
-        // alamedas (cruz) com guias de granito
+        val RL = 8.0f   // raio do largo
+        // alamedas em cruz (de fora até o largo), com guias de granito dos dois lados
         b.m(Mt.PAVER, 0.7f)
-        b.box(cx, CURB + 0.01f, cz, 4.4f, 0.02f, g.z1 - g.z0, C("#E2D9C8"))
-        b.box(cx, CURB + 0.01f, cz, g.x1 - g.x0, 0.02f, 4.4f, C("#E2D9C8"))
-        b.m(Mt.STONE, 1f)
-        for (sd in floatArrayOf(-2.3f, 2.3f)) {
-            b.box(cx + sd, CURB + 0.03f, cz, 0.2f, 0.06f, g.z1 - g.z0, gran)
-            b.box(cx, CURB + 0.03f, cz + sd, g.x1 - g.x0, 0.06f, 0.2f, gran)
+        val ln = hd - RL; val le = hw - RL
+        for (sg in floatArrayOf(-1f, 1f)) {
+            b.box(cx, CURB + 0.01f, cz + sg * (RL + ln / 2), 4.4f, 0.02f, ln, C("#E2D9C8"))
+            b.box(cx + sg * (RL + le / 2), CURB + 0.01f, cz, le, 0.02f, 4.4f, C("#E2D9C8"))
         }
-        // largo circular: pedra portuguesa em ondas (faixas claras e escuras)
+        b.m(Mt.STONE, 1f)
+        for (sg in floatArrayOf(-1f, 1f)) for (sd in floatArrayOf(-2.3f, 2.3f)) {
+            b.box(cx + sd, CURB + 0.03f, cz + sg * (RL + ln / 2), 0.2f, 0.06f, ln, gran)
+            b.box(cx + sg * (RL + le / 2), CURB + 0.03f, cz + sd, le, 0.06f, 0.2f, gran)
+        }
+        // largo circular: pedra portuguesa em ondas (3 faixas, claras e escuras)
         val nseg = 96
         b.m(Mt.STONE, 2.2f)
+        fun rr(a: Float, bd: Int) = if (bd <= 0) 4.6f else if (bd >= 3) RL else 4.6f + bd * (RL - 4.6f) / 3f + 0.25f * sin(a * 8f + bd * 1.3f)
         for (k in 0 until nseg) {
             val a0 = k * 6.2832f / nseg; val a1 = (k + 1) * 6.2832f / nseg
-            fun r(a: Float, band: Int) = 4.6f + band * 1.25f + 0.32f * sin(a * 10f + band * 1.3f)
-            for (band in 0 until 4) {
-                val ra0 = if (band == 0) 4.6f else r(a0, band); val ra1 = if (band == 0) 4.6f else r(a1, band)
-                val rb0 = if (band == 3) 9.6f else r(a0, band + 1); val rb1 = if (band == 3) 9.6f else r(a1, band + 1)
-                val c = if (band % 2 == 0) light else dark
-                q(b, P(cx + cos(a0) * ra0, CURB + 0.022f, cz + sin(a0) * ra0) + P(cx + cos(a0) * rb0, CURB + 0.022f, cz + sin(a0) * rb0) + P(cx + cos(a1) * rb1, CURB + 0.022f, cz + sin(a1) * rb1) + P(cx + cos(a1) * ra1, CURB + 0.022f, cz + sin(a1) * ra1), c)
+            for (band in 0 until 3) {
+                val ra0 = rr(a0, band); val ra1 = rr(a1, band); val rb0 = rr(a0, band + 1); val rb1 = rr(a1, band + 1)
+                q(b, P(cx + cos(a0) * ra0, CURB + 0.022f, cz + sin(a0) * ra0) + P(cx + cos(a0) * rb0, CURB + 0.022f, cz + sin(a0) * rb0) + P(cx + cos(a1) * rb1, CURB + 0.022f, cz + sin(a1) * rb1) + P(cx + cos(a1) * ra1, CURB + 0.022f, cz + sin(a1) * ra1), if (band % 2 == 0) light else dark)
             }
         }
-        ringWall(b, cx, cz, 9.6f, 9.85f, CURB, CURB + 0.075f, gran, 64)
+        ringWall(b, cx, cz, RL, RL + 0.22f, CURB, CURB + 0.075f, gran, 64)
         fountain(g, cx, cz)
-        // pombos ciscando
+        // pombos ciscando entre o chafariz e os bancos
         b.m(Mt.PLAIN)
         for (k in 0 until 9) {
-            val a = rng.r(0f, 6.28f); val rr = rng.r(5.2f, 8.5f)
-            val px = cx + cos(a) * rr; val pz = cz + sin(a) * rr; val h = rng.r(0f, 6.28f)
+            val a = rng.r(0f, 6.28f); val r = rng.r(5.0f, 5.8f)
+            val px = cx + cos(a) * r; val pz = cz + sin(a) * r; val h = rng.r(0f, 6.28f)
             ball(b, px, CURB + 0.1f, pz, 0.09f, C(if (k % 3 == 0) "#8A8C93" else "#6E7078"), 0.07f, 6)
             ball(b, px + cos(h) * 0.09f, CURB + 0.16f, pz + sin(h) * 0.09f, 0.04f, C("#5A5C63"), 0.04f, 5)
         }
-        // canteiros: cerca viva baixa, grama, flores e um ipê no meio
-        for (k in 0 until 4) {
-            val a = (k * 90 + 45) * PI.toFloat() / 180f
-            val fx = cx + 15f * cos(a); val fzz = cz + 15f * sin(a)
-            b.m(Mt.STONE, 0.8f); ringWall(b, fx, fzz, 3.1f, 3.35f, CURB, CURB + 0.3f, C("#CFC6B4"), 28)
-            b.m(Mt.GRASS, 0.3f); b.cyl(fx, CURB, fzz, 3.12f, 3.12f, 0.24f, C("#9CC77A"), true, 28)
-            b.m(Mt.LEAFB, 1f)
-            for (m in 0 until 28) {
-                val a0 = m * 6.2832f / 28
-                val hx = fx + cos(a0) * 2.75f; val hz = fzz + sin(a0) * 2.75f
-                b.box(hx, CURB + 0.48f, hz, 0.62f, 0.5f, 0.62f, C(if (m % 2 == 0) "#3F7A35" else "#467F3A"))
-            }
-            flowers(g, fx - 2f, fzz - 2f, fx + 2f, fzz + 2f, 26, CURB + 0.24f)
-            tree(g, fx, fzz, 1.15f, CURB + 0.24f, 2 + (k % 2))
-            g.solid(fx - 3.3f, fzz - 3.3f, fx + 3.3f, fzz + 3.3f)
+        // quatro canteiros iguais, um em cada quadrante (fora do largo, longe das alamedas)
+        val bx0 = 4.2f; val bx1 = hw - 0.6f; val bz0 = 8.0f; val bz1 = 14.0f
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f))
+            bed(g, if (sx > 0) cx + bx0 else cx - bx1, if (sz > 0) cz + bz0 else cz - bz1, if (sx > 0) cx + bx1 else cx - bx0, if (sz > 0) cz + bz1 else cz - bz0, if (sz > 0) 3 else 2)
+        // oito bancos de ferro fundido encostados na mureta do largo, virados para o chafariz, espelhados nos eixos
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) {
+            publicBench(b, cx + sx * 6.9f, cz + sz * 3.6f, -sx, 0f); g.solid(cx + sx * 6.9f - 0.5f, cz + sz * 3.6f - 0.95f, cx + sx * 6.9f + 0.5f, cz + sz * 3.6f + 0.95f)
+            publicBench(b, cx + sx * 3.6f, cz + sz * 6.9f, 0f, -sz); g.solid(cx + sx * 3.6f - 0.95f, cz + sz * 6.9f - 0.5f, cx + sx * 3.6f + 0.95f, cz + sz * 6.9f + 0.5f)
         }
-        // bancos em volta do largo, virados para o chafariz, com lixeira entre eles
-        for (k in 0 until 8) {
-            val a = (k * 45 + 22.5f) * PI.toFloat() / 180f
-            val bx = cx + 8.4f * cos(a); val bz = cz + 8.4f * sin(a)
-            val ax = if (abs(cos(a)) > abs(sin(a))) (if (cos(a) > 0) 1f else -1f) else 0f
-            val az = if (ax == 0f) (if (sin(a) > 0) 1f else -1f) else 0f
-            publicBench(b, bx, bz, -ax, -az)
-            g.solid(bx - 0.9f, bz - 0.9f, bx + 0.9f, bz + 0.9f)
+        // postes coloniais: anel atrás dos bancos (22,5° + 45°·k) e dois de cada lado das alamedas, tudo espelhado
+        for (k in 0 until 8) { val a = (22.5f + 45f * k) * PI.toFloat() / 180f; colonialLamp(b, cx + 8.75f * cos(a), cz + 8.75f * sin(a)) }
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) {
+            colonialLamp(b, cx + sx * 2.9f, cz + sz * 11f)       // na alameda norte-sul, ao lado de cada canteiro
+            colonialLamp(b, cx + sx * 10.8f, cz + sz * 2.9f)     // na alameda leste-oeste
+            colonialLamp(b, cx + sx * 2.9f, cz + sz * 20.2f)     // junto ao obelisco / coreto
         }
-        // postes coloniais nas alamedas e no largo
-        for (k in 0 until 8) { val a = k * 0.7854f; colonialLamp(b, cx + 10.4f * cos(a), cz + 10.4f * sin(a)) }
-        val half = min(g.x1 - g.x0, g.z1 - g.z0) / 2f - 2.5f
-        for (sd in floatArrayOf(-1f, 1f)) for (d in floatArrayOf(16f, min(24f, half))) {
-            colonialLamp(b, cx + 2.75f * sd, cz + d * sd); colonialLamp(b, cx - 2.75f * sd, cz - d * sd)
-            colonialLamp(b, cx + d * sd, cz - 2.75f * sd); colonialLamp(b, cx - d * sd, cz + 2.75f * sd)
-        }
-        // árvores grandes no gramado
-        for (k in 0 until 22) {
-            val tx = rng.r(g.x0 + 3f, g.x1 - 3f); val tz = rng.r(g.z0 + 3f, g.z1 - 3f)
-            if (abs(tx - cx) < 4.5f || abs(tz - cz) < 4.5f || (abs(tx - cx) < 19f && abs(tz - cz) < 19f)) continue
-            if (abs(tx - (g.x1 - 10f)) < 7f && abs(tz - (g.z1 - 10f)) < 7f) continue
-            if (abs(tx - (g.x0 + 9f)) < 7f && abs(tz - (g.z1 - 9f)) < 7f) continue
-            if (k % 4 == 0) palm(g, tx, tz, rng.r(0.8f, 1.0f)) else tree(g, tx, tz, rng.r(1.1f, 1.5f), CURB, if (k % 5 == 1) 2 else if (k % 5 == 3) 3 else -1)
-        }
-        // monumento (obelisco com placa) na entrada, no lugar da placa de madeira
-        val mx = cx + 4.6f; val mz = g.z0 + 3.2f
+        // fim norte: obelisco no eixo, num pátio redondo; banca e pipoca espelhados dos lados
+        val mz = cz - 19.2f
         b.m(Mt.STONE, 0.8f)
-        b.box(mx, CURB + 0.15f, mz, 2.2f, 0.3f, 2.2f, C("#CFC6B4")); b.box(mx, CURB + 0.45f, mz, 1.6f, 0.3f, 1.6f, C("#D6CDBB"))
-        b.box(mx, CURB + 1.2f, mz, 1.0f, 1.2f, 1.0f, C("#DED5C4"))
-        b.cyl(mx, CURB + 1.8f, mz, 0.42f, 0.12f, 3.6f, C("#E6DDCC"), true, 4)
-        b.m(Mt.METAL, 1f); b.box(mx, CURB + 1.25f, mz - 0.505f, 0.8f, 0.5f, 0.02f, C("#7A5C2E"))
-        sign(b, mx, CURB + 1.1f, mz - 0.52f, 0f, -1f, 0.7f, 0.3f, City.signIdx("PRAÇA CENTRAL"), false)
-        Shade.box(mx - 0.5f, mz - 0.5f, mx + 0.5f, mz + 0.5f, 4.5f)
-        g.solid(mx - 1.1f, mz - 1.1f, mx + 1.1f, mz + 1.1f)
-        // banca de jornal e carrinho de pipoca
-        newsstand(g, cx - 6.5f, g.z0 + 3.4f, 0f, -1f)
+        b.cyl(cx, CURB, mz, 3.6f, 3.6f, 0.03f, C("#E6DDCC"), true, 32)
+        ringWall(b, cx, mz, 3.45f, 3.65f, CURB, CURB + 0.08f, gran, 32)
+        b.box(cx, CURB + 0.15f + 0.03f, mz, 2.2f, 0.3f, 2.2f, C("#CFC6B4")); b.box(cx, CURB + 0.48f, mz, 1.6f, 0.3f, 1.6f, C("#D6CDBB"))
+        b.box(cx, CURB + 1.23f, mz, 1.0f, 1.2f, 1.0f, C("#DED5C4"))
+        b.cyl(cx, CURB + 1.83f, mz, 0.42f, 0.12f, 3.6f, C("#E6DDCC"), true, 4)
+        b.m(Mt.METAL, 1f); b.box(cx, CURB + 1.28f, mz + 0.505f, 0.8f, 0.5f, 0.02f, C("#7A5C2E"))
+        sign(b, cx, CURB + 1.13f, mz + 0.52f, 0f, 1f, 0.7f, 0.3f, City.signIdx("PRAÇA CENTRAL"), false)   // placa virada para o largo
+        Shade.box(cx - 0.5f, mz - 0.5f, cx + 0.5f, mz + 0.5f, 4.5f)
+        g.solid(cx - 1.1f, mz - 1.1f, cx + 1.1f, mz + 1.1f)
+        newsstand(g, cx - 9.6f, mz, 1f, 0f)
         run {
-            val px = cx + 7.5f; val pz = cz + 10.8f
+            val px = cx + 9.2f; val pz = mz
             b.m(Mt.METAL, 1f); b.box(px, CURB + 0.75f, pz, 1.0f, 0.7f, 0.6f, C("#C62828")); b.box(px, CURB + 1.15f, pz, 1.0f, 0.1f, 0.6f, C("#FAFAFA"))
             b.m(Mt.GLASS); b.al = 0.45f; b.box(px, CURB + 1.45f, pz, 0.8f, 0.5f, 0.5f, C("#FFF8E1")); b.al = 1f
             b.m(Mt.PLAIN); for (k in 0 until 14) ball(b, px - 0.3f + (k % 5) * 0.15f, CURB + 1.25f + (k / 5) * 0.06f, pz - 0.1f + (k % 3) * 0.1f, 0.05f, C("#FFF3C4"), 0.04f, 4)
@@ -2491,24 +2502,8 @@ object CityGeo {
             b.m(Mt.FABRIC, 1f); b.cyl(px, CURB + 2.5f, pz, 0.9f, 0.05f, 0.35f, C("#FBC02D"), true, 10)
             g.solid(px - 0.6f, pz - 0.4f, px + 0.6f, pz + 0.4f)
         }
-        coreto(g, g.x1 - 10f, g.z1 - 10f)
-        // academia ao ar livre: piso emborrachado e aparelhos coloridos
-        val gx = g.x0 + 9f; val gz = g.z1 - 9f
-        b.m(Mt.RUG, 0.4f); b.box(gx, CURB + 0.02f, gz, 10f, 0.04f, 10f, C("#3E7CB1"))
-        b.m(Mt.METAL, 1f)
-        for (k in 0 until 6) {
-            val ex = gx - 3.3f + (k % 3) * 3.3f; val ez = gz - 2.5f + (k / 3) * 5f
-            val c1 = C(arrayOf("#F2C230", "#E53935", "#43A047")[k % 3]); val c2 = C("#1E5AA8")
-            b.cyl(ex, CURB, ez, 0.07f, 0.07f, 1.9f, c1, true, 8)
-            CityGeo.limb(b, ex, CURB + 1.85f, ez, ex + 0.8f, CURB + 1.85f, ez, 0.045f, 0.045f, c1, 6)
-            when (k % 3) {
-                0 -> { CityGeo.limb(b, ex + 0.75f, CURB + 1.8f, ez, ex + 0.75f, CURB + 0.6f, ez, 0.035f, 0.035f, c2, 5); b.box(ex + 0.75f, CURB + 0.55f, ez, 0.5f, 0.06f, 0.3f, c2) }
-                1 -> { for (sd in floatArrayOf(-0.25f, 0.25f)) b.box(ex + 0.4f, CURB + 1.2f, ez + sd, 0.06f, 0.06f, 0.5f, c2); b.box(ex + 0.4f, CURB + 0.45f, ez, 0.4f, 0.06f, 0.45f, c2) }
-                else -> { b.cyl(ex + 0.5f, CURB + 0.9f, ez, 0.25f, 0.25f, 0.06f, c2, true, 14); CityGeo.limb(b, ex, CURB + 0.9f, ez, ex + 0.5f, CURB + 0.93f, ez, 0.03f, 0.03f, c1, 5) }
-            }
-        }
-        b.m(Mt.STONE, 0.8f); b.box(gx, CURB + 0.7f, gz + 5.3f, 2.4f, 1.4f, 0.12f, C("#D6CDBB"))
-        sign(b, gx, CURB + 1.0f, gz + 5.37f, 0f, 1f, 2.0f, 0.3f, City.signIdx("ACADEMIA AO AR LIVRE"), false)
+        // fim sul: coreto no eixo
+        coreto(g, cx, cz + 19.2f)
         g.place(City.Place("Praça Central", cx, cz, 0xFF43A047.toInt(), 'P'))
         return 10f
     }
@@ -2516,7 +2511,7 @@ object CityGeo {
     private fun park(g: Gen): Float {
         val b = g.b; val rng = g.rng
         val cx = (g.x0 + g.x1) / 2; val cz = (g.z0 + g.z1) / 2
-        lake(g, cx + 4f, cz - 3f, 12.5f)
+        lake(g, cx, cz, 12.5f)
         // caminho circular contínuo em volta do lago (piso intertravado com meio-fio de pedra)
         run {
             val r0 = 18.0f; val r1 = 20.4f; val n = 72
@@ -2550,7 +2545,7 @@ object CityGeo {
             val tx = rng.r(g.x0 + 2f, g.x1 - 2f); val tz = rng.r(g.z0 + 2f, g.z1 - 2f)
             val dx = tx - cx; val dz = tz - cz
             if (dx * dx + dz * dz < 21f * 21f && dx * dx + dz * dz > 16f * 16f) continue
-            if ((tx - cx - 4f) * (tx - cx - 4f) + (tz - cz + 3f) * (tz - cz + 3f) < 13f * 13f) continue
+            if (dx * dx + dz * dz < 13f * 13f) continue
             if (abs(tx - px) < 6f && abs(tz - pz) < 6f) continue
             if (k % 3 == 0) g.fl.place("pine_a", tx.toDouble(), CURB.toDouble(), tz.toDouble(), rng.r(1.1f, 1.5f).toDouble(), rng.r(0f, 6f).toDouble())
             else tree(g, tx, tz, rng.r(1.1f, 1.6f))
@@ -2609,15 +2604,19 @@ object CityGeo {
                 }
             }
             for ((ii, iv) in freeIntervals(X0, X1, bandX).withIndex()) {
-                var x = iv[0] + 6f; var n = 0
-                while (x < iv[1] - 6f) {
-                    if (n % 2 == 0) { streetLamp(b, x, za + 0.6f, 0f, 1f); streetLamp(b, x + 9f, zb - 0.6f, 0f, -1f) }
-                    else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x + 9f, zb - 1.3f, 0.9f) } else { streetTree(g, x, za + 1.4f); streetTree(g, x + 9f, zb - 1.4f) } }
-                    manhole(b, x + 4f, zc + (if (n % 2 == 0) 2.2f else -2.2f)); drain(b, x + 7f, za + SIDE + 0.25f, true); drain(b, x + 1f, zb - SIDE - 0.25f, true)
-                    if (n % 5 == 3) { trashBin(b, x + 2f, za + 0.5f); hydrant(b, x + 4f, zb - 0.45f) }
-                    if (n == 2 && ii % 2 == 0) busStop(g, x + 4.5f, za + 1.3f, 1f)
-                    x += 18f; n++
+                // Etapa 129: mobiliário da calçada simétrico — postes e árvores alternados, espelhados nos dois lados e centrados no trecho
+                val pos = furniturePos(iv[0] + 6f, iv[1] - 6f)
+                for ((n, x) in pos.withIndex()) {
+                    val sp = if (pos.size > 1) pos[1] - pos[0] else 9f
+                    if (n % 2 == 0) { streetLamp(b, x, za + 0.6f, 0f, 1f); streetLamp(b, x, zb - 0.6f, 0f, -1f) }
+                    else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x, zb - 1.3f, 0.9f) } else { streetTree(g, x, za + 1.4f); streetTree(g, x, zb - 1.4f) } }
+                    if (n < pos.size - 1) {
+                        val mx = x + sp / 2
+                        manhole(b, mx, zc + (if (n % 2 == 0) 2.2f else -2.2f)); drain(b, mx, za + SIDE + 0.25f, true); drain(b, mx, zb - SIDE - 0.25f, true)
+                    }
+                    if (n % 4 == 1) { trashBin(b, x + 1.7f, za + 0.5f); hydrant(b, x + 1.7f, zb - 0.45f) }
                 }
+                if (pos.size >= 5 && ii % 2 == 0) { val sp = pos[1] - pos[0]; busStop(g, pos[pos.size / 2] + sp / 2, za + 1.3f, 1f) }
             }
         }
         for (k in 0 until 8) {
@@ -2647,13 +2646,16 @@ object CityGeo {
                 }
             }
             for ((ii, iv) in freeIntervals(Z0, Z1, bandZ).withIndex()) {
-                var z = iv[0] + 6f; var n = 0
-                while (z < iv[1] - 6f) {
-                    if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z + 9f, -1f, 0f) }
-                    else { streetTree(g, xa + 1.4f, z); streetTree(g, xb - 1.4f, z + 9f) }
-                    manhole(b, xc + (if (n % 2 == 0) 2.2f else -2.2f), z + 4f); drain(b, xa + SIDE + 0.25f, z + 7f, false); drain(b, xb - SIDE - 0.25f, z + 1f, false)
-                    if (n % 5 == 3) { trashBin(b, xa + 0.5f, z + 2f); hydrant(b, xb - 0.45f, z + 4f) }
-                    z += 18f; n++
+                val pos = furniturePos(iv[0] + 6f, iv[1] - 6f)
+                for ((n, z) in pos.withIndex()) {
+                    val sp = if (pos.size > 1) pos[1] - pos[0] else 9f
+                    if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z, -1f, 0f) }
+                    else { streetTree(g, xa + 1.4f, z); streetTree(g, xb - 1.4f, z) }
+                    if (n < pos.size - 1) {
+                        val mz = z + sp / 2
+                        manhole(b, xc + (if (n % 2 == 0) 2.2f else -2.2f), mz); drain(b, xa + SIDE + 0.25f, mz, false); drain(b, xb - SIDE - 0.25f, mz, false)
+                    }
+                    if (n % 4 == 1) { trashBin(b, xa + 0.5f, z + 1.7f); hydrant(b, xb - 0.45f, z + 1.7f) }
                 }
             }
             // semáforos e placas de rua
@@ -2702,6 +2704,17 @@ object CityGeo {
     }
 
     /** Árvore de calçada: canteiro de terra com grade de ferro e a árvore no meio. */
+    /** Etapa 129: posições igualmente espaçadas (~9 m), em número ímpar e simétricas no trecho [a, e] (poste-árvore-poste...). */
+    private fun furniturePos(a: Float, e: Float): List<Float> {
+        val len = e - a
+        if (len < 3f) return emptyList()
+        var n = Math.round(len / 9f) + 1
+        if (n % 2 == 0) n++
+        while (n > 1 && len / (n - 1) < 6.5f) n -= 2
+        if (n <= 1) return listOf((a + e) / 2)
+        return List(n) { a + len * it / (n - 1) }
+    }
+
     private fun streetTree(g: Gen, x: Float, z: Float) {
         val b = g.b
         b.m(Mt.PLAIN)
