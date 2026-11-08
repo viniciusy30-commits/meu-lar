@@ -308,9 +308,33 @@ class MainActivity : AppCompatActivity() {
         val dv = topBtn(Ic.CAM3P, Tn.SKY) { alternarVista() }
         viewIcon = dv.second
         dockR.addView(dv.first)
+        dockR.addView(topBtn(Ic.MAP, Tn.SUN) { abrirMapa() }.first)   // Etapa 122: mapa da cidade + GPS
         dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
         dockR.addView(topBtn(Ic.GEAR, Tn.MINT) { config() }.first)
         root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(8), dp(10), 0) })
+
+        // Etapa 122: faixa do GPS (próxima conversão) e minimapa redondo
+        gpsHud = GpsHud(this)
+        gpsHud.visibility = View.GONE
+        gpsHud.elevation = dpf(6f)
+        root.addView(gpsHud, FrameLayout.LayoutParams(dp(300), dp(62), Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(66) })
+        miniMap = MiniMap(this) { floatArrayOf(game.r.px, game.r.pz, game.r.fyaw) }
+        miniMap.visibility = View.GONE
+        miniMap.elevation = dpf(5f)
+        root.addView(miniMap, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(12), 0, 0, dp(14)) })
+        mapRoot = root
+        val gpsTick = object : Runnable {
+            override fun run() {
+                val show = Gps.active && game.mode == 0 && mapView == null
+                gpsHud.visibility = if (show) View.VISIBLE else View.GONE
+                if (show) gpsHud.invalidate()
+                val mm = City.on && game.mode == 0 && mapView == null
+                miniMap.visibility = if (mm) View.VISIBLE else View.GONE
+                if (mm) miniMap.invalidate()
+                miniMap.postDelayed(this, 120)
+            }
+        }
+        miniMap.postDelayed(gpsTick, 500)
 
         // Etapa 88: canto inferior direito — pular no centro, agachar ao lado e o botão de usar logo acima (só com alvo na mira)
         actBox = FrameLayout(this)
@@ -514,11 +538,36 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (mapView != null) { fecharMapa(); return }
         if (game.mode == 2) fecharCriador() else super.onBackPressed()
     }
 
     /** Ícone da câmera atual: 3ª pessoa, 1ª pessoa (olho do personagem) ou vista aérea. */
     private fun iconeCamera(mode: Int, third: Boolean) = if (mode == 1) Ic.CAMAIR else if (third) Ic.CAM3P else Ic.CAM1P
+
+    private lateinit var gpsHud: GpsHud
+    private lateinit var miniMap: MiniMap
+    private lateinit var mapRoot: FrameLayout
+    private var mapView: MapOverlay? = null
+
+    /** Etapa 122: mapa da cidade em tela cheia; tocar num ponto e "Ir com GPS" traça a rota. */
+    private fun abrirMapa() {
+        if (!City.on) { msg("O mapa da cidade não existe na sala de testes"); return }
+        if (mapView != null) return
+        val mv = MapOverlay(this, { floatArrayOf(game.r.px, game.r.pz, game.r.fyaw) }) { fecharMapa() }
+        mv.alpha = 0f; mv.scaleX = 0.96f; mv.scaleY = 0.96f
+        mapRoot.addView(mv, FrameLayout.LayoutParams(-1, -1))
+        mv.elevation = dpf(20f)
+        mv.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
+        mapView = mv
+    }
+
+    private fun fecharMapa() {
+        val mv = mapView ?: return
+        mapView = null
+        mv.animate().alpha(0f).setDuration(140).withEndAction { mapRoot.removeView(mv) }.start()
+        if (Gps.active) msg("GPS ligado: siga a faixa azul")
+    }
 
     private fun alternarVista() {
         if (game.mode == 2) return

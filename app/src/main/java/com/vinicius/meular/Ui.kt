@@ -223,6 +223,8 @@ object Ic {
     const val HAND = 136
     const val SEAT = 137
     const val BED = 138
+    /** Etapa 122: mapa da cidade */
+    const val MAP = 139
 }
 
 
@@ -511,6 +513,16 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 rf.set(8f, 58f, 92f, 92f); c.drawOval(rf, p); p.pathEffect = null
                 fill(w); poly(c, 50f, 42f, 74f, 62f, 68f, 62f, 68f, 82f, 32f, 82f, 32f, 62f, 26f, 62f)
                 fill(a); rr(c, 44f, 68f, 56f, 82f, 3f)
+            }
+            Ic.MAP -> {
+                // mapa dobrado em 3 painéis com um pino
+                fill(w)
+                poly(c, 10f, 24f, 36f, 14f, 36f, 84f, 10f, 94f)
+                p.alpha = if (glowPass) 255 else 175; poly(c, 38f, 14f, 62f, 24f, 62f, 94f, 38f, 84f); p.alpha = 255
+                poly(c, 64f, 24f, 90f, 14f, 90f, 84f, 64f, 94f)
+                fill(a); c.drawCircle(50f, 40f, 13f, p)
+                path.reset(); path.moveTo(39f, 46f); path.lineTo(50f, 66f); path.lineTo(61f, 46f); path.close(); c.drawPath(path, p)
+                fill(w); c.drawCircle(50f, 40f, 5f, p)
             }
             Ic.BASE, Ic.BODY, Ic.HAIR, Ic.FACE, Ic.SHIRT, Ic.SHOE, Ic.HAT -> {
                 val parts = ICON_SVG[kind]

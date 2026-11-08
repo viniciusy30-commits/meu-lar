@@ -24,7 +24,9 @@ object Water {
     private var vbo = 0
     private var ibo = 0
     private var icount = 0
-    private var uVP = 0; private var uEye = 0; private var uTime = 0; private var uBox = 0; private var uRip = 0; private var uDepth = 0
+    private var uVP = 0; private var uEye = 0; private var uTime = 0; private var uBox = 0; private var uRip = 0; private var uDepth = 0; private var uWav = 0; private var uShore = 0
+    private var seaVbo = 0; private var seaIbo = 0; private var seaCount = 0; private var seaKey = ""
+    private val zeroRip = FloatArray(NRIP * 4)
 
     private val rip = FloatArray(NRIP * 4)   // x, z, início (s), força
     private var ripN = 0
@@ -45,13 +47,14 @@ object Water {
     // somava as ondas e as 8 ondinhas 3 vezes; o fragment shader usa precisão média e cáusticas mais baratas.
     private val VS = """
         attribute vec2 aXZ;
-        uniform mat4 uVP; uniform float uTime; uniform vec4 uBox; uniform vec4 uRip[$NRIP];
+        uniform mat4 uVP; uniform float uTime; uniform vec4 uBox; uniform vec4 uRip[$NRIP]; uniform vec3 uWav;   // y da água, amplitude, frequência
         varying vec3 vW; varying vec3 vN; varying float vFoam;
         void main() {
             vec2 p = aXZ;
             float t = uTime;
+            vec2 q = p * uWav.z;
             float e = smoothstep(0.0, 0.25, min(min(p.x - uBox.x, uBox.z - p.x), min(p.y - uBox.y, uBox.w - p.y)));
-            float a1 = p.x * 1.7 + t * 1.3; float a2 = p.y * 2.3 - t * 1.1; float a3 = (p.x + p.y) * 3.9 + t * 2.1; float a4 = (p.x - p.y) * 6.1 - t * 2.7;
+            float a1 = q.x * 1.7 + t * 1.3; float a2 = q.y * 2.3 - t * 1.1; float a3 = (q.x + q.y) * 3.9 + t * 2.1; float a4 = (q.x - q.y) * 6.1 - t * 2.7;
             float h = 0.010 * sin(a1) + 0.008 * sin(a2) + 0.005 * sin(a3) + 0.003 * sin(a4);
             vec2 g = vec2(0.017 * cos(a1) + 0.0195 * cos(a3) + 0.0183 * cos(a4),
                           0.0184 * cos(a2) + 0.0195 * cos(a3) - 0.0183 * cos(a4));
@@ -68,10 +71,11 @@ object Water {
                 g += (-0.8 * env * sin(x * 16.0)) * (dv / d);
                 foam += env * smoothstep(0.6, 0.0, age);
             }
+            h *= uWav.y; g *= uWav.y * uWav.z;
             h *= e; g *= e;
             vN = normalize(vec3(-g.x, 1.0, -g.y));
             vFoam = foam;
-            vW = vec3(p.x, POOL_Y + h, p.y);
+            vW = vec3(p.x, uWav.x + h, p.y);
             gl_Position = uVP * vec4(vW, 1.0);
         }
     """.trimIndent()
@@ -79,7 +83,7 @@ object Water {
     private val FS = """
         precision mediump float;
         varying vec3 vW; varying vec3 vN; varying float vFoam;
-        uniform vec3 uEye; uniform float uTime; uniform vec4 uBox; uniform float uDepth;
+        uniform vec3 uEye; uniform float uTime; uniform vec4 uBox; uniform float uDepth; uniform vec2 uShore;   // largura da espuma, praia (0/1)
         void main() {
             vec3 n = normalize(vN);
             vec3 V = normalize(uEye - vW);
@@ -92,6 +96,7 @@ object Water {
             vec2 hp = clamp(hit.xz, uBox.xy, uBox.zw);
             float path = dd - length(hit.xz - hp);
             float k = 1.0 - exp(-path * 0.55);
+            k = mix(k, k * smoothstep(0.0, 28.0, vW.z - uBox.y), uShore.y);
             vec3 body = mix(vec3(0.45, 0.86, 0.93), vec3(0.06, 0.42, 0.66), k);
             vec2 q = hp * 2.2; float t = uTime;
             float c = 1.0 - abs(sin(q.x + sin(q.y * 1.3 + t * 0.9) * 1.4 + t * 0.7) + sin(q.y * 1.1 + sin(q.x * 1.7 - t * 0.8) * 1.2 - t * 0.6)) * 0.5;
@@ -105,9 +110,14 @@ object Water {
             float sun = s256 * 3.0 + s16 * sd * sd * 0.18;
             vec3 col = mix(body, sky, fres) + vec3(1.0, 0.97, 0.88) * sun;
             float ed = min(min(vW.x - uBox.x, uBox.z - vW.x), min(vW.z - uBox.y, uBox.w - vW.z));
-            float rim = smoothstep(0.10, 0.0, ed) * 0.35;
+            float rim = smoothstep(uShore.x, 0.0, ed) * (0.35 + uShore.y * 0.4 * (0.5 + 0.5 * sin(uTime * 1.6 + vW.x * 0.3)));
             col = mix(col, vec3(1.0), clamp(vFoam * 0.55 + rim, 0.0, 0.8));
             float a = clamp(mix(0.55, 0.92, fres) + k * 0.25 + vFoam * 0.3, 0.0, 0.96);
+            vec3 fd = (vW - uEye) * 0.01;
+            float fz = dot(fd, fd);
+            float fog = smoothstep(0.49, 5.29, fz) * 0.85;
+            col = mix(col, vec3(0.86, 0.92, 0.96), fog);
+            a = mix(a, 1.0, fog);
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -122,7 +132,7 @@ object Water {
     private fun build(gw: Int) {
         val y = Pool.WATER_Y
         prog = GLES20.glCreateProgram()
-        GLES20.glAttachShader(prog, sh(GLES20.GL_VERTEX_SHADER, VS.replace("POOL_Y", String.format(java.util.Locale.US, "%.4f", y))))
+        GLES20.glAttachShader(prog, sh(GLES20.GL_VERTEX_SHADER, VS))
         GLES20.glAttachShader(prog, sh(GLES20.GL_FRAGMENT_SHADER, FS))
         GLES20.glBindAttribLocation(prog, 0, "aXZ")
         GLES20.glLinkProgram(prog)
@@ -132,6 +142,7 @@ object Water {
         uVP = GLES20.glGetUniformLocation(prog, "uVP"); uEye = GLES20.glGetUniformLocation(prog, "uEye")
         uTime = GLES20.glGetUniformLocation(prog, "uTime"); uBox = GLES20.glGetUniformLocation(prog, "uBox")
         uRip = GLES20.glGetUniformLocation(prog, "uRip"); uDepth = GLES20.glGetUniformLocation(prog, "uDepth")
+        uWav = GLES20.glGetUniformLocation(prog, "uWav"); uShore = GLES20.glGetUniformLocation(prog, "uShore")
 
         val x0 = Pool.x0(gw); val x1 = Pool.x1(gw)
         val fb: FloatBuffer = ByteBuffer.allocateDirect((NX + 1) * (NZ + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -175,12 +186,63 @@ object Water {
         GLES20.glUniform1f(uTime, t)
         GLES20.glUniform4f(uBox, Pool.x0(gw), Pool.Z0, Pool.x1(gw), Pool.Z1)
         GLES20.glUniform1f(uDepth, Pool.DEPTH + Pool.WATER_Y)
+        GLES20.glUniform3f(uWav, Pool.WATER_Y, 1f, 1f)
+        GLES20.glUniform2f(uShore, 0.1f, 0f)
         synchronized(rip) { GLES20.glUniform4fv(uRip, NRIP, rip, 0) }
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, icount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)
+        return true
+    }
+
+    /** Etapa 122: o mar. Mesma água (programa da piscina), malha grande, ondas maiores e mais largas, espuma na beira. */
+    fun drawSea(vp: FloatArray, ex: Float, ey: Float, ez: Float, x0: Float, z0: Float, x1: Float, z1: Float, gw: Int): Boolean {
+        if (gen != GlGen.gen || prog == 0) { if (gen != GlGen.gen || builtGw != gw) { gen = GlGen.gen; builtGw = gw; build(gw); seaKey = "" } }
+        if (prog == 0) return false
+        val key = "$x0|$z0|$x1|$z1|${GlGen.gen}"
+        if (key != seaKey || seaVbo == 0) {
+            if (seaVbo != 0) GLES20.glDeleteBuffers(2, intArrayOf(seaVbo, seaIbo), 0)
+            val nx = 90; val nz = 50
+            val fb = ByteBuffer.allocateDirect((nx + 1) * (nz + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (j in 0..nz) {
+                // linhas mais juntas perto da praia (as ondas e a espuma ficam bonitas onde se olha)
+                val tz = j.toFloat() / nz
+                val z = z0 + (z1 - z0) * tz * tz
+                for (i in 0..nx) { fb.put(x0 + (x1 - x0) * i / nx); fb.put(z) }
+            }
+            fb.position(0)
+            seaCount = nx * nz * 6
+            val ib = ByteBuffer.allocateDirect(seaCount * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (j in 0 until nz) for (i in 0 until nx) {
+                val a = (j * (nx + 1) + i).toShort(); val b = (a + 1).toShort()
+                val c = ((j + 1) * (nx + 1) + i).toShort(); val d = (c + 1).toShort()
+                ib.put(a); ib.put(c); ib.put(b); ib.put(b); ib.put(c); ib.put(d)
+            }
+            ib.position(0)
+            val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); seaVbo = ids[0]; seaIbo = ids[1]
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, seaVbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, fb.capacity() * 4, fb, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaIbo); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaCount * 2, ib, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+            seaKey = key
+        }
+        GLES20.glUseProgram(prog)
+        GLES20.glUniformMatrix4fv(uVP, 1, false, vp, 0)
+        GLES20.glUniform3f(uEye, ex, ey, ez)
+        GLES20.glUniform1f(uTime, now())
+        GLES20.glUniform4f(uBox, x0 - 1000f, z0, x1 + 1000f, z1 + 1000f)
+        GLES20.glUniform1f(uDepth, 7f)
+        GLES20.glUniform3f(uWav, 0f, 7f, 0.32f)
+        GLES20.glUniform2f(uShore, 1.6f, 1f)
+        GLES20.glUniform4fv(uRip, NRIP, zeroRip, 0)
+        GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, seaVbo)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaIbo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, seaCount, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)

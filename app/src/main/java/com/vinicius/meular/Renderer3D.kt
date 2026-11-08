@@ -348,6 +348,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private fun useProg(i: Int) {
         curProg = i
+        resetDrawCache()
         val l = locs[i]
         GLES20.glUseProgram(l.prog)
         prog = l.prog; uMVP = l.uMVP; uModel = l.uModel; uAlpha = l.uAlpha; uTex = l.uTex; uCut = l.uCut; uSpec = l.uSpec; uPush = l.uPush
@@ -400,11 +401,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         aspect = w.toFloat() / maxOf(1, h).toFloat()
     }
 
+    // Etapa 122: estado de desenho guardado — só manda ao GL o que mudou (textura, brilho, recorte...).
+    // Mesma imagem, bem menos chamadas por quadro (a cidade tem centenas de peças).
+    private var dTex = -1; private var dSpec = -1f; private var dSoft = -1f; private var dPush = -99f; private var dCut = -1f; private var dAlpha = -1f
+    private fun resetDrawCache() { dTex = -1; dSpec = -1f; dSoft = -1f; dPush = -99f; dCut = -1f; dAlpha = -1f }
+
     private fun draw(m: Mesh, model: FloatArray, alpha: Float, glass: Boolean = false) {
+        var any = false
+        for (p in m.parts) if ((p.mat == Mt.GLASS) == glass) { any = true; break }
+        if (!any) return
         Matrix.multiplyMM(mvp, 0, vp, 0, model, 0)
         GLES20.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0)
-        GLES20.glUniform1f(uAlpha, alpha)
+        if (alpha != dAlpha) { GLES20.glUniform1f(uAlpha, alpha); dAlpha = alpha }
         for (p in m.parts) {
             if ((p.mat == Mt.GLASS) != glass) continue
             val want = if (p.cut > 0f) 1 else 0
@@ -412,15 +421,18 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 useProg(want)
                 GLES20.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
                 GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0)
-                GLES20.glUniform1f(uAlpha, alpha)
+                GLES20.glUniform1f(uAlpha, alpha); dAlpha = alpha
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+                GLES20.glUniform1i(uTex, 0)
             }
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (p.tex != 0) p.tex else Tex.ids[p.mat])
-            GLES20.glUniform1i(uTex, 0)
-            GLES20.glUniform1f(uSpec, Mt.SPEC[p.mat])
-            GLES20.glUniform1f(uSoft, if (p.soft) 1f else 0f)
-            GLES20.glUniform1f(uPush, p.push)
-            GLES20.glUniform1f(uCut, p.cut)
+            val tx = if (p.tex != 0) p.tex else Tex.ids[p.mat]
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tx)   // textura sempre (carregamentos no meio do quadro mudam o vínculo)
+            val sp = Mt.SPEC[p.mat]
+            if (sp != dSpec) { GLES20.glUniform1f(uSpec, sp); dSpec = sp }
+            val so = if (p.soft) 1f else 0f
+            if (so != dSoft) { GLES20.glUniform1f(uSoft, so); dSoft = so }
+            if (p.push != dPush) { GLES20.glUniform1f(uPush, p.push); dPush = p.push }
+            if (p.cut != dCut) { GLES20.glUniform1f(uCut, p.cut); dCut = p.cut }
             if (p.cull) GLES20.glEnable(GLES20.GL_CULL_FACE)
             if (p.solid) GLES20.glDisable(GLES20.GL_BLEND)
             val bytes = STRIDE * 4
@@ -435,6 +447,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, p.ibo)
                     GLES20.glDrawElements(GLES20.GL_TRIANGLES, p.icount, GLES20.GL_UNSIGNED_SHORT, 0)
                     GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+                } else if (p.skipA >= 0 && p.skipB > p.skipA) {
+                    if (p.skipA > 0) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.skipA)
+                    if (p.count > p.skipB) GLES20.glDrawArrays(GLES20.GL_TRIANGLES, p.skipB, p.count - p.skipB)
                 } else {
                     GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, p.count)
                 }
@@ -468,6 +483,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val wl = Finish.walls[st.wallIdx]
         yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh, st.testRoom)
+        inBld = null
         if (!st.testRoom) City.build(gw, gh) else City.clear()   // Etapa 121: cidade em volta da casa
         floorM = Models.interior(gw, gh, fl)
         ceilM = Models.ceiling(gw, gh)
@@ -535,26 +551,60 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         return !City.blocked(x, z)
     }
 
-    /** Etapa 121: desenha os quarteirões e ruas visíveis, os semáforos, os carros e os pedestres. */
+    // ================================================================ Etapa 122: cidade
+    private var inBld: City.Bld? = null
+    private val cityGlass = ArrayList<Mesh>()
+    private var routeMesh: Mesh? = null
+    private var routeVer = -1
+    private var beaconMesh: Mesh? = null
+
+    /** Jogador entrou/saiu de uma construção: paredes de cima, telhado e placas dela deixam de ser desenhados. */
+    private fun setInside(b: City.Bld?) {
+        if (b === inBld) return
+        inBld?.let { applySkip(it, false) }
+        inBld = b
+        b?.let { applySkip(it, true) }
+    }
+
+    private fun applySkip(b: City.Bld, on: Boolean) {
+        val c = City.chunks.getOrNull(b.chunk) ?: return
+        for ((mat, r) in b.ranges) {
+            val pi = c.nearIdx[mat] ?: continue
+            val p = c.near.parts.getOrNull(pi) ?: continue
+            if (on) { p.skipA = r[0]; p.skipB = r[1] } else { p.skipA = -1; p.skipB = -1 }
+        }
+    }
+
+    /** Desenha a cidade: quarteirões perto em detalhe, longe simplificados; semáforos, veículos, pedestres, brinquedos. */
     private fun drawCity(ex: Float, ez: Float) {
+        setInside(if (mode == 0) City.bldAt(px, pz) else null)
+        cityGlass.clear()
         Matrix.setIdentityM(mdl, 0)
-        for (c in City.chunks) {
+        val ib = inBld
+        for ((ci, c) in City.chunks.withIndex()) {
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
-            if (dx * dx + dz * dz > 235f * 235f) continue
-            if (!boxVisible(c.x0, -0.1f, c.z0, c.x1, c.h, c.z1)) continue
-            draw(c.mesh, mdl, 1f)
+            val d2 = dx * dx + dz * dz
+            if (d2 > 245f * 245f) continue
+            if (!boxVisible(c.x0, -0.6f, c.z0, c.x1, c.h, c.z1)) continue
+            val near = d2 < City.NEAR * City.NEAR || c.far == null || (ib != null && ib.chunk == ci)
+            if (near) { draw(c.near, mdl, 1f); if (c.glass) cityGlass.add(c.near) } else draw(c.far!!, mdl, 1f)
         }
         City.lightMeshes[City.lightPhase]?.let { draw(it, mdl, 1f) }
-        val cm = City.carMeshes
+        val cm = Vehicles.meshes
         for (car in City.cars) {
             val dx = car.x - ex; val dz = car.z - ez
-            if (dx * dx + dz * dz > 140f * 140f) continue
-            if (!boxVisible(car.x - 2.7f, 0f, car.z - 2.7f, car.x + 2.7f, 2.4f, car.z + 2.7f)) continue
+            if (dx * dx + dz * dz > 150f * 150f) continue
+            if (!boxVisible(car.x - 6f, 0f, car.z - 6f, car.x + 6f, 3.4f, car.z + 6f)) continue
             val m = cm.getOrNull(car.mesh) ?: continue
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, car.x, 0f, car.z)
             Matrix.rotateM(mdl, 0, car.yaw, 0f, 1f, 0f)
             draw(m, mdl, 1f)
+        }
+        for (d in CityFun.dyn) {
+            val dx = d.x - ex; val dz = d.z - ez
+            if (dx * dx + dz * dz > 230f * 230f) continue
+            draw(d.mesh, d.m, 1f)
         }
         val pb = City.pedBody; val pl = City.pedLeg; val pa = City.pedArm
         for (p in City.peds) {
@@ -586,6 +636,71 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         Matrix.setIdentityM(mdl, 0)
     }
+
+    /** Passe transparente da cidade: mar, vidros das construções perto, faixa do GPS e farol do destino. */
+    private fun drawCityGlass(ex: Float, ey: Float, ez: Float) {
+        if (!City.on) return
+        if (boxVisible(City.X0 - 500f, -1f, City.SEA_Z - 6f, City.X1 + 500f, 0.5f, City.SEA_Z + 450f)) {
+            Water.drawSea(vp, ex, ey, ez, City.X0 - 500f, City.SEA_Z - 6f, City.X1 + 500f, City.SEA_Z + 450f, st.gw)
+            useProg(curProg)
+        }
+        Matrix.setIdentityM(mdl, 0)
+        for (m in cityGlass) draw(m, mdl, 1f, true)
+        if (Gps.ver != routeVer) {
+            routeVer = Gps.ver
+            routeMesh?.release(); routeMesh = null
+            val r = Gps.route
+            if (Gps.active && r.size >= 4) {
+                val b = MB(); b.m(Mt.GLASS)
+                val n = r.size / 2
+                var acc = 0f
+                for (i in 0 until n - 1) {
+                    val ax = r[i * 2]; val az = r[i * 2 + 1]; val bx = r[i * 2 + 2]; val bz = r[i * 2 + 3]
+                    val len = kotlin.math.hypot(bx - ax, bz - az)
+                    if (len < 0.05f) continue
+                    val ux = (bx - ax) / len; val uz = (bz - az) / len
+                    val nx = -uz * 0.6f; val nz = ux * 0.6f
+                    val steps = max(1, (len / 1.5f).toInt())
+                    for (k in 0 until steps) {
+                        val t0 = k.toFloat() / steps; val t1 = (k + 1).toFloat() / steps
+                        val x0 = ax + (bx - ax) * t0; val z0 = az + (bz - az) * t0; val x1 = ax + (bx - ax) * t1; val z1 = az + (bz - az) * t1
+                        val y0 = groundH(x0, z0) + 0.06f; val y1 = groundH(x1, z1) + 0.06f
+                        b.al = 0.78f
+                        CityGeo.q(b, CityGeo.P(x0 - nx, y0, z0 - nz) + CityGeo.P(x0 + nx, y0, z0 + nz) + CityGeo.P(x1 + nx, y1, z1 + nz) + CityGeo.P(x1 - nx, y1, z1 - nz), C("#29B6F6"), false)
+                        // setinhas brancas apontando o caminho
+                        val sAt = acc + len * t0
+                        if ((sAt % 5f) < (len / steps)) {
+                            b.al = 0.95f
+                            val cx = x0 + ux * 0.2f; val cz = z0 + uz * 0.2f
+                            CityGeo.q(b, CityGeo.P(cx - nx * 0.7f, y0 + 0.005f, cz - nz * 0.7f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.2f, y0 + 0.005f, cz + uz * 0.2f), C("#FFFFFF"), false)
+                            CityGeo.q(b, CityGeo.P(cx + nx * 0.7f, y0 + 0.005f, cz + nz * 0.7f) + CityGeo.P(cx + ux * 0.2f, y0 + 0.005f, cz + uz * 0.2f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f), C("#FFFFFF"), false)
+                        }
+                    }
+                    acc += len
+                }
+                b.al = 1f
+                routeMesh = b.toMesh(true)
+            }
+        }
+        if (Gps.active) {
+            routeMesh?.let { Matrix.setIdentityM(mdl, 0); draw(it, mdl, 1f, true) }
+            if (beaconMesh == null) {
+                val b = MB(); b.m(Mt.GLASS)
+                b.al = 0.28f; b.cyl(0f, 0f, 0f, 1.1f, 1.1f, 40f, C("#4FC3F7"), false, 18)
+                b.al = 0.6f; b.cyl(0f, 0f, 0f, 2.2f, 2.2f, 0.06f, C("#29B6F6"), false, 24)
+                b.al = 0.9f; b.cyl(0f, 0.07f, 0f, 1.3f, 1.3f, 0.04f, C("#FFFFFF"), false, 24)
+                b.al = 1f
+                beaconMesh = b.toMesh(true)
+            }
+            beaconMesh?.let {
+                Matrix.setIdentityM(mdl, 0)
+                Matrix.translateM(mdl, 0, Gps.destX, groundH(Gps.destX, Gps.destZ) + 0.02f, Gps.destZ)
+                draw(it, mdl, 1f, true)
+            }
+        }
+        Matrix.setIdentityM(mdl, 0)
+    }
+
     private val pmdl = FloatArray(16)
 
     /** Vista aérea: manda o personagem andar até o ponto (x, z) do chão (chamado pela thread de toque). */
@@ -1570,6 +1685,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (!ok) { Matrix.setIdentityM(mdl, 0); draw(ym, mdl, 1f, true) }
             }
         }
+        if (City.on) drawCityGlass(frameU[0], frameU[1], frameU[2])   // Etapa 122: mar, vidros da cidade, GPS
         for ((m, mx) in glassQ) draw(m, mx, 1f, true)
         for ((m, mx) in lateQ) draw(m, mx, 1f)
         for (i in 0..3) if (shown[i]) {

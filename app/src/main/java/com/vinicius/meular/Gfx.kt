@@ -60,6 +60,9 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var soft: Boolean = false
     /** Etapa 68: malha estática guardada na memória da placa de vídeo (VBO/IBO), em vez de reenviada a cada quadro. Só para peças que nunca mudam. */
     var gpu: Boolean = false
+    /** Etapa 122: faixa de vértices [skipA, skipB) que não é desenhada neste quadro (paredes/telhado do prédio em que o jogador entrou). */
+    var skipA = -1
+    var skipB = -1
     var vbo = 0
     var ibo = 0
     var gpuGen = 0
@@ -631,6 +634,26 @@ class MB {
         }
         al = old
     }
+
+    /** Etapa 122: vértices já gravados por material. */
+    fun counts(): HashMap<Int, Int> {
+        val o = HashMap<Int, Int>()
+        for ((k, f) in bufs) o[k] = f.n / STRIDE
+        return o
+    }
+
+    /** Etapa 122: copia toda a geometria de [o] para o fim deste construtor (material por material). */
+    fun append(o: MB) {
+        for ((k, f) in o.bufs) {
+            if (f.n == 0) continue
+            val d = bufs.getOrPut(k) { FA() }
+            if (d.n + f.n > d.a.size) d.a = d.a.copyOf(maxOf(d.a.size * 2, d.n + f.n))
+            System.arraycopy(f.a, 0, d.a, d.n, f.n)
+            d.n += f.n
+        }
+    }
+
+    fun isEmpty(): Boolean = bufs.values.all { it.n == 0 }
 
     fun toMesh(gpu: Boolean = false): Mesh {
         val parts = ArrayList<Part>()
