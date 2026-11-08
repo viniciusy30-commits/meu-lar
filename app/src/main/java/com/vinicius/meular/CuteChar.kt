@@ -1000,7 +1000,7 @@ object CuteChar {
         val sl = slot.coerceIn(0, slotClip.size - 1)
         val nf = cset.frames[c]
         val len = cset.len[c].coerceAtLeast(0.001f)
-        val d = cset.data[c] ?: return null
+        val d0 = cset.data[c] ?: return null
         val n12 = nb * 12
         if (bone.size != n12) bone = FloatArray(n12)
 
@@ -1013,7 +1013,15 @@ object CuteChar {
             slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP || c == RUNJUMP) 0.06f else 0.25f
             slotClip[sl] = c
             slotT0[sl] = t
+            // Etapa 114: pulo correndo sai com a perna que já vinha à frente (o clipe original sempre sai com a direita)
+            slotMir[sl] = false
+            if (c == RUNJUMP) {
+                val pv = slotLast[sl]
+                val mir = mirroredClip(cset, c, d0)
+                if (pv != null && pv.size == n12 && mir != null) slotMir[sl] = jumpWantsMirror(d0, mir, pv)
+            }
         }
+        val d = if (c == RUNJUMP && slotMir[sl]) (mirroredClip(cset, c, d0) ?: d0) else d0
         val isJ = c == JUMP || c == RUNJUMP
         val once = isJ || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
         var lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
@@ -1035,7 +1043,7 @@ object CuteChar {
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
             val dur = if (isJ) 0.06f else 0.25f
             val k = smooth01(1f - slotBlend[sl] / dur)
-            for (j in 0 until n12) bone[j] = prev[j] + (bone[j] - prev[j]) * k
+            blendPoses(prev, bone, k)   // Etapa 114: slerp + cinemática direta (sem esticar o braço)
             slotBlend[sl] -= dt
         } else {
             slotBlend[sl] = 0f
@@ -1050,6 +1058,7 @@ object CuteChar {
         // mãos fechadas só na corrida (andar e parado seguem com a mão solta)
         val fistT = if (c0 == RUN || clip == RUNJUMP) 1f else 0f
         slotFist[sl] += (fistT - slotFist[sl]) * (dt * 14f).coerceAtMost(1f)
+        if (Math.abs(fistT - slotFist[sl]) < 0.003f) slotFist[sl] = fistT   // Etapa 114: encosta no alvo (antes levava ~0,6 s só para chegar a 0,9999)
         if (slotFist[sl] > 0.01f) fistHands(bone, slotFist[sl])
 
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
@@ -1174,6 +1183,207 @@ object CuteChar {
     }
 
 
+    // ---- Etapa 114: mistura de poses sem esticar/encolher + pulo espelhado ----
+    // Antes, a troca de clipe (andar<->correr, correr<->pulo) interpolava as matrizes 3x4 dos ossos linearmente. Com giros grandes
+    // (braço balançando) a matriz interpolada encolhe e o osso muda de comprimento: o braço/antebraço "estica" por uma fração de segundo.
+    // Agora: rotação por slerp (quaternion) e posição das juntas por cinemática direta (comprimento dos ossos sempre preservado).
+    private val BONE_PARENT = intArrayOf(-1, 0, 1, 2, 3, 4, 5, 6, 7, 5, 9, 10, 11, 5, 13, 14, 15, 0, 17, 18, 19, 0, 21, 22, 23, 12, 25, 26, 12, 28, 29, 12, 31, 32, 12, 34, 35, 12, 37, 38, 16, 40, 41, 16, 43, 44, 16, 46, 47, 16, 49, 50, 16, 52, 53)
+    private val BONE_MIRROR = IntArray(55) { it }.also { m ->
+        for (i in 0..3) { m[9 + i] = 13 + i; m[13 + i] = 9 + i; m[17 + i] = 21 + i; m[21 + i] = 17 + i }
+        for (i in 0 until 15) { m[25 + i] = 40 + i; m[40 + i] = 25 + i }
+    }
+    private var restFor: ClipSet? = null
+    private var restJ: FloatArray? = null
+    private var mirFor: ClipSet? = null
+    private var mirData: FloatArray? = null
+    private val slotMir = BooleanArray(3)   // pulo correndo espelhado (perna esquerda à frente) neste slot
+    private var blendTmp = FloatArray(0)
+    private val bq1 = DoubleArray(4)
+    private val bq2 = DoubleArray(4)
+
+    private fun solve3(m: DoubleArray, v: DoubleArray, out: FloatArray, o: Int): Boolean {
+        val det = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6])
+        if (Math.abs(det) < 1e-300) return false
+        val i0 = (m[4] * m[8] - m[5] * m[7]) / det; val i1 = (m[2] * m[7] - m[1] * m[8]) / det; val i2 = (m[1] * m[5] - m[2] * m[4]) / det
+        val i3 = (m[5] * m[6] - m[3] * m[8]) / det; val i4 = (m[0] * m[8] - m[2] * m[6]) / det; val i5 = (m[2] * m[3] - m[0] * m[5]) / det
+        val i6 = (m[3] * m[7] - m[4] * m[6]) / det; val i7 = (m[1] * m[6] - m[0] * m[7]) / det; val i8 = (m[0] * m[4] - m[1] * m[3]) / det
+        out[o] = (i0 * v[0] + i1 * v[1] + i2 * v[2]).toFloat()
+        out[o + 1] = (i3 * v[0] + i4 * v[1] + i5 * v[2]).toFloat()
+        out[o + 2] = (i6 * v[0] + i7 * v[1] + i8 * v[2]).toFloat()
+        return true
+    }
+
+    /** Posição de repouso (espaço da malha) da junta de cada osso, estimada dos próprios clipes: a junta de um osso é o ponto fixo comum
+     *  entre ele e o pai, ou seja (Ap - Ac) r = tc - tp em todos os quadros (mínimos quadrados). Só para o esqueleto de 55 ossos. */
+    private fun restJoints(): FloatArray? {
+        val cs = clipSet
+        if (nb != 55) return null
+        if (restFor === cs) return restJ
+        restFor = cs
+        restJ = null
+        try {
+            val r = FloatArray(nb * 3)
+            val n12 = nb * 12
+            val m = DoubleArray(9); val v = DoubleArray(3)
+            for (c in 1 until nb) {
+                val p = BONE_PARENT[c]
+                java.util.Arrays.fill(m, 0.0); java.util.Arrays.fill(v, 0.0)
+                var nfTot = 0
+                for (ci in cs.data.indices) {
+                    val d = cs.data[ci] ?: continue
+                    val nf = d.size / n12
+                    nfTot += nf
+                    for (f in 0 until nf) {
+                        val op = f * n12 + p * 12; val oc = f * n12 + c * 12
+                        for (i in 0..2) {
+                            val d0 = (d[op + i * 4] - d[oc + i * 4]).toDouble()
+                            val d1 = (d[op + i * 4 + 1] - d[oc + i * 4 + 1]).toDouble()
+                            val d2 = (d[op + i * 4 + 2] - d[oc + i * 4 + 2]).toDouble()
+                            val e = (d[oc + i * 4 + 3] - d[op + i * 4 + 3]).toDouble()
+                            m[0] += d0 * d0; m[1] += d0 * d1; m[2] += d0 * d2
+                            m[4] += d1 * d1; m[5] += d1 * d2; m[8] += d2 * d2
+                            v[0] += d0 * e; v[1] += d1 * e; v[2] += d2 * e
+                        }
+                    }
+                }
+                m[3] = m[1]; m[6] = m[2]; m[7] = m[5]
+                val tr = (m[0] + m[4] + m[8])
+                var ok = nfTot > 0 && tr / nfTot > 2e-7   // osso quase rígido com o pai: giro não define a junta
+                if (ok) {
+                    val lam = 1e-6 * tr / 3.0
+                    m[0] += lam; m[4] += lam; m[8] += lam
+                    ok = solve3(m, v, r, c * 3)
+                }
+                if (!ok) { r[c * 3] = r[p * 3]; r[c * 3 + 1] = r[p * 3 + 1]; r[c * 3 + 2] = r[p * 3 + 2] }
+            }
+            restJ = r
+        } catch (e: Throwable) {
+            restJ = null
+        }
+        return restJ
+    }
+
+    private fun matScale(m: FloatArray, i: Int): Double =
+        Math.sqrt((m[i] * m[i] + m[i + 1] * m[i + 1] + m[i + 2] * m[i + 2]).toDouble()).coerceAtLeast(1e-12)
+
+    private fun matToQuat(mm: FloatArray, i: Int, sc: Double, q: DoubleArray) {
+        val m00 = mm[i] / sc; val m01 = mm[i + 1] / sc; val m02 = mm[i + 2] / sc
+        val m10 = mm[i + 4] / sc; val m11 = mm[i + 5] / sc; val m12 = mm[i + 6] / sc
+        val m20 = mm[i + 8] / sc; val m21 = mm[i + 9] / sc; val m22 = mm[i + 10] / sc
+        val tr = m00 + m11 + m22
+        if (tr > 0.0) {
+            val z = Math.sqrt(tr + 1.0) * 2.0
+            q[3] = 0.25 * z; q[0] = (m21 - m12) / z; q[1] = (m02 - m20) / z; q[2] = (m10 - m01) / z
+        } else if (m00 > m11 && m00 > m22) {
+            val z = Math.sqrt(1.0 + m00 - m11 - m22) * 2.0
+            q[3] = (m21 - m12) / z; q[0] = 0.25 * z; q[1] = (m01 + m10) / z; q[2] = (m02 + m20) / z
+        } else if (m11 > m22) {
+            val z = Math.sqrt(1.0 + m11 - m00 - m22) * 2.0
+            q[3] = (m02 - m20) / z; q[0] = (m01 + m10) / z; q[1] = 0.25 * z; q[2] = (m12 + m21) / z
+        } else {
+            val z = Math.sqrt(1.0 + m22 - m00 - m11) * 2.0
+            q[3] = (m10 - m01) / z; q[0] = (m02 + m20) / z; q[1] = (m12 + m21) / z; q[2] = 0.25 * z
+        }
+        val n = Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).coerceAtLeast(1e-12)
+        for (j in 0..3) q[j] /= n
+    }
+
+    /** Parte 3x3 (rotação x escala) de [out] em [io] = slerp da rotação de [a] (em [ia]) para a de [b] (em [ib]); escala interpolada. Não mexe na translação. */
+    private fun slerpRot(a: FloatArray, ia: Int, b: FloatArray, ib: Int, k: Float, out: FloatArray, io: Int) {
+        val sa = matScale(a, ia); val sb = matScale(b, ib)
+        matToQuat(a, ia, sa, bq1); matToQuat(b, ib, sb, bq2)
+        var dot = bq1[0] * bq2[0] + bq1[1] * bq2[1] + bq1[2] * bq2[2] + bq1[3] * bq2[3]
+        if (dot < 0.0) { for (j in 0..3) bq2[j] = -bq2[j]; dot = -dot }
+        var wa = 1.0 - k; var wb = k.toDouble()
+        if (dot < 0.9995) {
+            val th = Math.acos(dot.coerceIn(-1.0, 1.0))
+            val sn = Math.sin(th).coerceAtLeast(1e-12)
+            wa = Math.sin((1.0 - k) * th) / sn; wb = Math.sin(k * th) / sn
+        }
+        val x0 = bq1[0] * wa + bq2[0] * wb; val y0 = bq1[1] * wa + bq2[1] * wb; val z0 = bq1[2] * wa + bq2[2] * wb; val w0 = bq1[3] * wa + bq2[3] * wb
+        val qn = Math.sqrt(x0 * x0 + y0 * y0 + z0 * z0 + w0 * w0).coerceAtLeast(1e-12)
+        val x = x0 / qn; val y = y0 / qn; val z = z0 / qn; val w = w0 / qn
+        val sc = sa + (sb - sa) * k
+        out[io] = ((1.0 - 2.0 * (y * y + z * z)) * sc).toFloat()
+        out[io + 1] = (2.0 * (x * y - z * w) * sc).toFloat()
+        out[io + 2] = (2.0 * (x * z + y * w) * sc).toFloat()
+        out[io + 4] = (2.0 * (x * y + z * w) * sc).toFloat()
+        out[io + 5] = ((1.0 - 2.0 * (x * x + z * z)) * sc).toFloat()
+        out[io + 6] = (2.0 * (y * z - x * w) * sc).toFloat()
+        out[io + 8] = (2.0 * (x * z - y * w) * sc).toFloat()
+        out[io + 9] = (2.0 * (y * z + x * w) * sc).toFloat()
+        out[io + 10] = ((1.0 - 2.0 * (x * x + y * y)) * sc).toFloat()
+    }
+
+    /** Mistura a pose [prev] com [cur] (resultado em [cur]): rotações por slerp e juntas por cinemática direta a partir da raiz. */
+    private fun blendPoses(prev: FloatArray, cur: FloatArray, k: Float) {
+        val r = restJoints()
+        if (r == null) {
+            for (j in cur.indices) cur[j] = prev[j] + (cur[j] - prev[j]) * k
+            return
+        }
+        if (blendTmp.size != cur.size) blendTmp = FloatArray(cur.size)
+        val orig = blendTmp
+        System.arraycopy(cur, 0, orig, 0, cur.size)
+        for (b in 0 until nb) {
+            val o = b * 12
+            slerpRot(prev, o, orig, o, k, cur, o)
+            if (b == 0) {
+                for (i in 0..2) cur[o + i * 4 + 3] = prev[o + i * 4 + 3] + (orig[o + i * 4 + 3] - prev[o + i * 4 + 3]) * k
+                continue
+            }
+            val p = BONE_PARENT[b]
+            val po = p * 12
+            val rx = r[b * 3]; val ry = r[b * 3 + 1]; val rz = r[b * 3 + 2]
+            for (i in 0..2) {
+                // posição da junta b com a pose do pai já misturada, menos o efeito da rotação do próprio osso
+                val fk = cur[po + i * 4] * rx + cur[po + i * 4 + 1] * ry + cur[po + i * 4 + 2] * rz + cur[po + i * 4 + 3] -
+                    (cur[o + i * 4] * rx + cur[o + i * 4 + 1] * ry + cur[o + i * 4 + 2] * rz)
+                // resíduo da estimativa da junta em cada pose de origem, misturado junto (garante k=0 e k=1 exatos)
+                val e1 = prev[o + i * 4 + 3] - (prev[po + i * 4] * rx + prev[po + i * 4 + 1] * ry + prev[po + i * 4 + 2] * rz + prev[po + i * 4 + 3] -
+                    (prev[o + i * 4] * rx + prev[o + i * 4 + 1] * ry + prev[o + i * 4 + 2] * rz))
+                val e2 = orig[o + i * 4 + 3] - (orig[po + i * 4] * rx + orig[po + i * 4 + 1] * ry + orig[po + i * 4 + 2] * rz + orig[po + i * 4 + 3] -
+                    (orig[o + i * 4] * rx + orig[o + i * 4 + 1] * ry + orig[o + i * 4 + 2] * rz))
+                cur[o + i * 4 + 3] = fk + e1 + (e2 - e1) * k
+            }
+        }
+    }
+
+    /** Clipe [c] espelhado esquerda<->direita (plano x=0): M' = S M S com os ossos de lado trocados. Usado no pulo correndo com a outra perna à frente. */
+    private fun mirroredClip(cs: ClipSet, c: Int, src: FloatArray): FloatArray? {
+        if (nb != 55) return null
+        if (mirFor === cs && mirData != null && mirData!!.size == src.size) return mirData
+        val n12 = nb * 12
+        val out = FloatArray(src.size)
+        val nf = src.size / n12
+        for (f in 0 until nf) {
+            for (b in 0 until nb) {
+                val so = f * n12 + BONE_MIRROR[b] * 12
+                val dO = f * n12 + b * 12
+                for (i in 0..2) {
+                    val si = if (i == 0) -1f else 1f
+                    for (j in 0..2) out[dO + i * 4 + j] = src[so + i * 4 + j] * si * (if (j == 0) -1f else 1f)
+                    out[dO + i * 4 + 3] = src[so + i * 4 + 3] * si
+                }
+            }
+        }
+        mirFor = cs
+        mirData = out
+        return out
+    }
+
+    /** true se, na pose [prev], o pulo espelhado (perna esquerda à frente) começa mais perto do que o clipe original (perna direita à frente). */
+    private fun jumpWantsMirror(src: FloatArray, mir: FloatArray, prev: FloatArray): Boolean {
+        var dn = 0f; var dm = 0f
+        for (b in 17..24) for (j in 0..11) {
+            val pv = prev[b * 12 + j]
+            dn += Math.abs(src[b * 12 + j] - pv)
+            dm += Math.abs(mir[b * 12 + j] - pv)
+        }
+        return dm < dn
+    }
+
+
     // ---- Etapa 77: mão fechada ao correr ----
     // Ossos dos dedos da mão esquerda (a direita é +15): indicador 25-27, médio 28-30, anelar 31-33, mindinho 34-36, polegar 37-39.
     // Juntas (x,y em cm, pose de repouso) medidas no malha da mão: nós, meio e ponta de cada dedo. Os dedos se espalham em Z e
@@ -1218,61 +1428,22 @@ object CuteChar {
         val o = bone * 12; val w = wrist * 12
         if (k <= 0f) return
         if (k >= 0.9999f) { System.arraycopy(mm, w, mm, o, 12); return }
-        fun scaleAt(i: Int): Double {
-            val x = mm[i].toDouble(); val y = mm[i + 1].toDouble(); val z = mm[i + 2].toDouble()
-            return kotlin.math.sqrt(x * x + y * y + z * z).coerceAtLeast(1e-12)
+        val r = restJoints()
+        val rx = if (r != null) r[bone * 3] else 0f
+        val ry = if (r != null) r[bone * 3 + 1] else 0f
+        val rz = if (r != null) r[bone * 3 + 2] else 0f
+        // Etapa 114: onde a junta do dedo estaria (a) com a própria pose e (b) rígida com o pulso; a mistura move a junta em linha reta
+        // e a rotação gira por slerp em torno dela (antes o pivô era a origem do modelo e a mão esticava na transição).
+        val jf = FloatArray(3); val jw = FloatArray(3)
+        for (i in 0..2) {
+            jf[i] = mm[o + i * 4] * rx + mm[o + i * 4 + 1] * ry + mm[o + i * 4 + 2] * rz + mm[o + i * 4 + 3]
+            jw[i] = mm[w + i * 4] * rx + mm[w + i * 4 + 1] * ry + mm[w + i * 4 + 2] * rz + mm[w + i * 4 + 3]
         }
-        fun quatAt(i: Int, sc: Double): DoubleArray {
-            val m00 = mm[i].toDouble() / sc; val m01 = mm[i + 1].toDouble() / sc; val m02 = mm[i + 2].toDouble() / sc
-            val m10 = mm[i + 4].toDouble() / sc; val m11 = mm[i + 5].toDouble() / sc; val m12 = mm[i + 6].toDouble() / sc
-            val m20 = mm[i + 8].toDouble() / sc; val m21 = mm[i + 9].toDouble() / sc; val m22 = mm[i + 10].toDouble() / sc
-            val tr = m00 + m11 + m22
-            val q = DoubleArray(4)
-            if (tr > 0.0) {
-                val z = kotlin.math.sqrt(tr + 1.0) * 2.0
-                q[3] = 0.25 * z; q[0] = (m21 - m12) / z; q[1] = (m02 - m20) / z; q[2] = (m10 - m01) / z
-            } else if (m00 > m11 && m00 > m22) {
-                val z = kotlin.math.sqrt(1.0 + m00 - m11 - m22) * 2.0
-                q[3] = (m21 - m12) / z; q[0] = 0.25 * z; q[1] = (m01 + m10) / z; q[2] = (m02 + m20) / z
-            } else if (m11 > m22) {
-                val z = kotlin.math.sqrt(1.0 + m11 - m00 - m22) * 2.0
-                q[3] = (m02 - m20) / z; q[0] = (m01 + m10) / z; q[1] = 0.25 * z; q[2] = (m12 + m21) / z
-            } else {
-                val z = kotlin.math.sqrt(1.0 + m22 - m00 - m11) * 2.0
-                q[3] = (m10 - m01) / z; q[0] = (m02 + m20) / z; q[1] = (m12 + m21) / z; q[2] = 0.25 * z
-            }
-            val n = kotlin.math.sqrt(q.sumOf { it * it }).coerceAtLeast(1e-12)
-            for (j in 0..3) q[j] /= n
-            return q
+        slerpRot(mm, o, mm, w, k, mm, o)
+        for (i in 0..2) {
+            val j = jf[i] + (jw[i] - jf[i]) * k
+            mm[o + i * 4 + 3] = j - (mm[o + i * 4] * rx + mm[o + i * 4 + 1] * ry + mm[o + i * 4 + 2] * rz)
         }
-        val qa = quatAt(o, scaleAt(o)); val qb = quatAt(w, scaleAt(w))
-        var dot = 0.0
-        for (j in 0..3) dot += qa[j] * qb[j]
-        if (dot < 0.0) { for (j in 0..3) qb[j] = -qb[j]; dot = -dot }
-        val q = DoubleArray(4)
-        if (dot > 0.9995) {
-            for (j in 0..3) q[j] = qa[j] + (qb[j] - qa[j]) * k
-        } else {
-            val theta = kotlin.math.acos(dot.coerceIn(-1.0, 1.0))
-            val sn = kotlin.math.sin(theta).coerceAtLeast(1e-12)
-            val a = kotlin.math.sin((1.0 - k) * theta) / sn
-            val b = kotlin.math.sin(k * theta) / sn
-            for (j in 0..3) q[j] = qa[j] * a + qb[j] * b
-        }
-        val qn = kotlin.math.sqrt(q.sumOf { it * it }).coerceAtLeast(1e-12)
-        for (j in 0..3) q[j] /= qn
-        val x = q[0]; val y = q[1]; val z = q[2]; val ww = q[3]
-        val sc = scaleAt(w).toFloat()
-        mm[o] = (1.0 - 2.0 * (y * y + z * z)).toFloat() * sc
-        mm[o + 1] = (2.0 * (x * y - z * ww)).toFloat() * sc
-        mm[o + 2] = (2.0 * (x * z + y * ww)).toFloat() * sc
-        mm[o + 4] = (2.0 * (x * y + z * ww)).toFloat() * sc
-        mm[o + 5] = (1.0 - 2.0 * (x * x + z * z)).toFloat() * sc
-        mm[o + 6] = (2.0 * (y * z - x * ww)).toFloat() * sc
-        mm[o + 8] = (2.0 * (x * z - y * ww)).toFloat() * sc
-        mm[o + 9] = (2.0 * (y * z + x * ww)).toFloat() * sc
-        mm[o + 10] = (1.0 - 2.0 * (x * x + y * y)).toFloat() * sc
-        for (r in 0..2) mm[o + r * 4 + 3] += (mm[w + r * 4 + 3] - mm[o + r * 4 + 3]) * k
     }
 
     /** Fecha a mão: cada junta gira em torno do seu pivô (no espaço de repouso) e a matriz do osso recebe esse giro antes da pose da animação. */
