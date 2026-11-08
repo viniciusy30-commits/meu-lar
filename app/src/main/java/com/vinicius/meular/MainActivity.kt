@@ -225,6 +225,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Etapa 124: se o jogo fechar sozinho, guarda o erro para mostrar na próxima abertura
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { th, e ->
+            try {
+                val sw = java.io.StringWriter(); e.printStackTrace(java.io.PrintWriter(sw))
+                val rt = Runtime.getRuntime()
+                getSharedPreferences("crash", MODE_PRIVATE).edit().putString("last", "[${th.name}] mem ${(rt.totalMemory() - rt.freeMemory()) / 1048576}/${rt.maxMemory() / 1048576} MB\n" + sw.toString().take(3500)).commit()
+            } catch (x: Throwable) { }
+            prev?.uncaughtException(th, e)
+        }
         CuteChar.assets = assets
         ModStore.init(this)
         Flora.assets = assets
@@ -265,7 +275,7 @@ class MainActivity : AppCompatActivity() {
         }
         face.clipToOutline = true
         portrait.addView(face, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
-        game.r.onPortrait = { bmp -> runOnUiThread { face.setImageBitmap(bmp) } }
+        game.r.onPortrait = { bmp -> runOnUiThread { face.setImageBitmap(bmp); (menuView as? MainMenu)?.face?.setImageBitmap(bmp) } }
         game.r.portraitReq = true
         val hh = android.os.Handler(android.os.Looper.getMainLooper())
         hh.postDelayed({ game.r.portraitReq = true }, 1500)
@@ -758,10 +768,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun abrirMenu(root: FrameLayout) {
         val ver = try { "versão " + packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
-        val m = MainMenu(this, ver, { jogar(root) }, { fecharMenu(); jogando = true; abrirCriador() }, { mostrarNovidades(true) }, { config() })
+        val m = MainMenu(this, ver, "Meu Lar · casa ${st.gw}×${st.gh}", st.money.toString(), { jogar(root) }, { fecharMenu(); jogando = true; abrirCriador() }, { mostrarNovidades(true) }, { config() })
         m.elevation = dpf(40f)
         root.addView(m, FrameLayout.LayoutParams(-1, -1))
         menuView = m
+        // foto de corpo inteiro do personagem para o centro do menu (o renderizador tira quando o corpo terminar de carregar)
+        game.r.onFullBody = { bmp -> runOnUiThread { (menuView as? MainMenu)?.setSim(bmp) } }
+        game.r.fullReq = true
+        val hh = android.os.Handler(android.os.Looper.getMainLooper())
+        for (t in longArrayOf(1500, 4000, 8000)) hh.postDelayed({ if (menuView != null && (menuView as? MainMenu)?.sim?.drawable == null) game.r.fullReq = true }, t)
+        // o jogo fechou da última vez? mostra o erro para poder mandar
+        val cp = getSharedPreferences("crash", MODE_PRIVATE)
+        cp.getString("last", null)?.let { txt ->
+            cp.edit().remove("last").apply()
+            android.app.AlertDialog.Builder(this).setTitle("O jogo fechou da última vez")
+                .setMessage("Copie e mande este texto para corrigir:\n\n" + txt.take(1200))
+                .setPositiveButton("Copiar") { _, _ ->
+                    val cm = getSystemService(android.content.ClipboardManager::class.java)
+                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("erro", txt)); msg("Erro copiado")
+                }
+                .setNegativeButton("Fechar", null).show()
+        }
     }
 
     private fun fecharMenu() {

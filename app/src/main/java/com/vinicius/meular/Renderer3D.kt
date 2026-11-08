@@ -187,6 +187,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Porta aberta/fechada (agora por interação, não mais automática). */
     @Volatile var doorOpen = false
     /** O que está ao alcance do personagem: 0 nada, 1 porta, 2 cortina (para o botão de interação). */
+    /** Etapa 124: pedido de foto de corpo inteiro (menu inicial). */
+    @Volatile var fullReq = false
+    var onFullBody: ((android.graphics.Bitmap) -> Unit)? = null
     @Volatile var nearKind = 0
     @Volatile var nearId = 0
     @Volatile var nearLabel = ""
@@ -1410,36 +1413,40 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var surfW = 1
     private var surfH = 1
 
-    private fun capturePortrait() {
+    private fun capturePortrait() = captureShot(false)
+
+    /** Etapa 124: foto do personagem — rosto (retrato) ou corpo inteiro com fundo transparente (menu inicial). */
+    private fun captureShot(full: Boolean) {
         val wasFp = CuteChar.fpOn
         CuteChar.fpOn = false
         val cute = if (CuteChar.ready) CuteChar.frame(CuteChar.IDLE, 0.4f, 2) else null
         CuteChar.fpOn = wasFp
         if (cute == null) return                       // personagem ainda não carregou: o pedido continua pendente
-        portraitReq = false
-        val n = 256
+        if (full) fullReq = false else portraitReq = false
+        val n = if (full) 512 else 256
+        val nh = if (full) 896 else 256
         val fb = IntArray(1); val tx = IntArray(1); val rb = IntArray(1)
         GLES20.glGenFramebuffers(1, fb, 0); GLES20.glGenTextures(1, tx, 0); GLES20.glGenRenderbuffers(1, rb, 0)
         try {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tx[0])
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, n, n, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, n, nh, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glBindRenderbuffer(GLES20.GL_RENDERBUFFER, rb[0])
-            GLES20.glRenderbufferStorage(GLES20.GL_RENDERBUFFER, GLES20.GL_DEPTH_COMPONENT16, n, n)
+            GLES20.glRenderbufferStorage(GLES20.GL_RENDERBUFFER, GLES20.GL_DEPTH_COMPONENT16, n, nh)
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fb[0])
             GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, tx[0], 0)
             GLES20.glFramebufferRenderbuffer(GLES20.GL_FRAMEBUFFER, GLES20.GL_DEPTH_ATTACHMENT, GLES20.GL_RENDERBUFFER, rb[0])
             if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) != GLES20.GL_FRAMEBUFFER_COMPLETE) return
-            GLES20.glViewport(0, 0, n, n)
-            GLES20.glClearColor(0.60f, 0.82f, 0.95f, 1f)
+            GLES20.glViewport(0, 0, n, nh)
+            if (full) GLES20.glClearColor(0f, 0f, 0f, 0f) else GLES20.glClearColor(0.60f, 0.82f, 0.95f, 1f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
             GLES20.glEnable(GLES20.GL_DEPTH_TEST)
             val top = CuteChar.bodyTop()
-            val cyH = 0.082f + CuteChar.lift(2) + top * 0.915f
-            val dist = top * 0.56f
+            val cyH = if (full) 0.082f + CuteChar.lift(2) + top * 0.5f else 0.082f + CuteChar.lift(2) + top * 0.915f
+            val dist = if (full) top * 2.15f else top * 0.56f
             val pj = FloatArray(16); val vw = FloatArray(16); val pv = FloatArray(16)
-            Matrix.perspectiveM(pj, 0, 30f, 1f, 0.05f, 20f)
+            Matrix.perspectiveM(pj, 0, 30f, n.toFloat() / nh, 0.05f, 20f)
             Matrix.setLookAtM(vw, 0, STX, cyH, STZ + dist, STX, cyH - 0.01f, STZ, 0f, 1f, 0f)
             Matrix.multiplyMM(pv, 0, pj, 0, vw, 0)
             val saved = vp.copyOf()
@@ -1449,14 +1456,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.translateM(mdl, 0, STX, 0.082f + CuteChar.lift(2), STZ)
             draw(cute, mdl, 1f)
             System.arraycopy(saved, 0, vp, 0, 16)
-            val bb = java.nio.ByteBuffer.allocateDirect(n * n * 4).order(java.nio.ByteOrder.nativeOrder())
-            GLES20.glReadPixels(0, 0, n, n, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb)
-            val raw = android.graphics.Bitmap.createBitmap(n, n, android.graphics.Bitmap.Config.ARGB_8888)
+            val bb = java.nio.ByteBuffer.allocateDirect(n * nh * 4).order(java.nio.ByteOrder.nativeOrder())
+            GLES20.glReadPixels(0, 0, n, nh, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb)
+            val raw = android.graphics.Bitmap.createBitmap(n, nh, android.graphics.Bitmap.Config.ARGB_8888)
             raw.copyPixelsFromBuffer(bb)
             val fl = android.graphics.Matrix(); fl.preScale(1f, -1f)
-            val bmp = android.graphics.Bitmap.createBitmap(raw, 0, 0, n, n, fl, true)
+            val bmp = android.graphics.Bitmap.createBitmap(raw, 0, 0, n, nh, fl, true)
             raw.recycle()
-            onPortrait?.invoke(bmp)
+            if (full) onFullBody?.invoke(bmp) else onPortrait?.invoke(bmp)
         } finally {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
             GLES20.glDeleteFramebuffers(1, fb, 0); GLES20.glDeleteTextures(1, tx, 0); GLES20.glDeleteRenderbuffers(1, rb, 0)
@@ -1579,6 +1586,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (dt > 0.05f) dt = 0.05f
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()
+        // Etapa 124: o contexto GL caiu (app foi para o fundo): a cidade não tem cópia na memória, então é montada de novo
+        else if (City.on && City.builtGen != GlGen.gen && !st.testRoom) { City.clear(); City.buildAsync(st.gw, st.gh) }
         updateFP(dt)
 
         val gw = st.gw
@@ -1696,6 +1705,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         AvatarBuilder.take()?.let { avMesh = it }
         if (portraitReq) capturePortrait()
+        if (fullReq) captureShot(true)
         if (cr) {
             drawCreator(now)
             return

@@ -1,3 +1,10 @@
+#id 2026-11-14-menu-ts4
+#titulo Menu novo e carregamento sem travar
+- Menu inicial no estilo da tela inicial do The Sims 4: sala ilustrada, seu personagem de corpo inteiro no tapete, cartões de novidades
+- Tela de carregamento nova, sem o jogo aparecendo por trás
+- Corrigido: carregamento parava em 98% e o jogo fechava (memória). A cidade agora fica só na placa de vídeo
+- Se o jogo fechar sozinho, na próxima abertura aparece o erro para copiar e mandar
+
 #id 2026-11-13-menu-carros
 #titulo Menu inicial, carregamento e dirigir
 - Novo menu inicial no estilo The Sims 4, com o plumbob girando

@@ -46,6 +46,7 @@ object City {
         var pend: Flora.Batch? = null       // flora a montar na thread do GL (precisa criar texturas)
         var lazyI = -1; var lazyJ = -1      // quarteirão que se recarrega sob demanda
         @Volatile var loading = false
+        @Volatile var failed = false
         @Volatile var result: Pair<Mesh, Flora.Batch>? = null
         var lastNear = 0L
         /** Faixas (material -> início, fim) desta parte dentro da malha única de longe [farAll]. */
@@ -191,6 +192,8 @@ object City {
     @Volatile private var token = 0
     /** Etapa 123: andamento da montagem (0..1) para a tela de carregamento. */
     @Volatile var progress = 0f
+    /** Geração do contexto GL em que a cidade foi montada (sem cópia na memória, é preciso montar de novo se o contexto cair). */
+    @Volatile var builtGen = -1
     /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
     @Volatile var error: String? = null
 
@@ -201,7 +204,7 @@ object City {
         for (c in chunks) {
             if (c.lazyI < 0) continue
             val dx = max(0f, max(c.x0 - x, x - c.x1)); val dz = max(0f, max(c.z0 - z, z - c.z1))
-            if (dx * dx + dz * dz < NEAR * NEAR) { n++; if (c.near != null) ok++ }
+            if (dx * dx + dz * dz < NEAR * NEAR) { n++; if (c.near != null || c.failed) ok++ }
         }
         return if (n == 0) 1f else ok.toFloat() / n
     }
@@ -294,6 +297,11 @@ object City {
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
         places.add(Place("Píer", PIER_X, SEA_Z + 20f, 0xFF8D6E63.toInt(), 'Í'))
         if (tk != token) return
+        for (c in out) { c.near?.gpuOnly(); c.far?.gpuOnly() }
+        farAll?.gpuOnly(); lightMeshes.forEach { it?.gpuOnly() }; Vehicles.meshes.forEach { it?.gpuOnly() }
+        pedBody.forEach { it?.gpuOnly() }; pedLeg.forEach { it?.gpuOnly() }; pedArm.forEach { it?.gpuOnly() }
+        for (d in CityFun.dyn) d.mesh.gpuOnly()
+        builtGen = GlGen.gen
         on = true
     }
 
@@ -302,7 +310,7 @@ object City {
     /** Pede a malha detalhada de um quarteirão (gerada de novo, igual à primeira vez, sem registrar colisões de novo). */
     fun requestNear(ci: Int) {
         val c = chunks.getOrNull(ci) ?: return
-        if (c.lazyI < 0 || c.near != null || c.loading || c.result != null) return
+        if (c.lazyI < 0 || c.near != null || c.loading || c.result != null || c.failed) return
         c.loading = true
         val tk = token
         val i = c.lazyI; val j = c.lazyJ
@@ -313,7 +321,7 @@ object City {
                     CityGeo.block(g, types[i][j], i, j)
                     if (tk == token) c.result = Pair(g.b.toMesh(true), g.fl)
                 }
-            } catch (e: Throwable) { android.util.Log.e("City", "detalhe", e) }
+            } catch (e: Throwable) { c.failed = true; error = "quarteirão $i,$j: $e"; android.util.Log.e("City", "detalhe", e) }
             c.loading = false
         }
     }
@@ -323,19 +331,19 @@ object City {
         if (!on) return
         val now = System.currentTimeMillis()
         for ((ci, c) in chunks.withIndex()) {
-            c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()) }; c.pend = null }
+            c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()).gpuOnly() }; c.pend = null }
             val r = c.result
             if (r != null) {
                 c.result = null
                 c.nearIdx.clear(); c.glass = false
                 for ((k, p) in r.first.parts.withIndex()) { c.nearIdx[p.mat] = k; if (p.mat == Mt.GLASS) c.glass = true }
-                c.near = Mesh(r.first.parts + r.second.build())
+                c.near = Mesh(r.first.parts + r.second.build()).gpuOnly()
                 c.lastNear = now
             }
             if (c.lazyI < 0) continue
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
-            if (d2 < (NEAR + 12f) * (NEAR + 12f)) { requestNear(ci); c.lastNear = now }
+            if (d2 < NEAR * NEAR) { requestNear(ci); c.lastNear = now }
             else if (c.near != null && d2 > (NEAR + 45f) * (NEAR + 45f) && now - c.lastNear > 3000L) { c.near?.release(); c.near = null }
         }
     }

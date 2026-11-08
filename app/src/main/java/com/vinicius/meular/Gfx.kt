@@ -21,6 +21,7 @@ import kotlin.math.sqrt
 
 /** Vértice: posição(3) normal(3) cor(4) uv(2). Normal zero = sem iluminação. */
 const val STRIDE = 12
+val EMPTY_FB: FloatBuffer = ByteBuffer.allocateDirect(4).order(ByteOrder.nativeOrder()).asFloatBuffer()
 
 object Mt {
     const val PLAIN = 0
@@ -47,7 +48,7 @@ object Mt {
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
-class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuffer? = null, val icount: Int = 0, val tex: Int = 0) {
+class Part(val mat: Int, var buf: FloatBuffer, val count: Int, val idx: ShortBuffer? = null, val icount: Int = 0, val tex: Int = 0) {
     /** Etapa 21: empurra a peça para longe da câmera (metros, ao longo da visão) no teste de profundidade; usado na pele para a roupa sempre ganhar. */
     var push: Float = 0f
     /** Pack de móveis: descarta pixels com alfa abaixo deste valor (folhas). 0 = não descarta. */
@@ -65,6 +66,8 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
     var skipB = -1
     /** Etapa 122: várias faixas puladas (pares início, fim; ordenados) — malha única dos quarteirões vistos de longe. */
     var skips: IntArray? = null
+    /** Etapa 124: depois de subir para a placa de vídeo, solta a cópia na memória do celular (cidade: dezenas de MB). */
+    var dropCpu = false
     var vbo = 0
     var ibo = 0
     var gpuGen = 0
@@ -78,6 +81,7 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, count * STRIDE * 4, buf, GLES20.GL_STATIC_DRAW)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        if (dropCpu && idx == null) buf = EMPTY_FB
         val ib = idx
         if (ib != null) {
             ib.position(0)
@@ -99,6 +103,8 @@ class Part(val mat: Int, val buf: FloatBuffer, val count: Int, val idx: ShortBuf
 /** Contador do contexto do GL: sobe quando o contexto é recriado (os buffers antigos deixam de valer). */
 object GlGen { @JvmField var gen = 1 }
 class Mesh(val parts: List<Part>) {
+    /** Etapa 124: só na placa de vídeo (ver Part.dropCpu). */
+    fun gpuOnly(): Mesh { for (p in parts) { p.gpu = true; p.dropCpu = true }; return this }
     fun release() { for (p in parts) p.release() }
 }
 
