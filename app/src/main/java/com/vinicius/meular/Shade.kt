@@ -24,7 +24,7 @@ object Shade {
     /** Só a montagem principal da cidade grava sombras (o detalhe carregado depois não repete). */
     @Volatile var on = false
 
-    fun reset() { b = MB(); on = true }
+    fun reset() { b = MB(); on = true; probes.clear() }
 
     // ---------------------------------------------------------------- geometria 2D
     private fun cross(o: FloatArray, a: FloatArray, c: FloatArray) = (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0])
@@ -106,7 +106,11 @@ object Shade {
     }
 
     /** Árvore: tronco (do pé à copa) + elipse da copa projetada. [y] = chão. */
+    /** pontos de árvores/postes registrados (para conferir sobreposição no simulador) */
+    val probes = ArrayList<FloatArray>()
+
     fun tree(x: Float, z: Float, cx: Float, cz: Float, cy: Float, r: Float, ry: Float, y: Float, alpha: Float = 0.27f) {
+        if (on && probes.size < 6000) probes.add(floatArrayOf(x, z, 0f))
         val hc = cy - y
         val ox = cx + LX * hc; val oz = cz + LZ * hc
         val p = ArrayList<FloatArray>(14)
@@ -128,6 +132,7 @@ object Shade {
 
     /** Poste fino (luminária, semáforo, placa). */
     fun pole(x: Float, z: Float, h: Float, w: Float = 0.12f, alpha: Float = 0.24f) {
+        if (on && probes.size < 6000) probes.add(floatArrayOf(x, z, 1f))
         val ex = x + LX * h; val ez = z + LZ * h
         val nx = -LZ; val nz = LX
         val l = max(0.001f, kotlin.math.sqrt(nx * nx + nz * nz))

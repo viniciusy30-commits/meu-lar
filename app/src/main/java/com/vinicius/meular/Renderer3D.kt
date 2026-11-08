@@ -383,7 +383,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            if (fz > 0.49) col = mix(col, vec3(0.80, 0.88, 0.96), smoothstep(0.49, 5.29, fz) * 0.85 * uFog);
+            if (fz > 1.2) col = mix(col, vec3(0.80, 0.88, 0.96), smoothstep(1.2, 8.0, fz) * 0.8 * uFog);
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -947,7 +947,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (lk in City.lakes) {
             val dx = lk[0] - ex; val dz = lk[1] - ez
             if (dx * dx + dz * dz > 220f * 220f) continue
-            if (!boxVisible(lk[0] - lk[2], lk[3] - 1f, lk[1] - lk[2], lk[0] + lk[2], lk[3] + 0.5f, lk[1] + lk[2])) continue
+            val lr = kotlin.math.abs(lk[2])
+            if (!boxVisible(lk[0] - lr, lk[3] - 1f, lk[1] - lr, lk[0] + lr, lk[3] + 0.5f, lk[1] + lr)) continue
             Water.drawLake(vp, ex, ey, ez, lk[0], lk[1], lk[2], lk[3])
             useProg(curProg)
         }

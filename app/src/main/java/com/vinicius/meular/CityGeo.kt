@@ -775,8 +775,12 @@ object CityGeo {
         val wall = C(rng.pick(WALLS)); val roof = C(rng.pick(ROOFS)); val trim = C("#FFFFFF")
         val wood = rng.pick(WOODS)
         val hw = if (mansion) min(lotW - 8f, rng.r(18f, 24f)) else min(lotW - 4.3f, rng.r(8.5f, 11f))
-        val hd = if (mansion) rng.r(13f, 15f) else rng.r(8.2f, 10f)
-        val set = if (mansion) rng.r(9f, 11f) else rng.r(5.5f, 7f)
+        var hd = if (mansion) rng.r(13f, 15f) else rng.r(8.2f, 10f)
+        var set = if (mansion) rng.r(9f, 11f) else rng.r(5.5f, 7f)
+        // Etapa 127: a casa (e o quintal dos fundos) cabem no lote — antes a piscina/árvores do fundo invadiam a casa do lote de trás
+        val pool = mansion && set + hd + 10.5f <= depth   // piscina só se o lote for fundo o bastante
+        val back = if (pool) 10.5f else 4.6f
+        if (set + hd + back > depth) { val k = (depth - back) / (set + hd); set *= max(0.75f, k); hd = min(hd, depth - back - set) }
         val sideGar = rng.chance(0.5f)
         val hcx = (x0 + x1) / 2 + (if (mansion) 0f else (if (sideGar) -1.6f else 1.6f))
         val hx0 = hcx - hw / 2; val hx1 = hcx + hw / 2
@@ -1043,7 +1047,7 @@ object CityGeo {
             sign(b, hcx - 2.2f, CURB + 1.0f, Z(1.4f) + fz * 0.06f, 0f, fz, 1.4f, 0.32f, City.signIdx("À VENDA"))
         }
         // quintal dos fundos: churrasqueira / piscina (mansão)
-        if (mansion) {
+        if (pool) {
             val pz0 = Z(set + hd + 2f); val pz1 = Z(set + hd + 9f)
             b.m(Mt.PAVER, 0.7f); b.box(hcx, CURB + 0.02f, (pz0 + pz1) / 2, 12f, 0.04f, abs(pz1 - pz0) + 2f, C("#EFE6D6"))
             b.m(Mt.TILE, 2f); b.box(hcx, CURB + 0.03f, (pz0 + pz1) / 2, 9f, 0.04f, abs(pz1 - pz0) - 1f, C("#5EC7E8"))
@@ -1628,7 +1632,7 @@ object CityGeo {
         val n = signs.size; val sw = (xb - xa) / n
         fun Z(d: Float) = fz0 - fz * d
         for (k in 0 until n) {
-            val x0 = xa + sw * k + 0.1f; val x1 = x0 + sw - 0.2f; val cx = (x0 + x1) / 2
+            val x0 = xa + sw * k + 0.15f; val x1 = x0 + sw - 0.3f; val cx = (x0 + x1) / 2   // Etapa 127: paredes vizinhas não se cruzam (piscavam)
             val col = C(rng.pick(WALLS)); val two = rng.chance(0.55f)
             val zf = Z(1.5f); val zb = Z(1.5f + depth); val z0 = min(zf, zb); val z1 = max(zf, zb)
             val (signName, kind) = signs[k]
@@ -1666,6 +1670,25 @@ object CityGeo {
             Signs.doorDetails(H, doorX, FL, zf, fz, cx - sw * 0.12f, sw * 0.5f, C(sp.fg.let { if (sp.style == Signs.LETTERS || sp.style == Signs.NEON) it else sp.bg }), k + 1)
             if (sp.awn == 1 || sp.awn == 3 || kind == 2) Signs.aframe(H, doorX + 0.95f, CURB, zf + fz * 0.85f, fz)
             if (rng.chance(0.55f)) Signs.planter(H, cx - sw * 0.12f, CURB, zf + fz * 0.3f, min(sw * 0.45f, 2.4f), rng)
+            // pilastra entre uma loja e a outra (cobre a junta)
+            if (k < n - 1) { H.m(Mt.STONE, 0.6f); H.box(x1 + 0.15f, (FL + hh + 0.6f) / 2, (z0 + z1) / 2, 0.36f, FL + hh + 0.6f, depth + 0.3f, shade(col, -22)) }
+            // Etapa 127: fundos da loja não ficam lisos — janelas altas com grade, porta de serviço, ar-condicionado e calha
+            run {
+                val bz = zb - fz * 0.13f
+                H.m(Mt.PLAIN)
+                for (wx in floatArrayOf(cx - sw * 0.25f, cx + sw * 0.05f)) {
+                    H.box(wx, FL + 2.6f, bz, 1.1f, 0.7f, 0.05f, C("#F2F2F2"))
+                    H.m(Mt.METAL, 1f); H.box(wx, FL + 2.6f, bz - fz * 0.02f, 0.98f, 0.58f, 0.02f, C("#56708A"))
+                    for (m in 0 until 5) H.box(wx - 0.4f + m * 0.2f, FL + 2.6f, bz - fz * 0.05f, 0.025f, 0.62f, 0.025f, C("#3A3A3A"))
+                    H.m(Mt.PLAIN)
+                }
+                H.m(Mt.METAL, 1f)
+                H.box(cx + sw * 0.32f, FL + 1.1f, bz, 0.95f, 2.2f, 0.06f, C("#6B7076"))
+                H.box(cx + sw * 0.32f + 0.32f, FL + 1.1f, bz - fz * 0.04f, 0.05f, 0.05f, 0.04f, C("#C9C9C9"))
+                H.box(cx - sw * 0.05f, FL + 1.6f, bz - fz * 0.22f, 0.8f, 0.55f, 0.32f, C("#E6E6E6"))
+                H.m(Mt.PLAIN); for (m in 0 until 6) H.box(cx - sw * 0.05f - 0.3f + m * 0.12f, FL + 1.6f, bz - fz * 0.385f, 0.05f, 0.45f, 0.01f, C("#8A8A8A"))
+                H.m(Mt.METAL, 1f); H.box(x0 + 0.3f, (FL + hh + 0.5f) / 2, bz - fz * 0.05f, 0.09f, FL + hh + 0.5f, 0.09f, C("#9E9E9E"))
+            }
             if (two) {
                 val y2 = FL + hh + 0.6f
                 H.m(Mt.PLASTER, 0.5f); H.box(cx, y2 + 1.5f, (z0 + z1) / 2, x1 - x0, 3.0f, depth, col)
@@ -1674,6 +1697,10 @@ object CityGeo {
                     H.m(Mt.PLAIN); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.036f, 1.4f, 1.5f, 0.05f, C("#FFFFFF"))
                     H.m(Mt.METAL, 1f); H.box(cx + s * sw * 0.22f, y2 + 1.5f, zf + fz * 0.072f, 1.25f, 1.35f, 0.012f, C("#5D7A93"))
                     H.m(Mt.WOOD, 1f); H.box(cx + s * sw * 0.22f - 0.85f, y2 + 1.5f, zf + fz * 0.06f, 0.3f, 1.5f, 0.04f, C("#2E7D32")); H.box(cx + s * sw * 0.22f + 0.85f, y2 + 1.5f, zf + fz * 0.06f, 0.3f, 1.5f, 0.04f, C("#2E7D32"))
+                }
+                for (s2 in floatArrayOf(-1f, 1f)) {
+                    H.m(Mt.PLAIN); H.box(cx + s2 * sw * 0.22f, y2 + 1.5f, zb - fz * 0.036f, 1.2f, 1.3f, 0.05f, C("#FFFFFF"))
+                    H.m(Mt.METAL, 1f); H.box(cx + s2 * sw * 0.22f, y2 + 1.5f, zb - fz * 0.072f, 1.05f, 1.15f, 0.012f, C("#5D7A93"))
                 }
                 H.m(Mt.ROOF, 0.6f); H.box(cx, y2 + 3.1f, (z0 + z1) / 2, x1 - x0 + 0.3f, 0.2f, depth + 0.3f, C("#8E4B3A"))
                 H.m(Mt.METAL, 1f); H.box(cx + sw * 0.3f, y2 + 1.2f, zb + fz * 0.0f - fz * 0.05f, 0.9f, 0.6f, 0.5f, C("#ECEFF1"))   // ar-condicionado
@@ -1944,13 +1971,15 @@ object CityGeo {
         var hMax = 0f
         val shopsA = arrayOf("BANCO" to 6, "CAFÉ" to 2, "LIVRARIA" to 4, "ELETRÔNICOS" to 4, "MODA" to 4, "ÓTICA" to 4, "RESTAURANTE" to 2, "ACADEMIA" to 5, "SUSHI" to 2, "CASA DE CÂMBIO" to 6, "ESCRITÓRIOS" to 0, "CLÍNICA" to 3)
         val w = (g.x1 - g.x0) / 2f - 2.5f
+        // Etapa 127: as duas torres (frente e fundos) não podem se encostar: sobra um pátio de 5 m no meio para árvores e bancos
+        val td = min(18f, (g.z1 - g.z0) / 2f - 2f - 2.5f)
         for (k in 0 until 2) {
             val xa = g.x0 + 1.5f + k * (w + 2f)
             val s1 = if (hotel && k == 0) "HOTEL" to 0 else rng.pick(shopsA)
             val s2 = rng.pick(shopsA)
             val f1 = if (hotel && k == 0) 24 else rng.i(14) + 9
-            hMax = max(hMax, tower(g, xa, xa + w, g.z1, 1f, 2f, 18f, f1, if (rng.chance(0.45f)) rng.pick(GLASS_C) else rng.pick(TOWER_C), s1.first, s1.second, rng.chance(0.3f), rng.chance(0.45f)))
-            hMax = max(hMax, tower(g, xa, xa + w, g.z0, -1f, 2f, 18f, rng.i(16) + 7, if (rng.chance(0.45f)) rng.pick(GLASS_C) else rng.pick(TOWER_C), s2.first, s2.second, rng.chance(0.3f), rng.chance(0.45f)))
+            hMax = max(hMax, tower(g, xa, xa + w, g.z1, 1f, 2f, td, f1, if (rng.chance(0.45f)) rng.pick(GLASS_C) else rng.pick(TOWER_C), s1.first, s1.second, rng.chance(0.3f), rng.chance(0.45f)))
+            hMax = max(hMax, tower(g, xa, xa + w, g.z0, -1f, 2f, td, rng.i(16) + 7, if (rng.chance(0.45f)) rng.pick(GLASS_C) else rng.pick(TOWER_C), s2.first, s2.second, rng.chance(0.3f), rng.chance(0.45f)))
         }
         val cz = (g.z0 + g.z1) / 2
         for (k in 0 until 5) tree(g, g.x0 + 5f + k * (g.x1 - g.x0 - 10f) / 4f, cz, 1.0f)
@@ -1958,14 +1987,26 @@ object CityGeo {
         return hMax
     }
 
+    /** Banco de praça: laterais de ferro fundido curvas, assento e encosto de ripas de madeira, apoio de braço. */
     fun publicBench(b: MB, x: Float, z: Float, fx: Float, fz: Float) {
         val l = L(x, z, fx, fz)
+        val y = CURB
         b.m(Mt.WOOD, 1f)
-        for (k in 0 until 3) lb(b, l, 0f, CURB + 0.45f, -0.15f + k * 0.15f, 1.7f, 0.04f, 0.12f, C("#9C6B3F"))
-        for (k in 0 until 2) lb(b, l, 0f, CURB + 0.65f + k * 0.15f, 0.28f, 1.7f, 0.1f, 0.03f, C("#9C6B3F"))
+        for (k in 0 until 4) lb(b, l, 0f, y + 0.44f, -0.2f + k * 0.12f, 1.75f, 0.035f, 0.1f, C(if (k % 2 == 0) "#9C6B3F" else "#93633A"))
+        for (k in 0 until 3) lb(b, l, 0f, y + 0.6f + k * 0.13f, 0.27f + k * 0.035f, 1.75f, 0.09f, 0.03f, C(if (k % 2 == 0) "#9C6B3F" else "#93633A"))
         b.m(Mt.METAL, 1f)
-        for (s in floatArrayOf(-0.75f, 0.75f)) { lb(b, l, s, CURB + 0.22f, 0f, 0.06f, 0.44f, 0.5f, C("#2E2E2E")); lb(b, l, s, CURB + 0.6f, 0.28f, 0.06f, 0.5f, 0.06f, C("#2E2E2E")) }
+        val iron = C("#24292E")
+        for (s0 in floatArrayOf(-0.72f, 0.72f)) {
+            // pé dianteiro curvo, pé traseiro que sobe até o encosto, braço
+            CityGeo.limb(b, l.wx(s0, -0.28f), y, l.wz(s0, -0.28f), l.wx(s0, -0.18f), y + 0.42f, l.wz(s0, -0.18f), 0.03f, 0.025f, iron, 5)
+            CityGeo.limb(b, l.wx(s0, 0.24f), y, l.wz(s0, 0.24f), l.wx(s0, 0.2f), y + 0.42f, l.wz(s0, 0.2f), 0.03f, 0.025f, iron, 5)
+            CityGeo.limb(b, l.wx(s0, 0.2f), y + 0.42f, l.wz(s0, 0.2f), l.wx(s0, 0.36f), y + 0.9f, l.wz(s0, 0.36f), 0.025f, 0.02f, iron, 5)
+            lb(b, l, s0, y + 0.41f, 0f, 0.05f, 0.04f, 0.5f, iron)
+            CityGeo.limb(b, l.wx(s0, -0.24f), y + 0.62f, l.wz(s0, -0.24f), l.wx(s0, 0.24f), y + 0.64f, l.wz(s0, 0.24f), 0.025f, 0.025f, iron, 5)
+            CityGeo.limb(b, l.wx(s0, -0.22f), y + 0.42f, l.wz(s0, -0.22f), l.wx(s0, -0.24f), y + 0.62f, l.wz(s0, -0.24f), 0.02f, 0.02f, iron, 4)
+        }
     }
+
 
     private fun shops(g: Gen, j: Int): Float {
         val rng = g.rng
@@ -2180,77 +2221,279 @@ object CityGeo {
         return 40f
     }
 
-    private fun fountain(g: Gen, x: Float, z: Float) {
-        val b = g.b
-        b.m(Mt.STONE, 0.8f)
-        b.cyl(x, CURB, z, 4.4f, 4.4f, 0.6f, C("#D9D3C7"), true, 32)
-        b.m(Mt.PLAIN)
-        b.cyl(x, CURB + 0.45f, z, 4.05f, 4.05f, 0.14f, C("#4FB6D6"), true, 32)
-        b.m(Mt.STONE, 0.8f)
-        b.cyl(x, CURB + 0.55f, z, 0.55f, 0.38f, 1.7f, C("#D9D3C7"), true, 16)
-        b.cyl(x, CURB + 2.2f, z, 1.7f, 1.25f, 0.28f, C("#D9D3C7"), true, 22)
-        b.cyl(x, CURB + 2.48f, z, 0.25f, 0.18f, 0.9f, C("#D9D3C7"), true, 12)
-        b.cyl(x, CURB + 3.35f, z, 0.75f, 0.55f, 0.18f, C("#D9D3C7"), true, 16)
-        b.m(Mt.GLASS); b.al = 0.55f
-        b.cyl(x, CURB + 3.5f, z, 0.08f, 0.03f, 0.9f, C("#CFF4FF"), true, 8)
-        b.cyl(x, CURB + 2.5f, z, 0.85f, 0.7f, 0.9f, C("#CFF4FF"), true, 16)
-        b.cyl(x, CURB + 0.6f, z, 1.75f, 1.4f, 1.6f, C("#CFF4FF"), true, 20)
-        b.al = 1f
-        g.solid(x - 4.4f, z - 4.4f, x + 4.4f, z + 4.4f)
-        g.f.m(Mt.STONE, 0.8f); g.f.cyl(x, CURB, z, 4.4f, 4.4f, 0.6f, C("#D9D3C7"), true, 16)
+    /** Anel (coroa circular) de raio r0..r1 entre as alturas y0..y1, com face de cima, laterais de dentro e de fora. */
+    fun ringWall(b: MB, x: Float, z: Float, r0: Float, r1: Float, y0: Float, y1: Float, c: Int, n: Int = 40) {
+        for (k in 0 until n) {
+            val a0 = k * 6.2832f / n; val a1 = (k + 1) * 6.2832f / n
+            val c0 = cos(a0); val s0 = sin(a0); val c1 = cos(a1); val s1 = sin(a1)
+            q(b, P(x + c0 * r1, y1, z + s0 * r1) + P(x + c1 * r1, y1, z + s1 * r1) + P(x + c1 * r0, y1, z + s1 * r0) + P(x + c0 * r0, y1, z + s0 * r0), c)
+            q(b, P(x + c0 * r1, y0, z + s0 * r1) + P(x + c1 * r1, y0, z + s1 * r1) + P(x + c1 * r1, y1, z + s1 * r1) + P(x + c0 * r1, y1, z + s0 * r1), shade(c, -6))
+            q(b, P(x + c1 * r0, y0, z + s1 * r0) + P(x + c0 * r0, y0, z + s0 * r0) + P(x + c0 * r0, y1, z + s0 * r0) + P(x + c1 * r0, y1, z + s1 * r0), shade(c, -14))
+        }
     }
 
+    /**
+     * Etapa 127: chafariz de três andares com água de verdade (o mesmo shader dos lagos) no tanque e nas taças,
+     * jatos em arco caindo de uma taça para a outra, bordas com moldura e fundo de azulejo.
+     */
+    private fun fountain(g: Gen, x: Float, z: Float) {
+        val b = g.b
+        val stone = C("#E3DCCD"); val st2 = C("#D2C9B7")
+        b.m(Mt.STONE, 0.8f)
+        // tanque: mureta com moldura dupla
+        ringWall(b, x, z, 4.05f, 4.45f, CURB, CURB + 0.55f, stone, 48)
+        ringWall(b, x, z, 4.4f, 4.6f, CURB, CURB + 0.12f, st2, 48)
+        ringWall(b, x, z, 4.0f, 4.5f, CURB + 0.55f, CURB + 0.62f, shade(stone, 8), 48)
+        b.m(Mt.TILE, 1.4f); b.cyl(x, CURB - 0.3f, z, 4.06f, 4.06f, 0.24f, C("#5FA9C4"), true, 40)   // fundo de azulejo (abaixo do piso da praça)
+        // pedestal, taça de baixo (bojo), coluna, taça do meio, coluna, taça de cima, pinha
+        b.m(Mt.STONE, 0.8f)
+        b.cyl(x, CURB, z, 0.75f, 0.6f, 0.25f, st2, true, 16)
+        b.cyl(x, CURB + 0.25f, z, 0.42f, 0.36f, 1.25f, stone, true, 16)
+        for (k in 0 until 3) b.cyl(x, CURB + 0.4f + k * 0.4f, z, 0.45f, 0.45f, 0.06f, st2, true, 16)
+        b.cyl(x, CURB + 1.5f, z, 0.35f, 1.0f, 0.5f, stone, true, 24)
+        ringWall(b, x, z, 1.62f, 1.78f, CURB + 2.0f, CURB + 2.22f, stone, 32)
+        b.cyl(x, CURB + 2.0f, z, 1.0f, 1.7f, 0.02f, stone, true, 32)
+        b.cyl(x, CURB + 2.22f, z, 0.24f, 0.18f, 0.85f, stone, true, 12)
+        b.cyl(x, CURB + 3.0f, z, 0.18f, 0.55f, 0.28f, stone, true, 18)
+        ringWall(b, x, z, 0.62f, 0.72f, CURB + 3.28f, CURB + 3.4f, stone, 24)
+        b.cyl(x, CURB + 3.28f, z, 0.55f, 0.66f, 0.02f, stone, true, 24)
+        b.cyl(x, CURB + 3.4f, z, 0.08f, 0.05f, 0.3f, stone, true, 8)
+        ball(b, x, CURB + 3.74f, z, 0.11f, stone, 0.15f, 8)
+        // água nos três níveis
+        if (g.reg) { City.lakes.add(floatArrayOf(x, z, -4.04f, CURB + 0.42f)); City.lakes.add(floatArrayOf(x, z, -1.6f, CURB + 2.18f)); City.lakes.add(floatArrayOf(x, z, -0.6f, CURB + 3.36f)) }
+        // jatos: arcos de água (vidro) caindo da taça de cima para a do meio e da do meio para o tanque
+        b.m(Mt.GLASS)
+        for ((r0, y0, r1, y1, n) in listOf(arrayOf(0.66f, CURB + 3.38f, 1.25f, CURB + 2.2f, 12f), arrayOf(1.75f, CURB + 2.2f, 2.9f, CURB + 0.45f, 18f))) {
+            for (k in 0 until n.toInt()) {
+                val a = k * 6.2832f / n
+                var px = x + cos(a) * r0; var py = y0; var pz = z + sin(a) * r0
+                for (st in 1..5) {
+                    val t = st / 5f
+                    val rr = r0 + (r1 - r0) * t; val yy = y0 + 0.12f * t - (y0 - y1 + 0.12f) * t * t
+                    val nx = x + cos(a) * rr; val nz = z + sin(a) * rr
+                    b.al = 0.5f - 0.15f * t
+                    CityGeo.limb(b, px, py, pz, nx, yy, nz, 0.03f + 0.01f * t, 0.03f + 0.015f * t, C("#E3F7FF"), 4)
+                    px = nx; py = yy; pz = nz
+                }
+            }
+        }
+        b.al = 0.55f; CityGeo.limb(b, x, CURB + 3.8f, z, x, CURB + 4.35f, z, 0.05f, 0.02f, C("#E8FAFF"), 6)
+        b.al = 1f
+        g.solid(x - 4.5f, z - 4.5f, x + 4.5f, z + 4.5f)
+        g.f.m(Mt.STONE, 0.8f); g.f.cyl(x, CURB, z, 4.5f, 4.5f, 0.6f, stone, true, 16)
+    }
+
+    /** Poste colonial de praça: base octogonal, fuste canelado verde-escuro, braços com quatro lanternas. */
+    private fun colonialLamp(b: MB, x: Float, z: Float) {
+        Shade.pole(x, z, 4.2f, 0.1f)
+        val gc = C("#1E3328")
+        b.m(Mt.METAL, 1f)
+        b.cyl(x, CURB, z, 0.28f, 0.24f, 0.45f, gc, true, 8)
+        b.cyl(x, CURB + 0.45f, z, 0.16f, 0.16f, 0.08f, shade(gc, 10), true, 8)
+        b.cyl(x, CURB + 0.53f, z, 0.1f, 0.07f, 3.0f, gc, true, 8)
+        b.cyl(x, CURB + 3.5f, z, 0.12f, 0.12f, 0.08f, shade(gc, 10), true, 8)
+        for (k in 0 until 4) {
+            val a = k * 1.5708f + 0.785f
+            val ex = x + cos(a) * 0.55f; val ez = z + sin(a) * 0.55f
+            CityGeo.limb(b, x, CURB + 3.45f, z, ex, CURB + 3.75f, ez, 0.025f, 0.02f, gc, 4)
+            b.m(Mt.METAL, 1f); b.cyl(ex, CURB + 3.72f, ez, 0.09f, 0.14f, 0.05f, gc, true, 6)
+            b.m(Mt.PLAIN); b.cyl(ex, CURB + 3.77f, ez, 0.11f, 0.13f, 0.32f, C("#FFF4D2"), false, 6)
+            b.m(Mt.METAL, 1f); b.cyl(ex, CURB + 4.09f, ez, 0.15f, 0.03f, 0.14f, gc, true, 6)
+        }
+        b.cyl(x, CURB + 3.58f, z, 0.08f, 0.02f, 0.5f, gc, true, 6)
+    }
+
+    /** Coreto octogonal: base com degraus, colunas de ferro, guarda-corpo com balaústres, telhado com beiral e lambrequim. */
+    private fun coreto(g: Gen, kx: Float, kz: Float) {
+        val b = g.b
+        val R = 4.2f; val yb = CURB + 0.8f
+        b.m(Mt.STONE, 0.8f)
+        b.cyl(kx, CURB, kz, R + 0.6f, R + 0.6f, 0.27f, C("#D8CFBE"), true, 8)
+        b.cyl(kx, CURB + 0.27f, kz, R + 0.3f, R + 0.3f, 0.27f, C("#DED5C4"), true, 8)
+        b.cyl(kx, CURB + 0.54f, kz, R, R, 0.26f, C("#E6DDCC"), true, 8)
+        b.m(Mt.WOOD, 1f); b.cyl(kx, yb - 0.01f, kz, R - 0.1f, R - 0.1f, 0.02f, C("#A0764F"), true, 8)
+        val iron = C("#F4F1EA")
+        for (k in 0 until 8) {
+            val a = k * 0.7854f + 0.3927f
+            val px = kx + cos(a) * (R - 0.2f); val pz = kz + sin(a) * (R - 0.2f)
+            b.m(Mt.METAL, 1f)
+            b.cyl(px, yb, pz, 0.1f, 0.1f, 0.18f, iron, true, 8)
+            b.cyl(px, yb + 0.18f, pz, 0.065f, 0.065f, 2.8f, iron, true, 8)
+            b.cyl(px, yb + 2.95f, pz, 0.12f, 0.08f, 0.15f, iron, true, 8)
+            // arco decorativo entre colunas
+            val a2 = (k + 1) * 0.7854f + 0.3927f
+            val qx = kx + cos(a2) * (R - 0.2f); val qz = kz + sin(a2) * (R - 0.2f)
+            for (st in 0 until 6) {
+                val t0 = st / 6f; val t1 = (st + 1) / 6f
+                val h0 = 2.65f + 0.3f * (1 - (2 * t0 - 1) * (2 * t0 - 1)); val h1 = 2.65f + 0.3f * (1 - (2 * t1 - 1) * (2 * t1 - 1))
+                CityGeo.limb(b, px + (qx - px) * t0, yb + h0, pz + (qz - pz) * t0, px + (qx - px) * t1, yb + h1, pz + (qz - pz) * t1, 0.03f, 0.03f, iron, 4)
+            }
+            // guarda-corpo (menos na entrada)
+            if (k != 6) {
+                CityGeo.limb(b, px, yb + 0.9f, pz, qx, yb + 0.9f, qz, 0.035f, 0.035f, iron, 4)
+                CityGeo.limb(b, px, yb + 0.12f, pz, qx, yb + 0.12f, qz, 0.03f, 0.03f, iron, 4)
+                for (m in 1 until 8) { val t = m / 8f; val bx = px + (qx - px) * t; val bz = pz + (qz - pz) * t; b.cyl(bx, yb + 0.12f, bz, 0.025f, 0.025f, 0.78f, iron, true, 5) }
+            }
+        }
+        // telhado octogonal com beiral e lambrequim
+        val yr = yb + 3.1f
+        b.m(Mt.ROOF, 0.6f)
+        for (k in 0 until 8) {
+            val a0 = k * 0.7854f; val a1 = (k + 1) * 0.7854f
+            CityGeo.tri(b, P(kx + cos(a0) * (R + 0.5f), yr, kz + sin(a0) * (R + 0.5f)) + P(kx, yr + 2.0f, kz) + P(kx + cos(a1) * (R + 0.5f), yr, kz + sin(a1) * (R + 0.5f)), C("#2F5D3A"))
+        }
+        b.m(Mt.WOOD, 1f)
+        for (k in 0 until 8) {
+            val a0 = k * 0.7854f; val a1 = (k + 1) * 0.7854f
+            q(b, P(kx + cos(a0) * (R + 0.5f), yr, kz + sin(a0) * (R + 0.5f)) + P(kx + cos(a1) * (R + 0.5f), yr, kz + sin(a1) * (R + 0.5f)) + P(kx + cos(a1) * (R + 0.5f), yr - 0.25f, kz + sin(a1) * (R + 0.5f)) + P(kx + cos(a0) * (R + 0.5f), yr - 0.25f, kz + sin(a0) * (R + 0.5f)), C("#F4F1EA"))
+            for (m in 0 until 6) {   // lambrequim (recortes)
+                val t0 = m / 6f; val t1 = (m + 1) / 6f; val tm = (t0 + t1) / 2
+                fun pt(t: Float, dy: Float) = P(kx + (cos(a0) + (cos(a1) - cos(a0)) * t) * (R + 0.5f), yr - 0.25f - dy, kz + (sin(a0) + (sin(a1) - sin(a0)) * t) * (R + 0.5f))
+                CityGeo.tri(b, pt(t0, 0f) + pt(t1, 0f) + pt(tm, 0.14f), C("#F4F1EA"))
+            }
+        }
+        b.cyl(kx, yr - 0.02f, kz, R + 0.45f, R + 0.45f, 0.02f, C("#E8E0D2"), true, 8)
+        b.m(Mt.METAL, 1f); b.cyl(kx, yr + 1.95f, kz, 0.06f, 0.02f, 0.6f, C("#C9A227"), true, 6); ball(b, kx, yr + 2.1f, kz, 0.1f, C("#C9A227"), 0.1f, 6)
+        g.solid(kx - R - 0.3f, kz - R - 0.3f, kx + R + 0.3f, kz + R + 0.3f)
+    }
+
+    /** Banca de jornal: caixa verde com toldo, revistas penduradas na frente, jornais no balcão. */
+    private fun newsstand(g: Gen, x: Float, z: Float, fx: Float, fz: Float) {
+        val b = g.b
+        val l = L(x, z, fx, fz)
+        b.m(Mt.METAL, 1f)
+        lb(b, l, 0f, CURB + 1.25f, 0.2f, 2.6f, 2.5f, 1.6f, C("#1F6B45"))
+        lb(b, l, 0f, CURB + 2.56f, 0f, 2.9f, 0.12f, 2.2f, C("#17543A"))
+        b.m(Mt.FABRIC, 1f); lb(b, l, 0f, CURB + 2.45f, -1.0f, 2.8f, 0.06f, 0.6f, C("#C62828"))
+        // vitrine de revistas (textura de mercadoria) e balcão
+        CityInt.goods(b, l.wx(0f, -0.62f), CURB + 0.95f, l.wz(0f, -0.62f), if (l.alongX) 2.4f else 0.04f, 1.25f, if (l.alongX) 0.04f else 2.4f, C("#FFFFFF"), Mt.BOOKS)
+        b.m(Mt.WOOD, 1f); lb(b, l, 0f, CURB + 0.45f, -0.7f, 2.4f, 0.9f, 0.3f, C("#17543A"))
+        b.m(Mt.PLAIN); for (k in 0 until 6) lb(b, l, -1.0f + k * 0.4f, CURB + 0.92f, -0.72f, 0.32f, 0.03f, 0.24f, C(arrayOf("#F5F5F5", "#FFF59D", "#E3F2FD", "#FCE4EC")[k % 4]))
+        g.solid(x - 1.5f, z - 1.3f, x + 1.5f, z + 1.3f)
+        Shade.box(min(l.wx(-1.3f, -0.6f), l.wx(1.3f, 1.0f)), min(l.wz(-1.3f, -0.6f), l.wz(1.3f, 1.0f)), max(l.wx(-1.3f, -0.6f), l.wx(1.3f, 1.0f)), max(l.wz(-1.3f, -0.6f), l.wz(1.3f, 1.0f)), 2.6f)
+    }
+
+    /**
+     * Etapa 127: praça refeita. Piso de pedra portuguesa em ondas em volta do chafariz, alamedas com guias de granito,
+     * canteiros com cerca viva e flores, bancos de ferro fundido, postes coloniais, coreto, banca de jornal,
+     * obelisco com placa, carrinho de pipoca, pombos, ipês e academia ao ar livre.
+     */
     private fun praca(g: Gen): Float {
         val b = g.b; val rng = g.rng
         val cx = (g.x0 + g.x1) / 2; val cz = (g.z0 + g.z1) / 2
+        val light = C("#ECE6D8"); val dark = C("#3B3936"); val gran = C("#9C978E")
+        // alamedas (cruz) com guias de granito
         b.m(Mt.PAVER, 0.7f)
-        b.box(cx, CURB + 0.01f, cz, 4f, 0.02f, g.z1 - g.z0, C("#E5DCCB"))
-        b.box(cx, CURB + 0.01f, cz, g.x1 - g.x0, 0.02f, 4f, C("#E5DCCB"))
-        b.cyl(cx, CURB, cz, 9.5f, 9.5f, 0.03f, C("#E5DCCB"), true, 36)
+        b.box(cx, CURB + 0.01f, cz, 4.4f, 0.02f, g.z1 - g.z0, C("#E2D9C8"))
+        b.box(cx, CURB + 0.01f, cz, g.x1 - g.x0, 0.02f, 4.4f, C("#E2D9C8"))
+        b.m(Mt.STONE, 1f)
+        for (sd in floatArrayOf(-2.3f, 2.3f)) {
+            b.box(cx + sd, CURB + 0.03f, cz, 0.2f, 0.06f, g.z1 - g.z0, gran)
+            b.box(cx, CURB + 0.03f, cz + sd, g.x1 - g.x0, 0.06f, 0.2f, gran)
+        }
+        // largo circular: pedra portuguesa em ondas (faixas claras e escuras)
+        val nseg = 96
+        b.m(Mt.STONE, 2.2f)
+        for (k in 0 until nseg) {
+            val a0 = k * 6.2832f / nseg; val a1 = (k + 1) * 6.2832f / nseg
+            fun r(a: Float, band: Int) = 4.6f + band * 1.25f + 0.32f * sin(a * 10f + band * 1.3f)
+            for (band in 0 until 4) {
+                val ra0 = if (band == 0) 4.6f else r(a0, band); val ra1 = if (band == 0) 4.6f else r(a1, band)
+                val rb0 = if (band == 3) 9.6f else r(a0, band + 1); val rb1 = if (band == 3) 9.6f else r(a1, band + 1)
+                val c = if (band % 2 == 0) light else dark
+                q(b, P(cx + cos(a0) * ra0, CURB + 0.022f, cz + sin(a0) * ra0) + P(cx + cos(a0) * rb0, CURB + 0.022f, cz + sin(a0) * rb0) + P(cx + cos(a1) * rb1, CURB + 0.022f, cz + sin(a1) * rb1) + P(cx + cos(a1) * ra1, CURB + 0.022f, cz + sin(a1) * ra1), c)
+            }
+        }
+        ringWall(b, cx, cz, 9.6f, 9.85f, CURB, CURB + 0.075f, gran, 64)
         fountain(g, cx, cz)
+        // pombos ciscando
+        b.m(Mt.PLAIN)
+        for (k in 0 until 9) {
+            val a = rng.r(0f, 6.28f); val rr = rng.r(5.2f, 8.5f)
+            val px = cx + cos(a) * rr; val pz = cz + sin(a) * rr; val h = rng.r(0f, 6.28f)
+            ball(b, px, CURB + 0.1f, pz, 0.09f, C(if (k % 3 == 0) "#8A8C93" else "#6E7078"), 0.07f, 6)
+            ball(b, px + cos(h) * 0.09f, CURB + 0.16f, pz + sin(h) * 0.09f, 0.04f, C("#5A5C63"), 0.04f, 5)
+        }
+        // canteiros: cerca viva baixa, grama, flores e um ipê no meio
         for (k in 0 until 4) {
             val a = (k * 90 + 45) * PI.toFloat() / 180f
-            val fx = cx + 14f * cos(a); val fzz = cz + 14f * sin(a)
-            b.m(Mt.STONE, 0.8f)
-            b.cyl(fx, CURB, fzz, 2.6f, 2.6f, 0.38f, C("#BCA88E"), true, 18)
-            b.m(Mt.GRASS, 0.3f); b.cyl(fx, CURB + 0.3f, fzz, 2.4f, 2.4f, 0.1f, C("#8DB86B"), true, 18)
-            flowers(g, fx - 1.6f, fzz - 1.6f, fx + 1.6f, fzz + 1.6f, 18, CURB + 0.4f)
-            g.solid(fx - 2.4f, fzz - 2.4f, fx + 2.4f, fzz + 2.4f)
+            val fx = cx + 15f * cos(a); val fzz = cz + 15f * sin(a)
+            b.m(Mt.STONE, 0.8f); ringWall(b, fx, fzz, 3.1f, 3.35f, CURB, CURB + 0.3f, C("#CFC6B4"), 28)
+            b.m(Mt.GRASS, 0.3f); b.cyl(fx, CURB, fzz, 3.12f, 3.12f, 0.24f, C("#9CC77A"), true, 28)
+            b.m(Mt.LEAFB, 1f)
+            for (m in 0 until 28) {
+                val a0 = m * 6.2832f / 28
+                val hx = fx + cos(a0) * 2.75f; val hz = fzz + sin(a0) * 2.75f
+                b.box(hx, CURB + 0.48f, hz, 0.62f, 0.5f, 0.62f, C(if (m % 2 == 0) "#3F7A35" else "#467F3A"))
+            }
+            flowers(g, fx - 2f, fzz - 2f, fx + 2f, fzz + 2f, 26, CURB + 0.24f)
+            tree(g, fx, fzz, 1.15f, CURB + 0.24f, 2 + (k % 2))
+            g.solid(fx - 3.3f, fzz - 3.3f, fx + 3.3f, fzz + 3.3f)
         }
+        // bancos em volta do largo, virados para o chafariz, com lixeira entre eles
         for (k in 0 until 8) {
             val a = (k * 45 + 22.5f) * PI.toFloat() / 180f
-            val bx = cx + 7.8f * cos(a); val bz = cz + 7.8f * sin(a)
+            val bx = cx + 8.4f * cos(a); val bz = cz + 8.4f * sin(a)
             val ax = if (abs(cos(a)) > abs(sin(a))) (if (cos(a) > 0) 1f else -1f) else 0f
             val az = if (ax == 0f) (if (sin(a) > 0) 1f else -1f) else 0f
             publicBench(b, bx, bz, -ax, -az)
+            g.solid(bx - 0.9f, bz - 0.9f, bx + 0.9f, bz + 0.9f)
         }
-        for (k in 0 until 18) {
+        // postes coloniais nas alamedas e no largo
+        for (k in 0 until 8) { val a = k * 0.7854f; colonialLamp(b, cx + 10.4f * cos(a), cz + 10.4f * sin(a)) }
+        val half = min(g.x1 - g.x0, g.z1 - g.z0) / 2f - 2.5f
+        for (sd in floatArrayOf(-1f, 1f)) for (d in floatArrayOf(16f, min(24f, half))) {
+            colonialLamp(b, cx + 2.75f * sd, cz + d * sd); colonialLamp(b, cx - 2.75f * sd, cz - d * sd)
+            colonialLamp(b, cx + d * sd, cz - 2.75f * sd); colonialLamp(b, cx - d * sd, cz + 2.75f * sd)
+        }
+        // árvores grandes no gramado
+        for (k in 0 until 22) {
             val tx = rng.r(g.x0 + 3f, g.x1 - 3f); val tz = rng.r(g.z0 + 3f, g.z1 - 3f)
-            if (abs(tx - cx) < 3.5f || abs(tz - cz) < 3.5f || (abs(tx - cx) < 17f && abs(tz - cz) < 17f)) continue
-            if (k % 3 == 0) palm(g, tx, tz, rng.r(0.8f, 1.0f)) else tree(g, tx, tz, rng.r(1.0f, 1.4f))
+            if (abs(tx - cx) < 4.5f || abs(tz - cz) < 4.5f || (abs(tx - cx) < 19f && abs(tz - cz) < 19f)) continue
+            if (abs(tx - (g.x1 - 10f)) < 7f && abs(tz - (g.z1 - 10f)) < 7f) continue
+            if (abs(tx - (g.x0 + 9f)) < 7f && abs(tz - (g.z1 - 9f)) < 7f) continue
+            if (k % 4 == 0) palm(g, tx, tz, rng.r(0.8f, 1.0f)) else tree(g, tx, tz, rng.r(1.1f, 1.5f), CURB, if (k % 5 == 1) 2 else if (k % 5 == 3) 3 else -1)
         }
-        for (s in intArrayOf(-1, 1)) { streetLamp(b, cx + s * 2.6f, cz - 15f, 0f, 0f); streetLamp(b, cx + s * 2.6f, cz + 15f, 0f, 0f) }
-        sign(b, cx + 3.4f, CURB + 2.0f, g.z0 + 2.5f, 0f, -1f, 4.4f, 0.55f, City.signIdx("PRAÇA CENTRAL"))
-        b.m(Mt.WOOD, 1f)
-        for (s in floatArrayOf(-2f, 2f)) b.box(cx + 3.4f + s, CURB + 1.1f, g.z0 + 2.6f, 0.15f, 2.2f, 0.15f, C("#6D4C33"))
-        // coreto
-        val kx = g.x1 - 10f; val kz = g.z1 - 10f
-        b.m(Mt.STONE, 0.8f); b.cyl(kx, CURB, kz, 4f, 4f, 0.6f, C("#E0D6C4"), true, 8)
-        b.m(Mt.PLAIN)
-        for (k in 0 until 8) { val a = k * PI.toFloat() / 4f; b.cyl(kx + 3.6f * cos(a), CURB + 0.6f, kz + 3.6f * sin(a), 0.12f, 0.12f, 3f, C("#FFFFFF"), true, 8) }
-        b.m(Mt.ROOF, 0.6f); b.cyl(kx, CURB + 3.6f, kz, 4.6f, 0.2f, 2.2f, C("#2E7D32"), true, 8)
-        g.solid(kx - 4f, kz - 4f, kx + 4f, kz + 4f)
-        // academia ao ar livre
+        // monumento (obelisco com placa) na entrada, no lugar da placa de madeira
+        val mx = cx + 4.6f; val mz = g.z0 + 3.2f
+        b.m(Mt.STONE, 0.8f)
+        b.box(mx, CURB + 0.15f, mz, 2.2f, 0.3f, 2.2f, C("#CFC6B4")); b.box(mx, CURB + 0.45f, mz, 1.6f, 0.3f, 1.6f, C("#D6CDBB"))
+        b.box(mx, CURB + 1.2f, mz, 1.0f, 1.2f, 1.0f, C("#DED5C4"))
+        b.cyl(mx, CURB + 1.8f, mz, 0.42f, 0.12f, 3.6f, C("#E6DDCC"), true, 4)
+        b.m(Mt.METAL, 1f); b.box(mx, CURB + 1.25f, mz - 0.505f, 0.8f, 0.5f, 0.02f, C("#7A5C2E"))
+        sign(b, mx, CURB + 1.1f, mz - 0.52f, 0f, -1f, 0.7f, 0.3f, City.signIdx("PRAÇA CENTRAL"), false)
+        Shade.box(mx - 0.5f, mz - 0.5f, mx + 0.5f, mz + 0.5f, 4.5f)
+        g.solid(mx - 1.1f, mz - 1.1f, mx + 1.1f, mz + 1.1f)
+        // banca de jornal e carrinho de pipoca
+        newsstand(g, cx - 6.5f, g.z0 + 3.4f, 0f, -1f)
+        run {
+            val px = cx + 7.5f; val pz = cz + 10.8f
+            b.m(Mt.METAL, 1f); b.box(px, CURB + 0.75f, pz, 1.0f, 0.7f, 0.6f, C("#C62828")); b.box(px, CURB + 1.15f, pz, 1.0f, 0.1f, 0.6f, C("#FAFAFA"))
+            b.m(Mt.GLASS); b.al = 0.45f; b.box(px, CURB + 1.45f, pz, 0.8f, 0.5f, 0.5f, C("#FFF8E1")); b.al = 1f
+            b.m(Mt.PLAIN); for (k in 0 until 14) ball(b, px - 0.3f + (k % 5) * 0.15f, CURB + 1.25f + (k / 5) * 0.06f, pz - 0.1f + (k % 3) * 0.1f, 0.05f, C("#FFF3C4"), 0.04f, 4)
+            b.m(Mt.METAL, 1f); for (sd in floatArrayOf(-0.4f, 0.4f)) b.cyl(px + sd, CURB, pz + 0.32f, 0.2f, 0.2f, 0.04f, C("#222222"), true, 10)
+            b.cyl(px, CURB + 1.7f, pz, 0.02f, 0.02f, 0.8f, C("#888888"), true, 5)
+            b.m(Mt.FABRIC, 1f); b.cyl(px, CURB + 2.5f, pz, 0.9f, 0.05f, 0.35f, C("#FBC02D"), true, 10)
+            g.solid(px - 0.6f, pz - 0.4f, px + 0.6f, pz + 0.4f)
+        }
+        coreto(g, g.x1 - 10f, g.z1 - 10f)
+        // academia ao ar livre: piso emborrachado e aparelhos coloridos
         val gx = g.x0 + 9f; val gz = g.z1 - 9f
-        b.m(Mt.PAVER, 0.7f); b.box(gx, CURB + 0.015f, gz, 10f, 0.03f, 10f, C("#F0C987"))
+        b.m(Mt.RUG, 0.4f); b.box(gx, CURB + 0.02f, gz, 10f, 0.04f, 10f, C("#3E7CB1"))
         b.m(Mt.METAL, 1f)
-        for (k in 0 until 4) {
-            val ex = gx - 3f + (k % 2) * 6f; val ez = gz - 3f + (k / 2) * 6f
-            b.box(ex, CURB + 1.0f, ez, 0.12f, 2.0f, 0.12f, C("#F2C230"))
-            b.box(ex, CURB + 1.9f, ez, 1.6f, 0.1f, 0.1f, C("#2E7D32"))
-            b.box(ex + 0.7f, CURB + 0.9f, ez, 0.1f, 1.8f, 0.1f, C("#2E7D32"))
+        for (k in 0 until 6) {
+            val ex = gx - 3.3f + (k % 3) * 3.3f; val ez = gz - 2.5f + (k / 3) * 5f
+            val c1 = C(arrayOf("#F2C230", "#E53935", "#43A047")[k % 3]); val c2 = C("#1E5AA8")
+            b.cyl(ex, CURB, ez, 0.07f, 0.07f, 1.9f, c1, true, 8)
+            CityGeo.limb(b, ex, CURB + 1.85f, ez, ex + 0.8f, CURB + 1.85f, ez, 0.045f, 0.045f, c1, 6)
+            when (k % 3) {
+                0 -> { CityGeo.limb(b, ex + 0.75f, CURB + 1.8f, ez, ex + 0.75f, CURB + 0.6f, ez, 0.035f, 0.035f, c2, 5); b.box(ex + 0.75f, CURB + 0.55f, ez, 0.5f, 0.06f, 0.3f, c2) }
+                1 -> { for (sd in floatArrayOf(-0.25f, 0.25f)) b.box(ex + 0.4f, CURB + 1.2f, ez + sd, 0.06f, 0.06f, 0.5f, c2); b.box(ex + 0.4f, CURB + 0.45f, ez, 0.4f, 0.06f, 0.45f, c2) }
+                else -> { b.cyl(ex + 0.5f, CURB + 0.9f, ez, 0.25f, 0.25f, 0.06f, c2, true, 14); CityGeo.limb(b, ex, CURB + 0.9f, ez, ex + 0.5f, CURB + 0.93f, ez, 0.03f, 0.03f, c1, 5) }
+            }
         }
-        sign(b, gx, CURB + 1.6f, gz + 5.5f, 0f, 1f, 4f, 0.5f, City.signIdx("ACADEMIA AO AR LIVRE"))
+        b.m(Mt.STONE, 0.8f); b.box(gx, CURB + 0.7f, gz + 5.3f, 2.4f, 1.4f, 0.12f, C("#D6CDBB"))
+        sign(b, gx, CURB + 1.0f, gz + 5.37f, 0f, 1f, 2.0f, 0.3f, City.signIdx("ACADEMIA AO AR LIVRE"), false)
         g.place(City.Place("Praça Central", cx, cz, 0xFF43A047.toInt(), 'P'))
         return 10f
     }

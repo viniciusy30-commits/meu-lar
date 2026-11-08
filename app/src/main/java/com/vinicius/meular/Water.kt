@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
+import kotlin.math.abs
 
 /**
  * Etapa 120: água da piscina com programa próprio.
@@ -115,7 +116,7 @@ object Water {
             float a = clamp(mix(0.55, 0.92, fres) + k * 0.25 + vFoam * 0.3, 0.0, 0.96);
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            float fog = smoothstep(0.49, 5.29, fz) * 0.85;
+            float fog = smoothstep(1.2, 8.0, fz) * 0.8;
             col = mix(col, vec3(0.86, 0.92, 0.96), fog);
             a = mix(a, 1.0, fog);
             gl_FragColor = vec4(col, a);
@@ -134,6 +135,7 @@ object Water {
         uniform vec3 uDeep; uniform vec3 uShal;
         void main() {
             vec2 p = vW.xz; float t = uTime;
+            if (uMode > 2.5 && length(p - uLake.xy) > uLake.z) discard;   // tanque redondo (chafariz)
             vec3 dv = uEye - vW; float dist = length(dv); vec3 V = dv / dist;
             float fade = 1.0 / (1.0 + dist * 0.025);
             vec2 g = vec2(0.0); float a;
@@ -159,9 +161,9 @@ object Water {
             float sd = max(dot(R, L), 0.0);
             float s2 = sd * sd; float s4 = s2 * s2; float s8 = s4 * s4; float s16 = s8 * s8; float s32 = s16 * s16; float s64 = s32 * s32;
             float s256 = s64 * s64; s256 *= s256; float s512 = s256 * s256;
-            sky += vec3(1.0, 0.95, 0.8) * (s16 * 0.12 + s64 * 0.2);
+            sky += vec3(1.0, 0.95, 0.8) * (s16 * 0.05 + s64 * 0.08);
             vec3 col = mix(body, sky, fres);
-            col += vec3(1.0, 0.97, 0.88) * (s512 * 4.0 + s64 * 0.12) * (0.6 + 0.4 * fade);
+            col += vec3(1.0, 0.97, 0.88) * (s512 * 4.0 + s64 * 0.05) * (0.6 + 0.4 * fade);
             // espuma
             float foam = 0.0;
             if (uMode < 1.5) {
@@ -170,15 +172,20 @@ object Water {
                 float edge = smoothstep(1.6, 0.0, d + 0.4 * sin(p.x * 0.7 + t * 1.3));
                 float spec = 0.5 + 0.5 * sin(p.x * 3.1 + p.y * 2.3 + t) * sin(p.x * 1.7 - p.y * 3.7 - t * 1.3);
                 foam = clamp(band * (0.55 + 0.45 * spec) + edge * 0.9, 0.0, 1.0);
-            } else {
+            } else if (uMode < 2.5) {
                 foam = smoothstep(0.35, 0.0, d) * 0.35;
+            } else {
+                // chafariz: espuma na borda e onde os jatos caem (anel em uShoreZ), borbulhando
+                float rr = length(p - uLake.xy);
+                float bub = 0.5 + 0.5 * sin(p.x * 9.0 + t * 5.0) * sin(p.y * 8.0 - t * 4.3);
+                foam = smoothstep(0.2, 0.0, d) * 0.4 + smoothstep(0.35, 0.0, abs(rr - uShoreZ)) * (0.45 + 0.4 * bub);
             }
             col = mix(col, vec3(0.97, 0.98, 1.0), foam);
             float al = uMode < 1.5 ? mix(0.30, 0.97, clamp(d * 0.22, 0.0, 1.0)) : mix(0.55, 0.96, clamp(d * 0.6, 0.0, 1.0));
             al = clamp(max(al, fres) + foam * 0.5, 0.0, 1.0);
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            float fog = smoothstep(0.49, 5.29, fz) * 0.85;
+            float fog = smoothstep(1.2, 8.0, fz) * 0.8;
             col = mix(col, vec3(0.80, 0.88, 0.96), fog);
             al = mix(al, 1.0, fog);
             gl_FragColor = vec4(col, al);
@@ -337,7 +344,9 @@ object Water {
     private const val LN = 28
 
     /** Etapa 127: lago (malha unitária −1..1 escalada no shader pelo uWav/uBox? não: refeita por lago). */
-    fun drawLake(vp: FloatArray, ex: Float, ey: Float, ez: Float, cx: Float, cz: Float, r: Float, y: Float): Boolean {
+    fun drawLake(vp: FloatArray, ex: Float, ey: Float, ez: Float, cx: Float, cz: Float, r0: Float, y: Float): Boolean {
+        val round = r0 < 0f   // Etapa 127: raio negativo = tanque redondo de chafariz
+        val r = abs(r0)
         if (progN == 0 || nGen != GlGen.gen) { nGen = GlGen.gen; buildN(); lakeGen = -1 }
         if (progN == 0) return false
         val ids = IntArray(2)
@@ -368,10 +377,15 @@ object Water {
         GLES20.glUniform3f(nEye, ex, ey, ez)
         GLES20.glUniform1f(nTime, now())
         GLES20.glUniform4f(nBox, cx - r - 50f, cz - r - 50f, cx + r + 50f, cz + r + 50f)
-        GLES20.glUniform3f(nWav, y, 0.35f, 1.0f)
+        GLES20.glUniform3f(nWav, y, if (round) 0.15f else 0.35f, if (round) 2f else 1.0f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
-        GLES20.glUniform1f(nMode, 2f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, r * City.LAKE_EDGE)
-        GLES20.glUniform3f(nDeep, 0.05f, 0.20f, 0.22f); GLES20.glUniform3f(nShal, 0.22f, 0.40f, 0.34f)
+        if (round) {
+            GLES20.glUniform1f(nMode, 3f); GLES20.glUniform1f(nShore, if (r > 3f) 2.9f else if (r > 1f) 1.25f else 0f); GLES20.glUniform3f(nLake, cx, cz, r)
+            GLES20.glUniform3f(nDeep, 0.12f, 0.42f, 0.55f); GLES20.glUniform3f(nShal, 0.45f, 0.78f, 0.86f)
+        } else {
+            GLES20.glUniform1f(nMode, 2f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, r * City.LAKE_EDGE)
+            GLES20.glUniform3f(nDeep, 0.05f, 0.20f, 0.22f); GLES20.glUniform3f(nShal, 0.22f, 0.40f, 0.34f)
+        }
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, lakeVbo)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)

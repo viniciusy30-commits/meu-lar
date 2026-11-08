@@ -1,3 +1,15 @@
+#id 2026-11-29-cidade-viva
+#titulo Céu com nuvens, sombras do sol, água de verdade, letreiros reais e praça nova
+- Céu novo: degradê de verdade, sol com brilho e nuvens que andam devagar
+- Sombras do sol em tudo: prédios, casas, árvores, postes e bancas (sem pesar no jogo)
+- Mar com ondas, reflexo do céu, brilho do sol e espuma chegando na praia
+- Lago do parque refeito: margem natural com pedras, taboas, vitórias-régias, patos, ponte em arco e deque
+- Cada loja tem marca própria: caixa luminosa, letra-caixa, neon, placa de madeira ou nome no toldo; bandeiras laterais, plaquinha ABERTO, floreiras e cavaletes
+- Praça Central nova: pedra portuguesa em ondas, chafariz de três taças com água, coreto, postes coloniais, banca de jornal, obelisco, pipoqueiro e pombos
+- Palmeiras com folhas de verdade; árvores sem piscar
+- Móveis mais detalhados: sofás e poltronas estofados, cadeiras com encosto de ripas, cadeiras de escritório, mesas com computador e luminária, plantas com folhas
+- Corrigido: árvores e piscina dentro de casas, prédios encostados um no outro, postes no asfalto, paredes vizinhas piscando
+
 #id 2026-11-22-interiores-direcao
 #titulo Interiores de verdade, direção de jogo de corrida e paredes que não somem
 - Cada lugar tem seu interior: hospital com recepção, painel de senhas, espera, consultórios com maca e pia, enfermaria, posto de enfermagem, raio-x e lanchonete
