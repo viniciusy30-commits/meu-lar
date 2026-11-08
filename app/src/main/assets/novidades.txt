@@ -1,3 +1,14 @@
+#id 2026-11-12-cidade2
+#titulo Cidade de verdade, praia, parque de diversões e GPS
+- Cidade bem maior: 48 quarteirões com bairros diferentes — casas tradicionais, modernas, sobrados, chalés, casas de praia e mansões com piscina
+- Dá para entrar nas casas, lojas, prédios, hospital e igreja: tudo mobiliado (sala, cozinha, quarto, banheiro, prateleiras de mercado, café, academia, banco, recepção...). Ao entrar, paredes e telhado somem como no The Sims
+- Casas e terrenos à venda com placa (base para a compra de casas que vem depois)
+- Praia com calçadão de ondas, quiosques, guarda-sóis, salva-vidas, vôlei, palmeiras, mar com ondas e espuma e um píer para andar
+- Parque de diversões com roda-gigante, montanha-russa, carrossel, elevador e bate-bate funcionando, barracas de pipoca e algodão doce
+- Carros novos bem mais detalhados (sedã, hatch, SUV, picape, esportivo, táxi, van, ônibus, viatura, ambulância, bombeiros) e motos com piloto
+- Botão de mapa ao lado da câmera: mapa da cidade em tela cheia, toque num lugar e "Ir com GPS" — faixa azul no chão, aviso da próxima conversão e minimapa
+- Desempenho: o detalhe só é carregado perto de você, o resto vira uma versão leve; a cidade é montada sem travar o jogo
+
 #id 2026-11-10-cidade
 #titulo A cidade chegou
 - Saia pelo portão da frente: a casa agora fica no meio de uma cidade de 25 quarteirões, toda andável
