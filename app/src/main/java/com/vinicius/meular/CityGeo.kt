@@ -2582,6 +2582,79 @@ object CityGeo {
     // ============================================================ ruas
 
     private const val CW = 0.24f   // largura da guia
+    private const val FR = 2.2f    // Etapa 130: raio da esquina arredondada da calçada
+
+    /** Triângulo/quadrilátero com a normal virada para [hx,hy,hz] (inverte a ordem dos vértices se preciso). */
+    private fun facet(b: MB, pts: FloatArray, hx: Float, hy: Float, hz: Float, c: Int) {
+        val n = pts.size / 3
+        val ux = pts[3] - pts[0]; val uy = pts[4] - pts[1]; val uz = pts[5] - pts[2]
+        val k = if (n == 4) 9 else 6
+        val vx = pts[k] - pts[0]; val vy = pts[k + 1] - pts[1]; val vz = pts[k + 2] - pts[2]
+        val nx = uy * vz - uz * vy; val ny = uz * vx - ux * vz; val nz = ux * vy - uy * vx
+        var p = pts
+        if (nx * hx + ny * hy + nz * hz < 0f) {
+            p = FloatArray(pts.size); for (i in 0 until n) { val j = (n - i) % n; p[i * 3] = pts[j * 3]; p[i * 3 + 1] = pts[j * 3 + 1]; p[i * 3 + 2] = pts[j * 3 + 2] }
+        }
+        if (n == 4) q(b, p, c) else tri(b, p, c)
+    }
+
+    /** Etapa 130: calçada de uma rua horizontal; as pontas (esquinas) são um arco de verdade (malha com leque + guia curva). */
+    private fun swH(b: MB, x0: Float, x1: Float, zBack: Float, zRoad: Float, rl: Float, rr: Float, walk: Int, curbC: Int) {
+        val sg = if (zRoad > zBack) 1f else -1f
+        val zIn = zRoad - sg * CW
+        val xa = x0 + rl; val xb = x1 - rr
+        if (xb - xa > 0.01f) {
+            groundBox(b, xa, min(zBack, zIn), xb, max(zBack, zIn), Mt.PAVER, 0.9f, walk)
+            b.m(Mt.STONE, 1f)
+            b.box((xa + xb) / 2, (CURB + 0.03f) / 2, zRoad - sg * CW / 2 + sg * 0.01f, xb - xa, CURB + 0.03f, CW + 0.02f, curbC)
+        }
+        val ch = CURB + 0.03f
+        for (end in 0..1) {
+            val r = if (end == 0) rl else rr
+            if (r <= 0f) continue
+            val e = if (end == 0) x0 else x1; val ix = if (end == 0) 1f else -1f
+            val ox = e + ix * r; val oz = zRoad - sg * r       // centro do arco
+            val n = 8
+            // ponto do arco: t=0 em (ox, zRoad) [lado do miolo], t=n em (e, oz) [ponta]
+            fun ax(t: Int, rad: Float) = ox - ix * rad * sin(t * 1.5708f / n)
+            fun az(t: Int, rad: Float) = oz + sg * rad * cos(t * 1.5708f / n)
+            b.m(Mt.PAVER, 0.9f)
+            val fx = ox; val fz = zBack
+            for (t in 0 until n) facet(b, P(fx, CURB, fz) + P(ax(t, r - CW), CURB, az(t, r - CW)) + P(ax(t + 1, r - CW), CURB, az(t + 1, r - CW)), 0f, 1f, 0f, walk)
+            facet(b, P(fx, CURB, fz) + P(ax(n, r - CW), CURB, az(n, r - CW)) + P(e, CURB, zBack), 0f, 1f, 0f, walk)
+            // parede da ponta (voltada para a rua de cruzamento), do fundo até o começo do arco
+            facet(b, P(e, 0f, zBack) + P(e, CURB, zBack) + P(e, CURB, oz) + P(e, 0f, oz), -ix, 0f, 0f, walk)
+            // guia curva: face de fora e topo
+            b.m(Mt.STONE, 1f)
+            for (t in 0 until n) {
+                val c0 = cos(t * 1.5708f / n); val s0 = sin(t * 1.5708f / n); val c1 = cos((t + 1) * 1.5708f / n); val s1 = sin((t + 1) * 1.5708f / n)
+                val hx = -ix * (s0 + s1) / 2; val hz = sg * (c0 + c1) / 2
+                facet(b, P(ax(t, r), 0f, az(t, r)) + P(ax(t + 1, r), 0f, az(t + 1, r)) + P(ax(t + 1, r), ch, az(t + 1, r)) + P(ax(t, r), ch, az(t, r)), hx, 0f, hz, curbC)
+                facet(b, P(ax(t, r - CW), ch, az(t, r - CW)) + P(ax(t + 1, r - CW), ch, az(t + 1, r - CW)) + P(ax(t + 1, r), ch, az(t + 1, r)) + P(ax(t, r), ch, az(t, r)), 0f, 1f, 0f, curbC)
+            }
+        }
+    }
+
+    /** Etapa 130: canteiro central de avenida (guia de pedra, grama, árvores e postes duplos), de [a] a [e] ao longo da rua; [c] = eixo. */
+    private fun avenueMedian(g: Gen, horiz: Boolean, c: Float, a: Float, e: Float) {
+        val b = g.b; val hw = 1.5f
+        val x0 = if (horiz) a else c - hw; val x1 = if (horiz) e else c + hw
+        val z0 = if (horiz) c - hw else a; val z1 = if (horiz) c + hw else e
+        groundBox(b, x0, z0, x1, z1, Mt.STONE, 1f, C("#CFC9BE"), CURB + 0.04f)
+        b.m(Mt.GRASS, 0.3f); b.plane(x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, CURB + 0.055f, C("#9CC77A"))
+        val pos = furniturePos(a + 3f, e - 3f)
+        val y = CURB + 0.04f
+        for ((n, t) in pos.withIndex()) {
+            val tx = if (horiz) t else c; val tz = if (horiz) c else t
+            tree(g, tx, tz, 0.95f, y, 4)
+            if (n < pos.size - 1) {
+                val m = t + (pos[1] - pos[0]) / 2
+                if (horiz) { streetLamp(b, m - 0.2f, c, 0f, 1f, y); streetLamp(b, m + 0.2f, c, 0f, -1f, y) }
+                else { streetLamp(b, c, m - 0.2f, 1f, 0f, y); streetLamp(b, c, m + 0.2f, -1f, 0f, y) }
+            }
+        }
+        if (e - a > 8f) { if (horiz) flowers(g, a + 1f, c - 1.0f, e - 1f, c + 1.0f, ((e - a) * 0.8f).toInt(), y + 0.02f) else flowers(g, c - 1.0f, a + 1f, c + 1.0f, e - 1f, ((e - a) * 0.8f).toInt(), y + 0.02f) }
+    }
 
     fun roads(out: ArrayList<City.Chunk>) {
         val asph = C("#FFFFFF"); val walk = C("#E3E0DA"); val curbC = C("#C9C6C0")
@@ -2597,29 +2670,34 @@ object CityGeo {
             g.f.m(Mt.ASPHALT, 0.25f); g.f.plane(X0, za + SIDE, X1, zb - SIDE, 0f, asph)
             for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {   // Etapa 125: calçada cobre também os cantos dos cruzamentos
                 // Etapa 126: calçada até a guia (sem sobrepor) e guia um pouco mais alta e saliente: nada de faces no mesmo plano piscando
-                groundBox(b, iv[0], za, iv[1], za + SIDE - CW, Mt.PAVER, 0.9f, walk); groundBox(g.f, iv[0], za, iv[1], za + SIDE, Mt.PAVER, 0.9f, walk)
-                groundBox(b, iv[0], zb - SIDE + CW, iv[1], zb, Mt.PAVER, 0.9f, walk); groundBox(g.f, iv[0], zb - SIDE, iv[1], zb, Mt.PAVER, 0.9f, walk)
-                b.m(Mt.STONE, 1f)
-                b.box((iv[0] + iv[1]) / 2, (CURB + 0.03f) / 2, za + SIDE - CW / 2 + 0.01f, iv[1] - iv[0], CURB + 0.03f, CW + 0.02f, curbC)
-                b.box((iv[0] + iv[1]) / 2, (CURB + 0.03f) / 2, zb - SIDE + CW / 2 - 0.01f, iv[1] - iv[0], CURB + 0.03f, CW + 0.02f, curbC)
+                groundBox(g.f, iv[0], za, iv[1], za + SIDE, Mt.PAVER, 0.9f, walk); groundBox(g.f, iv[0], zb - SIDE, iv[1], zb, Mt.PAVER, 0.9f, walk)
+                val rl = if (iv[0] <= X0 + 0.1f) 0f else FR; val rr = if (iv[1] >= X1 - 0.1f) 0f else FR
+                swH(b, iv[0], iv[1], za, za + SIDE, rl, rr, walk, curbC)
+                swH(b, iv[0], iv[1], zb, zb - SIDE, rl, rr, walk, curbC)
             }
+            val aveH = City.isAvenue(zb - za); val mh = if (aveH) 1.5f else 0f
             b.m(Mt.PLAIN)
             for (iv in freeIntervals(X0, X1, bandX, -SIDE)) {
                 val a = iv[0] + 3.2f; val e = iv[1] - 3.2f
                 if (e <= a) continue
-                flat(b, (a + e) / 2, zc - 0.12f, e - a, 0.1f, yel); flat(b, (a + e) / 2, zc + 0.12f, e - a, 0.1f, yel)
+                if (aveH) {
+                    avenueMedian(g, true, zc, a, e); b.m(Mt.PLAIN)
+                    var t = a + 1f; while (t + 3f < e) { for (sd in floatArrayOf(-1f, 1f)) flat(b, t + 1.5f, zc + sd * 5.0f, 3.0f, 0.1f, wht); t += 6f }
+                } else { flat(b, (a + e) / 2, zc - 0.12f, e - a, 0.1f, yel); flat(b, (a + e) / 2, zc + 0.12f, e - a, 0.1f, yel) }
                 flat(b, (a + e) / 2, za + SIDE + 0.35f, e - a, 0.12f, wht); flat(b, (a + e) / 2, zb - SIDE - 0.35f, e - a, 0.12f, wht)
                 for (side in intArrayOf(0, 1)) {
                     if ((side == 0 && iv[0] <= X0 + 0.1f) || (side == 1 && iv[1] >= X1 - 0.1f)) continue
                     val x = if (side == 0) iv[0] else iv[1]; val dx = if (side == 0) 1f else -1f
                     var zz = za + SIDE + 0.5f
                     while (zz < zb - SIDE - 0.4f) { flat(b, x + dx * 1.6f, zz + 0.25f, 2.4f, 0.5f, wht); zz += 1.0f }
-                    val s0 = if (side == 0) za + SIDE else zc; val s1 = if (side == 0) zc else zb - SIDE
+                    val s0 = if (side == 0) za + SIDE else zc + mh; val s1 = if (side == 0) zc - mh else zb - SIDE
                     flat(b, x + dx * 3.3f, (s0 + s1) / 2, 0.35f, s1 - s0, wht)
-                    // seta no asfalto
-                    val ax = x + dx * 7f; val az = (s0 + s1) / 2
-                    flat(b, ax + dx * 0.6f, az, 1.6f, 0.18f, wht)
-                    tri(b, P(ax - dx * 0.4f, 0.013f, az - 0.4f) + P(ax - dx * 0.4f, 0.013f, az + 0.4f) + P(ax - dx * 1.1f, 0.013f, az), wht)
+                    // seta no asfalto (uma por faixa)
+                    for (lo in City.laneOffsets(zb - za)) {
+                        val ax = x + dx * 7f; val az = zc + (if (side == 0) -lo else lo)
+                        flat(b, ax + dx * 0.6f, az, 1.6f, 0.18f, wht)
+                        tri(b, P(ax - dx * 0.4f, 0.013f, az - 0.4f) + P(ax - dx * 0.4f, 0.013f, az + 0.4f) + P(ax - dx * 1.1f, 0.013f, az), wht)
+                    }
                 }
             }
             for ((ii, iv) in freeIntervals(X0, X1, bandX).withIndex()) {
@@ -2651,18 +2729,22 @@ object CityGeo {
                 b.box(xa + SIDE - CW / 2 + 0.01f, (CURB + 0.03f) / 2, (iv[0] + iv[1]) / 2, CW + 0.02f, CURB + 0.03f, iv[1] - iv[0], curbC)
                 b.box(xb - SIDE + CW / 2 - 0.01f, (CURB + 0.03f) / 2, (iv[0] + iv[1]) / 2, CW + 0.02f, CURB + 0.03f, iv[1] - iv[0], curbC)
             }
+            val aveV = City.isAvenue(xb - xa); val mv = if (aveV) 1.5f else 0f
             b.m(Mt.PLAIN)
             for (iv in segs) {
                 val a = iv[0] + 3.2f; val e = iv[1] - 3.2f
                 if (e <= a) continue
-                flat(b, xc - 0.12f, (a + e) / 2, 0.1f, e - a, yel); flat(b, xc + 0.12f, (a + e) / 2, 0.1f, e - a, yel)
+                if (aveV) {
+                    avenueMedian(g, false, xc, a, e); b.m(Mt.PLAIN)
+                    var t = a + 1f; while (t + 3f < e) { for (sd in floatArrayOf(-1f, 1f)) flat(b, xc + sd * 5.0f, t + 1.5f, 0.1f, 3.0f, wht); t += 6f }
+                } else { flat(b, xc - 0.12f, (a + e) / 2, 0.1f, e - a, yel); flat(b, xc + 0.12f, (a + e) / 2, 0.1f, e - a, yel) }
                 flat(b, xa + SIDE + 0.35f, (a + e) / 2, 0.12f, e - a, wht); flat(b, xb - SIDE - 0.35f, (a + e) / 2, 0.12f, e - a, wht)
                 for (side in intArrayOf(0, 1)) {
                     if ((side == 0 && iv[0] <= Z0 + 0.1f) || (side == 1 && iv[1] >= Z1 - 0.1f)) continue
                     val z = if (side == 0) iv[0] else iv[1]; val dz = if (side == 0) 1f else -1f
                     var xx = xa + SIDE + 0.5f
                     while (xx < xb - SIDE - 0.4f) { flat(b, xx + 0.25f, z + dz * 1.6f, 0.5f, 2.4f, wht); xx += 1.0f }
-                    val s0 = if (side == 0) xc else xa + SIDE; val s1 = if (side == 0) xb - SIDE else xc
+                    val s0 = if (side == 0) xc + mv else xa + SIDE; val s1 = if (side == 0) xb - SIDE else xc - mv
                     flat(b, (s0 + s1) / 2, z + dz * 3.3f, s1 - s0, 0.35f, wht)
                 }
             }

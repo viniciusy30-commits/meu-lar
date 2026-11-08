@@ -24,6 +24,11 @@ import kotlin.math.sqrt
  */
 object City {
     const val ROAD = 16f
+    /** Etapa 130: largura de cada rua entre quarteirões (0..5). As avenidas (24 m) têm canteiro central; as travessas (14 m) são mais estreitas.
+     *  As ruas coladas no lote da casa (2 e 3) ficam em 16 m para não deslocar a praça e o que já está posicionado em volta dela. */
+    val SW_X = floatArrayOf(14f, 24f, 16f, 16f, 24f, 14f)
+    val SW_Z = floatArrayOf(24f, 14f, 16f, 16f, 24f, 14f)
+    fun isAvenue(w: Float) = w >= 22f
     const val SIDE = 3.5f
     /** raio médio da margem do lago em relação à meia largura da malha da água */
     const val LAKE_EDGE = 0.78f
@@ -258,8 +263,8 @@ object City {
         val wz = floatArrayOf(48f, 50f, 48f, lotZ1 - lotZ0, 48f, 50f, 64f)
         blkX = FloatArray(14); blkZ = FloatArray(14)
         blkX[6] = lotX0; blkX[7] = lotX1; blkZ[6] = lotZ0; blkZ[7] = lotZ1
-        for (k in 2 downTo 0) { blkX[k * 2 + 1] = blkX[(k + 1) * 2] - ROAD; blkX[k * 2] = blkX[k * 2 + 1] - wx[k]; blkZ[k * 2 + 1] = blkZ[(k + 1) * 2] - ROAD; blkZ[k * 2] = blkZ[k * 2 + 1] - wz[k] }
-        for (k in 4..6) { blkX[k * 2] = blkX[(k - 1) * 2 + 1] + ROAD; blkX[k * 2 + 1] = blkX[k * 2] + wx[k]; blkZ[k * 2] = blkZ[(k - 1) * 2 + 1] + ROAD; blkZ[k * 2 + 1] = blkZ[k * 2] + wz[k] }
+        for (k in 2 downTo 0) { blkX[k * 2 + 1] = blkX[(k + 1) * 2] - SW_X[k]; blkX[k * 2] = blkX[k * 2 + 1] - wx[k]; blkZ[k * 2 + 1] = blkZ[(k + 1) * 2] - SW_Z[k]; blkZ[k * 2] = blkZ[k * 2 + 1] - wz[k] }
+        for (k in 4..6) { blkX[k * 2] = blkX[(k - 1) * 2 + 1] + SW_X[k - 1]; blkX[k * 2 + 1] = blkX[k * 2] + wx[k]; blkZ[k * 2] = blkZ[(k - 1) * 2 + 1] + SW_Z[k - 1]; blkZ[k * 2 + 1] = blkZ[k * 2] + wz[k] }
         bandX = FloatArray(16); bandZ = FloatArray(16)
         for (k in 0 until 8) {
             bandX[k * 2] = if (k == 0) blkX[0] - ROAD else blkX[k * 2 - 1]
@@ -395,6 +400,17 @@ object City {
     fun inLot(x: Float, z: Float) = x > lotX0 && x < lotX1 && z > lotZ0 && z < lotZ1
     fun onRoad(x: Float, z: Float) = z <= Z1 && (inBands(x, bandX, true) || inBands(z, bandZ, true))
 
+    /** Etapa 130: em cima do canteiro central de uma avenida (o chão sobe um pouco, como a calçada). */
+    fun onMedian(x: Float, z: Float): Boolean {
+        if (z > Z1) return false
+        fun clear(v: Float, bands: FloatArray): Boolean { var j = 0; while (j < bands.size) { if (v > bands[j] + SIDE - 3.2f && v < bands[j + 1] - SIDE + 3.2f) return false; j += 2 }; return true }
+        var k = 0
+        while (k < bandX.size) { if (isAvenue(bandX[k + 1] - bandX[k]) && abs(x - (bandX[k] + bandX[k + 1]) / 2) < 1.5f && clear(z, bandZ)) return true; k += 2 }
+        k = 0
+        while (k < bandZ.size) { if (isAvenue(bandZ[k + 1] - bandZ[k]) && abs(z - (bandZ[k] + bandZ[k + 1]) / 2) < 1.5f && clear(x, bandX)) return true; k += 2 }
+        return false
+    }
+
     fun groundH(x: Float, z: Float): Float {
         if (!on || inLot(x, z)) return 0f
         for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
@@ -406,6 +422,7 @@ object City {
             if (abs(x - PIER_X) < 6f && z > SEA_Z + 62f) return 1.2f
             return CityFun.sandH(z)
         }
+        if (onMedian(x, z)) return CURB + 0.04f
         return if (onRoad(x, z)) 0f else CURB
     }
 
@@ -447,6 +464,10 @@ object City {
     val cars = ArrayList<Car>()
     private var crossX = FloatArray(0)
     private var crossZ = FloatArray(0)
+    private var crossHX = FloatArray(0)
+    private var crossHZ = FloatArray(0)
+    /** Etapa 130: distância do eixo da rua até o centro de cada faixa (de um lado): avenida = 2 faixas por sentido, junto do canteiro. */
+    fun laneOffsets(w: Float): FloatArray = if (isAvenue(w)) floatArrayOf(3.25f, 6.75f) else if (w >= 15f) floatArrayOf(2.25f) else floatArrayOf(1.9f)
     private var tLight = 0f
     val lightPhase: Int get() { val t = tLight % 24f; return if (t < 10f) 0 else if (t < 12f) 1 else if (t < 22f) 2 else 3 }
     var time = 0f; private set
@@ -455,12 +476,14 @@ object City {
         lanes.clear(); cars.clear()
         for (k in 0 until 8) {
             val zc = (bandZ[k * 2] + bandZ[k * 2 + 1]) / 2
-            lanes.add(Lane(0, 1, zc + 2.25f, X0, X1)); lanes.add(Lane(0, -1, zc - 2.25f, X0, X1))
+            for (o in laneOffsets(bandZ[k * 2 + 1] - bandZ[k * 2])) { lanes.add(Lane(0, 1, zc + o, X0, X1)); lanes.add(Lane(0, -1, zc - o, X0, X1)) }
             val xc = (bandX[k * 2] + bandX[k * 2 + 1]) / 2
-            lanes.add(Lane(1, 1, xc - 2.25f, Z0, Z1)); lanes.add(Lane(1, -1, xc + 2.25f, Z0, Z1))
+            for (o in laneOffsets(bandX[k * 2 + 1] - bandX[k * 2])) { lanes.add(Lane(1, 1, xc - o, Z0, Z1)); lanes.add(Lane(1, -1, xc + o, Z0, Z1)) }
         }
         crossX = FloatArray(6) { (bandX[(it + 1) * 2] + bandX[(it + 1) * 2 + 1]) / 2 }
         crossZ = FloatArray(6) { (bandZ[(it + 1) * 2] + bandZ[(it + 1) * 2 + 1]) / 2 }
+        crossHX = FloatArray(6) { (bandX[(it + 1) * 2 + 1] - bandX[(it + 1) * 2]) / 2 }
+        crossHZ = FloatArray(6) { (bandZ[(it + 1) * 2 + 1] - bandZ[(it + 1) * 2]) / 2 }
         val rng = Rng(4242)
         for ((i, ln) in lanes.withIndex()) {
             val n = 2 + rng.i(2)
@@ -496,8 +519,9 @@ object City {
             val yellow = if (ln.axis == 0) ph == 1 else ph == 3
             if (!green) {
                 val cross = if (ln.axis == 0) crossX else crossZ
-                val half = ROAD / 2 + 3.3f + c.halfL + 0.4f
-                for (cc in cross) {
+                val crossH = if (ln.axis == 0) crossHX else crossHZ
+                for ((ci, cc) in cross.withIndex()) {
+                    val half = crossH[ci] + 3.3f + c.halfL + 0.4f
                     val dist = (cc - ln.dir * half - c.s) * ln.dir
                     if (dist > -0.5f && dist < 32f) {
                         if (yellow && dist < 7f) break

@@ -1,3 +1,9 @@
+Etapa 130 - Ruas diferentes (1/4 da cidade realista)
+- Quatro avenidas largas (24 m) com canteiro central: grama, flores, árvores e postes duplos; 2 faixas por sentido e setas por faixa
+- Travessas estreitas (14 m) e ruas médias (16 m): a cidade não tem mais todas as ruas iguais
+- Esquinas das calçadas arredondadas, com guia curva
+- Semáforos e trânsito se adaptam à largura de cada rua (parada antes do cruzamento, mais faixas nas avenidas)
+
 Etapa 129 - Tudo centralizado
 - Praça refeita, simétrica nos dois eixos: chafariz central, 4 canteiros iguais, bancos e postes espelhados, coreto e obelisco no eixo (academia ao ar livre removida)
 - Calçadas: postes, árvores, hidrantes e lixeiras espelhados e em intervalos regulares
