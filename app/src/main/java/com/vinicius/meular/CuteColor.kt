@@ -20,7 +20,7 @@ import android.opengl.GLUtils
  * no começo de [CuteChar.frame]. Não mexe em malha, ossos nem animações.
  */
 object CuteColor {
-    const val SLOTS = 13
+    const val SLOTS = 14
     const val S_PELE = 0
     const val S_OLHOS = 1
     const val S_CABELO = 2
@@ -34,8 +34,9 @@ object CuteColor {
     const val S_ACESSORIO = 10
     const val S_ACESSORIO2 = 11
     const val S_LABIOS = 12
+    const val S_SOBRANCELHA = 13   // Etapa 116: só no corpo do Sims 4
 
-    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo", "Acessório", "Acessório 2", "Lábios")
+    val SLOT_NAMES = listOf("Pele", "Olhos", "Cabelo", "Pontas", "Blusa", "Detalhe", "Saia", "Sandália", "Tiras", "Detalhe baixo", "Acessório", "Acessório 2", "Lábios", "Sobrancelhas")
 
     private fun pal(vararg hex: String): IntArray = IntArray(hex.size) { Color.parseColor(hex[it]) }
 
@@ -54,7 +55,7 @@ object CuteColor {
     /** Lábios (Etapa 15): índice 0 = natural masculino (tom discreto); os outros do natural ao vibrante. */
     val LIPS = pal("#B9766E", "#D9808A", "#C9444F", "#A3303F", "#E8927C", "#8E4A5C", "#6B2D45", "#D86BA8", "#7A5A52")
     val LIP_NAMES = listOf("Natural", "Rosa", "Vermelho", "Vinho", "Coral", "Malva", "Ameixa", "Pink", "Nude escuro")
-    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH, CLOTH, CLOTH, LIPS)
+    private val PALS = arrayOf(SKIN, EYES, HAIR, HAIR, CLOTH, CLOTH, CLOTH, SHOE, SHOE, CLOTH, CLOTH, CLOTH, LIPS, HAIR)
 
     /** Cores (ARGB) que o jogador pode escolher no slot. */
     fun palette(slot: Int): IntArray = PALS[slot.coerceIn(0, SLOTS - 1)]
@@ -102,12 +103,14 @@ object CuteColor {
             want = c
             dirty = true
         }
+        S4Skin.setColors(c)
         kick()
     }
 
     /** Chamar na thread GL quando o contexto foi (re)criado: os dados são carregados em segundo plano. */
     fun start(am: AssetManager) {
         assets = am
+        S4Skin.start(am)
         synchronized(lock) {
             for (l in layers) if (l.modified) l.pending = true   // textura nova no GL: subir de novo as cores escolhidas
             dirty = true

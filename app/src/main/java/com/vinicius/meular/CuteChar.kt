@@ -998,6 +998,7 @@ object CuteChar {
         }
         val cs = cur ?: return null
         CuteColor.uploadIfPending(atlasTex, hairTex, extra2Tex, skateTex)
+        S4Skin.upload(texIds["sk_s4m.png"] ?: 0, texIds["sk_s4f.png"] ?: 0)   // Etapa 116: cores de pele/sobrancelha/olhos/lábios do Sims 4
         val bs = baseSkin ?: return null
         if (!loaded) return null
         // Etapa 14: corpo masculino usa clipes próprios (4 parado, 5 andar, 6 correr) quando existem no base.bin

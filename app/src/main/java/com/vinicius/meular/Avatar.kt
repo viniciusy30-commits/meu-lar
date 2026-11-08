@@ -127,7 +127,7 @@ class Avatar(
 ) {
     fun encode(): String = listOf(
         if (female) 1 else 0, skin, body, hair, hairC, eye, top, topC, bottom, botC, shoeC, glasses, beard
-    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.take(BodyMorph.NB_OLD)).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).plus(bs.drop(BodyMorph.NB_OLD)).plus(ss.toList()).joinToString(",")
+    ).plus(cc.take(9)).plus(listOf(hb, hf)).plus(cc[9]).plus(listOf(ctop, cbot, cov)).plus(listOf(cc[10], cc[11], cfeet, cglove, chat, cgls, cbrd, chac)).plus(bs.take(BodyMorph.NB_OLD)).plus(fs.toList()).plus(if (masc) 1 else 0).plus(cc[12]).plus(if (julie) 1 else 0).plus(simAge).plus(simType).plus(if (simHair) 1 else 0).plus(bs.drop(BodyMorph.NB_OLD)).plus(ss.toList()).plus(cc[13]).joinToString(",")
     // formato: 13 números antigos | 9 cores (Etapa 2) | cabelo trás, franja (Etapa 3) | cor 10 | blusa, baixo, vestido (Etapa 4) | cores 11 e 12, sapatos, luvas, chapéu, óculos, barba, cabeça (Etapa 5)
 
     /** Etapa 44: tipo de corpo existente para a idade (bebê só normal; criança normal/gordo; os outros magro/normal/gordo). */
@@ -271,6 +271,8 @@ class Avatar(
                     // Etapa 65: sliders do Sims 3 (SimSliders.NS valores no fim; saves antigos ficam em 0)
                     val ex1 = ex0 + (BodyMorph.NB - BodyMorph.NB_OLD)
                     for (k in 0 until SimSliders.NS) if (ex1 + k < p.size) av.ss[k] = p[ex1 + k].coerceIn(-100, 100)
+                    // Etapa 116: cor das sobrancelhas (Sims 4); saves antigos ficam no original
+                    if (ex1 + SimSliders.NS < p.size) av.cc[13] = p[ex1 + SimSliders.NS].coerceIn(-1, CuteColor.palette(13).size - 1)
                 }
             } catch (e: Exception) {
                 null

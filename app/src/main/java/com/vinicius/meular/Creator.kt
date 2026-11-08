@@ -66,6 +66,7 @@ class CreatorUi(
         )),
         Cat("Rosto", 1.3f, 1.43f, listOf(
             Sub("Olhos", 0f, null, intArrayOf(1)),
+            Sub("Sobrancelhas", 0f, null, intArrayOf(13)),
             Sub("Lábios", 0f, null, intArrayOf(12)),
             Sub("Expressão", 0f, null, intArrayOf(), sl = 3)
         )),
