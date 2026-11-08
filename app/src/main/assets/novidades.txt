@@ -678,3 +678,7 @@ Etapa 90m — Sims 4: balanço dos braços da corrida corrigido.
 Etapa 91 — Sims 4: cabelo Bernard refeito para a cabeça do Sims 4; cabelos do Sims 3 ocultos nesse corpo.
 Etapa 90m — Sims 4: braços da corrida balançando certo.
 Etapa 91 — Sims 4: cabelo Bernard refeito para a cabeça do Sims 4; cabelos do Sims 3 ocultos nesse corpo.
+
+Etapa 130b – Quarteirões mais variados
+- Quarteirões residenciais agora têm variações: viela de pedra passando no meio, ou vila sem saída (com canteiro, árvore e bancos) aberta para a esquerda ou direita.
+- Casas ajustadas à profundidade de cada lote, com postes e árvores alternados ao longo da viela.
