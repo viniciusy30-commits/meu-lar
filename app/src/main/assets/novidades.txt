@@ -6,6 +6,8 @@ Etapa 129 - Tudo centralizado
 - Prédios com vitrines em número ímpar (porta sempre no centro); casas com janelas laterais simétricas
 - Lago do parque centralizado
 - Varredura de entradas: nenhuma porta fica bloqueada por mobília ou objeto (mesas, vitrines, bancadas de flores, gôndolas, viaturas e caminhão dos bombeiros reposicionados)
+- Coreto da praça corrigido: telhado, base e colunas alinhados, entrada com degrau de frente para a alameda
+- Postes, árvores e lixeiras não ficam mais na frente das entradas da praça; todas as 195 portas têm acesso livre desde a rua (testado com folga de 45 cm)
 - Hospital e clínicas: a sala do meio agora tem porta pelo saguão (antes o fundo era inalcançável)
 
 #id 2026-11-08-voo-portas

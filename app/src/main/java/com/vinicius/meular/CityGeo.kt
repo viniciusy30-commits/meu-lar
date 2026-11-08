@@ -2335,14 +2335,27 @@ object CityGeo {
     }
 
     /** Coreto octogonal: base com degraus, colunas de ferro, guarda-corpo com balaústres, telhado com beiral e lambrequim. */
+    /** Prisma octogonal com vértices em 22,5° + 45°·k (mesmo alinhamento das colunas do coreto). */
+    private fun oct(b: MB, kx: Float, y0: Float, kz: Float, r: Float, h: Float, col: Int) {
+        for (k in 0 until 8) {
+            val a0 = k * 0.7854f + 0.3927f; val a1 = (k + 1) * 0.7854f + 0.3927f
+            val x0 = kx + cos(a0) * r; val z0 = kz + sin(a0) * r; val x1 = kx + cos(a1) * r; val z1 = kz + sin(a1) * r
+            q(b, P(x0, y0 + h, z0) + P(x1, y0 + h, z1) + P(x1, y0, z1) + P(x0, y0, z0), col)
+            CityGeo.tri(b, P(x0, y0 + h, z0) + P(kx, y0 + h, kz) + P(x1, y0 + h, z1), col)
+            CityGeo.tri(b, P(x1, y0, z1) + P(kx, y0, kz) + P(x0, y0, z0), col)
+        }
+    }
+
     private fun coreto(g: Gen, kx: Float, kz: Float) {
         val b = g.b
         val R = 4.2f; val yb = CURB + 0.8f
         b.m(Mt.STONE, 0.8f)
-        b.cyl(kx, CURB, kz, R + 0.6f, R + 0.6f, 0.27f, C("#D8CFBE"), true, 8)
-        b.cyl(kx, CURB + 0.27f, kz, R + 0.3f, R + 0.3f, 0.27f, C("#DED5C4"), true, 8)
-        b.cyl(kx, CURB + 0.54f, kz, R, R, 0.26f, C("#E6DDCC"), true, 8)
-        b.m(Mt.WOOD, 1f); b.cyl(kx, yb - 0.01f, kz, R - 0.1f, R - 0.1f, 0.02f, C("#A0764F"), true, 8)
+        // Etapa 129: octógonos alinhados com as colunas (vértices em 22,5° + 45°·k); o lado do norte (270°) é a entrada, de frente para a alameda
+        oct(b, kx, CURB, kz, R + 0.6f, 0.27f, C("#D8CFBE"))
+        oct(b, kx, CURB + 0.27f, kz, R + 0.3f, 0.27f, C("#DED5C4"))
+        oct(b, kx, CURB + 0.54f, kz, R, 0.26f, C("#E6DDCC"))
+        b.m(Mt.STONE, 0.8f); b.box(kx, CURB + 0.07f, kz - (R + 0.6f) * 0.924f - 0.4f, 2.6f, 0.14f, 0.8f, C("#CFC6B4"))   // degrau da entrada, no eixo
+        b.m(Mt.WOOD, 1f); oct(b, kx, yb - 0.01f, kz, R - 0.1f, 0.02f, C("#A0764F"))
         val iron = C("#F4F1EA")
         for (k in 0 until 8) {
             val a = k * 0.7854f + 0.3927f
@@ -2360,7 +2373,7 @@ object CityGeo {
                 CityGeo.limb(b, px + (qx - px) * t0, yb + h0, pz + (qz - pz) * t0, px + (qx - px) * t1, yb + h1, pz + (qz - pz) * t1, 0.03f, 0.03f, iron, 4)
             }
             // guarda-corpo (menos na entrada)
-            if (k != 6) {
+            if (k != 5) {   // lado norte (entre as colunas 5 e 6) fica sem guarda-corpo: é a entrada
                 CityGeo.limb(b, px, yb + 0.9f, pz, qx, yb + 0.9f, qz, 0.035f, 0.035f, iron, 4)
                 CityGeo.limb(b, px, yb + 0.12f, pz, qx, yb + 0.12f, qz, 0.03f, 0.03f, iron, 4)
                 for (m in 1 until 8) { val t = m / 8f; val bx = px + (qx - px) * t; val bz = pz + (qz - pz) * t; b.cyl(bx, yb + 0.12f, bz, 0.025f, 0.025f, 0.78f, iron, true, 5) }
@@ -2370,12 +2383,12 @@ object CityGeo {
         val yr = yb + 3.1f
         b.m(Mt.ROOF, 0.6f)
         for (k in 0 until 8) {
-            val a0 = k * 0.7854f; val a1 = (k + 1) * 0.7854f
+            val a0 = k * 0.7854f + 0.3927f; val a1 = (k + 1) * 0.7854f + 0.3927f
             CityGeo.tri(b, P(kx + cos(a0) * (R + 0.5f), yr, kz + sin(a0) * (R + 0.5f)) + P(kx, yr + 2.0f, kz) + P(kx + cos(a1) * (R + 0.5f), yr, kz + sin(a1) * (R + 0.5f)), C("#2F5D3A"))
         }
         b.m(Mt.WOOD, 1f)
         for (k in 0 until 8) {
-            val a0 = k * 0.7854f; val a1 = (k + 1) * 0.7854f
+            val a0 = k * 0.7854f + 0.3927f; val a1 = (k + 1) * 0.7854f + 0.3927f
             q(b, P(kx + cos(a0) * (R + 0.5f), yr, kz + sin(a0) * (R + 0.5f)) + P(kx + cos(a1) * (R + 0.5f), yr, kz + sin(a1) * (R + 0.5f)) + P(kx + cos(a1) * (R + 0.5f), yr - 0.25f, kz + sin(a1) * (R + 0.5f)) + P(kx + cos(a0) * (R + 0.5f), yr - 0.25f, kz + sin(a0) * (R + 0.5f)), C("#F4F1EA"))
             for (m in 0 until 6) {   // lambrequim (recortes)
                 val t0 = m / 6f; val t1 = (m + 1) / 6f; val tm = (t0 + t1) / 2
@@ -2383,7 +2396,7 @@ object CityGeo {
                 CityGeo.tri(b, pt(t0, 0f) + pt(t1, 0f) + pt(tm, 0.14f), C("#F4F1EA"))
             }
         }
-        b.cyl(kx, yr - 0.02f, kz, R + 0.45f, R + 0.45f, 0.02f, C("#E8E0D2"), true, 8)
+        oct(b, kx, yr - 0.02f, kz, R + 0.45f, 0.02f, C("#E8E0D2"))
         b.m(Mt.METAL, 1f); b.cyl(kx, yr + 1.95f, kz, 0.06f, 0.02f, 0.6f, C("#C9A227"), true, 6); ball(b, kx, yr + 2.1f, kz, 0.1f, C("#C9A227"), 0.1f, 6)
         g.solid(kx - R - 0.3f, kz - R - 0.3f, kx + R + 0.3f, kz + R + 0.3f)
     }
@@ -2614,13 +2627,15 @@ object CityGeo {
                 val pos = furniturePos(iv[0] + 6f, iv[1] - 6f)
                 for ((n, x) in pos.withIndex()) {
                     val sp = if (pos.size > 1) pos[1] - pos[0] else 9f
-                    if (n % 2 == 0) { streetLamp(b, x, za + 0.6f, 0f, 1f); streetLamp(b, x, zb - 0.6f, 0f, -1f) }
+                    val pk = nearPraca(x, za + 1f) || nearPraca(x, zb - 1f)   // Etapa 129: nada na frente da entrada da praça
+                    if (pk) { }
+                    else if (n % 2 == 0) { streetLamp(b, x, za + 0.6f, 0f, 1f); streetLamp(b, x, zb - 0.6f, 0f, -1f) }
                     else { if (k == 7) { palm(g, x, za + 1.3f, 0.9f); palm(g, x, zb - 1.3f, 0.9f) } else { streetTree(g, x, za + 1.4f); streetTree(g, x, zb - 1.4f) } }
                     if (n < pos.size - 1) {
                         val mx = x + sp / 2
                         manhole(b, mx, zc + (if (n % 2 == 0) 2.2f else -2.2f)); drain(b, mx, za + SIDE + 0.25f, true); drain(b, mx, zb - SIDE - 0.25f, true)
                     }
-                    if (n % 4 == 1) { trashBin(b, x + 1.7f, za + 0.5f); hydrant(b, x + 1.7f, zb - 0.45f) }
+                    if (n % 4 == 1 && !pk) { trashBin(b, x + 1.7f, za + 0.5f); hydrant(b, x + 1.7f, zb - 0.45f) }
                 }
                 if (pos.size >= 5 && ii % 2 == 0) { val sp = pos[1] - pos[0]; busStop(g, pos[pos.size / 2] + sp / 2, za + 1.3f, 1f) }
             }
@@ -2655,13 +2670,15 @@ object CityGeo {
                 val pos = furniturePos(iv[0] + 6f, iv[1] - 6f)
                 for ((n, z) in pos.withIndex()) {
                     val sp = if (pos.size > 1) pos[1] - pos[0] else 9f
-                    if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z, -1f, 0f) }
+                    val pk = nearPraca(xa + 1f, z) || nearPraca(xb - 1f, z)
+                    if (pk) { }
+                    else if (n % 2 == 0) { streetLamp(b, xa + 0.6f, z, 1f, 0f); streetLamp(b, xb - 0.6f, z, -1f, 0f) }
                     else { streetTree(g, xa + 1.4f, z); streetTree(g, xb - 1.4f, z) }
                     if (n < pos.size - 1) {
                         val mz = z + sp / 2
                         manhole(b, xc + (if (n % 2 == 0) 2.2f else -2.2f), mz); drain(b, xa + SIDE + 0.25f, mz, false); drain(b, xb - SIDE - 0.25f, mz, false)
                     }
-                    if (n % 4 == 1) { trashBin(b, xa + 0.5f, z + 1.7f); hydrant(b, xb - 0.45f, z + 1.7f) }
+                    if (n % 4 == 1 && !pk) { trashBin(b, xa + 0.5f, z + 1.7f); hydrant(b, xb - 0.45f, z + 1.7f) }
                 }
             }
             // semáforos e placas de rua
@@ -2711,6 +2728,13 @@ object CityGeo {
 
     /** Árvore de calçada: canteiro de terra com grade de ferro e a árvore no meio. */
     /** Etapa 129: posições igualmente espaçadas (~9 m), em número ímpar e simétricas no trecho [a, e] (poste-árvore-poste...). */
+    /** Etapa 129: entradas da praça (eixos N-S em x=3 e L-O em z=54): poste, árvore e lixeira não ficam na frente delas. */
+    private fun nearPraca(x: Float, z: Float): Boolean {
+        val nsAxis = abs(x - 3f) < 3.0f && (abs(z - 30f) < 4.5f || abs(z - 78f) < 4.5f)
+        val ewAxis = abs(z - 54f) < 3.0f && (abs(x + 10f) < 4.5f || abs(x - 16f) < 4.5f)
+        return nsAxis || ewAxis
+    }
+
     private fun furniturePos(a: Float, e: Float): List<Float> {
         val len = e - a
         if (len < 3f) return emptyList()
