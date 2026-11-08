@@ -916,12 +916,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     // ================================================================ Etapa 128: portas que abrem sozinhas
     private val dmdl = FloatArray(16)
-    private var doorT = 0L
+    private var cityDoorT = 0L
 
     private fun updateDoors(ex: Float, ez: Float) {
         val now = System.nanoTime()
-        val dt = if (doorT == 0L) 0.016f else ((now - doorT) / 1e9f).coerceIn(0f, 0.05f)
-        doorT = now
+        val dt = if (cityDoorT == 0L) 0.016f else ((now - cityDoorT) / 1e9f).coerceIn(0f, 0.05f)
+        cityDoorT = now
         for (d in City.doors) {
             val dx = d.x - ex; val dz = d.z - ez
             val d2 = dx * dx + dz * dz
