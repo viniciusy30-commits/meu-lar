@@ -90,6 +90,8 @@ object CuteChar {
         var legRef: FloatArray? = null      // folga de cada vértice até o eixo das coxas na pose parada (cm)
         var legRefVer = -1
         var legRefSet: Any? = null
+        var rest0: FloatArray? = null   // Etapa 111: repouso original da peça importada (antes do empurrão de camadas)
+        var layerSig: String = ""      // Etapa 111: quais peças de baixo já empurraram esta (muda a máscara de pele)
     }
 
     /** Conjunto ativo: as peças e a malha pronta para desenhar (trocados juntos, sem quadro "pela metade"). */
@@ -339,6 +341,14 @@ object CuteChar {
                 }
             }
         }
+        // Etapa 111: camadas de roupa (calça < camiseta < jaqueta): sem camiseta sob a jaqueta com capuz; a peça de fora sai da de dentro
+        if (act.any { it.mod && it.key.startsWith("jacket/") && it.key.contains("hood_") }) {
+            var i = 0
+            while (i < act.size) {
+                if (act[i].mod && act[i].key.startsWith("top/") && act[i].key.contains("minimalist_")) { act[i].part?.let { pp -> parts.remove(pp) }; act.removeAt(i) } else i++
+            }
+        }
+        applyLayers(act)
         // corpo-base: sem os triângulos cobertos pelas roupas (a pele não atravessa o tecido)
         var body = bp
         if (anyHide) {
@@ -365,7 +375,7 @@ object CuteChar {
                 if (!m.mod || m.modAlpha) continue
                 val sl = m.key.substringBefore('/')
                 if (sl != "top" && sl != "jacket" && sl != "bottom" && sl != "overall" && sl != "feet") continue
-                val ck = m.key + "@" + sims.key
+                val ck = m.key + "@" + sims.key + "#" + m.layerSig
                 val cv = coverCache.getOrPut(ck) {
                     val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
                     val r = BooleanArray(sims.ni / 3)
@@ -483,6 +493,54 @@ object CuteChar {
         modJobs.add(ModJob(key, cup, bmp, alpha))
     }
 
+
+    /** Etapa 111: posição na pilha de roupas (0 = fora da regra). */
+    private fun layerRank(s: Skin): Int {
+        if (!s.mod || s.modAlpha || s.rest0 == null) return 0
+        val k = s.key
+        if (!(k.contains("hood_") || k.contains("hcargo_") || k.contains("minimalist_"))) return 0
+        return when (k.substringBefore('/')) { "bottom" -> 1; "top" -> 2; "jacket" -> 3; else -> 0 }
+    }
+
+    /**
+     * Etapa 111: cada peça de fora é empurrada para fora da(s) de dentro (calça < camiseta < jaqueta) sem atravessá-la.
+     * Reversível: parte sempre do repouso original (rest0); só recalcula quando a combinação muda.
+     */
+    private fun applyLayers(act: List<Skin>) {
+        val ranked = act.filter { layerRank(it) > 0 }.sortedBy { layerRank(it) }
+        for ((n, s) in ranked.withIndex()) {
+            val inner = ranked.subList(0, n).filter { layerRank(it) < layerRank(s) }
+            val sig = inner.joinToString(",") { it.key }
+            val want = sig + "|" + inner.joinToString(",") { it.layerSig }
+            if (s.layerSig == want) continue
+            restoreLayer(s)
+            if (inner.isNotEmpty()) {
+                val oi = IntArray(s.ni) { s.idx[it].toInt() and 0xFFFF }
+                val acc = FloatArray(s.nv * 3)
+                for (b in inner) {
+                    val bi = IntArray(b.ni) { b.idx[it].toInt() and 0xFFFF }
+                    val pj = com.vinicius.meular.mods.Layers.separate(s.pos0, oi, b.pos0, b.nor0, bi, 1.0f, 3.0f, 6.0f)
+                    for (v in 0 until s.nv) {
+                        val a1 = pj[v * 3] * pj[v * 3] + pj[v * 3 + 1] * pj[v * 3 + 1] + pj[v * 3 + 2] * pj[v * 3 + 2]
+                        val b1 = acc[v * 3] * acc[v * 3] + acc[v * 3 + 1] * acc[v * 3 + 1] + acc[v * 3 + 2] * acc[v * 3 + 2]
+                        if (a1 > b1) for (k in 0..2) acc[v * 3 + k] = pj[v * 3 + k]
+                    }
+                }
+                for (i in acc.indices) { s.pos0[i] += acc[i] }
+            }
+            s.layerSig = want
+            s.warpVer = -1
+            coverCache.keys.removeAll { it.startsWith(s.key + "@") }
+        }
+    }
+
+    private fun restoreLayer(s: Skin) {
+        val r = s.rest0 ?: return
+        System.arraycopy(r, 0, s.pos0, 0, r.size)
+        s.layerSig = ""
+        s.warpVer = -1
+    }
+
     /** Ajusta a barra da jaqueta para não atravessar a cintura da calça cargo. */
     private fun adjustHoodHem(s: Skin) {
         for (v in 0 until s.nv) {
@@ -543,6 +601,7 @@ object CuteChar {
                 sk.mod = true
                 if (j.key.contains("hood_af5") || j.key.contains("hood_am5")) adjustHoodHem(sk)
                 if (j.key.contains("hcargo_af5") || j.key.contains("hcargo_am5")) adjustCargoWaist(sk)
+                sk.rest0 = sk.pos0.copyOf()
                 sk.modAlpha = j.alpha
                 sk.legCol = j.key.startsWith("bottom/") && j.key.contains("autumn")
                 val ids = IntArray(1)

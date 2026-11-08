@@ -217,12 +217,10 @@ object ModStore {
             worn.add(m.groupValues[1] + "/M_" + id)
         }
         // Low fade texturizado removido do catálogo a pedido do usuário.
-        // regata baggy do pacote "Baggy Singlet Set" (Mod The Sims, ArthurGoring), já convertida: corpos masculinos jovem/adulto/idoso
-        for (g in listOf("am", "tm", "em")) {
-            items.add(Item("singlet_white_$g", "Regata baggy branca", "top", g, 0, true, true, true))
-            items.add(Item("singlet_black_$g", "Regata baggy preta", "top", g, 0, true, true, true))
-            items.add(Item("singlet_love_$g", "Regata love you (preta)", "top", g, 0, true, true, true))
-            items.add(Item("singlet_haters_$g", "Regata haters (preta)", "top", g, 0, true, true, true))
+        // Regatas baggy removidas do catálogo a pedido do usuário (Etapa 111); limpa as que ficaram salvas como equipadas.
+        for (key in worn.filter { it.contains("singlet_") }) {
+            worn.remove(key)
+            CuteChar.enqueueMod(key, null, null, false)
         }
         // Remove também qualquer low fade antigo que tenha ficado salvo como equipado.
         for (key in worn.filter { it.startsWith("hairBack/M_fade1_") }) {
