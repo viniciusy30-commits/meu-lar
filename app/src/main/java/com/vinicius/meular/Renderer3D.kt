@@ -571,7 +571,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val c = City.chunks.getOrNull(b.chunk) ?: return
         for ((mat, r) in b.ranges) {
             val pi = c.nearIdx[mat] ?: continue
-            val p = c.near.parts.getOrNull(pi) ?: continue
+            val p = c.near?.parts?.getOrNull(pi) ?: continue
             if (on) { p.skipA = r[0]; p.skipB = r[1] } else { p.skipA = -1; p.skipB = -1 }
         }
     }

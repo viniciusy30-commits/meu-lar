@@ -185,7 +185,7 @@ object City {
     fun clear() {
         token++
         on = false
-        chunks.forEach { it.near.release(); it.far?.release() }; chunks = emptyList()
+        chunks.forEach { it.near?.release(); it.far?.release() }; chunks = emptyList()
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
         Vehicles.release(); CityFun.release()
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
