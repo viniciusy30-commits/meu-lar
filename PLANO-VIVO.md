@@ -221,3 +221,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Renders offline de andar, correr, pulo e das duas mãos dos dois modelos; rotações locais conferidas e comprimentos do rig masculino preservados.
 - [ ] Build Android e teste no aparelho após envio do ZIP para `_incoming` (sem `gradlew`/Gradle/Android SDK neste ambiente).
 - Detalhes: `ETAPA113-BRACOS-MAOS-NOTAS.md`; prévias em `imagens-etapa113/`.
+
+## Etapa 118/119 — Piscina + sentar na borda (entregue, aguardando build e teste)
+- [x] Quintal maior, piscina, clipes Mixamo (mergulho, nado, nadar até a borda, boiar) nos corpos am5/af5, `Pool.kt`, lógica em `Renderer3D.kt`. Detalhes em `ETAPA118-PISCINA-NOTAS.md`.
+- [x] Andando até a água: senta na borda (pernas na água) e entra; pular perto da borda mergulha.
+- [ ] Build e teste no celular: altura do assento na borda, pernas dentro d'água, entrada na água, câmera, mergulho vindo de perto.

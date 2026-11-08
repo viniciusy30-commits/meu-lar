@@ -353,7 +353,7 @@ object Models {
         val b = MB()
         val fl = Flora.Batch()
         val W = gw.toDouble(); val H = gh.toDouble()
-        val x0 = -7.0; val x1 = W + 7.0; val z0 = -7.0; val z1 = H + 9.0
+        val x0 = -7.0; val x1 = W + 7.0; val z0 = Pool.BACK_Z.toDouble(); val z1 = H + 9.0   // Etapa 118: fundos do quintal maiores (piscina)
         val white = C("#FFFFFF")
 
         // chão: malha de células de 6 m com variação suave de cor por vértice (sem o xadrez repetido)
@@ -371,12 +371,31 @@ object Models {
             val cs = 6.0
             val ia = Math.floor((-110.0) / cs).toInt(); val ib = Math.ceil((W + 110.0) / cs).toInt()
             val ja = Math.floor((-110.0) / cs).toInt(); val jb = Math.ceil((H + 110.0) / cs).toInt()
+            // Etapa 118: buraco no gramado onde fica a piscina (deck + bacia)
+            val hx0 = Pool.x0(gw) - Pool.DECK + 0.05f; val hx1 = Pool.x1(gw) + Pool.DECK - 0.05f
+            val hz0 = Pool.Z0 - Pool.DECK + 0.05f; val hz1 = Pool.Z1 + Pool.DECK - 0.05f
             for (i in ia until ib) for (j in ja until jb) {
                 val xa = (i * cs).toFloat(); val xb = ((i + 1) * cs).toFloat(); val za = (j * cs).toFloat(); val zb = ((j + 1) * cs).toFloat()
                 val yy = -0.03f
-                fun vv(x: Float, z: Float, ci: Int, cj: Int) = b.v(x, yy, z, 0f, 1f, 0f, gcol(ci, cj), x, z)
-                vv(xa, za, i, j); vv(xa, zb, i, j + 1); vv(xb, zb, i + 1, j + 1)
-                vv(xa, za, i, j); vv(xb, zb, i + 1, j + 1); vv(xb, za, i + 1, j)
+                // cor por interpolação dos 4 cantos da célula (os pedaços recortados ficam iguais ao gramado inteiro)
+                val c00 = gcol(i, j); val c10 = gcol(i + 1, j); val c01 = gcol(i, j + 1); val c11 = gcol(i + 1, j + 1)
+                fun cc(x: Float, z: Float): Int {
+                    val fx = ((x - xa) / cs.toFloat()).coerceIn(0f, 1f); val fz = ((z - za) / cs.toFloat()).coerceIn(0f, 1f)
+                    return mix(mix(c00, c10, fx), mix(c01, c11, fx), fz)
+                }
+                fun piece(ax: Float, az: Float, bx: Float, bz: Float) {
+                    if (bx - ax < 1e-4f || bz - az < 1e-4f) return
+                    fun vv(x: Float, z: Float) = b.v(x, yy, z, 0f, 1f, 0f, cc(x, z), x, z)
+                    vv(ax, az); vv(ax, bz); vv(bx, bz)
+                    vv(ax, az); vv(bx, bz); vv(bx, az)
+                }
+                if (xb <= hx0 || xa >= hx1 || zb <= hz0 || za >= hz1) piece(xa, za, xb, zb)
+                else {
+                    piece(xa, za, minOf(xb, hx0), zb)                                         // à esquerda do buraco
+                    piece(maxOf(xa, hx1), za, xb, zb)                                         // à direita
+                    piece(maxOf(xa, hx0), za, minOf(xb, hx1), minOf(zb, hz0))                 // atrás
+                    piece(maxOf(xa, hx0), maxOf(za, hz1), minOf(xb, hx1), zb)                 // à frente
+                }
             }
         }
 
@@ -514,6 +533,53 @@ object Models {
                 fl.place("fence_post", px, 0.0, z1, 1.25, 0.0)
             }
         }
+
+        // Etapa 118: piscina com deck de pedra, borda branca, bacia azul e água translúcida (a água vai no passe de vidro)
+        run {
+            val px0 = Pool.x0(gw).toDouble(); val px1 = Pool.x1(gw).toDouble(); val pz0 = Pool.Z0.toDouble(); val pz1 = Pool.Z1.toDouble()
+            val dk = Pool.DECK.toDouble(); val cp = Pool.COPING.toDouble(); val dep = Pool.DEPTH.toDouble(); val wy = Pool.WATER_Y.toDouble()
+            val ox0 = px0 - dk; val ox1 = px1 + dk; val oz0 = pz0 - dk; val oz1 = pz1 + dk
+            val deckC = C("#EDE5D8"); val copC = C("#FFFFFF"); val tileC = C("#7FD3E6"); val wallC = C("#A9E6F0"); val lineC = C("#3F94BF")
+            // deck: 4 lajes em volta (topo em y = 0)
+            b.m(Mt.PAVER, 0.7f)
+            b.rbox((ox0 + ox1) / 2, -0.03, (oz0 + pz0) / 2, ox1 - ox0, 0.06, pz0 - oz0, 0.015, deckC, true, 2)
+            b.rbox((ox0 + ox1) / 2, -0.03, (pz1 + oz1) / 2, ox1 - ox0, 0.06, oz1 - pz1, 0.015, deckC, true, 2)
+            b.rbox((ox0 + px0) / 2, -0.03, (pz0 + pz1) / 2, px0 - ox0, 0.06, pz1 - pz0, 0.015, deckC, true, 2)
+            b.rbox((px1 + ox1) / 2, -0.03, (pz0 + pz1) / 2, ox1 - px1, 0.06, pz1 - pz0, 0.015, deckC, true, 2)
+            // borda branca elevada (acabamento da piscina)
+            b.m(Mt.TILE, 0.8f)
+            b.rbox((px0 + px1) / 2, 0.0, pz0 - cp / 2, px1 - px0 + 2 * cp, 0.08, cp, 0.02, copC, true, 2)
+            b.rbox((px0 + px1) / 2, 0.0, pz1 + cp / 2, px1 - px0 + 2 * cp, 0.08, cp, 0.02, copC, true, 2)
+            b.rbox(px0 - cp / 2, 0.0, (pz0 + pz1) / 2, cp, 0.08, pz1 - pz0, 0.02, copC, true, 2)
+            b.rbox(px1 + cp / 2, 0.0, (pz0 + pz1) / 2, cp, 0.08, pz1 - pz0, 0.02, copC, true, 2)
+            // bacia: paredes e piso de azulejo azul-claro
+            b.m(Mt.TILE, 1.2f)
+            val wh = dep + 0.04
+            b.box(px0 - 0.1, -wh / 2 + 0.02, (pz0 + pz1) / 2, 0.2, wh, pz1 - pz0 + 0.4, wallC)
+            b.box(px1 + 0.1, -wh / 2 + 0.02, (pz0 + pz1) / 2, 0.2, wh, pz1 - pz0 + 0.4, wallC)
+            b.box((px0 + px1) / 2, -wh / 2 + 0.02, pz0 - 0.1, px1 - px0, wh, 0.2, wallC)
+            b.box((px0 + px1) / 2, -wh / 2 + 0.02, pz1 + 0.1, px1 - px0, wh, 0.2, wallC)
+            b.box((px0 + px1) / 2, -dep - 0.05, (pz0 + pz1) / 2, px1 - px0 + 0.4, 0.1, pz1 - pz0 + 0.4, tileC)
+            // faixas azuis no fundo
+            b.m(Mt.PLAIN)
+            b.box(px0 + 1.1, -dep + 0.006, (pz0 + pz1) / 2, 0.14, 0.012, pz1 - pz0 - 0.8, lineC)
+            b.box(px1 - 1.1, -dep + 0.006, (pz0 + pz1) / 2, 0.14, 0.012, pz1 - pz0 - 0.8, lineC)
+            b.box((px0 + px1) / 2, -dep + 0.006, pz0 + 0.5, px1 - px0 - 0.8, 0.012, 0.14, lineC)
+            b.box((px0 + px1) / 2, -dep + 0.006, pz1 - 0.5, px1 - px0 - 0.8, 0.012, 0.14, lineC)
+            // água translúcida (material vidro: só aparece no passe de vidro, depois do personagem)
+            b.m(Mt.GLASS, 1f)
+            b.al = 0.58f
+            b.plane(px0, pz0, px1, pz1, wy, C("#4CC4EA"), true)
+            b.al = 1f
+            // plantas em volta do deck
+            fl.place("oak_b", ox0 - 2.2, 0.0, oz0 + 1.2, 1.15, 1.3)
+            fl.place("pine_a", ox1 + 2.0, 0.0, oz0 + 2.0, 1.1, 2.1)
+            fl.place("bush_pink", ox0 - 0.6, 0.0, oz0 + 0.4, 1.0, 0.8)
+            fl.place("bush_white", ox1 + 0.6, 0.0, oz1 - 0.5, 1.0, 2.2)
+            fl.place("bush_a", ox1 + 0.5, 0.0, oz0 + 0.6, 1.1, 0.3)
+            fl.place("bush_b", ox0 - 0.6, 0.0, oz1 - 0.3, 1.0, 1.9)
+        }
+
         val yardMesh = b.toMesh(true)
         return Mesh(yardMesh.parts + fl.build())
     }

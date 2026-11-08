@@ -38,6 +38,12 @@ object CuteChar {
     /** Etapa 88: agachado parado e andando agachado (Crouch_Idle_Loop / Crouch_Fwd_Loop da UAL), clipes 9 e 10 */
     const val CROUCH = 9
     const val CROUCH_WALK = 10
+    /** Etapa 118: piscina (Mixamo: Run_To_Dive, Swimming, Swimming_To_Edge, Treading_Water; ferramentas/etapa118_piscina_clipes.py), clipes 11 a 14.
+     *  RUN_DIVE e SWIM_EDGE tocam uma vez (sem deslocamento: o jogo move o jogador pela tabela de Pool); SWIM e TREAD são laços no lugar. */
+    const val RUN_DIVE = 11
+    const val SWIM = 12
+    const val SWIM_EDGE = 13
+    const val TREAD = 14
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -930,6 +936,12 @@ object CuteChar {
     /** Etapa 88: o corpo atual tem os clipes de agachar? */
     fun hasCrouch(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 11
 
+    /** Etapa 118: o corpo atual tem os clipes de piscina (só os corpos do Sims 4)? */
+    fun hasPool(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 15
+
+    /** Escala do corpo (altura): as distâncias gravadas nos clipes de piscina valem × este número. */
+    fun bodyScale(): Float = heightS
+
     private val sitSeats = HashMap<String, Float>()
     /** Etapa 83: altura (m) do assento que este personagem precisa sentado (traseiro), já com a altura do slider. */
     fun sitSeat(): Float {
@@ -957,6 +969,7 @@ object CuteChar {
     private val slotClip = IntArray(3) { -1 }
     private val slotT0 = FloatArray(3)
     private val slotBlend = FloatArray(3)
+    private val slotDur = FloatArray(3) { 0.25f }   // Etapa 118: duração da mistura ao trocar de clipe (a piscina usa misturas mais longas)
     private val slotNs = LongArray(3)
     private val slotLast = arrayOfNulls<FloatArray>(3)
     private var bone = FloatArray(0)
@@ -1019,7 +1032,18 @@ object CuteChar {
         slotNs[sl] = now
 
         if (slotClip[sl] != c) {
-            slotBlend[sl] = if (slotClip[sl] < 0) 0f else if (c == JUMP || c == RUNJUMP) 0.06f else 0.25f
+            val pc = slotClip[sl]
+            slotDur[sl] = when {
+                c == RUN_DIVE -> 0.15f
+                pc == RUN_DIVE && c == TREAD -> 0.95f      // emerge do mergulho até boiar
+                (pc == SIT_LOOP || pc == SIT_IN) && c == TREAD -> 0.7f   // escorrega da borda para a água
+                c == SWIM_EDGE -> 0.4f
+                pc == SWIM_EDGE -> 0.8f                    // sai da água: pendurado na borda -> em pé
+                c == SWIM || c == TREAD || pc == SWIM || pc == TREAD -> 0.45f
+                c == JUMP || c == RUNJUMP -> 0.06f
+                else -> 0.25f
+            }
+            slotBlend[sl] = if (pc < 0) 0f else slotDur[sl]
             slotClip[sl] = c
             slotT0[sl] = t
             // Etapa 114: pulo correndo sai com a perna que já vinha à frente (o clipe original sempre sai com a direita)
@@ -1032,7 +1056,7 @@ object CuteChar {
         }
         val d = if (c == RUNJUMP && slotMir[sl]) (mirroredClip(cset, c, d0) ?: d0) else d0
         val isJ = c == JUMP || c == RUNJUMP
-        val once = isJ || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
+        val once = isJ || c == RUN_DIVE || c == SWIM_EDGE || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
         var lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
         if (once && lt > len) lt = len
         if (!once) {
@@ -1050,7 +1074,7 @@ object CuteChar {
 
         val prev = slotLast[sl]
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
-            val dur = if (isJ) 0.06f else 0.25f
+            val dur = slotDur[sl]
             val k = smooth01(1f - slotBlend[sl] / dur)
             blendPoses(prev, bone, k)   // Etapa 114: slerp + cinemática direta (sem esticar o braço)
             slotBlend[sl] -= dt
@@ -1075,7 +1099,7 @@ object CuteChar {
         val sv = shapeVer
         val bp = bodyP
         val fp0 = faceP
-        if (sl == 0) exprAuto = if (isJ) 4 else 0
+        if (sl == 0) exprAuto = if (isJ || c == RUN_DIVE) 4 else 0
         exprWeights(now, exprAuto)
         var exprChanged = false
         for (i in 0 until EXPR_N) if (exprCur[i] != exprApplied[i]) { exprChanged = true; break }
@@ -1150,6 +1174,8 @@ object CuteChar {
     /** Menor y (m) do corpo-base e dos sapatos em todos os quadros do clip; devolve a subida necessária (m), com folga de 1,5 mm. */
     private fun computeLift(c: Int, cs: Active, bs: Skin): Float {
         val cset = clipSet
+        if (c == RUN_DIVE) return computeLift(RUN, cs, bs)   // Etapa 118: começa correndo na borda; o resto do clipe fica debaixo d'água
+        if (c >= RUN_DIVE) return 0f
         val d = cset.data.getOrNull(c) ?: return 0f
         val nf = cset.frames[c]
         val n12 = nb * 12

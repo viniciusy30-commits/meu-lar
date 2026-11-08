@@ -11,6 +11,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.atan2
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -74,6 +75,18 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var jumpLaunched = false
     private var jumpRun = false
     private var jumpPre = 0f
+
+    // ---- Etapa 118: piscina ----
+    // 0 = fora d'água; 1 = mergulhando (Run_To_Dive); 2 = na água (boiando / nadando); 3 = nadando até a borda (Swimming_To_Edge); 4 = saindo da borda para o deck
+    private var swimPh = 0
+    private var swimT = 0f
+    private var swX = 0f; private var swZ = 0f      // posição de partida do mergulho / da saída
+    private var swDX = 0f; private var swDZ = 0f    // direção (x, z) do mergulho / da saída (vetor unitário)
+    private var swYaw = 0f
+    private var swToX = 0f; private var swToZ = 0f  // destino da etapa atual
+    // 5 = sentando na borda (SIT_IN); 6 = sentado na borda, pernas na água; 7 = escorregando para a água; 8 = levantando (SIT_OUT)
+    private var swimJump = false                    // o botão de pulo foi apertado neste quadro
+    private var edgeHold = 0f                       // tempo empurrando o analógico contra a água
 
     // vista aérea
     @Volatile var yaw = 0.75f
@@ -488,8 +501,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val door = abs(nx - gw / 2f) < 0.42f && nz > gh - 0.4f && nz < gh + 0.45f
             if (!ins && !door) return false
         } else {
-            if (!(nx > -6.6f && nx < gw + 6.6f && nz > -6.6f && nz < gh + 8.6f)) return false
+            if (!(nx > -6.6f && nx < gw + 6.6f && nz > Pool.WALK_Z && nz < gh + 8.6f)) return false
         }
+        if (swimPh == 0 && Pool.blocksWalker(st.gw, nx, nz)) return false   // Etapa 118: a água só se entra correndo (mergulho)
         val g = grabbed
         for (o in st.items) {
             if (o.type.rug || o.type.dyn || o === g || Foot.height(o.type) < 0.12f) continue   // coisa baixinha dá para pisar por cima; objeto solto é empurrado
@@ -521,7 +535,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
             val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
             if (!ins && !door) return true
-        } else if (!(x > -6.6f && x < gw + 6.6f && z > -6.6f && z < gh + 8.6f)) return true   // fora do quintal
+        } else if (!(x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f)) return true   // fora do quintal
+        if (Pool.blocksWalker(st.gw, x, z)) return true   // Etapa 118: piscina
         for (o in st.items) {
             if (o.type.rug || o.type.dyn || Foot.height(o.type) < 0.12f) continue
             if (inside(o, x, z)) return true
@@ -546,9 +561,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val gh = st.gh.toFloat()
         val res = 0.25f
         val x0 = -6.6f   // a grade cobre a casa e o quintal
-        val z0 = -6.6f
+        val z0 = Pool.WALK_Z   // Etapa 118: fundos do quintal maiores
         val nx = ((gw + 13.2f) / res).toInt() + 1
-        val nz = ((gh + 15.2f) / res).toInt() + 1
+        val nz = ((gh + 8.6f - Pool.WALK_Z) / res).toInt() + 1
         val pre = ArrayList<FloatArray>()
         var sx = px
         var sz = pz
@@ -686,6 +701,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (sitPh != 0) { jumpReq = false; updateSit(dt); return }
         if (washPh != 0) { jumpReq = false; updateWash(dt); return }
         if (usePh != 0) { jumpReq = false; updateUse(dt); return }
+        if (swimPh != 0) { swimJump = jumpReq; jumpReq = false; path = null; markX = Float.NaN; updateSwim(dt); swimJump = false; return }   // Etapa 118: mergulho / nado
+        // Etapa 119: pulo olhando para a piscina, perto da borda = mergulho
+        if (jumpReq && mode == 0 && !crouch && !jumping && tryDive(true)) { jumpReq = false; return }
         // pulo
         if (jumpReq && mode == 0 && crouch) { jumpReq = false; crouch = false }
         if (jumpReq && mode == 0) {
@@ -739,6 +757,211 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             while (dl > 180f) dl -= 360f
             while (dl < -180f) dl += 360f
             if (third) pYaw += dl * min(1f, dt * 12f)
+            // Etapa 119: andando (sem correr) contra a água por um instante: senta na borda e entra na piscina
+            if (!pRun && !crouch && mode == 0 && Pool.blocksWalker(st.gw, px + dx * 2f, pz + dz * 2f)) {
+                edgeHold += dt
+                if (edgeHold >= Pool.EDGE_HOLD) { edgeHold = 0f; trySitEdge() }
+            } else edgeHold = 0f
+            if (pRun && mode == 0) tryDive(false)   // Etapa 118: correndo em direção à piscina
+        }
+    }
+
+    // ------------------------------------------------------------ Etapa 118: piscina
+
+    /** Correndo em direção à água e perto o bastante: começa o mergulho (Run_To_Dive) sozinho. */
+    private fun tryDive(force: Boolean): Boolean {
+        if (swimPh != 0 || jumping || crouch || py > 0.001f || !CuteChar.ready || !CuteChar.hasPool()) return false
+        val gw = st.gw
+        val yr = Math.toRadians(pYaw.toDouble())
+        val dx = sin(yr).toFloat(); val dz = cos(yr).toFloat()
+        var tmin = 0f; var tmax = 1e9f
+        val x0 = Pool.x0(gw); val x1 = Pool.x1(gw)
+        if (abs(dx) < 1e-5f) { if (px < x0 || px > x1) return false }
+        else { var ta = (x0 - px) / dx; var tb = (x1 - px) / dx; if (ta > tb) { val q = ta; ta = tb; tb = q }; tmin = max(tmin, ta); tmax = min(tmax, tb) }
+        if (abs(dz) < 1e-5f) { if (pz < Pool.Z0 || pz > Pool.Z1) return false }
+        else { var ta = (Pool.Z0 - pz) / dz; var tb = (Pool.Z1 - pz) / dz; if (ta > tb) { val q = ta; ta = tb; tb = q }; tmin = max(tmin, ta); tmax = min(tmax, tb) }
+        if (tmin <= 0.05f || tmin > tmax) return false                   // já dentro, atrás ou fora da linha
+        val hs = CuteChar.bodyScale()
+        val start = Pool.DIVE_START * hs
+        if (tmin > start) return false                                  // ainda longe
+        var skip = start - tmin                                     // perto da água: entra no meio do clipe (sem teletransporte)
+        if (force) skip = min(skip, 1.4f * hs)                      // pulo parado: o mergulho começa no começo do clipe
+        else if (skip > 2.2f * hs) return false                     // perto demais: não dá tempo de mergulhar, para na borda
+        // o ponto de chegada precisa ficar dentro da água (nada de mergulhar em cima da quina)
+        val ex = px + dx * (tmin + 0.9f * hs); val ez = pz + dz * (tmin + 0.9f * hs)
+        if (!Pool.inWater(gw, ex, ez, 0.1f)) return false
+        swDX = dx; swDZ = dz; swYaw = pYaw
+        swX = px - dx * skip; swZ = pz - dz * skip                  // onde o quadril estaria no 1º quadro do clipe
+        swimT = Pool.diveTimeAt(skip / hs)
+        swimPh = 1; pMoving = false
+        return true
+    }
+
+    /** Etapa 119: andando contra a borda da água: senta na borda (pernas para a água) e depois entra. */
+    private fun trySitEdge() {
+        if (swimPh != 0 || jumping || crouch || py > 0.001f || !CuteChar.ready || !CuteChar.hasPool() || !CuteChar.hasSit()) return
+        val gw = st.gw
+        val x0 = Pool.x0(gw); val x1 = Pool.x1(gw)
+        val ox = if (px < x0) x0 - px else if (px > x1) px - x1 else 0f
+        val oz = if (pz < Pool.Z0) Pool.Z0 - pz else if (pz > Pool.Z1) pz - Pool.Z1 else 0f
+        if (ox > 0.7f || oz > 0.7f) return
+        var wx = 0f; var wz = 0f           // direção da borda para a água
+        if (ox > 0f && oz == 0f) wx = if (px < x0) 1f else -1f
+        else if (oz > 0f && ox == 0f) wz = if (pz < Pool.Z0) 1f else -1f
+        else return                         // quina ou dentro da água: não senta
+        if (wx != 0f && (pz < Pool.Z0 + 0.5f || pz > Pool.Z1 - 0.5f)) return
+        if (wz != 0f && (px < x0 + 0.5f || px > x1 - 0.5f)) return
+        swX = px; swZ = pz
+        swToX = if (wx > 0f) x0 else if (wx < 0f) x1 else px      // a borda da água: o quadril fica ~0,23 m para trás
+        swToZ = if (wz > 0f) Pool.Z0 else if (wz < 0f) Pool.Z1 else pz
+        swDX = wx; swDZ = wz
+        swYaw = Math.toDegrees(atan2(wx.toDouble(), wz.toDouble())).toFloat()
+        pMoving = false; pRun = false; path = null; markX = Float.NaN
+        swimPh = 5; swimT = 0f
+    }
+
+    /** Altura (deslocamento da origem do corpo) para o assento ficar no topo da borda branca. */
+    private fun sitEdgeLift(): Float = Pool.SIT_SEAT_Y - CuteChar.sitSeat()
+
+    private fun clampWater(x: Float, z: Float): FloatArray {
+        val gw = st.gw
+        return floatArrayOf(x.coerceIn(Pool.x0(gw) + Pool.INSET, Pool.x1(gw) - Pool.INSET), z.coerceIn(Pool.Z0 + Pool.INSET, Pool.Z1 - Pool.INSET))
+    }
+
+    private fun updateSwim(dt: Float) {
+        val hs = CuteChar.bodyScale()
+        val gw = st.gw
+        swimT += dt
+        when (swimPh) {
+            1 -> {   // mergulho: o clipe leva o personagem para frente
+                val len = CuteChar.clipSeconds(CuteChar.RUN_DIVE)
+                pYaw = swYaw; pMoving = false; py = 0f
+                val d = Pool.diveZ(swimT) * hs   // o clipe não traz deslocamento: o quadril avança pela tabela (a câmera acompanha)
+                px = swX + swDX * d; pz = swZ + swDZ * d
+                if (swimT >= len * 0.999f) {
+                    val c = clampWater(px, pz)
+                    px = c[0]; pz = c[1]; swimPh = 2; swimT = 0f; pMoving = false
+                }
+            }
+            2 -> {   // na água: parado = boiando (Treading_Water), movendo = nadando (Swimming)
+                py += (Pool.WATER_Y - py) * min(1f, dt * 3.5f)
+                pMoving = false
+                if (!third) pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
+                val mag2 = moveX * moveX + moveY * moveY
+                if (mag2 > 0.0004f) {
+                    val mag = min(1f, sqrt(mag2))
+                    val sp = Pool.SWIM_SPEED * mag * dt
+                    val fx = sin(fyaw); val fz = -cos(fyaw); val rx = cos(fyaw); val rz = sin(fyaw)
+                    val dx = (fx * moveY + rx * moveX) * sp / mag
+                    val dz = (fz * moveY + rz * moveX) * sp / mag
+                    val c = clampWater(px + dx, pz + dz)
+                    px = c[0]; pz = c[1]
+                    pMoving = true
+                    val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+                    var dl = dir - pYaw
+                    while (dl > 180f) dl -= 360f
+                    while (dl < -180f) dl += 360f
+                    if (third) pYaw += dl * min(1f, dt * 10f)
+                    // chegou perto da borda empurrando para ela: nada até a borda e sai da água
+                    val l = kotlin.math.hypot(dx, dz).coerceAtLeast(1e-6f)
+                    val ux = dx / l; val uz = dz / l
+                    val x0 = Pool.x0(gw); val x1 = Pool.x1(gw)
+                    val near = Pool.EDGE_START * hs + 0.25f
+                    var wx = 0f; var wz = 0f   // normal da parede, apontando para fora da água
+                    if (mag > 0.5f) {
+                        if (-ux > 0.7f && px - x0 <= near) wx = -1f
+                        else if (ux > 0.7f && x1 - px <= near) wx = 1f
+                        else if (-uz > 0.7f && pz - Pool.Z0 <= near) wz = -1f
+                        else if (uz > 0.7f && Pool.Z1 - pz <= near) wz = 1f
+                    }
+                    if (wx != 0f || wz != 0f) {
+                        val st0 = Pool.EDGE_START * hs
+                        swX = px; swZ = pz
+                        // posição ideal de partida: a distância certa da parede, no mesmo ponto ao longo dela
+                        swToX = if (wx < 0f) x0 + st0 else if (wx > 0f) x1 - st0 else px
+                        swToZ = if (wz < 0f) Pool.Z0 + st0 else if (wz > 0f) Pool.Z1 - st0 else pz
+                        swDX = wx; swDZ = wz
+                        swYaw = Math.toDegrees(atan2(wx.toDouble(), wz.toDouble())).toFloat()
+                        swimPh = 3; swimT = 0f
+                    }
+                }
+            }
+            3 -> {   // nadar até a borda (clipe de 5 s; usamos até EDGE_END_T)
+                val k = smooth(min(1f, swimT / 0.5f))
+                val ad = Pool.edgeZ(swimT) * hs
+                px = swX + (swToX - swX) * k + swDX * ad; pz = swZ + (swToZ - swZ) * k + swDZ * ad
+                var dl = swYaw - pYaw
+                while (dl > 180f) dl -= 360f
+                while (dl < -180f) dl += 360f
+                pYaw += dl * min(1f, dt * 14f)
+                py = Pool.WATER_Y * (1f - smooth(min(1f, swimT / 0.4f)))
+                pMoving = false
+                if (swimT >= Pool.EDGE_END_T) {
+                    swX = px; swZ = pz
+                    // sobe para o deck: 0,6 m depois da borda da água
+                    swToX = if (swDX < 0f) Pool.x0(gw) - 0.6f else if (swDX > 0f) Pool.x1(gw) + 0.6f else px
+                    swToZ = if (swDZ < 0f) Pool.Z0 - 0.6f else if (swDZ > 0f) Pool.Z1 + 0.6f else pz
+                    swimPh = 4; swimT = 0f; py = 0f
+                }
+            }
+            5 -> {   // sentando na borda (clipe de sentar; o corpo desliza até a borda e abaixa até o topo da borda)
+                pMoving = false; py = 0f
+                var dl = swYaw - pYaw
+                while (dl > 180f) dl -= 360f
+                while (dl < -180f) dl += 360f
+                pYaw += dl.coerceIn(-330f * dt, 330f * dt)
+                val dur = CuteChar.clipSeconds(CuteChar.SIT_IN)
+                val u = min(1f, swimT / dur)
+                val k = smooth(u / 0.6f)
+                px = swX + (swToX - swX) * k; pz = swZ + (swToZ - swZ) * k
+                sitLift = sitEdgeLift() * smooth((u - 0.3f) / 0.55f)
+                if (swimJump) { swimPh = 7; swimT = 0f; return }
+                if (u >= 1f) { swimPh = 6; swimT = 0f }
+            }
+            6 -> {   // sentado na borda, pernas dentro d'água: entra sozinho, ou empurrando para a água / pulando; para trás levanta
+                pMoving = false; py = 0f; pYaw = swYaw
+                px = swToX; pz = swToZ; sitLift = sitEdgeLift()
+                val mag2 = moveX * moveX + moveY * moveY
+                var go = swimJump || swimT >= Pool.SIT_WAIT
+                if (mag2 > 0.09f) {
+                    val fx = sin(fyaw); val fz = -cos(fyaw); val rx = cos(fyaw); val rz = sin(fyaw)
+                    val vx = fx * moveY + rx * moveX; val vz = fz * moveY + rz * moveX
+                    val dot = (vx * swDX + vz * swDZ) / sqrt(mag2)
+                    if (dot > 0.5f) go = true
+                    else { swimPh = 8; swimT = 0f; return }
+                }
+                if (go) { swimPh = 7; swimT = 0f }
+            }
+            7 -> {   // escorrega da borda para a água e passa a boiar
+                pMoving = false
+                val dur = Pool.ENTER_T
+                val k = smooth(min(1f, swimT / dur))
+                val d = Pool.ENTER_DIST * hs * k
+                px = swToX + swDX * d; pz = swToZ + swDZ * d
+                pYaw = swYaw
+                sitLift = sitEdgeLift() * (1f - k)
+                py = Pool.WATER_Y * k + 0.10f * sin(Math.PI.toFloat() * k)
+                if (swimT >= dur) {
+                    val c = clampWater(px, pz)
+                    px = c[0]; pz = c[1]; sitLift = 0f; py = Pool.WATER_Y
+                    swimPh = 2; swimT = 0f; pMoving = false
+                }
+            }
+            8 -> {   // desistiu: levanta da borda (clipe de levantar) e volta para onde estava
+                pMoving = false; py = 0f; pYaw = swYaw
+                val dur = CuteChar.clipSeconds(CuteChar.SIT_OUT)
+                val u = min(1f, swimT / dur)
+                val k = smooth((u - 0.45f) / 0.5f)
+                px = swToX + (swX - swToX) * k; pz = swToZ + (swZ - swToZ) * k
+                sitLift = sitEdgeLift() * (1f - smooth(u / 0.6f))
+                if (u >= 1f) { px = swX; pz = swZ; sitLift = 0f; swimPh = 0; swimT = 0f }
+            }
+            else -> {   // saindo da água: de pendurado na borda para em pé no deck
+                val k = smooth(min(1f, swimT / 0.8f))
+                px = swX + (swToX - swX) * k; pz = swZ + (swToZ - swZ) * k
+                py = 0f; pMoving = false
+                if (swimT >= 0.8f) { swimPh = 0; swimT = 0f }
+            }
         }
     }
 
@@ -756,7 +979,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var baseY = 0f
 
     /** Põe o personagem na porta da casa de novo (ao trocar de casa/sala de testes). */
-    fun resetPlayer() { posInit = false; baseY = 0f; sleepChecked = false }
+    fun resetPlayer() { posInit = false; baseY = 0f; sleepChecked = false; if (swimPh >= 5) sitLift = 0f; swimPh = 0; edgeHold = 0f; if (py < 0f) py = 0f }
     private var sleepChecked = false
 
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
@@ -767,7 +990,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
         CuteChar.fpOn = mode == 0 && !third && CuteChar.ready   // 1ª pessoa: cabeça fora da frente da câmera
         val sp = sitPh
-        val cute = if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
+        val cute = if (swimPh != 0 && CuteChar.hasPool()) CuteChar.frame(when (swimPh) {
+                       1 -> CuteChar.RUN_DIVE
+                       2 -> if (pMoving) CuteChar.SWIM else CuteChar.TREAD
+                       3 -> CuteChar.SWIM_EDGE
+                       5 -> CuteChar.SIT_IN
+                       6 -> CuteChar.SIT_LOOP
+                       7 -> CuteChar.TREAD
+                       8 -> CuteChar.SIT_OUT
+                       else -> CuteChar.IDLE
+                   }, if (swimPh == 1 || swimPh == 3 || swimPh == 5 || swimPh == 8) swimT else t)
+                   else if (usePh != 0 && sp == 0) CuteChar.frame(CuteChar.INTERACT, useT)
                    else if (sp >= 3) CuteChar.frame(when (sp) {
                        3 -> CuteChar.SIT_IN
                        4 -> CuteChar.SIT_LOOP
@@ -1196,7 +1429,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Matrix.translateM(mdl, 0, (rc[0] + rc[2]) / 2f, if (bd != null) topUnder(bd.p[0], bd.p[2], bd.p[1]) + 0.002f else 0f, (rc[1] + rc[3]) / 2f)
             draw(shm, mdl, 1f)
         }
-        if (mode == 1 || fp) {
+        if ((mode == 1 || fp) && (swimPh == 0 || swimPh in 5..6 || swimPh == 8)) {
             val shm = sm.getOrPut(11) { Models.shadow(1, 1) }
             Matrix.setIdentityM(mdl, 0)
             Matrix.translateM(mdl, 0, px - 0.5f, baseY + 0.02f, pz - 0.5f)
@@ -1221,6 +1454,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(rg, mdl, 0.7f + 0.3f * sin(tt * 5f))
         }
         // vidros por último
+        run { Matrix.setIdentityM(mdl, 0); yardM?.let { draw(it, mdl, 1f, true) } }   // Etapa 118: água da piscina (peças de vidro do quintal)
         for ((m, mx) in glassQ) draw(m, mx, 1f, true)
         for ((m, mx) in lateQ) draw(m, mx, 1f)
         for (i in 0..3) if (shown[i]) {
