@@ -358,7 +358,11 @@ object CityInt {
                 // cada módulo é uma sala fechada (divisórias com porta para o corredor e visor de vidro)
                 val wc = C("#E3EEF2")
                 A.m(Mt.PLASTER, 0.5f)
-                A.box(mx, FL + 1.3f, r.Zi(m0 - 0.4f), mw - 0.1f, 2.6f, 0.12f, wc)
+                // Etapa 129: a parede da frente da sala também tem vão de porta (antes vedava o saguão do resto do prédio)
+                val dW0 = 1.4f
+                A.box((mx - mw / 2 + 0.05f + mx - dW0 / 2) / 2, FL + 1.3f, r.Zi(m0 - 0.4f), mw / 2 - dW0 / 2 - 0.05f, 2.6f, 0.12f, wc)
+                A.box((mx + dW0 / 2 + mx + mw / 2 - 0.05f) / 2, FL + 1.3f, r.Zi(m0 - 0.4f), mw / 2 - dW0 / 2 - 0.05f, 2.6f, 0.12f, wc)
+                A.box(mx, FL + 2.45f, r.Zi(m0 - 0.4f), dW0, 0.3f, 0.12f, wc)
                 if (k > 0) A.box(mx - mw / 2, FL + 1.3f, r.Zi((m0 + m1) / 2 - 0.2f), 0.12f, 2.6f, m1 - m0 + 0.4f, wc)
                 val dW = 1.2f
                 A.box((mx - mw / 2 + mx - dW / 2) / 2, FL + 1.3f, r.Zi(m1 + 0.2f), mw / 2 - dW / 2, 2.6f, 0.12f, wc)
@@ -366,7 +370,7 @@ object CityInt {
                 A.box(mx, FL + 2.45f, r.Zi(m1 + 0.2f), dW, 0.3f, 0.12f, wc)
                 A.m(Mt.GLASS); A.al = 0.35f; A.box(mx - mw / 4, FL + 1.6f, r.Zi(m1 + 0.2f), mw / 4, 0.9f, 0.14f, C("#E1F5FE")); A.al = 1f
                 A.m(Mt.PLAIN); A.box(mx + dW / 2 + 0.35f, FL + 2.0f, r.Zi(m1 + 0.27f), 0.35f, 0.14f, 0.01f, arrayOf(C("#00897B"), C("#1E88E5"), C("#F9A825"), C("#8E24AA"))[k % 4], false)
-                r.solid(mx - mw / 2, m0 - 0.5f, mx + mw / 2, m0 - 0.3f)
+                r.solid(mx - mw / 2, m0 - 0.5f, mx - dW0 / 2, m0 - 0.3f); r.solid(mx + dW0 / 2, m0 - 0.5f, mx + mw / 2, m0 - 0.3f)
                 if (k > 0) r.solid(mx - mw / 2 - 0.1f, m0 - 0.4f, mx - mw / 2 + 0.1f, m1 + 0.3f)
                 r.solid(mx - mw / 2, m1 + 0.1f, mx - dW / 2, m1 + 0.3f); r.solid(mx + dW / 2, m1 + 0.1f, mx + mw / 2, m1 + 0.3f)
                 when ((k + if (name == "PRONTO-SOCORRO") 0 else 1) % 4) {

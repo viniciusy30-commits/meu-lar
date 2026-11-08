@@ -1351,16 +1351,18 @@ object CityGeo {
             }
         }
         fun tables(n: Int, round: Boolean) {
+            // Etapa 129: colunas simétricas em torno do centro e corredor da porta sempre livre
             var i = 0
-            var x = x0 + 1.6f
-            while (x < x1 - 1.4f && i < n) {
+            val nc = max(1, ((w - 2.4f) / 2.6f).toInt())
+            for (j in 0 until nc) {
+                val x = cx + (j - (nc - 1) / 2f) * 2.6f
                 var d = 1.8f
                 while (d < depth - 3.2f && i < n) {
+                    if (abs(x - doorX) < 1.5f && d < 3.4f) { d += 2.4f; continue }
                     if (round) cafeTable(A, x, Zi(d), rng) else { diningSet(A, L(x, Zi(d), 0f, fz), wood, 4, rng.pick(FABRICS)) }
                     g.solid(x - 0.5f, Zi(d) - 0.5f, x + 0.5f, Zi(d) + 0.5f)
                     d += 2.4f; i++
                 }
-                x += 2.6f
             }
         }
         when (name) {
@@ -1377,8 +1379,8 @@ object CityGeo {
             "FARMÁCIA", "MERCADINHO", "PAPELARIA" -> {
                 wallShelves(if (name == "FARMÁCIA") C("#FFFFFF") else C("#E0E0E0"), true)
                 // gôndola no meio
-                shelf(A, cx, Zi(depth * 0.45f), min(3.4f, w - 4f), rng)
-                g.solid(cx - 1.8f, Zi(depth * 0.45f) - 0.4f, cx + 1.8f, Zi(depth * 0.45f) + 0.4f)
+                val gw = min(3.4f, w - 4.6f)   // Etapa 129: sobra ≥ 1,15 m de cada lado da gôndola
+                if (gw >= 1.2f) { shelf(A, cx, Zi(depth * 0.45f), gw, rng); g.solid(cx - gw / 2, Zi(depth * 0.45f) - 0.4f, cx + gw / 2, Zi(depth * 0.45f) + 0.4f) }
                 backCounter(C("#FFFFFF"), 3f)
                 if (name == "FARMÁCIA") { A.m(Mt.PLAIN); val l = L(cx, back - inF * 0.12f, 0f, fz); lb(A, l, 0f, FL + 2.8f, 0f, 0.9f, 0.3f, 0.04f, C("#1E9E5A"), false); lb(A, l, 0f, FL + 2.8f, 0f, 0.3f, 0.9f, 0.04f, C("#1E9E5A"), false) }
             }
@@ -1461,10 +1463,14 @@ object CityGeo {
                 // baldes de flores em degraus e vasos grandes
                 for (row in 0 until 3) {
                     val zz = Zi(1.6f + row * 1.6f)
-                    A.m(Mt.WOOD, 1f); A.box(cx, FL + 0.25f + row * 0.0f, zz, w - 2.5f, 0.5f, 0.8f, C("#A1887F"))
-                    g.solid(cx - (w - 2.5f) / 2, zz - 0.45f, cx + (w - 2.5f) / 2, zz + 0.45f)
+                    // dois bancos iguais, com corredor livre de 2 m no centro (porta)
+                    val seg = (w - 2.5f) / 2f - 1.0f
+                    for (sd in floatArrayOf(-1f, 1f)) { val sc = cx + sd * (1.0f + seg / 2f)
+                        A.m(Mt.WOOD, 1f); A.box(sc, FL + 0.25f, zz, seg, 0.5f, 0.8f, C("#A1887F"))
+                        g.solid(sc - seg / 2, zz - 0.45f, sc + seg / 2, zz + 0.45f) }
                     var x = x0 + 1.6f
                     while (x < x1 - 1.4f) {
+                        if (abs(x - cx) < 1.0f) { x += 0.65f; continue }
                         A.m(Mt.METAL, 1f); A.cyl(x, FL + 0.5f, zz, 0.2f, 0.17f, 0.35f, C("#90A4AE"), true, 8)
                         g.fl.place(arrayOf("fl_tulip", "fl_daisy", "fl_poppy", "fl_lav", "fl_yellow")[rng.i(5)], x.toDouble(), (FL + 0.8f).toDouble(), zz.toDouble(), 2.4, rng.r(0f, 6f).toDouble())
                         x += 0.65f
@@ -1482,12 +1488,12 @@ object CityGeo {
                         val l = L(cx, back - inF * 0.12f, 0f, fz)
                         A.m(Mt.METAL, 1f)
                         for (r in 0..1) for (i in -2..2) { lb(A, l, i * 1.05f, FL + 1.3f + r * 0.75f, 0f, 0.95f, 0.6f, 0.05f, C("#111111")); A.m(Mt.PLAIN); lb(A, l, i * 1.05f, FL + 1.3f + r * 0.75f, -0.03f, 0.88f, 0.52f, 0.01f, C(rng.pick(arrayOf("#29B6F6", "#66BB6A", "#FFA726", "#AB47BC"))), false); A.m(Mt.METAL, 1f) }
-                        for (i in 0 until 2) { val tz = Zi(1.8f + i * 2.2f); displayTable(A, cx, tz, rng); g.solid(cx - 0.75f, tz - 0.45f, cx + 0.75f, tz + 0.45f) } }
+                        for (i in 0 until 2) { val tz = Zi(2.0f + i * 2.4f); for (sd in floatArrayOf(-1f, 1f)) { val tx = cx + sd * min(2.0f, w / 2 - 1.7f); displayTable(A, tx, tz, rng); g.solid(tx - 0.75f, tz - 0.45f, tx + 0.75f, tz + 0.45f) } } }
                     "ÓTICA" -> { // vitrines de óculos
                         for (sx in floatArrayOf(x0 + 0.35f, x1 - 0.35f)) { val l = L(sx, cz, if (sx < cx) 1f else -1f, 0f)
                             A.m(Mt.WOOD, 1f); lb(A, l, 0f, FL + 1.1f, 0.1f, depth - 3f, 2.2f, 0.05f, C("#FFFFFF"))
                             A.m(Mt.PLAIN); for (r in 0 until 5) for (i in 0 until ((depth - 3.4f) / 0.35f).toInt()) lb(A, l, -(depth - 3.4f) / 2 + i * 0.35f, FL + 0.6f + r * 0.35f, 0.05f, 0.22f, 0.07f, 0.03f, C(rng.pick(arrayOf("#212121", "#6D4C41", "#C62828", "#1565C0"))), false) }
-                        for (i in 0 until 2) { val tz = Zi(1.8f + i * 2.0f); displayTable(A, cx, tz, rng); g.solid(cx - 0.75f, tz - 0.45f, cx + 0.75f, tz + 0.45f) }
+                        for (i in 0 until 2) { val tz = Zi(2.0f + i * 2.2f); for (sd in floatArrayOf(-1f, 1f)) { val tx = cx + sd * min(2.0f, w / 2 - 1.7f); displayTable(A, tx, tz, rng); g.solid(tx - 0.75f, tz - 0.45f, tx + 0.75f, tz + 0.45f) } }
                         mirrorWall(A, cx, back - inF * 0.04f) }
                     else -> { // moda: araras e manequins
                         for (i in 0 until max(1, (w / 2.6f).toInt())) { val rx = x0 + 1.4f + i * 2.6f; rack(A, L(rx, cz, 0f, fz), rng); g.solid(rx - 0.7f, cz - 0.4f, rx + 0.7f, cz + 0.4f) }
@@ -2167,9 +2173,9 @@ object CityGeo {
         val rng = g.rng
         val w = (g.x1 - g.x0) / 2 - 3f
         val h1 = tower(g, g.x0 + 2f, g.x0 + 2f + w, g.z1, 1f, 5f, 16f, 3, C("#E3E8EE"), "POLÍCIA", 0)
-        for (k in 0 until 2) Vehicles.parkedKind(g, g.x0 + 3.2f + k * 4.6f, g.z1 - 2.6f, 0, CURB, Vehicles.POLICE)
+        for (sd in floatArrayOf(-1f, 1f)) Vehicles.parkedKind(g, g.x0 + 2f + w / 2 + sd * 3.6f, g.z1 - 2.6f, 0, CURB, Vehicles.POLICE)   // Etapa 129: um de cada lado da porta
         val h2 = tower(g, g.x1 - 2f - w, g.x1 - 2f, g.z1, 1f, 5f, 16f, 2, C("#F3D9D2"), "BOMBEIROS", 0)
-        Vehicles.parkedKind(g, g.x1 - 2f - w + 3.2f, g.z1 - 2.8f, 0, CURB, Vehicles.FIRE)   // Etapa 128: fora da frente da porta
+        Vehicles.parkedKind(g, g.x1 - 2f - w / 2 + 4.5f, g.z1 - 2.8f, 0, CURB, Vehicles.FIRE)   // Etapa 128: fora da frente da porta
         residentialStrip(g, g.z0, -1f, 20f)
         return max(h1, h2)
     }
