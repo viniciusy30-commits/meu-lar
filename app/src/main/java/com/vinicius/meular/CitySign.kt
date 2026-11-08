@@ -556,11 +556,7 @@ object Signs {
 
     /** Plaquinha "ABERTO" pendurada na porta, número da loja e adesivo na vitrine. */
     fun doorDetails(b: MB, doorX: Float, yFloor: Float, zf: Float, fz: Float, winX: Float, winW: Float, accent: Int, num: Int) {
-        val z = zf + fz * 0.03f
-        b.m(Mt.PLAIN)
-        b.box(doorX, yFloor + 1.62f, z + fz * 0.005f, 0.34f, 0.14f, 0.01f, C("#C62828"), false)
-        b.box(doorX, yFloor + 1.62f, z + fz * 0.01f, 0.26f, 0.05f, 0.01f, C("#FFFFFF"), false)
-        b.m(Mt.METAL, 1f); b.box(doorX, yFloor + 1.74f, z, 0.005f, 0.12f, 0.005f, C("#555555"))
+        // Etapa 128: a plaquinha ABERTO agora fica pendurada na própria folha da porta
         // número
         b.m(Mt.PLAIN); b.box(doorX + 0.95f, yFloor + 2.35f, zf + fz * 0.135f, 0.22f, 0.14f, 0.012f, C("#1F3A5F")); b.box(doorX + 0.95f, yFloor + 2.35f, zf + fz * 0.142f, 0.12f, 0.08f, 0.004f, C("#FFFFFF"))
         // faixa decorativa na vitrine (adesivo jateado)
@@ -576,8 +572,8 @@ object Signs {
         for (sd in floatArrayOf(-1f, 1f)) {
             q(b, P(x - 0.32f, y + 0.95f, z) + P(x + 0.32f, y + 0.95f, z) + P(x + 0.32f, y, z + sd * 0.25f) + P(x - 0.32f, y, z + sd * 0.25f), C("#6D4C41"))
             b.m(Mt.PLAIN)
-            q(b, P(x - 0.26f, y + 0.86f, z + sd * 0.035f) + P(x + 0.26f, y + 0.86f, z + sd * 0.035f) + P(x + 0.26f, y + 0.1f, z + sd * 0.235f) + P(x - 0.26f, y + 0.1f, z + sd * 0.235f), C("#263238"))
-            for (k in 0 until 4) { val t = 0.2f + k * 0.17f; val yy = y + 0.86f - t * 0.76f; val zz = z + sd * (0.035f + t * 0.2f) + sd * 0.004f
+            q(b, P(x - 0.26f, y + 0.86f, z + sd * 0.047f) + P(x + 0.26f, y + 0.86f, z + sd * 0.047f) + P(x + 0.26f, y + 0.1f, z + sd * 0.247f) + P(x - 0.26f, y + 0.1f, z + sd * 0.247f), C("#263238"))
+            for (k in 0 until 4) { val t = 0.2f + k * 0.17f; val yy = y + 0.86f - t * 0.76f; val zz = z + sd * (0.047f + t * 0.2f) + sd * 0.008f
                 q(b, P(x - 0.2f + (k % 2) * 0.04f, yy, zz) + P(x + 0.18f - (k % 3) * 0.05f, yy, zz) + P(x + 0.18f - (k % 3) * 0.05f, yy - 0.025f, zz + sd * 0.006f) + P(x - 0.2f + (k % 2) * 0.04f, yy - 0.025f, zz + sd * 0.006f), if (k == 0) C("#FFD54F") else C("#ECEFF1")) }
             b.m(Mt.WOOD, 1f)
         }

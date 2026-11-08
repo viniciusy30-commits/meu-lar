@@ -200,6 +200,14 @@ object City {
     val lakes = java.util.concurrent.CopyOnWriteArrayList<FloatArray>()
     /** pontes em arco (x0, z0, x1, z1, altura da ponta, altura do arco) — andando por cima */
     val bridges = java.util.concurrent.CopyOnWriteArrayList<FloatArray>()
+    /** Etapa 128: porta de uma construção — centro do vão (x, piso y, plano da parede z), lado de fora fz, vão w × h. */
+    class Door(val x: Float, val y: Float, val z: Float, val fz: Float, val w: Float, val h: Float, val style: Int, val col: Int, val col2: Int, val name: String) {
+        @JvmField var open = 0f
+        @JvmField var spin = 0f
+        @JvmField var spinV = 0f
+        @JvmField var leaves: List<Doors.Leaf>? = null
+    }
+    val doors = java.util.concurrent.CopyOnWriteArrayList<Door>()
     @Volatile private var startGen = -1
     @Volatile var builds = 0
     /** Erro da montagem (mostrado na tela de carregamento em vez de travar). */
@@ -225,7 +233,7 @@ object City {
         chunks.forEach { it.near?.release(); it.far?.release() }; chunks = emptyList()
         farAll?.release(); farAll = null
         Shade.mesh?.release(); Shade.mesh = null
-        lakes.clear(); bridges.clear()
+        lakes.clear(); bridges.clear(); doors.clear()
         lightMeshes.forEach { it?.release() }; lightMeshes = arrayOfNulls(4)
         Vehicles.release(); CityFun.release()
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }

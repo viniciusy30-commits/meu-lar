@@ -68,6 +68,18 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var pRun = false
     @Volatile var py = 0f
     private var vy = 0f
+    // ---- Etapa 128: voo livre para explorar (subir/descer, turbo) ----
+    @Volatile var flyReq = false
+    @Volatile var flyUp = false
+    @Volatile var flyDown = false
+    @Volatile var turbo = false
+    @Volatile var flying = false; private set
+    @Volatile var flySpeed = 0f; private set
+    private var landing = false
+    private var landX = 0f; private var landZ = 0f
+    private var flyAlt = 0f
+    private var fvx = 0f; private var fvy = 0f; private var fvz = 0f
+    private var flyTilt = 0f
     private var pYaw = 0f
     private var pMoving = false
     private var jumpT = 0f
@@ -678,6 +690,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         driving = true; carSpeed = 0f; steerS = 0f; carVx = 0f; carVz = 0f; yawRate = 0f; gasIn = false; brakeIn = false; hbIn = false
         thirdBefore = third; third = true
         path = null; markX = Float.NaN; jumping = false; crouch = false
+        flying = false; landing = false; py = 0f; fvx = 0f; fvy = 0f; fvz = 0f
         px = carX; pz = carZ
         fyaw = carH
         City.ownCar = null
@@ -766,7 +779,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         carVx = nfx * vF + nrx * vS; carVz = nfz * vF + nrz * vS
         carSpeed = vF
         val nx = carX + carVx * dt; val nz = carZ + carVz * dt
+        // Etapa 128: se a batida deixou uma quina do carro dentro de algo, qualquer movimento que AFASTE do obstáculo vale
+        // (antes nada era "livre" e o carro ficava travado sem ré nem acelerador)
+        val hitNow = carHits(carX, carZ, carH); val hcx = hitCX; val hcz = hitCZ
         if (carFree(nx, nz, carH)) { carX = nx; carZ = nz }
+        else if (hitNow > 0 && carHits(nx, nz, carH) <= hitNow && (nx - carX) * (carX - hcx) + (nz - carZ) * (carZ - hcz) > 0f) { carX = nx; carZ = nz }
         else {
             // batida: raspa na parede (desliza no eixo livre) ou quica para trás
             val hard = abs(vF) > 9f
@@ -777,6 +794,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (!carFree(carX, carZ, carH)) carH -= yawRate * dt   // não deixa a quina entrar girando
             carSpeed = carVx * nfx + carVz * nfz
         }
+        // ainda preso depois de um instante: empurra para o lugar livre mais perto (sem teletransporte longe)
+        if (carHits(carX, carZ, carH) > 0) { stuckT += dt; if (stuckT > 0.4f) { unstickCar(); stuckT = 0f } } else stuckT = 0f
         carY += (groundH(carX, carZ) - carY) * min(1f, dt * 10f)
         px = carX; pz = carZ
         City.driverHalf = carHalfL()
@@ -800,17 +819,183 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         camRoll += (-yawRate * min(1f, abs(vF) / 20f) * 0.06f - camRoll) * min(1f, dt * 4f)
     }
 
-    private fun carFree(x: Float, z: Float, h: Float): Boolean {
-        if (!City.on) return true
+    // ================================================================ Etapa 128: voar
+    private fun toggleFly() {
+        if (flying) { beginLanding(); return }
+        if (landing) { landing = false; flying = true; return }
+        if (!City.on || mode != 0 || sitPh != 0 || swimPh != 0 || usePh != 0 || washPh != 0 || lieK > 0.01f) return
+        flying = true; landing = false; jumping = false; crouch = false; path = null; markX = Float.NaN
+        flyAlt = baseY + py
+        fvx = 0f; fvz = 0f; fvy = if (py < 0.6f) 5f else 0f   // decola com um impulso
+    }
+
+    /** chão livre para pousar: o mesmo teste de quem anda (paredes, móveis, carros, mar fundo, cerca do quintal) */
+    private fun landOk(x: Float, z: Float) = walkable(x, z, x, z) && !(City.on && !City.inLot(x, z) && City.blocked(x, z))
+
+    private fun findLand(): Boolean {
+        if (landOk(px, pz)) { landX = px; landZ = pz; return true }
+        var r = 0.6f
+        while (r < 90f) {
+            val n = max(8, (r * 4f).toInt())
+            for (i in 0 until n) {
+                val a = 2f * Math.PI.toFloat() * i / n
+                val x = px + cos(a) * r; val z = pz + sin(a) * r
+                if (landOk(x, z)) { landX = x; landZ = z; return true }
+            }
+            r += 0.6f
+        }
+        return false
+    }
+
+    private fun beginLanding() {
+        flying = false
+        if (!findLand()) { landX = px; landZ = pz }
+        landing = true
+    }
+
+    /** trocou para a vista de cima voando: pousa na hora */
+    private fun landNow() {
+        flying = false; landing = false
+        if (!findLand()) { landX = px; landZ = pz }
+        px = landX; pz = landZ; py = 0f; fvx = 0f; fvy = 0f; fvz = 0f; flyTilt = 0f; flySpeed = 0f
+    }
+
+    private fun updateFly(dt: Float) {
+        pMoving = false
+        if (landing) {
+            // vai até o ponto livre mais perto e desce devagar no fim
+            val dx = landX - px; val dz = landZ - pz; val dl = sqrt(dx * dx + dz * dz)
+            val hs = min(dl, (6f + dl * 1.5f) * dt)
+            if (dl > 1e-3f) { px += dx / dl * hs; pz += dz / dl * hs; if (third && dl > 0.3f) turnBody(dx, dz, dt) }
+            flyAlt = max(groundH(px, pz), flyAlt - min(18f, 1.6f + (flyAlt - groundH(px, pz)) * 1.4f) * dt)
+            py = max(0f, flyAlt - baseY)
+            flyTilt += (0f - flyTilt) * min(1f, dt * 4f)
+            flySpeed = hs / max(dt, 1e-3f)
+            if (dl < 0.02f && flyAlt - groundH(px, pz) < 0.02f) { landing = false; py = 0f; fvx = 0f; fvy = 0f; fvz = 0f; flyTilt = 0f; flySpeed = 0f }
+            return
+        }
+        val fx = sin(fyaw); val fz = -cos(fyaw); val rx = cos(fyaw); val rz = sin(fyaw)
+        val base = if (turbo) 44f else 11f
+        var tx = 0f; var ty = 0f; var tz = 0f
+        val mag2 = moveX * moveX + moveY * moveY
+        if (mag2 > 0.0004f) {
+            val mx = moveX.coerceIn(-1f, 1f); val my = moveY.coerceIn(-1f, 1f)
+            // olhando bem para cima ou para baixo, o voo segue o olhar (na 1ª pessoa, sempre)
+            val pe = if (!third) fpitch else kotlin.math.sign(fpitch) * max(0f, abs(fpitch) - 0.3f)
+            val cp = cos(pe)
+            tx = (fx * my * cp + rx * mx) * base; tz = (fz * my * cp + rz * mx) * base
+            ty = my * sin(pe) * base
+        }
+        val vs = if (turbo) 18f else 6.5f
+        if (flyUp) ty += vs
+        if (flyDown) ty -= vs
+        val k = min(1f, dt * (if (turbo) 2.2f else 3.5f))
+        fvx += (tx - fvx) * k; fvy += (ty - fvy) * k; fvz += (tz - fvz) * k
+        px += fvx * dt; pz += fvz * dt
+        if (City.on) { px = px.coerceIn(City.X0 + 2f, City.X1 - 2f); pz = pz.coerceIn(City.Z0 + 2f, City.SEA_Z + 380f) }
+        flyAlt += fvy * dt
+        val g2 = groundH(px, pz)
+        if (flyAlt < g2) { flyAlt = g2; if (fvy < 0f) fvy = 0f }
+        if (flyAlt > g2 + 160f) { flyAlt = g2 + 160f; if (fvy > 0f) fvy = 0f }
+        py = max(0f, flyAlt - baseY)
+        val hsp = sqrt(fvx * fvx + fvz * fvz)
+        flySpeed = sqrt(hsp * hsp + fvy * fvy)
+        if (!third) pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
+        else if (hsp > 0.6f) turnBody(fvx, fvz, dt)
+        // corpo inclina para a frente com a velocidade (pose de super-herói)
+        flyTilt += (min(1f, hsp / 30f) * 38f - flyTilt) * min(1f, dt * 3f)
+    }
+
+    private fun turnBody(dx: Float, dz: Float, dt: Float) {
+        val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+        var dl = dir - pYaw
+        while (dl > 180f) dl -= 360f
+        while (dl < -180f) dl += 360f
+        pYaw += dl * min(1f, dt * 8f)
+    }
+
+    // ================================================================ Etapa 128: portas que abrem sozinhas
+    private val dmdl = FloatArray(16)
+    private var doorT = 0L
+
+    private fun updateDoors(ex: Float, ez: Float) {
+        val now = System.nanoTime()
+        val dt = if (doorT == 0L) 0.016f else ((now - doorT) / 1e9f).coerceIn(0f, 0.05f)
+        doorT = now
+        for (d in City.doors) {
+            val dx = d.x - ex; val dz = d.z - ez
+            val d2 = dx * dx + dz * dz
+            if (d2 > 105f * 105f) {
+                if (d.leaves != null && d2 > 125f * 125f) d.leaves = null
+                d.open = 0f; d.spinV = 0f
+                continue
+            }
+            val auto = Doors.automatic(d.style)
+            val reach = if (auto) 2.9f else 1.75f
+            val qx = px - d.x; val qz = pz - d.z
+            var near = !driving && py < 2.2f && qx * qx + qz * qz < reach * reach
+            if (!near && auto) for (p in City.peds) { val a = p.x - d.x; val b = p.z - d.z; if (a * a + b * b < 2.3f * 2.3f) { near = true; break } }
+            if (Doors.revolving(d.style)) {
+                d.spinV += ((if (near) 60f else 0f) - d.spinV) * min(1f, dt * 1.6f)
+                d.spin = (d.spin + d.spinV * dt) % 360f
+            } else {
+                val sp = if (auto) 1.7f else 2.3f
+                d.open = if (near) min(1f, d.open + dt * sp) else max(0f, d.open - dt * sp * 0.7f)
+            }
+        }
+    }
+
+    private fun drawDoors(ex: Float, ez: Float, glass: Boolean) {
+        val ib = if (mode == 1) inBld else null
+        var built = 0
+        for (d in City.doors) {
+            val dx = d.x - ex; val dz = d.z - ez
+            if (dx * dx + dz * dz > 100f * 100f) continue
+            val r = if (Doors.revolving(d.style)) Doors.drumR(d.w) + 0.1f else d.w + 0.1f
+            if (!boxVisible(d.x - r, d.y, d.z - r, d.x + r, d.y + d.h + 0.1f, d.z + r)) continue
+            if (ib != null && d.x > ib.x0 && d.x < ib.x1 && d.z > ib.z0 - 0.6f && d.z < ib.z1 + 0.6f) continue   // vista de cima dentro do prédio
+            var ls = d.leaves
+            if (ls == null) {
+                if (glass || built >= 6) continue      // monta poucas por quadro (sem engasgo ao chegar num bairro)
+                ls = Doors.leaves(d); d.leaves = ls; built++
+            }
+            val k = d.open * d.open * (3f - 2f * d.open)
+            for (l in ls) { Doors.leafMatrix(dmdl, d, l, k); draw(l.mesh, dmdl, 1f, glass) }
+        }
+        Matrix.setIdentityM(mdl, 0)
+    }
+
+    private var stuckT = 0f
+    private var hitCX = 0f; private var hitCZ = 0f
+
+    /** quantos pontos do contorno do carro estão dentro de algo; guarda o centro deles (para saber o lado do obstáculo) */
+    private fun carHits(x: Float, z: Float, h: Float): Int {
+        if (!City.on) return 0
         val fx = sin(h); val fz = -cos(h); val rx = cos(h); val rz = sin(h)
         val hl = carHalfL(); val hw = carHalfW()
-        for (a in floatArrayOf(-hl, 0f, hl)) for (b in floatArrayOf(-hw, hw)) {
+        var n = 0; var sx = 0f; var sz = 0f
+        for (a in floatArrayOf(-hl, -hl * 0.5f, 0f, hl * 0.5f, hl)) for (b in floatArrayOf(-hw, 0f, hw)) {
+            if (b == 0f && a != -hl && a != hl) continue
             val qx = x + fx * a + rx * b; val qz = z + fz * a + rz * b
-            if (City.inLot(qx, qz)) return false
-            if (City.blocked(qx, qz)) return false
+            if (City.inLot(qx, qz) || City.blocked(qx, qz)) { n++; sx += qx; sz += qz }
         }
-        return true
+        if (n > 0) { hitCX = sx / n; hitCZ = sz / n }
+        return n
     }
+
+    private fun unstickCar() {
+        var r = 0.2f
+        while (r < 6f) {
+            for (i in 0 until 16) {
+                val a = 2f * Math.PI.toFloat() * i / 16
+                val x = carX + cos(a) * r; val z = carZ + sin(a) * r
+                if (carFree(x, z, carH)) { carX = x; carZ = z; carVx *= 0.2f; carVz *= 0.2f; yawRate = 0f; return }
+            }
+            r += 0.2f
+        }
+    }
+
+    private fun carFree(x: Float, z: Float, h: Float): Boolean = carHits(x, z, h) == 0
 
     private fun drawOwnCar() {
         val m = carMesh ?: return
@@ -888,6 +1073,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         farHide.clear()
         City.lightMeshes[City.lightPhase]?.let { draw(it, mdl, 1f) }
+        updateDoors(ex, ez)
+        drawDoors(ex, ez, false)
         val cm = Vehicles.meshes
         for (car in City.cars) {
             val dx = car.x - ex; val dz = car.z - ez
@@ -956,6 +1143,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         // Etapa 127: sombras do sol (grava profundidade: sombras sobrepostas no mesmo plano não escurecem em dobro)
         Shade.mesh?.let { GLES20.glDepthMask(true); draw(it, mdl, 1f, true); GLES20.glDepthMask(false) }
         for (m in cityGlass) draw(m, mdl, 1f, true)
+        drawDoors(ex, ez, true)
         if (Gps.ver != routeVer) {
             routeVer = Gps.ver
             routeMesh?.release(); routeMesh = null
@@ -1211,10 +1399,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         ensureCar()
         if (driving) { if (mode != 0) mode = 0; updateDrive(dt); return }
+        // Etapa 128: voo
+        if (flyReq) { flyReq = false; toggleFly() }
+        if (flying || landing) {
+            if (mode != 0) landNow() else { updateFly(dt); return }
+        }
         if (stopReq) { stopReq = false; path = null; markX = Float.NaN }
         val req = walkReq
         if (req != null) { walkReq = null; if (mode == 1) startWalk(req[0], req[1]) }
-        if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; return }
+        if (mode != 0 && mode != 1) { jumpReq = false; jumping = false; py = 0f; vy = 0f; flying = false; landing = false; return }
         if (sitPh != 0) { jumpReq = false; updateSit(dt); return }
         if (washPh != 0) { jumpReq = false; updateWash(dt); return }
         if (usePh != 0) { jumpReq = false; updateUse(dt); return }
@@ -1559,6 +1752,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                        9 -> CuteChar.SIT_LOOP
                        else -> CuteChar.SIT_OUT
                    }, if (sp == 3 || sp == 5) sitT else t)
+                   else if ((flying || landing) && py > 0.05f) CuteChar.frame(if (flySpeed > 14f) CuteChar.RUNJUMP else CuteChar.JUMP, CuteChar.clipSeconds(if (flySpeed > 14f) CuteChar.RUNJUMP else CuteChar.JUMP) * 0.42f)   // Etapa 128: voando
                    else if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else if (crouch && CuteChar.hasCrouch()) CuteChar.frame(if (pMoving) CuteChar.CROUCH_WALK else CuteChar.CROUCH, t)
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
@@ -1811,14 +2005,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             } else if (third) {
                 // 3ª pessoa: câmera atrás do personagem, orbitando com o olhar
                 crouchK += ((if (crouch) 1f else 0f) - crouchK) * 0.15f
-                val tx = px; val ty = py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
-                val inRoom = px > 0.32f && px < gw - 0.32f && pz > 0.32f && pz < gh - 0.32f
-                val cb = if (City.on) City.bldAt(px, pz) else null
+                val fly = flying || landing
+                val tx = px; val ty = if (fly) baseY + py + 1.05f else py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
+                val inRoom = px > 0.32f && px < gw - 0.32f && pz > 0.32f && pz < gh - 0.32f && !(fly && py > 1.2f)
+                val cb = if (City.on && !(fly && py > 2.2f)) City.bldAt(px, pz) else null
                 camBld = cb
                 var t = 1f
                 var ox = tx; var oy = ty; var oz = tz
                 for (i in 0..12) {
-                    ox = tx - fx * 2.7f * t; oy = ty - fy * 2.7f * t; oz = tz - fz * 2.7f * t
+                    val cd = if (fly) 3.6f + min(2.6f, flySpeed / 15f) else 2.7f   // Etapa 128: voando, a câmera afasta com a velocidade
+                    ox = tx - fx * cd * t; oy = ty - fy * cd * t; oz = tz - fz * cd * t
                     val okRoom = !inRoom || (ox > 0.2f && ox < gw - 0.2f && oz > 0.2f && oz < gh - 0.2f && oy < 2.3f)
                     // Etapa 126: dentro de loja/prédio a câmera fica do lado de dentro das paredes e abaixo do teto
                     val okBld = cb == null || (ox > cb.x0 + 0.45f && ox < cb.x1 - 0.45f && oz > cb.z0 + 0.45f && oz < cb.z1 - 0.45f && oy < 2.75f)
@@ -1828,8 +2024,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (t < 0.12f) t = 0.12f
                 ex = ox; ey = maxOf(oy, 0.25f); ez = oz
                 // Etapa 126: plano próximo maior fora de casa = profundidade bem mais precisa ao longe (janelas, guias e lajes paravam de piscar)
-                val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else 0.3f
-                Matrix.perspectiveM(proj, 0, 60f, aspect, nearP, 260f)
+                val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else if (fly && py > 6f) 0.5f else 0.3f
+                Matrix.perspectiveM(proj, 0, 60f + (if (fly) min(14f, flySpeed / 3.5f) else 0f), aspect, nearP, if (fly) 520f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
                 // 1ª pessoa: a câmera fica no olho do personagem, seguindo a cabeça animada (corrida, pulo...)
@@ -1851,7 +2047,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     ey = plM[1] * e0 + plM[5] * e1 + plM[9] * e2 + plM[13]
                     ez = plM[2] * e0 + plM[6] * e1 + plM[10] * e2 + plM[14]
                 }
-                Matrix.perspectiveM(proj, 0, 72f, aspect, if (atHome(px, pz)) 0.04f else 0.09f, 260f)
+                Matrix.perspectiveM(proj, 0, 72f, aspect, if (atHome(px, pz)) 0.04f else 0.09f, if (flying || landing) 520f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
         } else if (cityAer()) {
@@ -1941,6 +2137,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             else if (mode == 0 && sitPh == 0 && swimPh == 0 && !carX.isNaN() && carMesh != null && kotlin.math.hypot(px - carX, pz - carZ) < carHalfL() + 1.6f) {
                 nearKind = 20; nearLabel = if (isMoto()) "Subir na moto" else "Dirigir"
             }
+            if ((flying || landing) && py > 0.4f) { nearKind = 0; nearLabel = "" }   // Etapa 128: no ar não dá para usar nada
             if (useReq) {
                 useReq = false
                 when (nearKind) {
@@ -2549,7 +2746,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         useYaw = Math.toDegrees(atan2((tx - px).toDouble(), (tz - pz).toDouble())).toFloat()
         useItem = o; useK = k; useT = 0f; useDone = false; usePh = 1
-        jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+        jumping = false; py = 0f; vy = 0f; flying = false; landing = false; path = null; markX = Float.NaN
     }
 
     private fun applyUse(o: Item, k: Int) {
@@ -2626,7 +2823,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             sitItem = o; sitSeat = nm; o.occ.add(nm); o.busy = true; sitPath = null; sitCancel = false; sitPressed = true
             px = sitPt[0]; pz = sitPt[1]; pYaw = sitYaw; sitLift = sitDY; lieK = 1f; lieT = 1f
             sitWhere[0] = o.x + o.ox; sitWhere[1] = o.y + o.oz; sitWhere[2] = o.rot.toFloat()
-            jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+            jumping = false; py = 0f; vy = 0f; flying = false; landing = false; path = null; markX = Float.NaN
             sitPh = 10
             return
         }
@@ -2638,7 +2835,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         sitPath = pth; sitItem = o; sitSeat = nm; sitT = 0f; sitStuck = 0f; sitCancel = false; sitPressed = false
         lieK = 0f; lieT = 0f
         sitWhere[0] = o.x + o.ox; sitWhere[1] = o.y + o.oz; sitWhere[2] = o.rot.toFloat()
-        jumping = false; py = 0f; vy = 0f
+        jumping = false; py = 0f; vy = 0f; flying = false; landing = false
         path = null; markX = Float.NaN
         sitPh = 1
     }
@@ -2665,7 +2862,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val pth = if (kotlin.math.hypot(px - w[0], pz - w[1]) < 0.1f) ArrayList() else (planPath(w[0], w[1]) ?: run { msgText = "Não dá para chegar"; msgT = 1.4f; return })
         pth.add(floatArrayOf(w[0], w[1]))
         washPath = pth; washItem = o; washT = 0f; washStuck = 0f
-        jumping = false; py = 0f; vy = 0f; path = null; markX = Float.NaN
+        jumping = false; py = 0f; vy = 0f; flying = false; landing = false; path = null; markX = Float.NaN
         washPh = 1
     }
 
@@ -2734,6 +2931,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (lieK <= 0.001f) {
             Matrix.translateM(out, 0, px, py + up + baseY + sitLift, pz)
             Matrix.rotateM(out, 0, pYaw, 0f, 1f, 0f)
+            if (flyTilt > 0.5f && (flying || landing)) { Matrix.translateM(out, 0, 0f, 0.95f, 0f); Matrix.rotateM(out, 0, flyTilt, 1f, 0f, 0f); Matrix.translateM(out, 0, 0f, -0.95f, 0f) }
             return
         }
         val k = smooth(lieK)

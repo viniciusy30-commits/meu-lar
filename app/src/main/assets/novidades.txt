@@ -1,3 +1,14 @@
+#id 2026-11-08-voo-portas
+#titulo Modo voo com turbo, portas de verdade em todo lugar e carro que não trava mais
+- Botão VOAR (ao lado do agachar): sobe e desce segurando os botões, voa para onde olha e tem TURBO para atravessar a cidade rapidinho; POUSAR desce no lugar livre mais perto
+- Todas as 196 construções agora têm porta, e cada tipo de lugar tem a sua: casas com porta almofadada, rústica de tábuas, moderna com vidro, pivotante de ripas na mansão e veneziana na casa de praia
+- Comércio: vidro com alumínio (ótica, moda, pet shop, salão...), madeira com vidro e sininho (padaria, café, livraria, barbearia...), porta dupla de restaurante, shoji com cortina noren no sushi e porta de aço de enrolar com porta de vidro (mercadinho, lanchonete, açaí...)
+- Portas automáticas de correr no mercado, hospital, farmácia e shopping; giratórias no banco, casa de câmbio e hotel
+- Polícia, bombeiros e escola com portas de metal próprias; igreja com portal de pedra e porta de madeira com cravos
+- As portas abrem sozinhas quando você chega perto e fecham quando sai (as automáticas também para quem passa na calçada)
+- Carro não fica mais travado depois de bater: dá ré ou acelera para sair, e se ficar preso ele se solta sozinho
+- Corrigido: morro entrando nos fundos da igreja e a torre da igreja tampando a porta; caminhão de bombeiros parado na frente da porta
+
 #id 2026-11-29-cidade-viva
 #titulo Céu com nuvens, sombras do sol, água de verdade, letreiros reais e praça nova
 - Céu novo: degradê de verdade, sol com brilho e nuvens que andam devagar

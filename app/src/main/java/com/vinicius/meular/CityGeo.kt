@@ -54,6 +54,14 @@ object CityGeo {
             A = b; H = b; cur = null
         }
 
+        /** Etapa 128: porta no vão (centro x, parede z, lado de fora fz): batente fixo na malha, folhas animadas à parte. */
+        fun door(name: String, x: Float, zf: Float, fz: Float, w: Float, h: Float, th: Float) {
+            val pk = Doors.pick(name, rng)
+            val d = City.Door(x, FL, zf, if (fz > 0) 1f else -1f, w, h, pk[0], pk[1], pk[2], name.uppercase())
+            Doors.statics(H, d, th)
+            if (reg) City.doors.add(d)
+        }
+
         fun solid(ax: Float, az: Float, bx: Float, bz: Float) { if (reg) City.addSolid(floatArrayOf(min(ax, bx), min(az, bz), max(ax, bx), max(az, bz))) }
         fun place(p: City.Place) { if (reg) City.addPlace(p) }
 
@@ -839,10 +847,8 @@ object CityGeo {
         g.solid(hx0 - 0.2f, hz0 - 0.2f, hx0 + 0.2f, hz1 + 0.2f); g.solid(hx1 - 0.2f, hz0 - 0.2f, hx1 + 0.2f, hz1 + 0.2f)
         g.solid(hx0, zb - 0.2f, hx1, zb + 0.2f)
         g.solid(hx0, zf - 0.2f, hcx - 0.62f, zf + 0.2f); g.solid(hcx + 0.62f, zf - 0.2f, hx1, zf + 0.2f)
-        // porta aberta (folha encostada por dentro) e luminária da entrada
-        H.m(Mt.WOOD, 1f)
-        val dc = C(rng.pick(DOORS))
-        H.box(hcx - 0.55f + 0.03f, FL + 1.1f, zf - fz * 0.55f, 0.05f, 2.15f, 1.0f, dc)
+        // Etapa 128: porta de verdade (abre quando chega perto) e luminária da entrada
+        g.door(name, hcx, zf, fz, 1.1f, 2.2f, 0.2f)
         H.m(Mt.PLAIN); H.box(hcx + 0.85f, FL + 2.0f, zf + fz * 0.13f, 0.14f, 0.24f, 0.08f, C("#FFF3C4"), false)
 
         // divisórias de dentro: frente (sala/jantar) e fundo (cozinha à esquerda, quarto à direita, banheiro no canto do quarto)
@@ -1134,6 +1140,7 @@ object CityGeo {
         wall(g, 1, x0, z0 + 0.15f, z1 - 0.15f, FL, FL + gh, -1, emptyList(), stoneC, C("#F4F4F4"), Mt.STONE, 0.3f)
         wall(g, 1, x1, z0 + 0.15f, z1 - 0.15f, FL, FL + gh, 1, emptyList(), stoneC, C("#F4F4F4"), Mt.STONE, 0.3f)
         val door = fOps.first { it.door }
+        g.door(shop ?: "PRÉDIO", door.c, zf, fz, 1.8f, 2.6f, 0.3f)
         g.solid(x0 - 0.2f, z0 - 0.2f, x0 + 0.25f, z1 + 0.2f); g.solid(x1 - 0.25f, z0 - 0.2f, x1 + 0.2f, z1 + 0.2f); g.solid(x0, zb - 0.25f, x1, zb + 0.25f)
         g.solid(x0, zf - 0.25f, door.c - 0.95f, zf + 0.25f); g.solid(door.c + 0.95f, zf - 0.25f, x1, zf + 0.25f)
         // interior do térreo
@@ -1651,6 +1658,7 @@ object CityGeo {
             wall(g, 1, x1, z0 + 0.12f, z1 - 0.12f, FL, FL + hh, 1, emptyList(), col, inW, Mt.PLASTER, 0.24f)
             g.solid(x0 - 0.15f, z0 - 0.15f, x0 + 0.2f, z1 + 0.15f); g.solid(x1 - 0.2f, z0 - 0.15f, x1 + 0.15f, z1 + 0.15f); g.solid(x0, zb - 0.2f, x1, zb + 0.2f)
             g.solid(x0, zf - 0.2f, cx + sw * 0.28f - 0.7f, zf + 0.2f); g.solid(cx + sw * 0.28f + 0.7f, zf - 0.2f, x1, zf + 0.2f)
+            g.door(signName, cx + sw * 0.28f, zf, fz, 1.3f, 2.5f, 0.24f)
             if (!shopInterior(g, signName, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)) interior(g, kind, x0 + 0.25f, z0 + 0.25f, x1 - 0.25f, z1 - 0.25f, zf, fz, cx + sw * 0.28f)
             // platibanda, toldo, letreiro, andar de cima
             H.m(Mt.STONE, 0.5f)
@@ -2149,9 +2157,9 @@ object CityGeo {
         val rng = g.rng
         val w = (g.x1 - g.x0) / 2 - 3f
         val h1 = tower(g, g.x0 + 2f, g.x0 + 2f + w, g.z1, 1f, 5f, 16f, 3, C("#E3E8EE"), "POLÍCIA", 0)
-        for (k in 0 until 2) Vehicles.parkedKind(g, g.x0 + 4f + k * 5f, g.z1 - 2.6f, 0, CURB, Vehicles.POLICE)
+        for (k in 0 until 2) Vehicles.parkedKind(g, g.x0 + 3.2f + k * 4.6f, g.z1 - 2.6f, 0, CURB, Vehicles.POLICE)
         val h2 = tower(g, g.x1 - 2f - w, g.x1 - 2f, g.z1, 1f, 5f, 16f, 2, C("#F3D9D2"), "BOMBEIROS", 0)
-        Vehicles.parkedKind(g, g.x1 - 2f - w / 2, g.z1 - 2.8f, 0, CURB, Vehicles.FIRE)
+        Vehicles.parkedKind(g, g.x1 - 2f - w + 3.2f, g.z1 - 2.8f, 0, CURB, Vehicles.FIRE)   // Etapa 128: fora da frente da porta
         residentialStrip(g, g.z0, -1f, 20f)
         return max(h1, h2)
     }
@@ -2184,6 +2192,7 @@ object CityGeo {
         wall(g, 1, cx + w / 2, zb + 0.2f, zf - 0.2f, FL, FL + 9f, 1, sOps, wc, C("#FFFDF7"), Mt.PLASTER, 0.4f)
         g.solid(cx - w / 2 - 0.3f, zb, cx - w / 2 + 0.3f, zf); g.solid(cx + w / 2 - 0.3f, zb, cx + w / 2 + 0.3f, zf); g.solid(cx - w / 2, zb - 0.3f, cx + w / 2, zb + 0.3f)
         g.solid(cx - w / 2, zf - 0.3f, cx - 1.2f, zf + 0.3f); g.solid(cx + 1.2f, zf - 0.3f, cx + w / 2, zf + 0.3f)
+        g.door("IGREJA MATRIZ", cx, zf, 1f, 2.2f, 4f, 0.4f)
         // bancos e altar
         for (r in 0 until 7) for (s in floatArrayOf(-1f, 1f)) {
             val bz = zf - 4f - r * 2.0f
@@ -2204,7 +2213,13 @@ object CityGeo {
         H.m(Mt.PLASTER, 0.5f)
         tri(H, P(cx - w / 2, ty, zf) + P(cx + w / 2, ty, zf) + P(cx, ty + 4.5f, zf), wc)
         tri(H, P(cx + w / 2, ty, zb) + P(cx - w / 2, ty, zb) + P(cx, ty + 4.5f, zb), wc)
-        H.box(cx, ty + 3f, zf + 1.6f, 4f, 24f, 3.2f, wc)
+        // Etapa 128: torre com pórtico vazado embaixo (antes a torre maciça tampava a porta da igreja)
+        val pY = FL + 5.3f
+        H.box(cx, (pY + ty + 15f) / 2, zf + 1.6f, 4f, ty + 15f - pY, 3.2f, wc)
+        for (s in floatArrayOf(-1f, 1f)) { H.box(cx + s * 1.82f, (FL + pY) / 2, zf + 1.6f, 0.36f, pY - FL, 3.2f, wc); g.solid(cx + s * 1.82f - 0.2f, zf, cx + s * 1.82f + 0.2f, zf + 3.2f) }
+        H.m(Mt.STONE, 0.5f); H.box(cx, pY - 0.12f, zf + 3.1f, 4.1f, 0.24f, 0.24f, C("#D9CDB8"))
+        H.m(Mt.PLAIN); H.box(cx, pY - 0.005f, zf + 1.6f, 3.2f, 0.01f, 3.0f, C("#FFF3D6"), false)
+        H.m(Mt.PLASTER, 0.5f)
         H.m(Mt.PLAIN); H.box(cx, ty + 9f, zf + 3.22f, 1.6f, 2.6f, 0.05f, C("#3E2723")); H.box(cx, ty + 9f, zf - 0.02f, 1.6f, 2.6f, 0.05f, C("#3E2723"))
         H.m(Mt.ROOF, 0.6f)
         q(H, P(cx - 2.2f, ty + 15f, zf - 0.2f) + P(cx + 2.2f, ty + 15f, zf - 0.2f) + P(cx, ty + 19f, zf + 1.6f) + P(cx, ty + 19f, zf + 1.6f), C("#6D3A2A"))
@@ -2212,7 +2227,7 @@ object CityGeo {
         q(H, P(cx - 2.2f, ty + 15f, zf + 3.4f) + P(cx - 2.2f, ty + 15f, zf - 0.2f) + P(cx, ty + 19f, zf + 1.6f) + P(cx, ty + 19f, zf + 1.6f), C("#6D3A2A"))
         q(H, P(cx + 2.2f, ty + 15f, zf - 0.2f) + P(cx + 2.2f, ty + 15f, zf + 3.4f) + P(cx, ty + 19f, zf + 1.6f) + P(cx, ty + 19f, zf + 1.6f), C("#6D3A2A"))
         H.m(Mt.METAL, 1f); H.box(cx, ty + 20.2f, zf + 1.6f, 0.15f, 2.4f, 0.15f, C("#C9A227")); H.box(cx, ty + 20.6f, zf + 1.6f, 1.2f, 0.15f, 0.15f, C("#C9A227"))
-        sign(H, cx, FL + 4.6f, zf + 0.22f, 0f, 1f, 4.5f, 0.6f, City.signIdx("IGREJA MATRIZ"))
+        sign(H, cx, FL + 5.45f, zf + 3.22f, 0f, 1f, 3.6f, 0.5f, City.signIdx("IGREJA MATRIZ"))
         g.end()
         g.place(City.Place("Igreja Matriz", cx, zf + 3f, 0xFF6D4C41.toInt(), 'I'))
         g.f.m(Mt.PLASTER, 0.5f); g.f.box(cx, FL + 4.5f, (zf + zb) / 2, w, 9f, zf - zb, wc); g.f.box(cx, ty + 3f, zf + 1.6f, 4f, 24f, 3.2f, wc)
@@ -2813,9 +2828,17 @@ object CityGeo {
         b.m(Mt.PLAIN)
         for (k in 0 until 16) {
             val ang = PI + k * PI / 15
-            val d = 230.0 + (k % 3) * 20
-            val cx = ((X0 + X1) / 2 + d * cos(ang)).toFloat(); val cz = ((Z0 + Z1) / 2 + d * sin(ang) * 0.9).toFloat()
-            CityGeo.ball(b, cx, -8f, cz, 55f + (k % 4) * 12f, mix(C("#7FAE7C"), C("#B9D3BC"), (k % 3) / 3f), 34f + (k % 3) * 8f, 12)
+            var d = 230.0 + (k % 3) * 20
+            val rr = 55f + (k % 4) * 12f
+            var cx: Float; var cz: Float
+            // Etapa 128: o morro não pode entrar na cidade (cobria os fundos da igreja e de casas da beirada)
+            while (true) {
+                cx = ((X0 + X1) / 2 + d * cos(ang)).toFloat(); cz = ((Z0 + Z1) / 2 + d * sin(ang) * 0.9).toFloat()
+                val ox = max(0f, max(X0 - 14f - cx, cx - X1 - 14f)); val oz = max(0f, max(Z0 - 14f - cz, cz - Z1 - 14f))
+                if (sqrt(ox * ox + oz * oz) > rr || d > 900.0) break
+                d += 6.0
+            }
+            CityGeo.ball(b, cx, -8f, cz, rr, mix(C("#7FAE7C"), C("#B9D3BC"), (k % 3) / 3f), 34f + (k % 3) * 8f, 12)
         }
         val c = City.Chunk(b.toMesh(true), null, X0 - 420f, Z0 - 420f, X1 + 420f, Z1 + 420f, 70f)
         c.pend = g.fl

@@ -48,6 +48,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var actBox: FrameLayout
     private lateinit var drivePad: FrameLayout
     private var wasDriving = false
+    // Etapa 128: voo
+    private lateinit var flyBtn: TextView
+    private lateinit var flyPad: FrameLayout
+    private lateinit var turboBtn: TextView
+    private var wasFlying = false
     private lateinit var dockR: LinearLayout
     private lateinit var creator: CreatorUi
     private var prevMode = 0
@@ -192,6 +197,13 @@ class MainActivity : AppCompatActivity() {
 
     private var crouchOn = false
     /** Etapa 88: botão de agachar aceso (amarelo) quando o personagem está agachado */
+    private fun atualizarTurbo() {
+        if (!::turboBtn.isInitialized) return
+        val on = game.r.turbo
+        turboBtn.background = Ui.frost(dpf(18f), if (on) 0xFF6A00 else 0x555F70, 0xE8, 0xA8, dpf(2f), edge = if (on) 0xFFFFE08A.toInt() else 0xCCFFFFFF.toInt())
+        turboBtn.text = if (on) "TURBO\nLIGADO" else "TURBO"
+    }
+
     private fun atualizarAgachar() {
         crouchOn = game.r.crouch
         crouchBtn.background = if (crouchOn) Ui.frost(0f, 0xFFB52E, 0xF0, 0xC0, dpf(2f), oval = true, edge = 0xFFFFFFFF.toInt())
@@ -350,8 +362,24 @@ class MainActivity : AppCompatActivity() {
                 gpsHud.visibility = if (show) View.VISIBLE else View.GONE
                 if (show) gpsHud.invalidate()
                 val dv = game.r.driving
-                speedTv.visibility = if (dv) View.VISIBLE else View.GONE
+                val fl = game.r.flying
+                speedTv.visibility = if (dv || fl) View.VISIBLE else View.GONE
                 if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h   ${game.r.gear}" + (if (game.r.drifting) "   DRIFT!" else "")
+                else if (fl) speedTv.text = "VOANDO   ${game.r.py.toInt()} m   ${(game.r.flySpeed * 3.6f).toInt()} km/h" + (if (game.r.turbo) "   TURBO" else "")
+                // Etapa 128: botão de voar e controles de voo (subir, descer, turbo)
+                if (fl != wasFlying) {
+                    wasFlying = fl
+                    flyPad.visibility = if (fl) View.VISIBLE else View.GONE
+                    flyBtn.text = if (fl) "POUSAR" else "VOAR"
+                    flyBtn.background = Ui.frost(dpf(18f), if (fl) 0xE07B22 else 0x7A4DD8, 0xE0, 0xA8, dpf(2f), edge = 0xEEFFFFFF.toInt())
+                    if (fl) { jumpBtn.visibility = View.GONE; crouchBtn.visibility = View.GONE }
+                    else {
+                        game.r.flyUp = false; game.r.flyDown = false; game.r.turbo = false; atualizarTurbo()
+                        jumpBtn.visibility = if (!dv && game.mode == 0) View.VISIBLE else View.GONE
+                        crouchBtn.visibility = jumpBtn.visibility
+                    }
+                }
+                flyBtn.visibility = if (City.on && !dv && game.mode == 0 && mapView == null && (fl || jumpBtn.visibility == View.VISIBLE)) View.VISIBLE else View.GONE
                 if (dv != wasDriving) {
                     // Etapa 126: dirigindo, os pedais substituem pular/agachar
                     wasDriving = dv
@@ -440,6 +468,38 @@ class MainActivity : AppCompatActivity() {
         pedal("FREIO DE MÃO", 0x3A4A66, 140, 50, 206, 20) { game.r.hbIn = it }
         drivePad.visibility = View.GONE
         root.addView(drivePad, FrameLayout.LayoutParams(dp(360), dp(170), Gravity.BOTTOM or Gravity.END))
+        // Etapa 128: voar — liga/desliga ao lado do agachar; voando, subir e descer (segurar) e turbo (liga/desliga)
+        flyBtn = tvShadow(tv("VOAR", 12f, Color.WHITE, true))
+        flyBtn.gravity = Gravity.CENTER
+        flyBtn.background = Ui.frost(dpf(18f), 0x7A4DD8, 0xE0, 0xA8, dpf(2f), edge = 0xEEFFFFFF.toInt())
+        flyBtn.elevation = dpf(6f)
+        flyBtn.visibility = View.GONE
+        press(flyBtn) { game.r.flyReq = true }
+        actBox.addView(flyBtn, FrameLayout.LayoutParams(dp(66), dp(40), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(192), dp(20)) })
+        flyPad = FrameLayout(this)
+        flyPad.clipChildren = false
+        fun hold(txt: String, tint: Int, w: Int, h: Int, endM: Int, botM: Int, on: (Boolean) -> Unit) {
+            val t = tvShadow(tv(txt, 13f, Color.WHITE, true)); t.gravity = Gravity.CENTER
+            t.background = Ui.frost(dpf(18f), tint, 0xE0, 0xA8, dpf(2f), edge = 0xEEFFFFFF.toInt())
+            t.elevation = dpf(6f)
+            t.setOnTouchListener { v, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { on(true); v.animate().scaleX(0.92f).scaleY(0.9f).setDuration(60).start() }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { on(false); v.animate().scaleX(1f).scaleY(1f).setDuration(90).start() }
+                }
+                true
+            }
+            flyPad.addView(t, FrameLayout.LayoutParams(dp(w), dp(h), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(endM), dp(botM)) })
+        }
+        hold("▲\nSUBIR", 0x2FA8F0, 78, 76, 22, 118) { game.r.flyUp = it }
+        hold("▼\nDESCER", 0x3A4A66, 78, 76, 22, 30) { game.r.flyDown = it }
+        turboBtn = tvShadow(tv("TURBO", 13f, Color.WHITE, true)); turboBtn.gravity = Gravity.CENTER
+        turboBtn.elevation = dpf(6f)
+        press(turboBtn) { game.r.turbo = !game.r.turbo; atualizarTurbo() }
+        flyPad.addView(turboBtn, FrameLayout.LayoutParams(dp(78), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(112), dp(40)) })
+        atualizarTurbo()
+        flyPad.visibility = View.GONE
+        root.addView(flyPad, FrameLayout.LayoutParams(dp(300), dp(220), Gravity.BOTTOM or Gravity.END))
         var lastUseKey = ""
         val useTick = object : Runnable {
             override fun run() {
