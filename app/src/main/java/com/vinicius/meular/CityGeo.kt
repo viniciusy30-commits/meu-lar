@@ -17,6 +17,7 @@ import kotlin.math.sqrt
 object CityGeo {
     private val CURB = City.CURB
     private val FL = City.FLOOR
+    private val SIDE = City.SIDE
     private const val STUB = 0.9f
 
     // ============================================================ geração de um pedaço
