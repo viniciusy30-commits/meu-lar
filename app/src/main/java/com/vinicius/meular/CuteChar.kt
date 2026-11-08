@@ -334,7 +334,8 @@ object CuteChar {
             if (p == null) { if (s.tex.startsWith("sk_")) texPending = true; continue }   // Etapa 44: textura ainda não subiu (próximo quadro)
             act.add(s)
             parts.add(p)
-            s.hide?.let { h ->
+            // Etapa 115: a máscara do tênis é do corpo do Sims (aplicada abaixo), não do corpo-base
+            if (!(s.mod && slot == "feet")) s.hide?.let { h ->
                 for (t in h) {
                     val ti = t.toInt() and 0xFFFF
                     if (ti < hide.size) { hide[ti] = true; anyHide = true }
@@ -379,6 +380,13 @@ object CuteChar {
                 val cv = coverCache.getOrPut(ck) {
                     val bi = bidx ?: IntArray(sims.ni) { sims.idx[it].toInt() and 0xFFFF }.also { bidx = it }
                     val r = BooleanArray(sims.ni / 3)
+                    // Etapa 115: sapato com máscara própria (CUP1): esconde só a pele sob o calçado (abaixo do cano).
+                    // Antes usava Cover.mark por proximidade e deixava pé furando a sola/biqueira.
+                    val hl = m.hide
+                    if (sl == "feet" && hl != null && sims.key.contains("am5")) {
+                        for (t in hl) { val ti = t.toInt() and 0xFFFF; if (ti < r.size) r[ti] = true }
+                        return@getOrPut r
+                    }
                     val nk = rigs[simKey]?.let { it[19] } ?: 999f   // altura do pescoço: a pele do pescoço/cabeça nunca é escondida
                     var lim = if (sl == "top" || sl == "jacket" || sl == "overall") nk - 7f else 9999f
                     if (sl == "bottom") {
