@@ -207,8 +207,10 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 
 ## Etapa 112 — Tênis Dunk High masculino + pacote StandStillInCAS preservado
 - [x] VHSync Dunk High convertido para o corpo adulto masculino do Sims 4 (`am5`), slot `feet`, 4.244 vértices, 6.232 triângulos e 38 swatches.
-- [x] `ModStore` registra o tênis em Sapatos, com seletor das 38 cores. A conversão preserva a sola; a rotina de remoção de tampas de calça não é aplicada a sapatos.
-- [x] Prévia 3D renderizada em 3/4, frente e lateral com a rasterização de `Thumb.kt`; detalhes em `imagens-dunk-high/`.
+- [x] Corrigida a ponta/sola deformada: sapatos não passam pelo `pushOut` de tecido; a geometria original é preservada.
+- [x] CUP1 oculta 570 triângulos do pé-base enquanto o tênis está vestido; a canela permanece visível. `Thumb.kt` aplica a mesma máscara nas miniaturas.
+- [x] `ModStore` registra o tênis em Sapatos, com seletor das 38 cores.
+- [x] Prévia 3D renderizada e inspecionada em 3/4, frente e lateral; miniatura Kotlin também testada. Detalhes em `imagens-dunk-high/`.
 - [x] StandStillInCAS original preservado em `mods-sims4/originais/`. É tuning ASM XML do CAS do The Sims 4, sem malha/textura; não é renderizável nem executável pelo Meu Lar.
-- [ ] Build Android e teste no aparelho após envio do ZIP para `_incoming`.
+- [ ] Build Android e teste no aparelho após envio do ZIP para `_incoming` (Gradle/gradlew indisponível neste ambiente).
 - Detalhes e validações: `ETAPA112-DUNK-HIGH-STANDSTILL-NOTAS.md`.

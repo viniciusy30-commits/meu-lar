@@ -24,6 +24,40 @@ public final class T4Shoe {
         return new BodyRef(pos,nor,bi,bw,idx,null,96.8f/0.9861f);
     }
 
+    /** Triângulos do corpo formados inteiramente por vértices dos ossos do pé.
+     * O tênis fechado substitui o pé visível; a canela (ossos 17/21) permanece.
+     */
+    private static int[] hideFeet(BodyRef body) {
+        final int[] footBones = {18, 19, 20, 22, 23, 24};
+        int[] tmp = new int[body.idx.length / 3];
+        int n = 0;
+        for (int t = 0; t < body.idx.length / 3; t++) {
+            boolean allFoot = true;
+            for (int k = 0; k < 3 && allFoot; k++) {
+                int v = body.idx[t * 3 + k];
+                int best = 0;
+                for (int j = 1; j < 4; j++) if (body.bw[v * 4 + j] > body.bw[v * 4 + best]) best = j;
+                int bone = body.bi[v * 4 + best];
+                boolean foot = false;
+                for (int fb : footBones) if (bone == fb) { foot = true; break; }
+                if (!foot) allFoot = false;
+            }
+            if (allFoot) tmp[n++] = t;
+        }
+        return Arrays.copyOf(tmp, n);
+    }
+
+    /** Anexa ao CUP1 a lista de triângulos da pele que o tênis cobre. */
+    private static byte[] withHide(byte[] cup, int[] hide) {
+        ByteBuffer b = ByteBuffer.allocate(cup.length + 4 + hide.length * 2).order(ByteOrder.LITTLE_ENDIAN);
+        b.put(cup);
+        b.putInt(12, 1); // flags: bit 0 = lista de triângulos ocultos
+        b.position(cup.length);
+        b.putInt(hide.length);
+        for (int t : hide) b.putShort((short) t);
+        return b.array();
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length != 1) throw new Exception("Uso: T4Shoe <arquivo.package>");
         Path root = Paths.get(".").toAbsolutePath();
@@ -36,7 +70,9 @@ public final class T4Shoe {
         if (o.swatches < 1) throw new Exception("O package não tem cores CASP.");
         Path out = root.resolve("app/src/main/assets/cute/skate");
         Files.createDirectories(out);
-        Files.write(out.resolve("dunk_high_am5.cup"), o.cup);
+        int[] hiddenFeet = hideFeet(male);
+        byte[] shoeCup = withHide(o.cup, hiddenFeet);
+        Files.write(out.resolve("dunk_high_am5.cup"), shoeCup);
 
         StringBuilder colors = new StringBuilder();
         StringBuilder report = new StringBuilder();
@@ -46,6 +82,7 @@ public final class T4Shoe {
               .append("y_cm=").append(o.ymin).append("..").append(o.ymax).append('\n')
               .append("texture=").append(o.texW).append('x').append(o.texH).append('\n')
               .append("swatches=").append(o.swatches).append('\n')
+              .append("hidden_body_foot_triangles=").append(hiddenFeet.length).append('\n')
               .append("pushed_vertices_total=").append(o.pushed).append('\n')
               .append("max_push_cm=").append(o.maxPush).append('\n');
         for (String n : o.notes) report.append("note=").append(n).append('\n');

@@ -1,12 +1,14 @@
 slot=feet
 vertices=4244
 triangles=6232/6268
-y_cm=-0.73593336..16.189861
+y_cm=0.20035352..16.273897
 texture=1024x512
 swatches=38
-pushed_vertices_total=4890
-max_push_cm=2.9069977
+hidden_body_foot_triangles=570
+pushed_vertices_total=0
+max_push_cm=0.0
 note=sola preservada: peça classificada como sapato
+note=encaixe: geometria do sapato preservada; ocultação do pé-base no CUP1
 c01=666666
 c02=BD4B4B
 c03=3564AC

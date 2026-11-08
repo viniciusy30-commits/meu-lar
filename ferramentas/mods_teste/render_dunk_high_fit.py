@@ -24,7 +24,12 @@ def read_cup(path):
     idx = np.frombuffer(b, dtype="<u2", count=ni, offset=16 + nv * 44).reshape(-1, 3).astype(np.int32)
     if idx.size and int(idx.max()) >= nv:
         raise ValueError(f"Índice fora da malha: {path}")
-    return {"pos": v["pos"].copy(), "nor": v["nor"].copy(), "uv": v["uv"].copy(), "idx": idx}
+    hide = np.empty(0, dtype=np.int32)
+    if struct.unpack_from("<I", b, 12)[0] & 1:
+        off = 16 + nv * 44 + ni * 2
+        nh = struct.unpack_from("<I", b, off)[0]
+        hide = np.frombuffer(b, dtype="<u2", count=nh, offset=off + 4).astype(np.int32)
+    return {"pos": v["pos"].copy(), "nor": v["nor"].copy(), "uv": v["uv"].copy(), "idx": idx, "hide": hide}
 
 def render(parts, yaw=-0.62, pitch=0.30, size=256):
     ss = 2
@@ -146,6 +151,11 @@ def render(parts, yaw=-0.62, pitch=0.30, size=256):
 def main():
     body = read_cup(ASSETS / "p_body_am5.bin")
     shoe = read_cup(SKATE / "dunk_high_am5.cup")
+    # Reproduz a máscara que CuteChar.rebuildActive aplica ao corpo quando o tênis está vestido.
+    if len(shoe["hide"]):
+        keep = np.ones(len(body["idx"]), dtype=bool)
+        keep[shoe["hide"]] = False
+        body["idx"] = body["idx"][keep]
     tex = np.asarray(Image.open(SKATE / "dunk_high_am5.png").convert("RGBA"))
     thumb = render([
         {"mesh": body, "color": (227, 191, 162, 255), "support": True},
@@ -178,6 +188,8 @@ def main():
                       "v": [float(shoe["uv"][:, 1].min()), float(shoe["uv"][:, 1].max())]},
         "texture": [int(tex.shape[1]), int(tex.shape[0])],
         "texture_alpha_pixels": int(np.sum(tex[:, :, 3] < 255)),
+        "hidden_body_triangles": int(len(shoe["hide"])),
+        "body_triangles_after_hide": int(len(body["idx"])),
         "render": "OK"
     }
     (OUT / "diagnostico.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))

@@ -398,7 +398,7 @@ object ModStore {
         } catch (e: Throwable) {
             android.util.Log.w("ModStore", "corpo de apoio indisponível para " + it.id, e)
         }
-        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFFFFFFFF.toInt(), it.alpha))
+        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFFFFFFFF.toInt(), it.alpha, hide = Thumb.hideList(cup)))
         val rendered = Thumb.render(parts, it.slot, 256)
         if (!bmp.isRecycled) bmp.recycle()
         return Bitmap.createBitmap(rendered, 256, 256, Bitmap.Config.ARGB_8888)
@@ -441,7 +441,7 @@ object ModStore {
         } catch (e: Throwable) {
             android.util.Log.w("ModStore", "corpo de apoio da miniatura " + it.id, e)
         }
-        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFF9AA3AD.toInt(), it.alpha))
+        parts.add(Thumb.Piece(Thumb.parse(cup), pixels, tw, th, 0xFF9AA3AD.toInt(), it.alpha, hide = Thumb.hideList(cup)))
         val px = Thumb.render(parts, it.slot, 256)
         return Bitmap.createBitmap(px, 256, 256, Bitmap.Config.ARGB_8888)
     }

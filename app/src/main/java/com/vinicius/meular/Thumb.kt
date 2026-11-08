@@ -14,7 +14,20 @@ object Thumb {
     }
 
     /** [pixels] = ARGB (w*h) da textura, ou null para cor lisa [color]. [cut] = recorte por alfa (mechas de cabelo). */
-    class Piece(val mesh: Mesh, val pixels: IntArray?, val tw: Int, val th: Int, val color: Int, val cut: Boolean = false, val support: Boolean = false)
+    class Piece(val mesh: Mesh, val pixels: IntArray?, val tw: Int, val th: Int, val color: Int, val cut: Boolean = false, val support: Boolean = false, val hide: IntArray? = null)
+
+    /** Lê a máscara CUP1: índices dos triângulos do corpo que a peça cobre. */
+    fun hideList(b: ByteArray): IntArray {
+        return try {
+            val bb = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN)
+            val nv = bb.getInt(4); val ni = bb.getInt(8); val flags = bb.getInt(12)
+            if (flags and 1 == 0) return intArrayOf()
+            val off = 16 + nv * 44 + ni * 2
+            val n = bb.getInt(off)
+            if (n < 0 || off + 4L + n.toLong() * 2L > b.size) return intArrayOf()
+            IntArray(n) { bb.getShort(off + 4 + it * 2).toInt() and 0xFFFF }
+        } catch (_: Throwable) { intArrayOf() }
+    }
 
     fun parse(b: ByteArray): Mesh {
         val bb = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN)
@@ -54,6 +67,22 @@ object Thumb {
      * Devolve ARGB (size*size), fundo transparente.
      */
     fun render(parts: List<Piece>, slot: String, size: Int = 256): IntArray {
+        // A miniatura precisa mostrar o mesmo encaixe do avatar: remove da pele de apoio
+        // os triângulos listados no CUP1 da peça (ex.: o pé dentro de um tênis fechado).
+        val hidden = HashSet<Int>()
+        for (p in parts) if (!p.support) p.hide?.forEach { hidden.add(it) }
+        val renderParts = if (hidden.isEmpty()) parts else parts.map { p ->
+            if (!p.support) p else {
+                val kept = ArrayList<Int>()
+                var t = 0
+                while (t + 2 < p.mesh.idx.size) {
+                    if (t / 3 !in hidden) { kept.add(p.mesh.idx[t]); kept.add(p.mesh.idx[t + 1]); kept.add(p.mesh.idx[t + 2]) }
+                    t += 3
+                }
+                val m = Mesh(p.mesh.pos, p.mesh.nor, p.mesh.uv, kept.toIntArray())
+                Piece(m, p.pixels, p.tw, p.th, p.color, p.cut, p.support, p.hide)
+            }
+        }
         val ss = 2
         val W = size * ss
         val yaw = when (slot) { "feet" -> -0.62f; "hairBack", "hairFront", "hat", "headAcc", "glasses", "beard" -> -0.28f; else -> 0f }
@@ -71,10 +100,10 @@ object Thumb {
             }
             return o
         }
-        val pr = parts.map { proj(it.mesh) }
+        val pr = renderParts.map { proj(it.mesh) }
         var x0 = 1e9f; var x1 = -1e9f; var y0 = 1e9f; var y1 = -1e9f
         // o enquadramento usa só as peças "principais" (a cabeça de apoio do cabelo não conta além do cabelo)
-        for ((k, p) in parts.withIndex()) {
+        for ((k, p) in renderParts.withIndex()) {
             if (p.support) continue
             val m = p.mesh
             val used = BooleanArray(m.nv)
@@ -93,7 +122,7 @@ object Thumb {
         val zb = FloatArray(W * W) { -1e9f }
         val lx = 0.35f; val ly = 0.55f; val lz = 0.76f
         val ll = Math.sqrt((lx * lx + ly * ly + lz * lz).toDouble()).toFloat()
-        for ((k, p) in parts.withIndex()) {
+        for ((k, p) in renderParts.withIndex()) {
             val m = p.mesh; val P = pr[k]
             // normais giradas igual às posições
             val N = FloatArray(m.nv * 3)

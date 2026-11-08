@@ -1,11 +1,13 @@
-# Pacote de atualização — Etapa 112
+# Pacote de correção — Etapa 112 (Dunk High)
 
-Este ZIP foi montado para ser enviado diretamente à pasta `_incoming/` do repositório.
+Este ZIP deve ser enviado diretamente à pasta `_incoming/` do repositório.
 
 - Não precisa extrair manualmente.
 - O workflow `Unpack and commit` extrai os caminhos do ZIP na raiz do projeto e cria o commit.
 - Depois da extração, o workflow Android deve iniciar o build do APK.
 
-O pacote adiciona o tênis VHSync Dunk High ao catálogo masculino de Sapatos, as 38 texturas, a miniatura, o conversor e os renders de conferência. Também preserva o package original StandStillInCAS, que é um recurso ASM do CAS do The Sims 4 e não é executável pelo renderizador do Meu Lar.
+O pacote inclui o tênis VHSync Dunk High no catálogo masculino de Sapatos, as 38 texturas, a miniatura e o conversor atualizado. A correção remove a deformação preta na ponta/sola: sapatos não passam mais pelo `pushOut` de tecido, e o CUP1 oculta os 570 triângulos do pé-base enquanto o tênis está vestido. A miniatura 3D também respeita essa máscara.
 
-Consulte `ETAPA112-DUNK-HIGH-STANDSTILL-NOTAS.md` para os detalhes técnicos e limites do teste.
+O package original StandStillInCAS é preservado. Ele contém tuning ASM XML do CAS do The Sims 4, não uma malha ou animação que o Meu Lar consiga executar.
+
+Consulte `ETAPA112-DUNK-HIGH-STANDSTILL-NOTAS.md` para os detalhes técnicos, renders e limites do teste.

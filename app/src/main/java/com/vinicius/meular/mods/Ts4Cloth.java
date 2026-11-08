@@ -125,7 +125,13 @@ public final class Ts4Cloth {
             }
             if (legT == null) out.notes.add("AVISO: não achei as duas pernas separadas; pesos por posição x");
         }
-        pushOut(body, pos, idx, clear, out, shoeLike);
+        // Sapatos são uma casca rígida que envolve o pé. O pushOut genérico foi feito
+        // para tecido e, ao tentar afastar a sola da malha do pé, deslocava vértices
+        // da biqueira em direções diferentes, criando pontas pretas e facetas.
+        // Para sapatos, preservamos a geometria original e ocultamos o pé-base no
+        // CUP1 específico do calçado (máscara gerada por T4Shoe).
+        if (shoeLike) out.notes.add("encaixe: geometria do sapato preservada; ocultação do pé-base no CUP1");
+        else pushOut(body, pos, idx, clear, out, false);
         if (preTop) { int pulled = collarPull(body, pos, idx, ymax, clear); out.notes.add("gola: " + pulled + " vértices puxados ao pescoço"); }
         ymin = Float.MAX_VALUE; ymax = -Float.MAX_VALUE;
         for (int i = 0; i < nv; i++) { ymin = Math.min(ymin, pos[i*3+1]); ymax = Math.max(ymax, pos[i*3+1]); }
