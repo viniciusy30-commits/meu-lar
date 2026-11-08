@@ -1,3 +1,14 @@
+#id 2026-11-10-cidade
+#titulo A cidade chegou
+- Saia pelo portão da frente: a casa agora fica no meio de uma cidade de 25 quarteirões, toda andável
+- Avenidas de mão dupla com calçada, meio-fio, faixa amarela, faixa de pedestre, semáforos funcionando, postes, árvores e placas de rua
+- Praça com fonte, canteiros e academia ao ar livre bem em frente de casa; parque com lago, pista e parquinho
+- Comércio com letreiro e toldo: padaria, farmácia, café, pet shop, pizzaria, sorveteria, lanchonete, banco e mais; supermercado com estacionamento; posto com conveniência
+- Hospital com pronto-socorro, ambulâncias e heliponto; delegacia, bombeiros, escola com quadra, hotel e prédios no centro
+- Bairros de casas com telhado, garagem, cerca e carro na entrada
+- Cidade viva: carros param no sinal, fazem fila e param para você; pedestres andando nas calçadas
+- Água da piscina mais leve para o celular, com o mesmo visual
+
 #id 2026-11-10-piscina2
 #titulo Piscina nova e animações sem tranco
 - Água de verdade: ondas suaves, reflexo do céu e do sol, fundo que escurece com a profundidade e luz dançando no azulejo
