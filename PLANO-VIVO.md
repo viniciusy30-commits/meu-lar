@@ -214,3 +214,10 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] StandStillInCAS original preservado em `mods-sims4/originais/`. É tuning ASM XML do CAS do The Sims 4, sem malha/textura; não é renderizável nem executável pelo Meu Lar.
 - [ ] Build Android e teste no aparelho após envio do ZIP para `_incoming` (Gradle/gradlew indisponível neste ambiente).
 - Detalhes e validações: `ETAPA112-DUNK-HIGH-STANDSTILL-NOTAS.md`.
+
+## Etapa 113 — braços e mãos dos modelos TS4
+- [x] `clips_am5.bin`: os movimentos locais de clavículas, braços, antebraços, mãos e dedos do `af5` foram retargetados para o rig `am5` em todos os 11 clipes; tronco, cabeça e pernas masculinos foram preservados.
+- [x] `CuteChar.kt`: pivôs específicos para as mãos masculina e feminina; polegar reposicionado para ficar por cima dos dedos durante a corrida; transição da mão fechada corrigida com slerp para evitar deformação da matriz.
+- [x] Renders offline de andar, correr, pulo e das duas mãos dos dois modelos; rotações locais conferidas e comprimentos do rig masculino preservados.
+- [ ] Build Android e teste no aparelho após envio do ZIP para `_incoming` (sem `gradlew`/Gradle/Android SDK neste ambiente).
+- Detalhes: `ETAPA113-BRACOS-MAOS-NOTAS.md`; prévias em `imagens-etapa113/`.

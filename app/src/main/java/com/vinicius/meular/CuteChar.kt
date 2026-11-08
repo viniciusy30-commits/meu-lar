@@ -1185,41 +1185,117 @@ object CuteChar {
         floatArrayOf(64.7f, 100.15f, 66.9f, 98.05f, 68.8f, 96.3f),
         floatArrayOf(64.55f, 100.45f, 66.85f, 98.35f, 68.8f, 96.6f),
         floatArrayOf(59.35f, 103.5f, 60.25f, 101.1f, 62.65f, 99.65f))
-    // Corpo do Sims 4: juntas dos dedos (Index/Mid/Ring/Pinky/Thumb 0..2) do esqueleto original do TS4 (skel_s4.txt), trazidas para a escala da malha
-    // (o corpo do TS4 é reescalado para 182 cm: punho do esqueleto -> punho do bodyrig, escala 0.969). A versão da etapa 97 usava a escala do esqueleto e errava o pivô.
-    private val FIST_J_TS4 = arrayOf(
-        floatArrayOf(61.99f, 101.95f, 64.99f, 98.96f, 66.7f, 97.27f),
-        floatArrayOf(62.46f, 101.84f, 65.52f, 98.61f, 67.45f, 96.57f),
-        floatArrayOf(62.5f, 101.78f, 65.39f, 98.65f, 67.16f, 96.73f),
-        floatArrayOf(62.09f, 101.92f, 64.8f, 99.15f, 66.29f, 97.63f),
-        floatArrayOf(58.03f, 105.24f, 58.55f, 102.98f, 59.21f, 100.14f))
+    // Corpo do Sims 4: pivôs reais de cada mão. O masculino tem a mão ~1,5 cm
+    // acima/à frente do feminino; usar os mesmos pivôs fazia o polegar atravessar os dedos.
+    private val FIST_J_TS4_AF = arrayOf(
+        floatArrayOf(62.00f, 101.95f, 65.00f, 98.96f, 66.71f, 97.26f),
+        floatArrayOf(62.47f, 101.83f, 65.53f, 98.60f, 67.46f, 96.56f),
+        floatArrayOf(62.51f, 101.78f, 65.39f, 98.65f, 67.17f, 96.73f),
+        floatArrayOf(62.10f, 101.92f, 64.81f, 99.15f, 66.30f, 97.62f),
+        floatArrayOf(58.04f, 105.24f, 58.56f, 102.98f, 59.21f, 100.13f))
+    private val FIST_J_TS4_AM = arrayOf(
+        floatArrayOf(62.65f, 103.09f, 65.69f, 100.07f, 67.41f, 98.35f),
+        floatArrayOf(63.13f, 102.97f, 66.22f, 99.71f, 68.17f, 97.65f),
+        floatArrayOf(63.17f, 102.92f, 66.08f, 99.76f, 67.87f, 97.82f),
+        floatArrayOf(62.75f, 103.06f, 65.49f, 100.26f, 66.99f, 98.72f),
+        floatArrayOf(58.65f, 106.41f, 59.18f, 104.13f, 59.83f, 101.25f))
     private val FIST_ANG = arrayOf(
         floatArrayOf(72f, 95f, 55f), floatArrayOf(75f, 95f, 55f), floatArrayOf(78f, 95f, 55f), floatArrayOf(80f, 95f, 55f),
         floatArrayOf(18f, 28f, 18f))
-    // Corpo Sims 4, polegar: só girar em Z (como os outros dedos) deixava o polegar esticado para fora, na frente da mão. Agora ele primeiro
-    // "entra" girando em X (eixo da frente para trás da palma) em torno da base do polegar e só depois dobra as 3 juntas, assim ele cruza
-    // por cima dos outros dedos fechados. THUMB_TUCK_DEG = graus da entrada; THUMB_TUCK_P = pivô (x,y,z em cm, mão esquerda; a direita espelha x).
-    private val THUMB_ANG_TS4 = floatArrayOf(-18f, 5f, 25f)
-    private const val THUMB_TUCK_DEG = 35f
-    private val THUMB_TUCK_P = floatArrayOf(58.03f, 105.24f, 2.1f)
+    // O polegar entra pela frente da palma e cruza a parte superior dos dedos. 35°
+    // aproximava demais o indicador (distância entre eixos < 0,5 cm); 18° mantém folga.
+    private val THUMB_ANG_TS4_AF = floatArrayOf(-22f, 25f, 35f)
+    // A mão masculina é mais larga; o primeiro giro fica um pouco mais para fora.
+    private val THUMB_ANG_TS4_AM = floatArrayOf(-30f, 25f, 35f)
+    private const val THUMB_TUCK_DEG = 18f
+    private val THUMB_TUCK_P_AF = floatArrayOf(58.04f, 105.24f, 1.23f)
+    private val THUMB_TUCK_P_AM = floatArrayOf(58.65f, 106.41f, 2.13f)
+
+    /** Interpola uma junta de dedo até a orientação do pulso sem deformar a matriz 3x3.
+     * A interpolação linear antiga encolhia/esticava a mão no meio da transição para a corrida. */
+    private fun blendFingerToWrist(mm: FloatArray, bone: Int, wrist: Int, k0: Float) {
+        val k = k0.coerceIn(0f, 1f)
+        val o = bone * 12; val w = wrist * 12
+        if (k <= 0f) return
+        if (k >= 0.9999f) { System.arraycopy(mm, w, mm, o, 12); return }
+        fun scaleAt(i: Int): Double {
+            val x = mm[i].toDouble(); val y = mm[i + 1].toDouble(); val z = mm[i + 2].toDouble()
+            return kotlin.math.sqrt(x * x + y * y + z * z).coerceAtLeast(1e-12)
+        }
+        fun quatAt(i: Int, sc: Double): DoubleArray {
+            val m00 = mm[i].toDouble() / sc; val m01 = mm[i + 1].toDouble() / sc; val m02 = mm[i + 2].toDouble() / sc
+            val m10 = mm[i + 4].toDouble() / sc; val m11 = mm[i + 5].toDouble() / sc; val m12 = mm[i + 6].toDouble() / sc
+            val m20 = mm[i + 8].toDouble() / sc; val m21 = mm[i + 9].toDouble() / sc; val m22 = mm[i + 10].toDouble() / sc
+            val tr = m00 + m11 + m22
+            val q = DoubleArray(4)
+            if (tr > 0.0) {
+                val z = kotlin.math.sqrt(tr + 1.0) * 2.0
+                q[3] = 0.25 * z; q[0] = (m21 - m12) / z; q[1] = (m02 - m20) / z; q[2] = (m10 - m01) / z
+            } else if (m00 > m11 && m00 > m22) {
+                val z = kotlin.math.sqrt(1.0 + m00 - m11 - m22) * 2.0
+                q[3] = (m21 - m12) / z; q[0] = 0.25 * z; q[1] = (m01 + m10) / z; q[2] = (m02 + m20) / z
+            } else if (m11 > m22) {
+                val z = kotlin.math.sqrt(1.0 + m11 - m00 - m22) * 2.0
+                q[3] = (m02 - m20) / z; q[0] = (m01 + m10) / z; q[1] = 0.25 * z; q[2] = (m12 + m21) / z
+            } else {
+                val z = kotlin.math.sqrt(1.0 + m22 - m00 - m11) * 2.0
+                q[3] = (m10 - m01) / z; q[0] = (m02 + m20) / z; q[1] = (m12 + m21) / z; q[2] = 0.25 * z
+            }
+            val n = kotlin.math.sqrt(q.sumOf { it * it }).coerceAtLeast(1e-12)
+            for (j in 0..3) q[j] /= n
+            return q
+        }
+        val qa = quatAt(o, scaleAt(o)); val qb = quatAt(w, scaleAt(w))
+        var dot = 0.0
+        for (j in 0..3) dot += qa[j] * qb[j]
+        if (dot < 0.0) { for (j in 0..3) qb[j] = -qb[j]; dot = -dot }
+        val q = DoubleArray(4)
+        if (dot > 0.9995) {
+            for (j in 0..3) q[j] = qa[j] + (qb[j] - qa[j]) * k
+        } else {
+            val theta = kotlin.math.acos(dot.coerceIn(-1.0, 1.0))
+            val sn = kotlin.math.sin(theta).coerceAtLeast(1e-12)
+            val a = kotlin.math.sin((1.0 - k) * theta) / sn
+            val b = kotlin.math.sin(k * theta) / sn
+            for (j in 0..3) q[j] = qa[j] * a + qb[j] * b
+        }
+        val qn = kotlin.math.sqrt(q.sumOf { it * it }).coerceAtLeast(1e-12)
+        for (j in 0..3) q[j] /= qn
+        val x = q[0]; val y = q[1]; val z = q[2]; val ww = q[3]
+        val sc = scaleAt(w).toFloat()
+        mm[o] = (1.0 - 2.0 * (y * y + z * z)).toFloat() * sc
+        mm[o + 1] = (2.0 * (x * y - z * ww)).toFloat() * sc
+        mm[o + 2] = (2.0 * (x * z + y * ww)).toFloat() * sc
+        mm[o + 4] = (2.0 * (x * y + z * ww)).toFloat() * sc
+        mm[o + 5] = (1.0 - 2.0 * (x * x + z * z)).toFloat() * sc
+        mm[o + 6] = (2.0 * (y * z - x * ww)).toFloat() * sc
+        mm[o + 8] = (2.0 * (x * z - y * ww)).toFloat() * sc
+        mm[o + 9] = (2.0 * (y * z + x * ww)).toFloat() * sc
+        mm[o + 10] = (1.0 - 2.0 * (x * x + y * y)).toFloat() * sc
+        for (r in 0..2) mm[o + r * 4 + 3] += (mm[w + r * 4 + 3] - mm[o + r * 4 + 3]) * k
+    }
 
     /** Fecha a mão: cada junta gira em torno do seu pivô (no espaço de repouso) e a matriz do osso recebe esse giro antes da pose da animação. */
     private fun fistHands(mm: FloatArray, k: Float) {
         val rc = FloatArray(9); val tc = FloatArray(3); val rn = FloatArray(9); val tn = FloatArray(3)
+        val ts4 = isTs4()
+        val maleTs4 = ts4 && simKey.startsWith("am")
+        val pivots = if (maleTs4) FIST_J_TS4_AM else FIST_J_TS4_AF
+        val thumbPivot = if (maleTs4) THUMB_TUCK_P_AM else THUMB_TUCK_P_AF
+        val thumbAngles = if (maleTs4) THUMB_ANG_TS4_AM else THUMB_ANG_TS4_AF
         for (side in 0..1) {
             val sx = if (side == 0) 1f else -1f
             val off = if (side == 0) 0 else 15
             for (f in 0 until 5) {
-                val ts4 = isTs4()
-                val bones = FIST_BONES[f]; val j = if (ts4) FIST_J_TS4[f] else FIST_J[f]
-                val a = if (f == 4 && ts4) THUMB_ANG_TS4 else FIST_ANG[f]
+                val bones = FIST_BONES[f]; val j = if (ts4) pivots[f] else FIST_J[f]
+                val a = if (f == 4 && ts4) thumbAngles else FIST_ANG[f]
                 // acumulado = identidade (polegar do Sims 4: começa com a "entrada" em X em torno da base do polegar)
                 rc[0] = 1f; rc[1] = 0f; rc[2] = 0f; rc[3] = 0f; rc[4] = 1f; rc[5] = 0f; rc[6] = 0f; rc[7] = 0f; rc[8] = 1f
                 tc[0] = 0f; tc[1] = 0f; tc[2] = 0f
                 if (f == 4 && ts4) {
                     val th = Math.toRadians((THUMB_TUCK_DEG * k).toDouble())
                     val c0 = Math.cos(th).toFloat(); val s0 = Math.sin(th).toFloat()
-                    val qx = sx * THUMB_TUCK_P[0]; val qy = THUMB_TUCK_P[1]; val qz = THUMB_TUCK_P[2]
+                    val qy = thumbPivot[1]; val qz = thumbPivot[2]
                     // R = [[1,0,0],[0,c,-s],[0,s,c]], t = Q - R*Q
                     rc[4] = c0; rc[5] = -s0; rc[7] = s0; rc[8] = c0
                     tc[1] = qy - (c0 * qy - s0 * qz)
@@ -1241,14 +1317,10 @@ object CuteChar {
                         tn[r] = a0 * tx + a1 * ty + tc[r]
                     }
                     System.arraycopy(rn, 0, rc, 0, 9); System.arraycopy(tn, 0, tc, 0, 3)
-                    // aplica na matriz do osso desta junta: M = M * acumulado
-                    val o = (bones[jt] + off) * 12
-                    // Etapa 100 (Sims 4): o clipe de correr traz uma pose relaxada dos dedos gravada em cada osso; o punho girava POR CIMA dela e abria os dedos em leque.
-                    // Agora a base de cada dedo vai para a matriz do pulso (osso da mão: 12 esquerda, 16 direita) na proporção do punho, ignorando essa pose gravada.
-                    if (ts4) {
-                        val w = (12 + side * 4) * 12
-                        for (q in 0 until 12) mm[o + q] = mm[o + q] + (mm[w + q] - mm[o + q]) * k
-                    }
+                    // Etapa 113: mistura em quaternion (sem shear) e usa pivôs próprios de cada sexo do TS4.
+                    val bone = bones[jt] + off
+                    if (ts4) blendFingerToWrist(mm, bone, 12 + side * 4, k)
+                    val o = bone * 12
                     for (r in 0..2) {
                         val m0 = mm[o + r * 4]; val m1 = mm[o + r * 4 + 1]; val m2 = mm[o + r * 4 + 2]; val mt = mm[o + r * 4 + 3]
                         mm[o + r * 4] = m0 * rc[0] + m1 * rc[3] + m2 * rc[6]
