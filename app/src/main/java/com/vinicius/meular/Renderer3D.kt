@@ -85,6 +85,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var swYaw = 0f
     private var swToX = 0f; private var swToZ = 0f  // destino da etapa atual
     // 5 = sentando na borda (SIT_IN); 6 = sentado na borda, pernas na água; 7 = escorregando para a água; 8 = levantando (SIT_OUT)
+    // Etapa 120: velocidade na água, histerese nadar/boiar, ondinhas
+    private var swVX = 0f
+    private var swVZ = 0f
+    private var swimAnimMove = false
+    private var swimStill = 0f
+    private var ripT = 0f
+    private var waterT = 0f
+    private var diveSplash = false
     private var swimJump = false                    // o botão de pulo foi apertado neste quadro
     private var edgeHold = 0f                       // tempo empurrando o analógico contra a água
 
@@ -838,30 +846,55 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 pYaw = swYaw; pMoving = false; py = 0f
                 val d = Pool.diveZ(swimT) * hs   // o clipe não traz deslocamento: o quadril avança pela tabela (a câmera acompanha)
                 px = swX + swDX * d; pz = swZ + swDZ * d
+                if (!diveSplash && Pool.inWater(gw, px + swDX * 0.4f * hs, pz + swDZ * 0.4f * hs)) {
+                    diveSplash = true; Water.ripple(px + swDX * 0.5f * hs, pz + swDZ * 0.5f * hs, 1.0f)
+                }
                 if (swimT >= len * 0.999f) {
                     val c = clampWater(px, pz)
                     px = c[0]; pz = c[1]; swimPh = 2; swimT = 0f; pMoving = false
+                    swVX = swDX * Pool.SWIM_SPEED * 0.6f; swVZ = swDZ * Pool.SWIM_SPEED * 0.6f   // ainda desliza um pouco depois do mergulho
+                    swimAnimMove = false; swimStill = 0f; ripT = 0.4f; diveSplash = false
+                    Water.ripple(px, pz, 0.7f)
                 }
             }
             2 -> {   // na água: parado = boiando (Treading_Water), movendo = nadando (Swimming)
-                py += (Pool.WATER_Y - py) * min(1f, dt * 3.5f)
-                pMoving = false
+                // Etapa 120: boia subindo e descendo de leve; velocidade com aceleração (sem arrancar/parar seco)
+                waterT += dt
+                val bob = (if (swimAnimMove) 0.012f else 0.028f) * sin(waterT * 2.2f)
+                py += (Pool.WATER_Y + bob - py) * min(1f, dt * 3.5f)
                 if (!third) pYaw = Math.toDegrees(atan2(sin(fyaw).toDouble(), (-cos(fyaw)).toDouble())).toFloat()
                 val mag2 = moveX * moveX + moveY * moveY
+                var tvx = 0f; var tvz = 0f
+                if (mag2 > 0.0004f) {
+                    val mg = min(1f, sqrt(mag2))
+                    val fx = sin(fyaw); val fz = -cos(fyaw); val rx = cos(fyaw); val rz = sin(fyaw)
+                    tvx = (fx * moveY + rx * moveX) / sqrt(mag2) * Pool.SWIM_SPEED * mg
+                    tvz = (fz * moveY + rz * moveX) / sqrt(mag2) * Pool.SWIM_SPEED * mg
+                }
+                val acc = min(1f, dt * (if (mag2 > 0.0004f) 2.6f else 1.8f))   // a água segura: acelera e desacelera devagar
+                swVX += (tvx - swVX) * acc; swVZ += (tvz - swVZ) * acc
+                val spd = sqrt(swVX * swVX + swVZ * swVZ)
+                // troca nadar/boiar com histerese (antes piscava entre os dois clipes com o analógico perto do centro)
+                if (swimAnimMove) { if (spd < 0.25f && mag2 < 0.01f) swimStill += dt else swimStill = 0f; if (swimStill > 0.18f) { swimAnimMove = false; swimStill = 0f } }
+                else { if (spd > 0.35f) swimStill += dt else swimStill = 0f; if (swimStill > 0.08f) { swimAnimMove = true; swimStill = 0f } }
+                pMoving = swimAnimMove
+                ripT -= dt
+                if (ripT <= 0f) { Water.ripple(px, pz, if (swimAnimMove) 0.55f else 0.25f); ripT = if (swimAnimMove) 0.32f else 1.1f }
+                if (spd > 0.02f) {
+                    val c0 = clampWater(px + swVX * dt, pz + swVZ * dt)
+                    px = c0[0]; pz = c0[1]
+                }
                 if (mag2 > 0.0004f) {
                     val mag = min(1f, sqrt(mag2))
                     val sp = Pool.SWIM_SPEED * mag * dt
                     val fx = sin(fyaw); val fz = -cos(fyaw); val rx = cos(fyaw); val rz = sin(fyaw)
                     val dx = (fx * moveY + rx * moveX) * sp / mag
                     val dz = (fz * moveY + rz * moveX) * sp / mag
-                    val c = clampWater(px + dx, pz + dz)
-                    px = c[0]; pz = c[1]
-                    pMoving = true
                     val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
                     var dl = dir - pYaw
                     while (dl > 180f) dl -= 360f
                     while (dl < -180f) dl += 360f
-                    if (third) pYaw += dl * min(1f, dt * 10f)
+                    if (third) pYaw += dl * min(1f, dt * 4.5f)   // Etapa 120: vira devagar na água
                     // chegou perto da borda empurrando para ela: nada até a borda e sai da água
                     val l = kotlin.math.hypot(dx, dz).coerceAtLeast(1e-6f)
                     val ux = dx / l; val uz = dz / l
@@ -887,6 +920,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 }
             }
             3 -> {   // nadar até a borda (clipe de 5 s; usamos até EDGE_END_T)
+                ripT -= dt
+                if (ripT <= 0f && swimT < 2.6f) { Water.ripple(px, pz, 0.45f); ripT = 0.45f }
+                swVX = 0f; swVZ = 0f
                 val k = smooth(min(1f, swimT / 0.5f))
                 val ad = Pool.edgeZ(swimT) * hs
                 px = swX + (swToX - swX) * k + swDX * ad; pz = swZ + (swToZ - swZ) * k + swDZ * ad
@@ -894,7 +930,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 while (dl > 180f) dl -= 360f
                 while (dl < -180f) dl += 360f
                 pYaw += dl * min(1f, dt * 14f)
-                py = Pool.WATER_Y * (1f - smooth(min(1f, swimT / 0.4f)))
+                py = Pool.WATER_Y * (1f - smooth(min(1f, swimT / 1.2f)))   // Etapa 120: sobe para a borda sem tranco
                 pMoving = false
                 if (swimT >= Pool.EDGE_END_T) {
                     swX = px; swZ = pz
@@ -945,6 +981,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     val c = clampWater(px, pz)
                     px = c[0]; pz = c[1]; sitLift = 0f; py = Pool.WATER_Y
                     swimPh = 2; swimT = 0f; pMoving = false
+                    swVX = 0f; swVZ = 0f; swimAnimMove = false; swimStill = 0f; ripT = 0.5f
+                    Water.ripple(px, pz, 0.8f)
                 }
             }
             8 -> {   // desistiu: levanta da borda (clipe de levantar) e volta para onde estava
@@ -1454,7 +1492,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(rg, mdl, 0.7f + 0.3f * sin(tt * 5f))
         }
         // vidros por último
-        run { Matrix.setIdentityM(mdl, 0); yardM?.let { draw(it, mdl, 1f, true) } }   // Etapa 118: água da piscina (peças de vidro do quintal)
+        run {   // Etapa 120: água com ondas, reflexo e ondinhas (programa próprio); se não compilar, volta ao plano de vidro da Etapa 118
+            val ym = yardM
+            if (ym != null) {
+                val ok = Water.draw(vp, frameU[0], frameU[1], frameU[2], st.gw)
+                useProg(curProg)
+                if (!ok) { Matrix.setIdentityM(mdl, 0); draw(ym, mdl, 1f, true) }
+            }
+        }
         for ((m, mx) in glassQ) draw(m, mx, 1f, true)
         for ((m, mx) in lateQ) draw(m, mx, 1f)
         for (i in 0..3) if (shown[i]) {

@@ -1,3 +1,11 @@
+#id 2026-11-10-piscina2
+#titulo Piscina nova e animações sem tranco
+- Água de verdade: ondas suaves, reflexo do céu e do sol, fundo que escurece com a profundidade e luz dançando no azulejo
+- Ondinhas em anel quando você mergulha, nada, boia ou entra pela borda
+- Escada de inox, faixa de azulejo na linha d'água e luzes no fundo da piscina
+- Nadar acelera e freia devagar, como na água; o personagem boia subindo e descendo e não pisca mais entre nadar e boiar
+- Todas as animações do jogo agora se misturam com o movimento anterior ainda andando (antes congelava a pose), e andar/correr/agachar entram no mesmo passo em que o pé estava
+
 #id 2026-11-09-c
 #titulo Jogo mais leve + protótipos de volta
 - Desempenho: o 3D agora usa um shader mais leve (sem descarte de pixels nos objetos opacos, precisão média), não desenha o que está fora da câmera e ajusta a resolução sozinho para manter o jogo liso

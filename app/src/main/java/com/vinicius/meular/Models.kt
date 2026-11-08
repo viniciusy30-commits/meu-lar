@@ -566,6 +566,25 @@ object Models {
             b.box(px1 - 1.1, -dep + 0.006, (pz0 + pz1) / 2, 0.14, 0.012, pz1 - pz0 - 0.8, lineC)
             b.box((px0 + px1) / 2, -dep + 0.006, pz0 + 0.5, px1 - px0 - 0.8, 0.012, 0.14, lineC)
             b.box((px0 + px1) / 2, -dep + 0.006, pz1 - 0.5, px1 - px0 - 0.8, 0.012, 0.14, lineC)
+            // Etapa 120: faixa de azulejo escuro na linha d'água, escada de inox e luzes no fundo
+            b.m(Mt.TILE, 2.0f)
+            val bandC = C("#2E7DB0"); val by = wy - 0.06; val bh = 0.16
+            b.box(px0 + 0.006, by, (pz0 + pz1) / 2, 0.012, bh, pz1 - pz0, bandC)
+            b.box(px1 - 0.006, by, (pz0 + pz1) / 2, 0.012, bh, pz1 - pz0, bandC)
+            b.box((px0 + px1) / 2, by, pz0 + 0.006, px1 - px0, bh, 0.012, bandC)
+            b.box((px0 + px1) / 2, by, pz1 - 0.006, px1 - px0, bh, 0.012, bandC)
+            b.m(Mt.PLAIN)
+            val steel = C("#D8DEE4")
+            val lx = px1 - 0.9
+            for (sx in doubleArrayOf(-0.25, 0.25)) {
+                b.box(lx + sx, 0.42, pz1 + 0.25, 0.045, 0.84, 0.045, steel)          // poste no deck
+                b.box(lx + sx, 0.84, pz1 + 0.06, 0.045, 0.045, 0.42, steel)          // curva por cima da borda
+                b.box(lx + sx, -0.55, pz1 - 0.14, 0.045, 1.35, 0.045, steel)         // desce dentro d'água
+            }
+            for (k in 0 until 3) b.box(lx, -0.30 - k * 0.32, pz1 - 0.12, 0.5, 0.03, 0.10, steel)   // degraus
+            b.al = 0.9f
+            for (sx in doubleArrayOf(-1.0, 1.0)) b.box((px0 + px1) / 2 + sx * 1.2, -dep * 0.55, pz0 + 0.012, 0.22, 0.22, 0.02, C("#FFFBE6"))
+            b.al = 1f
             // água translúcida (material vidro: só aparece no passe de vidro, depois do personagem)
             b.m(Mt.GLASS, 1f)
             b.al = 0.58f

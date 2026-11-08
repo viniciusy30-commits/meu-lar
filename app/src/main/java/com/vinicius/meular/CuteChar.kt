@@ -974,6 +974,77 @@ object CuteChar {
     private val slotLast = arrayOfNulls<FloatArray>(3)
     private var bone = FloatArray(0)
 
+    // Etapa 120: estado da mistura viva (clipe anterior continua tocando enquanto some)
+    private val slotPrevLive = BooleanArray(3)
+    private val slotPrevC = IntArray(3) { -1 }
+    private val slotPrevD = arrayOfNulls<FloatArray>(3)
+    private val slotPrevLt = FloatArray(3)
+    private val slotPrevOnce = BooleanArray(3)
+    private val slotLastD = arrayOfNulls<FloatArray>(3)
+    private val slotLastLt = FloatArray(3)
+    private val slotLastOnce = BooleanArray(3)
+    private val slotLastC = IntArray(3) { -1 }
+    private var livePrev = FloatArray(0)
+    /** Laços que entram na fase mais parecida com a pose atual. */
+    private val PHASE_MATCH = intArrayOf(WALK, RUN, CROUCH_WALK, SWIM, TREAD, CROUCH)
+
+    /** Duração (s) da mistura ao trocar do clipe [pc] para [c]. Etapa 120: todas um pouco mais longas e por par de clipes. */
+    private fun blendDur(pc: Int, c: Int): Float = when {
+        c == RUN_DIVE -> 0.22f
+        pc == RUN_DIVE && c == TREAD -> 1.0f       // emerge do mergulho até boiar
+        (pc == SIT_LOOP || pc == SIT_IN) && c == TREAD -> 0.8f   // escorrega da borda para a água
+        c == SWIM_EDGE -> 0.5f
+        pc == SWIM_EDGE -> 0.9f                    // sai da água: pendurado na borda -> em pé
+        (pc == SWIM && c == TREAD) || (pc == TREAD && c == SWIM) -> 0.6f
+        c == SWIM || c == TREAD || pc == SWIM || pc == TREAD -> 0.5f
+        c == JUMP || c == RUNJUMP -> 0.10f
+        pc == JUMP || pc == RUNJUMP -> 0.22f       // aterrissa e volta a andar/parar
+        (pc == IDLE && c == WALK) || (pc == WALK && c == IDLE) -> 0.32f
+        (pc == WALK && c == RUN) || (pc == RUN && c == WALK) -> 0.35f
+        pc == RUN && c == IDLE -> 0.40f            // freia correndo
+        c == SIT_IN || pc == SIT_OUT -> 0.35f
+        pc == SIT_IN && c == SIT_LOOP -> 0.30f
+        pc == SIT_LOOP && c == SIT_OUT -> 0.30f
+        c == CROUCH || c == CROUCH_WALK || pc == CROUCH || pc == CROUCH_WALK -> 0.35f
+        c == INTERACT || pc == INTERACT -> 0.35f
+        else -> 0.30f
+    }
+
+    /** Amostra o clipe [d] (nf quadros, len s) no tempo [lt], interpolando, em [out]. */
+    private fun sampleInto(d: FloatArray, nf: Int, len: Float, lt: Float, out: FloatArray, n12: Int) {
+        val ft = (lt / len) * (nf - 1).coerceAtLeast(1)
+        val f0 = ft.toInt().coerceIn(0, nf - 1)
+        val f1 = (f0 + 1).coerceAtMost(nf - 1)
+        val a = ft - f0
+        val o0 = f0 * n12
+        val o1 = f1 * n12
+        if (o1 + n12 > d.size) { System.arraycopy(d, 0, out, 0, n12); return }
+        for (j in 0 until n12) out[j] = d[o0 + j] + (d[o1 + j] - d[o0 + j]) * a
+    }
+
+    /** Fase (0..1) do laço [d] cujas pernas (rotação das coxas, canelas e pés) mais se parecem com [pose]. */
+    private fun bestPhase(d: FloatArray, nf: Int, pose: FloatArray): Float {
+        if (nf < 2 || nb < 25) return 0f
+        val n12 = nb * 12
+        var best = 0; var bd = Float.MAX_VALUE
+        val step = if (nf > 48) nf / 48 else 1
+        var f = 0
+        while (f < nf) {
+            val o = f * n12
+            var s = 0f
+            for (b in 17..24) {
+                val bo = b * 12
+                for (i in 0..2) for (j in 0..2) {
+                    val x = d[o + bo + i * 4 + j] - pose[bo + i * 4 + j]
+                    s += x * x
+                }
+            }
+            if (s < bd) { bd = s; best = f }
+            f += step
+        }
+        return best.toFloat() / (nf - 1)
+    }
+
     private fun smooth01(x: Float): Float {
         val c = if (x < 0f) 0f else if (x > 1f) 1f else x
         return c * c * (3f - 2f * c)
@@ -1031,17 +1102,16 @@ object CuteChar {
         if (dt < 0f || dt > 0.25f) dt = 0.016f
         slotNs[sl] = now
 
+        // Etapa 120: mistura "viva" — durante a troca o clipe anterior continua andando no tempo (antes congelava a última pose)
+        var lt: Float
         if (slotClip[sl] != c) {
             val pc = slotClip[sl]
-            slotDur[sl] = when {
-                c == RUN_DIVE -> 0.15f
-                pc == RUN_DIVE && c == TREAD -> 0.95f      // emerge do mergulho até boiar
-                (pc == SIT_LOOP || pc == SIT_IN) && c == TREAD -> 0.7f   // escorrega da borda para a água
-                c == SWIM_EDGE -> 0.4f
-                pc == SWIM_EDGE -> 0.8f                    // sai da água: pendurado na borda -> em pé
-                c == SWIM || c == TREAD || pc == SWIM || pc == TREAD -> 0.45f
-                c == JUMP || c == RUNJUMP -> 0.06f
-                else -> 0.25f
+            slotDur[sl] = blendDur(pc, c)
+            val interrupted = slotBlend[sl] > 0f
+            // o clipe anterior segue vivo só se a troca anterior já terminou (senão usa a pose misturada congelada)
+            slotPrevLive[sl] = pc >= 0 && !interrupted && slotLastD[sl] != null
+            if (slotPrevLive[sl]) {
+                slotPrevC[sl] = pc; slotPrevD[sl] = slotLastD[sl]; slotPrevLt[sl] = slotLastLt[sl]; slotPrevOnce[sl] = slotLastOnce[sl]
             }
             slotBlend[sl] = if (pc < 0) 0f else slotDur[sl]
             slotClip[sl] = c
@@ -1053,30 +1123,43 @@ object CuteChar {
                 val mir = mirroredClip(cset, c, d0)
                 if (pv != null && pv.size == n12 && mir != null) slotMir[sl] = jumpWantsMirror(d0, mir, pv)
             }
+            // Etapa 120: laços de locomoção entram na fase em que as pernas mais se parecem com a pose atual (pé com pé, sem "trocar o passo")
+            val pv = slotLast[sl]
+            if (pc >= 0 && c in PHASE_MATCH && pv != null && pv.size == n12 && !(c == RUNJUMP)) {
+                val ph = bestPhase(d0, nf, pv)
+                val rate = if (c0 == WALK) WALK_RATE else 1f
+                slotT0[sl] = t - ph * len / rate
+            }
         }
         val d = if (c == RUNJUMP && slotMir[sl]) (mirroredClip(cset, c, d0) ?: d0) else d0
         val isJ = c == JUMP || c == RUNJUMP
         val once = isJ || c == RUN_DIVE || c == SWIM_EDGE || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
-        var lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
+        lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
         if (once && lt > len) lt = len
         if (!once) {
             lt %= len
             if (lt < 0f) lt += len
         } else if (lt < 0f) lt = 0f
-
-        val ft = (lt / len) * (nf - 1).coerceAtLeast(1)
-        val f0 = ft.toInt().coerceIn(0, nf - 1)
-        val f1 = (f0 + 1).coerceAtMost(nf - 1)
-        val a = ft - f0
-        val o0 = f0 * n12
-        val o1 = f1 * n12
-        for (j in 0 until n12) bone[j] = d[o0 + j] + (d[o1 + j] - d[o0 + j]) * a
+        sampleInto(d, nf, len, lt, bone, n12)
+        slotLastD[sl] = d; slotLastLt[sl] = lt; slotLastOnce[sl] = once; slotLastC[sl] = c
 
         val prev = slotLast[sl]
         if (slotBlend[sl] > 0f && prev != null && prev.size == n12) {
             val dur = slotDur[sl]
             val k = smooth01(1f - slotBlend[sl] / dur)
-            blendPoses(prev, bone, k)   // Etapa 114: slerp + cinemática direta (sem esticar o braço)
+            var src: FloatArray = prev
+            val pd = slotPrevD[sl]
+            val pcC = slotPrevC[sl]
+            if (slotPrevLive[sl] && pd != null && pcC in cset.data.indices) {
+                val pLen = cset.len[pcC].coerceAtLeast(0.001f)
+                var plt = slotPrevLt[sl] + dt
+                if (slotPrevOnce[sl]) { if (plt > pLen) plt = pLen } else { plt %= pLen }
+                slotPrevLt[sl] = plt
+                val pnf = pd.size / n12
+                if (livePrev.size != n12) livePrev = FloatArray(n12)
+                if (pnf > 0) { sampleInto(pd, pnf, pLen, plt, livePrev, n12); src = livePrev }
+            }
+            blendPoses(src, bone, k)   // Etapa 114: slerp + cinemática direta (sem esticar o braço)
             slotBlend[sl] -= dt
         } else {
             slotBlend[sl] = 0f
