@@ -84,7 +84,58 @@ object ModStore {
         VarColor("azul", "Azul", 0xFF416BC5.toInt()),
         VarColor("rosa", "Rosa", 0xFFD65A91.toInt())
     )
+    // Etapa 110: todas as cores dos pacotes Minimalist (uma malha, uma textura por cor; c01 = a textura principal)
+    val MIN_TOP = listOf(
+        VarColor("c01", "Cinza claro", 0xFFACACAC.toInt()),
+        VarColor("c02", "Branco", 0xFFE8E8E8.toInt()),
+        VarColor("c03", "Grafite", 0xFF444544.toInt()),
+        VarColor("c04", "Preto", 0xFF252525.toInt()),
+        VarColor("c05", "Amarelo 1", 0xFFB7B0A0.toInt()),
+        VarColor("c06", "Azul 1", 0xFF97ABC0.toInt()),
+        VarColor("c07", "Azul 2", 0xFF6D86A5.toInt()),
+        VarColor("c08", "Azul 3", 0xFF2239B3.toInt()),
+        VarColor("c09", "Ciano", 0xFF97B9C0.toInt()),
+        VarColor("c10", "Verde escuro", 0xFF145A44.toInt()),
+        VarColor("c11", "Laranja 1", 0xFFB8AE9F.toInt()),
+        VarColor("c12", "Amarelo 2", 0xFFE2B21C.toInt()),
+        VarColor("c13", "Laranja 2", 0xFFE59964.toInt()),
+        VarColor("c14", "Vermelho 1", 0xFFCF3E35.toInt()),
+        VarColor("c15", "Vermelho escuro", 0xFF711D19.toInt()),
+        VarColor("c16", "Vermelho 2", 0xFF6F403A.toInt()),
+        VarColor("c17", "Rosa", 0xFFD0618C.toInt()),
+        VarColor("c18", "Roxo", 0xFF927DB3.toInt())
+    )
+    val MIN_SHORT = listOf(
+        VarColor("c01", "Azul 1", 0xFF566B7B.toInt()),
+        VarColor("c02", "Azul 2", 0xFF456A8C.toInt()),
+        VarColor("c03", "Ciano", 0xFF648993.toInt()),
+        VarColor("c04", "Azul 3", 0xFF618097.toInt()),
+        VarColor("c05", "Azul 4", 0xFF618097.toInt()),
+        VarColor("c06", "Azul 5", 0xFF3F69A0.toInt()),
+        VarColor("c07", "Azul escuro", 0xFF20485E.toInt()),
+        VarColor("c08", "Cinza 1", 0xFF7C7B7B.toInt()),
+        VarColor("c09", "Grafite", 0xFF333232.toInt()),
+        VarColor("c10", "Cinza 2", 0xFF7C6B64.toInt()),
+        VarColor("c11", "Pêssego 1", 0xFFC3B7AA.toInt()),
+        VarColor("c12", "Pêssego 2", 0xFFC1B7AC.toInt())
+    )
+    val MIN_JEANS = listOf(
+        VarColor("c01", "Azul 1", 0xFF4E6171.toInt()),
+        VarColor("c02", "Azul 2", 0xFF3E6080.toInt()),
+        VarColor("c03", "Ciano", 0xFF5C818B.toInt()),
+        VarColor("c04", "Azul 3", 0xFF59788E.toInt()),
+        VarColor("c05", "Azul 4", 0xFF3A6296.toInt()),
+        VarColor("c06", "Azul escuro", 0xFF1D4357.toInt()),
+        VarColor("c07", "Cinza 1", 0xFF747373.toInt()),
+        VarColor("c08", "Grafite", 0xFF2F2F2F.toInt()),
+        VarColor("c09", "Cinza 2", 0xFF74645D.toInt()),
+        VarColor("c10", "Laranja 1", 0xFFBEB0A1.toInt()),
+        VarColor("c11", "Laranja 2", 0xFFBBB0A4.toInt())
+    )
     val VARS: Map<String, Var> = mapOf(
+        "minimalist_top_am5" to Var("Camiseta Minimalist", MIN_TOP, "minimalist_top_am5", { _ -> "minimalist_top_am5" }, { c -> if (c == "c01") "minimalist_top_am5" else "minimalist_top_${c}_am5" }),
+        "minimalist_short_am5" to Var("Short Minimalist", MIN_SHORT, "minimalist_short_am5", { _ -> "minimalist_short_am5" }, { c -> if (c == "c01") "minimalist_short_am5" else "minimalist_short_${c}_am5" }),
+        "minimalist_jeans_am5" to Var("Calça jeans Minimalist", MIN_JEANS, "minimalist_jeans_am5", { _ -> "minimalist_jeans_am5" }, { c -> if (c == "c01") "minimalist_jeans_am5" else "minimalist_jeans_${c}_am5" }),
         "ross1_am5" to Var("Cabelo Ross masculino", ROSS, "ross1_am5", { _ -> "ross1_am5" }, { _ -> "ross1_am5" }),
         "ross1_af5" to Var("Cabelo Ross feminino", ROSS, "ross1_af5", { _ -> "ross1_af5" }, { _ -> "ross1_af5" }),
         LOTUS_ID to Var("Cabelo Lotus — coque", LOTUS, "lotusc_preto_af5", { _ -> "lotus_coque" }, { c -> "lotus_$c" }),

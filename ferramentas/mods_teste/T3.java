@@ -196,7 +196,7 @@ public final class T3 {
     String[] names={"Camiseta Minimalist","Short Minimalist","Calça jeans Minimalist"};
     Path out=root.resolve("app/src/main/assets/cute/skate"); Files.createDirectories(out);
     float clear=Float.parseFloat(System.getProperty("clear","0.35"));
-    int maxTex=Integer.parseInt(System.getProperty("maxtex","2048"));
+    int maxTex=Integer.parseInt(System.getProperty("maxtex","1024"));
     for(int i=0;i<3;i++){
       Path src=root.resolve(a[i]);
       if(!Files.isRegularFile(src)) throw new Exception("Pacote ausente: "+src);
@@ -204,6 +204,20 @@ public final class T3 {
       if(!slots[i].equals(o.slot)) throw new Exception(names[i]+": slot calculado "+o.slot+"; esperado "+slots[i]);
       Files.write(out.resolve(ids[i]+".cup"),o.cup);
       Files.write(out.resolve(ids[i]+".png"),o.png);
+      // Etapa 110: uma textura por cor do pacote (mesma malha, mesmo recorte). c01 = a textura principal acima.
+      String[] parts={"top","short","jeans"};
+      StringBuilder cl=new StringBuilder();
+      byte[] pk=Files.readAllBytes(src);
+      for(int sw=0;sw<o.swatches;sw++){
+        int[] avg=new int[1];
+        Img ct=Ts4Cloth.colorTexture(pk,sw,o,avg);
+        String cn=String.format(java.util.Locale.ROOT,"c%02d",sw+1);
+        if(sw>0) Files.write(out.resolve("minimalist_"+parts[i]+"_"+cn+"_am5.png"),ct.png());
+        cl.append(cn).append('|').append(String.format(java.util.Locale.ROOT,"%06X",avg[0])).append('\n');
+      }
+      Path cdir=root.resolve("ferramentas/mods_teste/cores"); Files.createDirectories(cdir);
+      Files.write(cdir.resolve(parts[i]+".txt"),cl.toString().getBytes("UTF-8"));
+      for(String nt:o.notes) System.out.println("NOTA "+ids[i]+": "+nt);
       System.out.println("OK "+ids[i]+" | "+o.slot+" | v="+o.verts+" | tris="+o.tris+"/"+o.srcTris+" | pushed="+o.pushed+" max="+o.maxPush+" | y="+o.ymin+".."+o.ymax+" | tex="+o.texW+"x"+o.texH+" | cup="+o.cup.length+" | png="+o.png.length);
     }
   }

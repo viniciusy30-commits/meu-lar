@@ -261,7 +261,10 @@ final class Fit {
      * (ex.: barra da calça presa à coluna, ponta de manga presa ao tronco) recebe a média dos vizinhos; depois suaviza.
      * Sem isso, na animação esses vértices ficam para trás e esticam "pontas" de tecido.
      */
-    static void cleanWeights(float[] pos, int[] idx, int[] bi, float[] bw, boolean legSplit) {
+    static void cleanWeights(float[] pos, int[] idx, int[] bi, float[] bw, boolean legSplit) { cleanWeights(pos, idx, bi, bw, legSplit, null); }
+
+    /** [legT]: por vértice 1 = perna direita, 0 = esquerda, -1 = sem perna (usa a posição x). Null = tudo pela posição x. */
+    static void cleanWeights(float[] pos, int[] idx, int[] bi, float[] bw, boolean legSplit, float[] legT) {
         int nv = pos.length / 3;
         int[] w = new int[nv];
         java.util.HashMap<String, Integer> ids = new java.util.HashMap<>();
@@ -310,8 +313,12 @@ final class Fit {
             // cada perna só segue o próprio osso (direita x>0): sem isso a coxa que sobe atravessa o tecido da frente
             int[][] pairs = {{17, 21}, {18, 22}, {19, 23}, {20, 24}};
             float[] wx = new float[nw]; for (int v = 0; v < nv; v++) wx[w[v]] = pos[v*3];
+            float[] wl = new float[nw]; java.util.Arrays.fill(wl, -1f);
+            if (legT != null) for (int v = 0; v < nv; v++) if (legT[v] >= 0f) wl[w[v]] = legT[v];
             for (int i = 0; i < nw; i++) {
-                float t = Math.max(0f, Math.min(1f, (wx[i] + 1.5f) / 3f));
+                // barra sobre o pé: dedos e pé seguem a canela (a barra não rasga em "pontas" quando o pé dobra na corrida)
+                for (int[] fp : new int[][]{{20, 19}, {19, 18}, {24, 23}, {23, 22}}) { W[i][fp[1]] += W[i][fp[0]]; W[i][fp[0]] = 0f; }
+                float t = wl[i] >= 0f ? wl[i] : Math.max(0f, Math.min(1f, (wx[i] + 1.5f) / 3f));
                 for (int[] pr : pairs) { float tot = W[i][pr[0]] + W[i][pr[1]]; W[i][pr[0]] = tot * t; W[i][pr[1]] = tot * (1f - t); }
             }
         }

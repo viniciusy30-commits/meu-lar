@@ -200,3 +200,7 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 ## Etapa 108 — Roupas masculinas Minimalist corrigidas (entregue, aguardando teste)
 - [x] `Ts4Cloth` (LOD0, recorte só de transparentes, escala s0, empurrão suave iterativo, textura recortada), `Cover.markSurface` sem cunhas na borda aberta, assets regenerados, renders antes/depois. Detalhes em `ETAPA108-ROUPAS-TS4-NOTAS.md`.
 - [ ] Testar no celular (camiseta, short, jeans e combinações; caminhar/correr). Possível próximo passo: outras cores dos pacotes, pesos originais da EA.
+
+## Etapa 110 — Short/pernas, gola, barra da calça e cores das roupas Minimalist (entregue, aguardando teste)
+- [x] Short encolhido e pernas separadas (pesos por perna), tampas da barra removidas, pesos de pé/dedos da calça passados à canela, gola puxada ao pescoço, 41 cores (18/12/11) com seletor em `ModStore.VARS`. Detalhes em `ETAPA110-PERNAS-GOLA-CORES-NOTAS.md`.
+- [ ] Testar no celular (parado, andando, correndo; cores). Se algo ainda fugir: ajustar `SHORT_HEM_SCALE` (0,78) ou a faixa da gola (`band` em `collarPull`) e reconverter com `T3`.

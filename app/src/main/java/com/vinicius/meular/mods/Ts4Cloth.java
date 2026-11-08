@@ -19,6 +19,10 @@ public final class Ts4Cloth {
         public int verts, tris, srcTris, pushed;
         public float maxPush, ymin, ymax;
         public int texW, texH;
+        /** janela (fração da textura original) usada no recorte; as outras cores usam a mesma. */
+        public float cu0, cv0, cu1, cv1;
+        /** quantas cores (CASPs) o pacote tem. */
+        public int swatches;
         public final List<String> notes = new ArrayList<>();
     }
 
@@ -64,6 +68,26 @@ public final class Ts4Cloth {
             if (cx*cx+cy*cy+cz*cz < 1e-14f) keepT[t] = false;
             if (keepT[t]) kept++;
         }
+        // tampas horizontais da barra de calça/short (triângulos deitados no fundo do tubo): não aparecem no jogo e, ao empurrar, viravam aletas pretas
+        {
+            float yl = Float.MAX_VALUE, yh = -Float.MAX_VALUE;
+            for (int t = 0; t < nt0; t++) if (keepT[t]) for (int k = 0; k < 3; k++) { float y = m.pos[m.idx[t*3+k]*3+1] * body.s0; yl = Math.min(yl, y); yh = Math.max(yh, y); }
+            if (yh < 125f && yl < 70f) {
+                int capped = 0;
+                for (int t = 0; t < nt0; t++) {
+                    if (!keepT[t]) continue;
+                    int a = m.idx[t*3], b = m.idx[t*3+1], c = m.idx[t*3+2];
+                    float ya = m.pos[a*3+1] * body.s0, yb = m.pos[b*3+1] * body.s0, yc = m.pos[c*3+1] * body.s0;
+                    float ux = m.pos[b*3]-m.pos[a*3], uy = m.pos[b*3+1]-m.pos[a*3+1], uz = m.pos[b*3+2]-m.pos[a*3+2];
+                    float vx = m.pos[c*3]-m.pos[a*3], vy = m.pos[c*3+1]-m.pos[a*3+1], vz = m.pos[c*3+2]-m.pos[a*3+2];
+                    float nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx, nl = (float) Math.sqrt(nx*nx+ny*ny+nz*nz);
+                    if (nl < 1e-9f) continue;
+                    float ymx = Math.max(ya, Math.max(yb, yc)), ymn = Math.min(ya, Math.min(yb, yc));
+                    if (Math.abs(ny / nl) > 0.9f && ymx - ymn < 1.2f && ymn < yl + 3f) { keepT[t] = false; kept--; capped++; }
+                }
+                out.notes.add("tampas da barra removidas: " + capped);
+            }
+        }
         out.srcTris = nt0;
         if (kept < 20) throw new Exception("quase nenhum triângulo de tecido (" + kept + ")");
         // ---- compacta vértices
@@ -79,14 +103,30 @@ public final class Ts4Cloth {
         int q = 0; for (int t = 0; t < nt0; t++) if (keepT[t]) for (int k = 0; k < 3; k++) idx[q++] = map[m.idx[t*3+k]];
         if (m.nor == null) nor = Fit.computeNormals(pos, idx);
         // ---- encaixe: empurra para fora SÓ onde o tecido está dentro da pele, de forma suave (campo de deslocamento)
-        pushOut(body, pos, idx, clear, out);
         float ymin = Float.MAX_VALUE, ymax = -Float.MAX_VALUE;
+        for (int i = 0; i < nv; i++) { ymin = Math.min(ymin, pos[i*3+1]); ymax = Math.max(ymax, pos[i*3+1]); }
+        // antes do encaixe: calça/short = peça que não chega ao tronco; camiseta = peça que não chega às pernas
+        final boolean preBottom = ymax < 125f && ymin < 70f, preTop = ymax > 125f && ymin > 60f;
+        // ---- pernas: cada perna é um tubo separado (componente conexo abaixo da virilha)
+        float[] legT = null;
+        if (preBottom) {
+            float[] cutOut = new float[1];
+            legT = legLabels(pos, idx, cutOut);
+            if (legT != null && ymin > 40f) {
+                shrinkLegs(pos, legT, ymin, cutOut[0], SHORT_HEM_SCALE);
+                out.notes.add("short: pernas estreitadas (barra x" + SHORT_HEM_SCALE + ")");
+            }
+            if (legT == null) out.notes.add("AVISO: não achei as duas pernas separadas; pesos por posição x");
+        }
+        pushOut(body, pos, idx, clear, out);
+        if (preTop) { int pulled = collarPull(body, pos, idx, ymax, clear); out.notes.add("gola: " + pulled + " vértices puxados ao pescoço"); }
+        ymin = Float.MAX_VALUE; ymax = -Float.MAX_VALUE;
         for (int i = 0; i < nv; i++) { ymin = Math.min(ymin, pos[i*3+1]); ymax = Math.max(ymax, pos[i*3+1]); }
         out.ymin = ymin; out.ymax = ymax; out.slot = Fit.classify(ymin, ymax);
         // ---- pesos de osso
         int[] bi = new int[nv*4]; float[] bw = new float[nv*4];
         Fit.weights(body, pos, out.slot, bi, bw);
-        if (!out.slot.equals("hat") && !out.slot.equals("hairBack")) Fit.cleanWeights(pos, idx, bi, bw, out.slot.equals("bottom"));
+        if (!out.slot.equals("hat") && !out.slot.equals("hairBack")) Fit.cleanWeights(pos, idx, bi, bw, out.slot.equals("bottom"), legT);
         // ---- textura recortada na região usada
         float u0 = 1, v0 = 1, u1 = 0, v1 = 0;
         for (int i = 0; i < nv; i++) { u0 = Math.min(u0, uv[i*2]); u1 = Math.max(u1, uv[i*2]); v0 = Math.min(v0, uv[i*2+1]); v1 = Math.max(v1, uv[i*2+1]); }
@@ -96,14 +136,144 @@ public final class Ts4Cloth {
         u0 = px0 / (float) raw.w; u1 = px1 / (float) raw.w; v0 = py0 / (float) raw.h; v1 = py1 / (float) raw.h;
         Img tex = crop(raw, px0, py0, px1, py1);
         tex = bleed(tex, 24);
-        int tw = potFloor(Math.min(maxTex, tex.w)), th = potFloor(Math.min(maxTex, tex.h));
+        int tw = potFit(Math.min(maxTex, tex.w)), th = potFit(Math.min(maxTex, tex.h));
         tex = resize(tex, tw, th);
         for (int i = 0; i < nv; i++) { uv[i*2] = (uv[i*2] - u0) / (u1 - u0); uv[i*2+1] = (uv[i*2+1] - v0) / (v1 - v0); }
-        out.texW = tw; out.texH = th;
+        out.texW = tw; out.texH = th; out.cu0 = u0; out.cv0 = v0; out.cu1 = u1; out.cv1 = v1; out.swatches = casps.size();
         out.png = tex.opaque().png();
         out.cup = Fit.cup1(pos, nor, uv, idx, bi, bw);
         out.verts = nv; out.tris = kept;
         return out;
+    }
+
+
+    // ------------------------------------------------------------------ pernas, gola e cores (Etapa 110)
+    static final float SHORT_HEM_SCALE = 0.78f;
+
+    /** Rótulo por vértice: 1 = perna direita (x maior), 0 = esquerda, -1 = acima da virilha. Null se não achar duas pernas. */
+    static float[] legLabels(float[] pos, int[] idx, float[] cutOut) {
+        int nv = pos.length / 3;
+        HashMap<String, Integer> wid = new HashMap<>(); int[] w = new int[nv];
+        for (int v = 0; v < nv; v++) {
+            String k = Math.round(pos[v*3]*200) + "," + Math.round(pos[v*3+1]*200) + "," + Math.round(pos[v*3+2]*200);
+            Integer id = wid.get(k); if (id == null) { id = wid.size(); wid.put(k, id); } w[v] = id;
+        }
+        int nw = wid.size();
+        for (float cut = 92f; cut >= 56f; cut -= 2f) {
+            int[] par = new int[nw]; for (int i = 0; i < nw; i++) par[i] = i;
+            boolean[] used = new boolean[nw];
+            for (int t = 0; t < idx.length / 3; t++) {
+                int a = idx[t*3], b = idx[t*3+1], c = idx[t*3+2];
+                if (Math.max(pos[a*3+1], Math.max(pos[b*3+1], pos[c*3+1])) >= cut) continue;
+                int wa = w[a], wb = w[b], wc = w[c]; used[wa] = used[wb] = used[wc] = true;
+                par[find(par, wa)] = find(par, wb); par[find(par, wb)] = find(par, wc);
+            }
+            HashMap<Integer, float[]> comp = new HashMap<>();   // raiz -> {n, soma x}
+            for (int v = 0; v < nv; v++) if (used[w[v]]) { float[] c = comp.computeIfAbsent(find(par, w[v]), k -> new float[2]); c[0]++; c[1] += pos[v*3]; }
+            ArrayList<Integer> big = new ArrayList<>();
+            for (Map.Entry<Integer, float[]> e : comp.entrySet()) if (e.getValue()[0] >= 20) big.add(e.getKey());
+            if (big.size() != 2) continue;
+            float m0 = comp.get(big.get(0))[1] / comp.get(big.get(0))[0], m1 = comp.get(big.get(1))[1] / comp.get(big.get(1))[0];
+            if (Math.abs(m0 - m1) < 6f) continue;
+            int right = m0 > m1 ? big.get(0) : big.get(1);
+            float[] t = new float[nv];
+            for (int v = 0; v < nv; v++) t[v] = !used[w[v]] ? -1f : (find(par, w[v]) == right ? 1f : 0f);
+            if (cutOut != null) cutOut[0] = cut;
+            return t;
+        }
+        return null;
+    }
+    private static int find(int[] p, int a) { while (p[a] != a) { p[a] = p[p[a]]; a = p[a]; } return a; }
+
+    /** Encolhe cada perna do short em torno do próprio eixo (a barra era ~2x a coxa: parecia saia e as pernas se tocavam). */
+    static void shrinkLegs(float[] pos, float[] legT, float ymin, float cut, float hemScale) {
+        int nv = pos.length / 3;
+        for (int side = 0; side <= 1; side++) {
+            float cs = 0, es = 0; int n = 0;
+            for (int v = 0; v < nv; v++) if (legT[v] == side) { cs += pos[v*3]; es += pos[v*3+2]; n++; }
+            if (n == 0) continue;
+            // eixo por faixa de altura (a perna não é reta): média dos vértices da faixa de 3 cm
+            for (int v = 0; v < nv; v++) {
+                if (legT[v] != side) continue;
+                float y = pos[v*3+1], sx = 0, sz = 0; int k = 0;
+                for (int u = 0; u < nv; u++) if (legT[u] == side && Math.abs(pos[u*3+1] - y) < 3f) { sx += pos[u*3]; sz += pos[u*3+2]; k++; }
+                float cx = sx / k, cz = sz / k;
+                float t = Math.max(0f, Math.min(1f, (y - ymin) / Math.max(1f, cut - ymin)));
+                t = t * t * (3f - 2f * t);
+                float f = hemScale + (1f - hemScale) * t;
+                pos[v*3] = cx + (pos[v*3] - cx) * f; pos[v*3+2] = cz + (pos[v*3+2] - cz) * f;
+            }
+        }
+    }
+
+    /** Gola: puxa para a pele do pescoço o tecido que ficou flutuando (só aproxima, nunca entra na pele). O deslocamento é suavizado na malha. */
+    static int collarPull(BodyRef b, float[] pos, int[] idx, float ymax, float clear) {
+        int nv = pos.length / 3, moved = 0; float[] q = new float[6];
+        float[] bp = b.pos, bn = b.nor; int[] bi = b.idx;
+        final float band = 6.5f;
+        float[] d = new float[nv * 3];
+        for (int v = 0; v < nv; v++) {
+            float x = pos[v*3], y = pos[v*3+1], z = pos[v*3+2];
+            if (y < ymax - band || Math.abs(x) > 12f) continue;
+            float best = Float.MAX_VALUE, nx = 0, ny = 0, nz = 0, sd = 0;
+            for (int t = 0; t < bi.length / 3; t++) {
+                int ia = bi[t*3]*3, ib = bi[t*3+1]*3, ic = bi[t*3+2]*3;
+                if (Math.min(bp[ia+1], Math.min(bp[ib+1], bp[ic+1])) > y + 6f || Math.max(bp[ia+1], Math.max(bp[ib+1], bp[ic+1])) < y - 6f) continue;
+                T3Geo.closest(x, y, z, bp[ia], bp[ia+1], bp[ia+2], bp[ib], bp[ib+1], bp[ib+2], bp[ic], bp[ic+1], bp[ic+2], q);
+                float dx = x - q[0], dy = y - q[1], dz = z - q[2], d2 = dx*dx + dy*dy + dz*dz;
+                if (d2 >= best) continue;
+                float tx = bn[ia]*q[3] + bn[ib]*q[4] + bn[ic]*q[5], ty = bn[ia+1]*q[3] + bn[ib+1]*q[4] + bn[ic+1]*q[5], tz = bn[ia+2]*q[3] + bn[ib+2]*q[4] + bn[ic+2]*q[5];
+                float nl = (float) Math.sqrt(tx*tx + ty*ty + tz*tz); if (nl < 1e-7f) continue;
+                best = d2; nx = tx / nl; ny = ty / nl; nz = tz / nl;
+                sd = (float) Math.sqrt(d2) * (dx*nx + dy*ny + dz*nz < 0 ? -1f : 1f);
+            }
+            if (best == Float.MAX_VALUE || sd <= clear + 0.2f) continue;
+            float k = Math.min(sd - clear, 3.5f);
+            float wy = Math.max(0f, Math.min(1f, (y - (ymax - band)) / 3.5f)); wy = wy * wy * (3f - 2f * wy);
+            d[v*3] = -nx * k * wy; d[v*3+1] = -ny * k * wy; d[v*3+2] = -nz * k * wy;
+        }
+        // soldagem por posição + suavização do deslocamento entre vizinhos
+        HashMap<String, Integer> wid = new HashMap<>(); int[] w = new int[nv];
+        for (int v = 0; v < nv; v++) {
+            String key = Math.round(pos[v*3]*200) + "," + Math.round(pos[v*3+1]*200) + "," + Math.round(pos[v*3+2]*200);
+            Integer id = wid.get(key); if (id == null) { id = wid.size(); wid.put(key, id); } w[v] = id;
+        }
+        int nw = wid.size(); float[] wd = new float[nw * 3]; boolean[] inBand = new boolean[nw];
+        for (int v = 0; v < nv; v++) { for (int k = 0; k < 3; k++) wd[w[v]*3+k] = d[v*3+k]; if (pos[v*3+1] >= ymax - band) inBand[w[v]] = true; }
+        ArrayList<HashSet<Integer>> adj = new ArrayList<>(); for (int i = 0; i < nw; i++) adj.add(new HashSet<>());
+        for (int t = 0; t < idx.length / 3; t++) for (int k = 0; k < 3; k++) { int a2 = w[idx[t*3+k]], c2 = w[idx[t*3+(k+1)%3]]; if (a2 != c2) { adj.get(a2).add(c2); adj.get(c2).add(a2); } }
+        for (int it = 0; it < 8; it++) {
+            float[] nd = wd.clone();
+            for (int i = 0; i < nw; i++) {
+                if (!inBand[i] || adj.get(i).isEmpty()) continue;
+                for (int k = 0; k < 3; k++) { float sum = 0; for (int j : adj.get(i)) sum += wd[j*3+k]; nd[i*3+k] = 0.4f * wd[i*3+k] + 0.6f * sum / adj.get(i).size(); }
+            }
+            wd = nd;
+        }
+        for (int v = 0; v < nv; v++) {
+            float dx = wd[w[v]*3], dy = wd[w[v]*3+1], dz = wd[w[v]*3+2];
+            if (dx*dx + dy*dy + dz*dz < 1e-6f) continue;
+            pos[v*3] += dx; pos[v*3+1] += dy; pos[v*3+2] += dz; moved++;
+        }
+        return moved;
+    }
+
+    /** Textura de outra cor do mesmo pacote, com o mesmo recorte e tamanho da malha convertida. [avg] recebe a cor média (RGB). */
+    public static Img colorTexture(byte[] pkgBytes, int swatch, Out ref, int[] avg) throws Exception {
+        Pkg pkg = new Pkg(pkgBytes);
+        List<Pkg.Ent> casps = pkg.ofType(0x034AEECB);
+        byte[] casp = pkg.read(casps.get(Math.min(swatch, casps.size() - 1)));
+        Img raw = null;
+        for (Pkg.Ent e : pkg.ofType(Tex.T_RLE2)) if (refs(casp, e)) { raw = Tex.rle2(pkg.read(e)); break; }
+        if (raw == null) for (Pkg.Ent e : pkg.ofType(Tex.T_IMG)) if (refs(casp, e)) { raw = Tex.dds(pkg.read(e)); break; }
+        if (raw == null) throw new Exception("textura da cor " + swatch + " não encontrada");
+        int px0 = Math.round(ref.cu0 * raw.w), px1 = Math.round(ref.cu1 * raw.w), py0 = Math.round(ref.cv0 * raw.h), py1 = Math.round(ref.cv1 * raw.h);
+        Img tex = crop(raw, px0, py0, px1, py1);
+        long sr = 0, sg = 0, sb = 0, n = 0;
+        for (int p : tex.argb) if ((p >>> 24) >= 128) { sr += (p >> 16) & 255; sg += (p >> 8) & 255; sb += p & 255; n++; }
+        if (avg != null) avg[0] = n == 0 ? 0x808080 : (int) (sr / n) << 16 | (int) (sg / n) << 8 | (int) (sb / n);
+        tex = bleed(tex, 24);
+        return resize(tex, ref.texW, ref.texH).opaque();
     }
 
     // ------------------------------------------------------------------ encaixe
@@ -238,6 +408,8 @@ public final class Ts4Cloth {
         }
         return false;
     }
+    /** Potência de 2 mais próxima por cima quando o recorte já passa de 1,3x a de baixo (não joga fora resolução à toa). */
+    static int potFit(int n) { int p = potFloor(n); return n > p * 1.3f ? p * 2 : p; }
     static int potFloor(int n) { int p = 1; while (p * 2 <= n) p *= 2; return Math.max(8, p); }
 
     static Img crop(Img s, int x0, int y0, int x1, int y1) {
