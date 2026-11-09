@@ -337,7 +337,9 @@ object TownGeo {
     private fun outside(idx: Int): City.Chunk {
         val g = CityGeo.Gen(idx, City.Rng(32), Town.minX - 600f, Town.minZ - 600f, Town.maxX + 600f, Town.maxZ + 600f)
         val b = g.b
-        b.m(Mt.GRASS, 0.3f); b.plane(g.x0, g.z0, g.x1, g.z1, -0.06f, C("#CFE6B8"))
+        // ao sul da Av. Beira-Mar fica a praia (areia e mar): o campo só vai até a orla
+        val zb = TownPlan.ZS[5] + 10f + SW
+        b.m(Mt.GRASS, 0.3f); b.plane(g.x0, g.z0, g.x1, zb, -0.06f, C("#CFE6B8"))
         val ol = Town.outline
         if (ol.isNotEmpty()) {
             val ring = FloatArray(ol.size + 2); System.arraycopy(ol, 0, ring, 0, ol.size); ring[ol.size] = ol[0]; ring[ol.size + 1] = ol[1]

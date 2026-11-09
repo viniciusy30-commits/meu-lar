@@ -79,8 +79,9 @@ object TownPlan {
         for (r in 0..5) for (c in 0..5) {
             val homeCorner = (r == 2 || r == 3) && (c == 2 || c == 3)
             val j = if (urbanCorner(r, c)) 0f else if (homeCorner) 8f else 45f
+            val beach = r == 5   // a orla é reta: a rua da beira-mar acompanha a praia
             val edge = r == 0 || r == 5 || c == 0 || c == 5
-            G[r][c] = Town.n(XS[c] + rng.r(-j, j), ZS[r] + rng.r(-j, j), if (r == 3 && c == 3) 27f else if (r == 1 && c == 3) 24f else if (r == 3 && c == 1) 22f else 0f)
+            G[r][c] = Town.n(XS[c] + rng.r(-j, j), if (beach) ZS[r] else ZS[r] + rng.r(-j, j), if (r == 3 && c == 3) 27f else if (r == 1 && c == 3) 24f else if (r == 3 && c == 1) 22f else 0f)
             if (edge) { /* borda: sem rotatória */ }
         }
         // avenidas: linha z 3 e coluna x 3 (as do lado de baixo e da direita do bairro da casa) e a linha 1
@@ -91,7 +92,7 @@ object TownPlan {
             val home = (r == 2 || r == 3) && c == 2
             val w = if (r == 3 || r == 1) 24f else 16f
             val bend = if (home) rng.r(-6f, 6f) else rng.r(-24f, 24f)
-            H[r][c] = Town.e(G[r][c], G[r][c + 1], w, if (urbanSide(r - 1, c) || urbanSide(r, c)) 0f else bend, hName[r])
+            H[r][c] = Town.e(G[r][c], G[r][c + 1], if (r == 5) 20f else w, if (r == 5 || urbanSide(r - 1, c) || urbanSide(r, c)) 0f else bend, if (r == 5) "Av. Beira-Mar" else hName[r])
         }
         for (r in 0..4) for (c in 0..5) {
             val home = r == 2 && (c == 2 || c == 3)

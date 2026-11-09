@@ -82,16 +82,16 @@ object CityFun {
         while (x < X1 - 10f) { if (abs(x - City.PIER_X) > 14f) kiosk(g, x, BZ + 5f); x += rng.r(55f, 75f) }
         // guarda-sóis, cadeiras, toalhas
         val pal = arrayOf(C("#E53935"), C("#1E88E5"), C("#FDD835"), C("#43A047"), C("#FB8C00"), C("#8E24AA"), C("#FFFFFF"), C("#00ACC1"))
-        for (i in 0 until 70) {
+        val nUmb = ((X1 - X0) / 8f).toInt().coerceIn(70, 320)
+        for (i in 0 until nUmb) {
             val ux = rng.r(X0 - 40f, X1 + 40f); val uz = rng.r(BZ + 9f, SZ - 8f)
             if (abs(ux - City.PIER_X) < 6f) continue
             umbrella(b, ux, uz, rng.pick(pal), rng)
         }
         // salva-vidas, vôlei, futevôlei, pranchas
-        for (lx in floatArrayOf(X0 + 60f, City.PIER_X + 70f, X1 - 50f)) lifeguard(g, lx, SZ - 10f)
-        volleyNet(g, City.PIER_X - 40f, BZ + 18f)
-        volleyNet(g, X0 + 120f, BZ + 20f)
-        for (i in 0 until 6) { val sx = rng.r(X0, X1); b.m(Mt.PLAIN); b.box(sx, sandH(SZ - 14f) + 1.0f, SZ - 14f, 0.55f, 2.0f, 0.08f, rng.pick(pal)) }
+        run { var lx = X0 + 60f; while (lx < X1 - 40f) { if (abs(lx - City.PIER_X) > 20f) lifeguard(g, lx, SZ - 10f); lx += 220f } }
+        run { var vx = X0 + 120f; while (vx < X1 - 60f) { if (abs(vx - City.PIER_X) > 25f) volleyNet(g, vx, BZ + 18f + rng.r(0f, 6f)); vx += rng.r(140f, 260f) } }
+        for (i in 0 until ((X1 - X0) / 100f).toInt().coerceAtLeast(6)) { val sx = rng.r(X0, X1); b.m(Mt.PLAIN); b.box(sx, sandH(SZ - 14f) + 1.0f, SZ - 14f, 0.55f, 2.0f, 0.08f, rng.pick(pal)) }
         // píer
         pier(g)
         g.place(City.Place("Quiosques", City.PIER_X + 40f, BZ + 5f, 0xFF00838F.toInt(), 'Q'))

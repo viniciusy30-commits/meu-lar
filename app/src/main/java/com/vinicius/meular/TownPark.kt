@@ -24,6 +24,8 @@ object TownPark {
     /** Parque planejado (calculado uma vez): lago, caminhos, áreas. */
     class Plan(val block: Int) {
         var cx = 0f; var cz = 0f; var lakeR = 0f
+        var lakeA = 1f; var lakeB = 1f; var lakeRot = 0f   // elipse: semi-eixos relativos e giro
+        var plaza = false                                   // sem lago: praça com chafariz no meio
         val paths = ArrayList<FloatArray>()      // polilinhas (x, z)
         val spots = ArrayList<FloatArray>()      // (x, z, raio, tipo)
         val trees = ArrayList<FloatArray>()
@@ -75,9 +77,15 @@ object TownPark {
         val st = max(4f, min(x1 - x0, z1 - z0) / 24f)
         var x = x0; while (x <= x1) { var z = z0; while (z <= z1) { val d = inset(bl, x, z); if (d > best) { best = d; pl.cx = x; pl.cz = z }; z += st }; x += st }
         val big = best > 45f
-        pl.lakeR = if (big) min(best * 0.42f, 48f) else if (best > 18f) best * 0.28f else 0f
+        // cada parque com um desenho: índice do parque na cidade decide o tema
+        val pidx = Town.blocks.indices.filter { isPark(it) }.indexOf(bi).coerceAtLeast(0)
+        val lakeKind = (pidx * 7 + 3) % 4          // 0 redondo, 1 elipse, 2 sem lago (praça), 3 elipse comprida
+        pl.lakeR = if (lakeKind == 2) 0f else if (big) min(best * (0.3f + 0.04f * (pidx % 4)), 48f) else if (best > 18f) best * 0.26f else 0f
+        if (lakeKind == 1) { pl.lakeA = 1.25f; pl.lakeB = 0.8f } else if (lakeKind == 3) { pl.lakeA = 1.5f; pl.lakeB = 0.62f }
+        pl.lakeRot = pidx * 0.7f
+        pl.plaza = pl.lakeR == 0f
         // caminho em volta do lago (ou praça central)
-        val ringR = if (pl.lakeR > 0f) pl.lakeR + 7f else min(best * 0.45f, 14f)
+        val ringR = if (pl.lakeR > 0f) pl.lakeR * pl.lakeA + 7f else min(best * 0.45f, 14f)
         val ring = FloatArray(49 * 2); for (q in 0..48) { val a = 6.2832f * q / 48; ring[q * 2] = pl.cx + cos(a) * ringR; ring[q * 2 + 1] = pl.cz + sin(a) * ringR }
         pl.paths.add(ring)
         // caminhos do anel até a borda (4 a 6 direções), curvados
@@ -98,15 +106,21 @@ object TownPark {
             var ok = true; for (i in 0..16) if (inset(bl, pts[i * 2], pts[i * 2 + 1]) < 0.5f || (pl.lakeR > 0f && hypot(pts[i * 2] - pl.cx, pts[i * 2 + 1] - pl.cz) < pl.lakeR + 3f)) { ok = false; break }
             if (ok) pl.paths.add(pts)
         }
-        // áreas: playground (0), quadra de basquete (1), campo de futebol (2), academia (3), quiosque (4), coreto/pérgola (5)
-        val want = if (big) intArrayOf(2, 1, 0, 3, 4, 1, 0, 5) else intArrayOf(0, 3, 4, 5)
-        val size = floatArrayOf(9f, 16f, 30f, 8f, 6f, 6f)
+        // áreas: 0 playground, 1 basquete, 2 futebol, 3 academia, 4 quiosque, 5 coreto, 6 pista de skate, 7 cachorródromo,
+        // 8 anfiteatro, 9 vôlei de areia, 10 roseiral, 11 obelisco/monumento, 12 piquenique
+        // cada parque sorteia um conjunto diferente (o índice entra na semente e o conjunto nunca se repete inteiro)
+        val pool = mutableListOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+        val pr = City.Rng(pidx * 7919 + 11)
+        for (i in pool.indices.reversed()) { val j = pr.i(i + 1); val t = pool[i]; pool[i] = pool[j]; pool[j] = t }
+        val nWant = if (big) 6 + pidx % 3 else 3 + pidx % 2
+        val want = pool.take(nWant).toIntArray()
+        val size = floatArrayOf(9f, 16f, 30f, 8f, 6f, 6f, 12f, 11f, 13f, 10f, 9f, 5f, 8f)
         for (tp in want) {
             val rad = size[tp]
             for (tries in 0 until 80) {
                 val px = r.r(x0, x1); val pz = r.r(z0, z1)
                 if (inset(bl, px, pz) < rad + 4f) continue
-                if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR + rad + 9f) continue
+                if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR * pl.lakeA + rad + 9f) continue
                 if (pl.paths.any { distSeg(px, pz, it) < rad + 2f }) continue
                 if (pl.spots.any { hypot(px - it[0], pz - it[1]) < rad + it[2] + 4f }) continue
                 pl.spots.add(floatArrayOf(px, pz, rad, tp.toFloat())); break
@@ -119,7 +133,7 @@ object TownPark {
         while (pl.trees.size < nt && tries++ < nt * 25) {
             val px = r.r(x0, x1); val pz = r.r(z0, z1)
             if (inset(bl, px, pz) < 3f) continue
-            if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR + 4f) continue
+            if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR * pl.lakeA + 4f) continue
             if (pl.paths.any { distSeg(px, pz, it) < 3.2f }) continue
             if (pl.spots.any { hypot(px - it[0], pz - it[1]) < it[2] + 3f }) continue
             if (pl.trees.any { hypot(px - it[0], pz - it[1]) < 6f }) continue
@@ -138,8 +152,12 @@ object TownPark {
             if (far) { g.f.m(Mt.PLAIN); g.f.cyl(pl.cx, CURB - 0.02f, pl.cz, R, R, 0.3f, WATER, true, 36) }
             if (g.reg) { val s = R * 0.68f; g.solid(pl.cx - s, pl.cz - s, pl.cx + s, pl.cz + s) }
             if (near) {
-                b.m(Mt.STONE, 0.6f); b.cyl(pl.cx, CURB - 0.02f, pl.cz, R + 1.2f, R + 1.2f, 0.27f, STONE, true, 48)
-                b.m(Mt.PLAIN); b.cyl(pl.cx, CURB - 0.02f, pl.cz, R, R, 0.35f, WATER, true, 48)
+                fun ell(rr: Float): FloatArray { val o = FloatArray(56 * 2); val ca = cos(pl.lakeRot); val sa = sin(pl.lakeRot); for (q in 0 until 56) { val a = 6.2832f * q / 56; val ex = cos(a) * rr * pl.lakeA; val ez = sin(a) * rr * pl.lakeB; o[q * 2] = pl.cx + ex * ca - ez * sa; o[q * 2 + 1] = pl.cz + ex * sa + ez * ca }; return o }
+                val rim = ell(R + 1.2f); val wat = ell(R)
+                b.m(Mt.STONE, 0.6f); TownGeo.fan(b, pl.cx, pl.cz, rim, CURB + 0.25f, STONE)
+                b.m(Mt.PLAIN); TownGeo.fan(b, pl.cx, pl.cz, wat, CURB + 0.33f, WATER)
+                val ring2 = FloatArray(rim.size + 2); System.arraycopy(rim, 0, ring2, 0, rim.size); ring2[rim.size] = rim[0]; ring2[rim.size + 1] = rim[1]
+                b.m(Mt.STONE, 0.6f); TownGeo.curbWall(b, ring2, CURB - 0.02f, CURB + 0.25f, false, STONE)
                 // ilha com árvore
                 if (R > 20f) { val ix = pl.cx + R * 0.3f; val iz = pl.cz - R * 0.2f; b.m(Mt.GRASS, 0.3f); b.cyl(ix, CURB - 0.02f, iz, R * 0.18f, R * 0.18f, 0.5f, C("#D6EEC4"), true, 24); CityGeo.tree(g, ix, iz, 1.2f, CURB + 0.48f) }
                 // deck de madeira entrando no lago
@@ -151,6 +169,12 @@ object TownPark {
                 for (q in 0 until 3) { val aa = q * 2.1f + 0.5f; val px = pl.cx + cos(aa) * R * 0.6f; val pz = pl.cz + sin(aa) * R * 0.6f; b.m(Mt.PLAIN); b.box(px, CURB + 0.4f, pz, 1.6f, 0.5f, 2.4f, C(arrayOf("#FFFFFF", "#F2C230", "#E05A47")[q])); CityGeo.ball(b, px, CURB + 1.05f, pz + 0.6f, 0.35f, C(arrayOf("#FFFFFF", "#F2C230", "#E05A47")[q]), 0.35f, 8) }
             }
         }
+        if (pl.plaza && near) {
+            b.m(Mt.PAVER, 0.5f); b.cyl(pl.cx, CURB, pl.cz, 11f, 11f, 0.03f, C("#E2DCCF"), true, 40)
+            b.m(Mt.STONE, 1f); b.cyl(pl.cx, CURB, pl.cz, 4.5f, 4.5f, 0.7f, C("#CFC8BA"), true, 32); b.cyl(pl.cx, CURB + 0.7f, pl.cz, 0.6f, 0.6f, 2.2f, C("#CFC8BA"), true, 12); b.cyl(pl.cx, CURB + 2.9f, pl.cz, 1.8f, 1.8f, 0.25f, C("#CFC8BA"), true, 18)
+            b.m(Mt.PLAIN); b.cyl(pl.cx, CURB + 0.62f, pl.cz, 4.2f, 4.2f, 0.06f, C("#5DB3D9"), true, 32)
+        }
+        if (pl.plaza && g.reg) g.solid(pl.cx - 4.5f, pl.cz - 4.5f, pl.cx + 4.5f, pl.cz + 4.5f)
         // caminhos (pedrisco) com bancos e postes
         for (p in pl.paths) {
             val l = Town.offset(p, -1.4f); val rr = Town.offset(p, 1.4f)
@@ -179,7 +203,8 @@ object TownPark {
                 2 -> soccer(g, x, z, near)
                 3 -> if (near) gym(g, x, z) else if (g.reg) gym(g, x, z)
                 4 -> kiosk(g, x, z, near)
-                else -> gazebo(g, x, z, near)
+                5 -> gazebo(g, x, z, near)
+                else -> if (near || g.reg) extra(g, tp, x, z, near)
             }
             // caminho curto até o caminho mais perto
             if (near) {
@@ -202,6 +227,38 @@ object TownPark {
             }
         }
         if (g.reg) for (t in pl.trees) g.solid(t[0] - 0.3f, t[1] - 0.3f, t[0] + 0.3f, t[1] + 0.3f)
+    }
+
+    /** Áreas a mais: pista de skate, cachorródromo, anfiteatro, vôlei de areia, roseiral, monumento, piquenique. */
+    private fun extra(g: CityGeo.Gen, tp: Int, x: Float, z: Float, near: Boolean) {
+        val b = g.b
+        when (tp) {
+            6 -> { if (g.reg) g.solid(x - 3f, z - 2f, x + 3f, z + 2f); if (!near) return
+                b.m(Mt.STONE, 0.4f); b.box(x, CURB + 0.02f, z, 22f, 0.04f, 16f, C("#B7B4AE"))
+                b.box(x, CURB + 0.6f, z, 6f, 1.2f, 4f, C("#A9A6A0")); b.m(Mt.METAL, 1f); b.box(x, CURB + 1.25f, z - 2f, 6f, 0.08f, 0.08f, C("#888888"))
+                for (s in floatArrayOf(-1f, 1f)) { b.m(Mt.STONE, 0.4f); CityGeo.q(b, CityGeo.P(x + s * 10f, CURB + 0.04f, z - 6f) + CityGeo.P(x + s * 10f, CURB + 0.04f, z + 6f) + CityGeo.P(x + s * 7f, CURB + 1.4f, z + 6f) + CityGeo.P(x + s * 7f, CURB + 1.4f, z - 6f), C("#A9A6A0")) }
+                b.m(Mt.METAL, 1f); b.box(x, CURB + 0.35f, z + 5.5f, 8f, 0.06f, 0.06f, C("#C9C9C9")) }
+            7 -> { if (g.reg) { g.solid(x - 9f, z - 9.1f, x + 9f, z - 8.9f); g.solid(x - 9f, z + 8.9f, x + 3f, z + 9.1f); g.solid(x - 9.1f, z - 9f, x - 8.9f, z + 9f); g.solid(x + 8.9f, z - 9f, x + 9.1f, z + 9f) }; if (!near) return
+                b.m(Mt.PLAIN); b.plane(x - 9f, z - 9f, x + 9f, z + 9f, CURB + 0.012f, C("#B9A57E"))
+                b.m(Mt.METAL, 1f); b.box(x, CURB + 0.6f, z - 9f, 18f, 1.2f, 0.03f, C("#4A5A4F")); b.box(x - 3f, CURB + 0.6f, z + 9f, 12f, 1.2f, 0.03f, C("#4A5A4F")); b.box(x - 9f, CURB + 0.6f, z, 0.03f, 1.2f, 18f, C("#4A5A4F")); b.box(x + 9f, CURB + 0.6f, z, 0.03f, 1.2f, 18f, C("#4A5A4F"))
+                b.m(Mt.WOOD, 0.5f); b.box(x - 4f, CURB + 0.4f, z, 3f, 0.08f, 0.4f, C("#8A5E3C")); b.box(x + 3f, CURB + 0.5f, z + 3f, 0.3f, 1f, 2.4f, C("#E05A47")) }
+            8 -> { if (g.reg) g.solid(x - 4f, z + 6f, x + 4f, z + 9f); if (!near) return
+                b.m(Mt.STONE, 0.6f); for (k in 0 until 5) b.cyl(x, CURB + k * 0.35f, z, 12f - k * 1.6f, 12f - k * 1.6f, 0.35f, C("#CFC8BA"), true, 32)
+                b.m(Mt.WOOD, 0.5f); b.box(x, CURB + 0.6f, z + 7.5f, 8f, 1.2f, 3f, C("#8A5E3C")); b.m(Mt.FABRIC, 1f); b.box(x, CURB + 4f, z + 9f, 9f, 0.15f, 1f, C("#E9E2D6")) }
+            9 -> { if (g.reg) g.solid(x - 4.6f, z - 0.15f, x + 4.6f, z + 0.15f); if (!near) return
+                b.m(Mt.PLASTER, 0.7f); b.box(x, CURB + 0.03f, z, 10f, 0.06f, 18f, C("#EED9A8"))
+                b.m(Mt.METAL, 1f); for (s in floatArrayOf(-4.6f, 4.6f)) b.box(x + s, CURB + 1.25f, z, 0.1f, 2.5f, 0.1f, C("#DDDDDD")); b.m(Mt.PLAIN); b.box(x, CURB + 2.15f, z, 9.2f, 0.9f, 0.02f, C("#2B2B2B")) }
+            10 -> { if (!near) return
+                for (k in 0 until 3) { val rr = 3f + k * 2.6f; b.m(Mt.GRASS, 0.5f); b.cyl(x, CURB, z, rr, rr, 0.35f - k * 0.1f, C("#3F6E33"), true, 24); b.m(Mt.PLAIN); b.cyl(x, CURB + 0.35f - k * 0.1f, z, rr - 0.3f, rr - 0.3f, 0.04f, C(arrayOf("#C2185B", "#F06292", "#E53935")[k]), true, 24) } }
+            11 -> { if (g.reg) g.solid(x - 1.5f, z - 1.5f, x + 1.5f, z + 1.5f); if (!near) return
+                b.m(Mt.STONE, 0.6f); b.box(x, CURB + 0.3f, z, 5f, 0.6f, 5f, C("#CFC8BA")); b.box(x, CURB + 0.9f, z, 2.8f, 0.6f, 2.8f, C("#BDB5A6"))
+                b.cyl(x, CURB + 1.2f, z, 0.9f, 0.4f, 9f, C("#E6E0D3"), true, 4) }
+            else -> { if (!near) return
+                for (k in 0 until 4) { val px = x + (k % 2 - 0.5f) * 6f; val pz = z + (k / 2 - 0.5f) * 6f
+                    b.m(Mt.WOOD, 0.5f); b.box(px, CURB + 0.75f, pz, 2.2f, 0.08f, 1.0f, C("#8A5E3C")); for (s in floatArrayOf(-0.7f, 0.7f)) b.box(px, CURB + 0.45f, pz + s, 2.2f, 0.06f, 0.3f, C("#7A5A3C"))
+                    b.box(px, CURB + 0.37f, pz, 0.12f, 0.75f, 0.12f, C("#6B4A32")) }
+                b.m(Mt.STONE, 1f); b.box(x + 4f, CURB + 0.4f, z, 1f, 0.8f, 0.8f, C("#6E6A64")) }
+        }
     }
 
     private fun bench(b: MB, x: Float, z: Float, fx: Float, fz: Float) {

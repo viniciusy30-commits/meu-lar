@@ -343,7 +343,10 @@ object City {
         types = emptyArray()
         Town.build(out)
         X0 = Town.minX - 200f; X1 = Town.maxX + 200f; Z0 = Town.minZ - 200f; Z1 = Town.maxZ + 200f
-        BEACH_Z = 1e6f; SEA_Z = 1e6f; PIER_X = -1e6f
+        // praia ao sul da Av. Beira-Mar (reta): calçadão, areia, mar e píer
+        Z1 = TownPlan.ZS[5] + 10f + Town.SW
+        BEACH_Z = Z1 + 10f; SEA_Z = Z1 + 62f; PIER_X = 120f
+        out.add(CityFun.beach(out.size))
         progress = 0.6f
         chunks = out
         Vehicles.build()
@@ -451,7 +454,7 @@ object City {
         if (!on || inLot(x, z)) return 0f
         for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
         bldAt(x, z)?.let { return FLOOR }
-        if (TOWN) return Town.groundH(x, z)
+        if (TOWN && z <= Z1) return Town.groundH(x, z)
         if (z > Z1) {
             if (z < BEACH_Z) return CURB
             val pz0 = BEACH_Z + 4f
