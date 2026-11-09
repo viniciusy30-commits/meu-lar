@@ -237,6 +237,15 @@ object MapPaint {
             }
             for (nd in Town.nodes) { val p = Path(); p.moveTo(nd.poly[0], nd.poly[1]); var i = 2; while (i < nd.poly.size) { p.lineTo(nd.poly[i], nd.poly[i + 1]); i += 2 }; p.close(); c.drawPath(p, road) }
             for (nd in Town.nodes) if (nd.round > 0f) { fill.color = 0xFFB5DDA0.toInt(); c.drawCircle(nd.x, nd.z, nd.round - 8f, fill) }
+            // Etapa 145: elevados (borda escura, pista clara e faixa amarela no meio)
+            for (e in Elevado.list) {
+                val ax = e.px(e.a0, 0f); val az = e.pz(e.a0, 0f); val bx2 = e.px(e.a1, 0f); val bz2 = e.pz(e.a1, 0f)
+                rp.strokeCap = Paint.Cap.BUTT
+                rp.color = 0xFF6E6A62.toInt(); rp.strokeWidth = Elevado.HW * 2 + 3f; c.drawLine(ax, az, bx2, bz2, rp)
+                rp.color = 0xFF8C8F94.toInt(); rp.strokeWidth = Elevado.HW * 2; c.drawLine(ax, az, bx2, bz2, rp)
+                rp.color = 0xFFF2C230.toInt(); rp.strokeWidth = 0.8f; c.drawLine(ax, az, bx2, bz2, rp)
+                rp.strokeCap = Paint.Cap.ROUND
+            }
         }
         val bx = City.bandX; val bz = City.bandZ
         if (ph == null && !Town.on) {

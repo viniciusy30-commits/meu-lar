@@ -106,6 +106,7 @@ object TownGeo {
     /** Monta os pedaços: cada um com a versão de longe pronta e a de perto gerada de novo quando o jogador chegar. */
     fun build(out: ArrayList<City.Chunk>) {
         tiles.clear()
+        Elevado.plan()
         val map = HashMap<Long, Tile>()
         for ((ei, ed) in Town.edges.withIndex()) { val m = ed.pts.size / 4 * 2; val t = tileOf(ed.pts[m], ed.pts[m + 1], map); t.edges.add(ei); t.grow(ed.pts, ed.w / 2 + SW + 3f) }
         for ((ni, nd) in Town.nodes.withIndex()) { val t = tileOf(nd.x, nd.z, map); t.nodes.add(ni); t.grow(nd.poly, SW + 3f) }
@@ -135,6 +136,7 @@ object TownGeo {
             c.lazyI = ui; c.lazyJ = -2
             out.add(c)
         }
+        Elevado.chunks(out)   // Etapa 145: elevados e alças
         out.add(outside(out.size))
     }
 
@@ -220,7 +222,7 @@ object TownGeo {
             }
             // árvores no canteiro
             var s = 10f
-            while (s < ed.len - 10f) { val i = (s / ed.len * (n - 1)).toInt().coerceIn(a0 + 1, a1 - 1); CityGeo.tree(g, p[i * 2], p[i * 2 + 1], 0.8f, CURB + 0.04f, 4); s += 18f }
+            while (s < ed.len - 10f) { val i = (s / ed.len * (n - 1)).toInt().coerceIn(a0 + 1, a1 - 1); if (!Elevado.covers(p[i * 2], p[i * 2 + 1])) CityGeo.tree(g, p[i * 2], p[i * 2 + 1], 0.8f, CURB + 0.04f, 4); s += 18f }
         }
         // sinalização horizontal
         b.m(Mt.PLAIN)

@@ -649,7 +649,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (!City.on) return false
         if (abs(x - gw / 2f) < 1.25f && z >= gh + 8.4f && z < gh + 9.8f) return true   // portão
         if (x > -7.4f && x < gw + 7.4f && z > -19.4f && z < gh + 9.4f) return false     // cerca do quintal
-        return !City.blocked(x, z)
+        if (Elevado.blockedWalk(x, z, baseY)) return false   // Etapa 145: pilares, aterro e guarda-corpo do elevado
+        return baseY > 0.45f || !City.blocked(x, z)
     }
 
     // ================================================================ Etapa 123: dirigir
@@ -708,8 +709,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var ok = false
         for (side in floatArrayOf(-1f, 1f)) {
             val ex = carX + rx * side * (carHalfW() + 0.8f); val ez = carZ + rz * side * (carHalfW() + 0.8f)
-            if (!City.on || !City.blocked(ex, ez)) { px = ex; pz = ez; ok = true; break }
+            val up = carY > 0.45f   // Etapa 145: em cima do elevado, desce do carro na própria pista
+            if (!City.on || (if (up) !Elevado.blockedWalk(ex, ez, carY) && !Elevado.surface(ex, ez, carY).isNaN() else !City.blocked(ex, ez))) { px = ex; pz = ez; ok = true; break }
         }
+        baseY = carY
         if (!ok) { px = carX - sin(carH) * (carHalfL() + 1f); pz = carZ + cos(carH) * (carHalfL() + 1f) }
         pYaw = Math.toDegrees(carH.toDouble()).toFloat() + 90f
         third = thirdBefore
@@ -980,7 +983,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (a in floatArrayOf(-hl, -hl * 0.5f, 0f, hl * 0.5f, hl)) for (b in floatArrayOf(-hw, 0f, hw)) {
             if (b == 0f && a != -hl && a != hl) continue
             val qx = x + fx * a + rx * b; val qz = z + fz * a + rz * b
-            if (City.inLot(qx, qz) || City.blocked(qx, qz)) { n++; sx += qx; sz += qz }
+            if (City.inLot(qx, qz) || (carY < 0.9f && City.blocked(qx, qz)) || Elevado.blockedCar(qx, qz, carY)) { n++; sx += qx; sz += qz }
         }
         if (n > 0) { hitCX = sx / n; hitCZ = sz / n }
         return n
@@ -1005,7 +1008,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (carX.isNaN()) return
         if (!boxVisible(carX - 6f, 0f, carZ - 6f, carX + 6f, 3.5f, carZ + 6f)) return
         Matrix.setIdentityM(mdl, 0)
-        Matrix.translateM(mdl, 0, carX, if (driving) carY else groundH(carX, carZ), carZ)
+        Matrix.translateM(mdl, 0, carX, if (driving || carY > 0.45f) carY else groundH(carX, carZ), carZ)
         Matrix.rotateM(mdl, 0, 180f - Math.toDegrees(carH.toDouble()).toFloat(), 0f, 1f, 0f)
         if (driving && isMoto()) Matrix.rotateM(mdl, 0, -steerS * min(1f, abs(carSpeed) / 8f) * 40f, 0f, 0f, 1f)   // moto inclina na curva
         draw(m, mdl, 1f)
@@ -1715,7 +1718,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Altura do chão sob (x, z): varanda, degrau e caminho de pedras ficam acima da grama. */
     private fun groundH(x: Float, z: Float): Float {
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
-        if (City.on && !City.inLot(x, z)) return City.groundH(x, z)   // Etapa 121: calçada 15 cm acima do asfalto
+        if (City.on && !City.inLot(x, z)) {   // Etapa 121: calçada 15 cm acima do asfalto
+            val g = City.groundH(x, z)
+            val e = Elevado.surface(x, z, if (driving) carY else baseY)   // Etapa 145: pista do elevado/alça
+            return if (!e.isNaN() && e > g) e else g
+        }
         val cx = abs(x - gw / 2f)
         if (z > gh + 0.15f) {
             if (cx < 1.4f && z < gh + 1.75f) return 0.09f

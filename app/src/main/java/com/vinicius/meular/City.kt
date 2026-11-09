@@ -558,7 +558,7 @@ object City {
         c.path = p; val n = p.size / 2; val cu = FloatArray(n); for (i in 1 until n) cu[i] = cu[i - 1] + kotlin.math.hypot(p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1]); c.cum = cu; c.s = 0f
     }
 
-    private fun laneOff(ei: Int, k: Int): Float { val o = laneOffsets(Town.edges[ei].w); return o[k.coerceIn(0, o.size - 1)] }
+    private fun laneOff(ei: Int, k: Int): Float { val o = laneOffsets(Town.edges[ei].w); return if (ei in Elevado.edgeSet) o.last() else o[k.coerceIn(0, o.size - 1)] }
 
     private fun chooseNext(c: Car, rng: Rng) {
         val to = if (c.fwd) Town.edges[c.edge].b else Town.edges[c.edge].a
