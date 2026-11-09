@@ -97,7 +97,9 @@ object TownPlan {
             val beach = r == N   // a orla é reta: a rua da beira-mar acompanha a praia
             // rotatórias nos cruzamentos de avenida
             val round = if (r == 3 && c == 2) 26f else if (r == 1 && c == 1) 22f else if (r == 1 && c == 3) 22f else if (r == 3 && c == 3) 20f else 0f
-            G[r][c] = Town.n(XS[c] + rng.r(-j, j), if (beach) ZS[r] else ZS[r] + rng.r(-j, j), round)
+            // Etapa 149: avenidas retas (linhas 1 e 3, colunas 1 e 2) — os elevados correm exatamente sobre o canteiro
+            val jx = rng.r(-j, j); val jz = rng.r(-j, j)
+            G[r][c] = Town.n(XS[c] + (if (c == 1 || c == 2) 0f else jx), if (beach || r == 1 || r == 3) ZS[r] else ZS[r] + jz, round)
         }
         // avenidas: linhas z 1 e 3, colunas x 1 e 2 (as duas dos lados do bairro da casa)
         val hName = Array(N + 1) { if (it == 3) AVES[0] else if (it == 1) AVES[2] else if (it == 0) AVES[3] else street() }
@@ -107,13 +109,13 @@ object TownPlan {
             val home = (r == 2 || r == 3) && c == 1
             val w = if (r == 3 || r == 1) 24f else 16f
             val bend = if (home) rng.r(-5f, 5f) else rng.r(-18f, 18f)
-            H[r][c] = Town.e(G[r][c], G[r][c + 1], if (r == N) 20f else w, if (r == N || urbanSide(r - 1, c) || urbanSide(r, c)) 0f else bend, if (r == N) "Av. Beira-Mar" else hName[r])
+            H[r][c] = Town.e(G[r][c], G[r][c + 1], if (r == N) 20f else w, if (r == N || r == 1 || r == 3 || urbanSide(r - 1, c) || urbanSide(r, c)) 0f else bend, if (r == N) "Av. Beira-Mar" else hName[r])
         }
         for (r in 0 until N) for (c in 0..N) {
             val home = r == 2 && (c == 1 || c == 2)
             val w = if (c == 1 || c == 2) 24f else 16f
             val bend = if (home) rng.r(-5f, 5f) else rng.r(-18f, 18f)
-            V[r][c] = Town.e(G[r][c], G[r + 1][c], w, if (urbanSide(r, c - 1) || urbanSide(r, c)) 0f else bend, vName[c])
+            V[r][c] = Town.e(G[r][c], G[r + 1][c], w, if (c == 1 || c == 2 || urbanSide(r, c - 1) || urbanSide(r, c)) 0f else bend, vName[c])
         }
         // bairros (as curvas de cada lado guardadas antes de qualquer divisão)
         val HC = Array(N + 1) { r -> Array(N) { c -> curveOf(H[r][c]) } }; val VC = Array(N) { r -> Array(N + 1) { c -> curveOf(V[r][c]) } }
@@ -154,8 +156,10 @@ object TownPlan {
                     val ld = floatArrayOf(0f, 22f, 26f, 34f)[TIER[r][c].coerceIn(1, 3)]
                     val wx = XS[c + 1] - XS[c]; val hz = ZS[r + 1] - ZS[r]
                     val across = Math.round((if (rot % 2 == 0) hz else wx) / (2 * ld + 17f)).coerceAtLeast(2)
-                    val along = Math.round((if (rot % 2 == 0) wx else hz) / 150f).coerceAtLeast(1)
-                    val bend = (if (mir) 1f else -1f) * cr.r(3f, 7f)
+                    // Etapa 149: metade dos subúrbios com ruas longas e curvas (sem transversal no meio), a outra metade em quadras
+                    val curvy = (r + c) % 2 == 0
+                    val along = if (curvy) 1 else Math.round((if (rot % 2 == 0) wx else hz) / 150f).coerceAtLeast(1)
+                    val bend = (if (mir) 1f else -1f) * (if (curvy) cr.r(11f, 16f) else cr.r(3f, 7f))
                     val gAcross = (1.5f * ld + 16f) / (if (rot % 2 == 0) hz else wx); val gAlong = 70f / (if (rot % 2 == 0) wx else hz)
                     if (rot % 2 == 0) grid(N, S, W, E, along, 12f, SUB, across, bend, gapU = gAlong, gapV = gAcross) else grid(N, S, W, E, across, 12f, SUB, along, bend, gapU = gAcross, gapV = gAlong)
                     if (P(0f, 0f).isEmpty()) loopSub(P, cr)

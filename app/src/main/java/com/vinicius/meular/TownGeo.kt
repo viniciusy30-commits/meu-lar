@@ -306,25 +306,71 @@ object TownGeo {
         }
         // postes e árvores nas calçadas
         val rng = City.Rng(ei * 97 + 5)
+        fun at(sv: Float, side: Float, off: Float): FloatArray {
+            val i = (sv / ed.len * (n - 1)).toInt().coerceIn(0, n - 1); val t = Town.tangent(p, i)
+            val nx = -t[1] * side; val nz = t[0] * side
+            return floatArrayOf(p[i * 2] + nx * off, p[i * 2 + 1] + nz * off, nx, nz, t[0], t[1])
+        }
         var s = 9f; var k = 0
         while (s < ed.len - 9f) {
-            val i = (s / ed.len * (n - 1)).toInt().coerceIn(0, n - 1)
-            val t = Town.tangent(p, i)
             val sd = if (k % 2 == 0) 1f else -1f
-            val nx = -t[1] * sd; val nz = t[0] * sd
-            val lx = p[i * 2] + nx * (hw + 0.55f); val lz = p[i * 2 + 1] + nz * (hw + 0.55f)
-            lamp(b, lx, lz, -nx, -nz)
-            g.solid(lx - 0.15f, lz - 0.15f, lx + 0.15f, lz + 0.15f)
-            // árvore no meio do vão entre dois postes, no lado oposto
-            val s2 = s + 13f
-            if (s2 < ed.len - 9f && ed.w < 22f) {
-                val j = (s2 / ed.len * (n - 1)).toInt().coerceIn(0, n - 1)
-                val t2 = Town.tangent(p, j)
-                val tx = p[j * 2] - t2[1] * (-sd) * (hw + SW - 1.0f); val tz = p[j * 2 + 1] + t2[0] * (-sd) * (hw + SW - 1.0f)
-                CityGeo.tree(g, tx, tz, rng.r(0.7f, 0.85f))
-                g.solid(tx - 0.25f, tz - 0.25f, tx + 0.25f, tz + 0.25f)
-            }
+            val q = at(s, sd, hw + 0.55f)
+            lamp(b, q[0], q[1], -q[2], -q[3])
+            g.solid(q[0] - 0.15f, q[1] - 0.15f, q[0] + 0.15f, q[1] + 0.15f)
             s += 26f; k++
+        }
+        // Etapa 149: cada rua com a sua espécie de árvore (ipê roxo, ipê amarelo, sibipiruna, oiti, palmeira...), dos dois lados
+        val res = ed.kind == TownPlan.SUB || ed.kind == TownPlan.HOME || ed.kind == TownPlan.MAN || ed.kind == TownPlan.PARK
+        val species = intArrayOf(0, 2, 3, 1, 4, 0, 3, 2)[Math.floorMod(ed.name.hashCode(), 8)]
+        if (ed.len > 16f) {
+            var st = 6f; var q = 0
+            val step = if (ed.avenue) 15f else if (res) 13f else 13f
+            while (st < ed.len - 6f) {
+                val near = ((st - 9f) % 26f + 26f) % 26f
+                val stop = ed.avenue && ed.len > 50f && (abs(st - ed.len * 0.35f) < 4f || abs(st - ed.len * 0.65f) < 4f)
+                if (near > 2.2f && near < 23.8f && !stop) {
+                    val sd = if (q % 2 == 0) -1f else 1f
+                    val pt = at(st, sd, hw + 1.05f)
+                    if (!res) { b.m(Mt.METAL, 1f); b.box(pt[0], CURB + 0.005f, pt[1], 1.3f, 0.02f, 1.3f, C("#3A3A3A")); b.m(Mt.PLAIN); b.box(pt[0], CURB + 0.012f, pt[1], 1.1f, 0.02f, 1.1f, C("#5A4632")) }
+                    CityGeo.tree(g, pt[0], pt[1], if (ed.avenue) rng.r(0.85f, 1.05f) else if (res) rng.r(0.72f, 0.92f) else rng.r(0.62f, 0.75f), CURB, if (res || ed.avenue) species else (if (rng.chance(0.5f)) 0 else 4))
+                    g.solid(pt[0] - 0.25f, pt[1] - 0.25f, pt[0] + 0.25f, pt[1] + 0.25f)
+                }
+                st += step; q++
+            }
+        }
+        // mobiliário urbano: hidrantes nos bairros; bancos, lixeiras e ponto de ônibus no centro/comércio
+        if (res) {
+            var st = 20f
+            while (st < ed.len - 8f) { val pt = at(st, 1f, hw + 0.45f); b.m(Mt.METAL, 1f); b.cyl(pt[0], CURB, pt[1], 0.13f, 0.11f, 0.55f, C("#C62828"), true, 8); b.cyl(pt[0], CURB + 0.55f, pt[1], 0.09f, 0.04f, 0.12f, C("#C62828"), true, 8); g.solid(pt[0] - 0.15f, pt[1] - 0.15f, pt[0] + 0.15f, pt[1] + 0.15f); st += 52f }
+        } else if (ed.len > 30f) {
+            var st = 15f; var q = 0
+            while (st < ed.len - 12f) {
+                val sd = if (q % 2 == 0) 1f else -1f
+                val pt = at(st, sd, hw + 2.6f)
+                val fx = -pt[2]; val fz = -pt[3]   // de frente para a rua
+                val ax = pt[4]; val az = pt[5]
+                b.m(Mt.WOOD, 0.6f)
+                for (o in floatArrayOf(-0.15f, 0f, 0.15f)) b.box(pt[0] - fx * o, CURB + 0.45f, pt[1] - fz * o, abs(ax) * 1.7f + abs(fx) * 0.12f, 0.05f, abs(az) * 1.7f + abs(fz) * 0.12f, C("#8D6E63"))
+                b.box(pt[0] - fx * 0.28f, CURB + 0.75f, pt[1] - fz * 0.28f, abs(ax) * 1.7f + abs(fx) * 0.05f, 0.4f, abs(az) * 1.7f + abs(fz) * 0.05f, C("#8D6E63"))
+                b.m(Mt.METAL, 1f); for (o in floatArrayOf(-0.75f, 0.75f)) b.box(pt[0] + ax * o, CURB + 0.225f, pt[1] + az * o, 0.06f, 0.45f, 0.06f, C("#37474F"))
+                g.solid(pt[0] - 0.9f, pt[1] - 0.9f, pt[0] + 0.9f, pt[1] + 0.9f)
+                val bn = at(st + 4f, sd, hw + 0.5f); b.cyl(bn[0], CURB, bn[1], 0.25f, 0.27f, 0.85f, C("#2E7D32"), true, 10); g.solid(bn[0] - 0.3f, bn[1] - 0.3f, bn[0] + 0.3f, bn[1] + 0.3f)
+                st += 38f; q++
+            }
+        }
+        if (ed.avenue && ed.len > 50f) for (sd in floatArrayOf(-1f, 1f)) {
+            // ponto de ônibus com abrigo de vidro, banco, placa e mapa
+            val pt = at(ed.len * (if (sd > 0) 0.35f else 0.65f), sd, hw + 2.1f)
+            val fx = -pt[2]; val fz = -pt[3]; val ax = pt[4]; val az = pt[5]
+            val cx = pt[0]; val cz = pt[1]
+            b.m(Mt.METAL, 1f)
+            for (o in floatArrayOf(-1.6f, 1.6f)) b.box(cx + ax * o - fx * 0.6f, CURB + 1.25f, cz + az * o - fz * 0.6f, 0.08f, 2.5f, 0.08f, C("#455A64"))
+            b.box(cx - fx * 0.3f, CURB + 2.5f, cz - fz * 0.3f, abs(ax) * 3.6f + abs(fx) * 1.6f, 0.1f, abs(az) * 3.6f + abs(fz) * 1.6f, C("#455A64"))
+            b.m(Mt.GLASS); b.box(cx - fx * 0.65f, CURB + 1.35f, cz - fz * 0.65f, abs(ax) * 3.2f + abs(fx) * 0.03f, 2.1f, abs(az) * 3.2f + abs(fz) * 0.03f, C("#CFE8F2"))
+            b.m(Mt.WOOD, 0.6f); b.box(cx - fx * 0.35f, CURB + 0.45f, cz - fz * 0.35f, abs(ax) * 2.6f + abs(fx) * 0.4f, 0.06f, abs(az) * 2.6f + abs(fz) * 0.4f, C("#8D6E63"))
+            b.m(Mt.PLAIN); b.box(cx + ax * 1.55f - fx * 0.62f, CURB + 1.25f, cz + az * 1.55f - fz * 0.62f, abs(ax) * 0.05f + abs(fx) * 0.9f, 1.3f, abs(az) * 0.05f + abs(fz) * 0.9f, C("#1565C0"), false)
+            b.m(Mt.METAL, 1f); b.box(cx + ax * 2.3f + fx * 0.4f, CURB + 1.3f, cz + az * 2.3f + fz * 0.4f, 0.07f, 2.6f, 0.07f, C("#9E9E9E")); b.m(Mt.PLAIN); b.box(cx + ax * 2.3f + fx * 0.4f, CURB + 2.3f, cz + az * 2.3f + fz * 0.4f, 0.5f, 0.5f, 0.05f, C("#1565C0"))
+            g.solid(min(cx + ax * 1.7f, cx - ax * 1.7f) - 0.8f, min(cz + az * 1.7f, cz - az * 1.7f) - 0.8f, max(cx + ax * 1.7f, cx - ax * 1.7f) + 0.8f, max(cz + az * 1.7f, cz - az * 1.7f) + 0.8f)
         }
     }
 

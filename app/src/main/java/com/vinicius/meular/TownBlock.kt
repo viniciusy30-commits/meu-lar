@@ -81,10 +81,13 @@ object TownBlock {
         val H = gh + floors * fh
         val dep = Dp
         val shopGround = kind != 4 && (d != TownPlan.URB || r.chance(0.6f) || corner)
+        val tw = d == TownPlan.DOWN && (kind == 2 || kind == 3)   // Etapa 149: arranha-céu com desenho próprio
         // ---- longe
         val col = when (kind) { 1 -> C(BRICKS[r.i(BRICKS.size)]); 2, 3 -> C(GLASS[r.i(GLASS.size)]); else -> C(FACADES[r.i(FACADES.size)]) }
-        g.f.m(if (kind == 2 || kind == 3) Mt.METAL else Mt.FACADE, if (kind == 2 || kind == 3) 1f else 1f / 3f)
-        f.box(g.f, W / 2, CURB, dep / 2, W - 0.1f, H, dep, col)
+        if (!tw) {
+            g.f.m(if (kind == 2 || kind == 3) Mt.METAL else Mt.FACADE, if (kind == 2 || kind == 3) 1f else 1f / 3f)
+            f.box(g.f, W / 2, CURB, dep / 2, W - 0.1f, H, dep, col)
+        } else { g.f.m(Mt.STONE, 0.6f); f.box(g.f, W / 2, CURB, dep / 2, W - 0.1f, gh, dep, C("#8C8F94")) }
         if (g.reg) f.solid(g, 0.05f, 0f, W - 0.05f, dep)
         // ---- térreo
         if (shopGround) {
@@ -123,6 +126,7 @@ object TownBlock {
         }
         // ---- corpo
         val y1 = CURB + gh
+        if (tw) return tower(g, f, r, W, dep, floors + (if (corner) 6 else 0), y1)
         when (kind) {
             1 -> { // tijolo com janelas em grade, cornija e escada de incêndio
                 b.m(Mt.STONE, 0.45f); f.box(b, W / 2, y1, dep / 2, W - 0.1f, floors * fh, dep, col)
@@ -203,6 +207,132 @@ object TownBlock {
         if (r.chance(0.3f) && W > 10f) { b.m(Mt.GRASS, 0.5f); f.box(b, W * 0.6f, ry - 0.5f, dep * 0.4f, W * 0.4f, 0.15f, dep * 0.3f, C("#5E8C4A")) }
         if (d == TownPlan.URB && r.chance(0.3f)) { b.m(Mt.WOOD, 0.6f); f.box(b, W * 0.7f, ry, dep * 0.6f, 2.2f, 2.6f, 2.2f, C("#7A5A3C")); b.m(Mt.ROOF, 0.6f); f.box(b, W * 0.7f, ry + 2.6f, dep * 0.6f, 2.6f, 0.6f, 2.6f, C("#4A3A2E")) }   // caixa d'água de madeira (NY)
         return ry + 3f
+    }
+
+    private val TINT = arrayOf("#8FB4CC", "#7FA9A6", "#9DB8A0", "#B59A7E", "#A9B4BE", "#6F8FB5", "#C2CCD3", "#8C9CB0", "#94A8B8", "#A3B6A9")
+
+    /** Etapa 149: arranha-céu — cada um com um desenho (escalonado, grade de concreto, faixas, cilindro, coroa em pirâmide, brises de bronze, torres gêmeas),
+     *  com o volume também no modelo de longe, para o horizonte ter silhuetas diferentes. */
+    private fun tower(g: CityGeo.Gen, f: TownSmall.F, r: City.Rng, W: Float, dep: Float, floors: Int, y1: Float): Float {
+        val b = g.b; val fh = 3f
+        val tint = C(TINT[r.i(TINT.size)])
+        fun mass(u: Float, y: Float, v: Float, su: Float, sy: Float, sv: Float, c: Int, mat: Int = Mt.CURTAIN, sc: Float = 1f / 3f) {
+            b.m(mat, sc, 0f, -y / 3f); f.box(b, u, y, v, su, sy, sv, c)
+            g.f.m(mat, sc, 0f, -y / 3f); f.box(g.f, u, y, v, su, sy, sv, c)
+        }
+        fun beacon(u: Float, y: Float, v: Float) { b.m(Mt.PLAIN); f.box(b, u, y, v, 0.35f, 0.35f, 0.35f, C("#E53935")) }
+        var H = floors * fh
+        var a = r.i(7)
+        if (a == 3 && min(W, dep) < 15f) a = 0
+        if (a == 6 && W < 22f) a = 4
+        when (a) {
+            0 -> { // escalonado (wedding cake): três volumes que vão recuando, com marquises de pedra e lanterna de vidro no topo
+                val h1 = (H * 0.55f / fh).toInt() * fh; val h2 = (H * 0.28f / fh).toInt() * fh; val h3 = max(2 * fh, H - h1 - h2)
+                val i2 = min(W, dep) * 0.12f; val i3 = min(W, dep) * 0.24f
+                mass(W / 2, y1, dep / 2, W - 0.1f, h1, dep, tint)
+                mass(W / 2, y1 + h1, dep / 2, W - 2 * i2, h2, dep - 2 * i2, shade(tint, 6))
+                mass(W / 2, y1 + h1 + h2, dep / 2, W - 2 * i3, h3, dep - 2 * i3, shade(tint, 12))
+                b.m(Mt.STONE, 0.6f)
+                f.box(b, W / 2, y1 + h1, dep / 2, W + 0.3f, 0.5f, dep + 0.3f, C("#D8D2C4"))
+                f.box(b, W / 2, y1 + h1 + h2, dep / 2, W - 2 * i2 + 0.3f, 0.5f, dep - 2 * i2 + 0.3f, C("#D8D2C4"))
+                val top = y1 + h1 + h2 + h3
+                mass(W / 2, top, dep / 2, (W - 2 * i3) * 0.55f, 6f, (dep - 2 * i3) * 0.55f, C("#F3E7C2"), Mt.GLASS, 1f)
+                mass(W / 2, top + 6f, dep / 2, 0.5f, 14f, 0.5f, C("#C9CED3"), Mt.METAL, 1f)
+                beacon(W / 2, top + 20f, dep / 2)
+                return top + 20f
+            }
+            1 -> { // grade de concreto claro com pilastras salientes e heliponto
+                val wall = C(arrayOf("#ECE7DD", "#E2DED6", "#D8CDBB", "#F1EEE8")[r.i(4)])
+                mass(W / 2, y1, dep / 2, W - 0.1f, H, dep, wall, Mt.FACADE)
+                b.m(Mt.PLASTER, 0.5f)
+                var uu = 0f; val step = W / max(2, (W / 4.5f).toInt())
+                while (uu <= W + 0.01f) { f.box(b, uu.coerceIn(0.2f, W - 0.2f), y1, -0.18f, 0.45f, H, 0.4f, shade(wall, -8)); f.box(b, uu.coerceIn(0.2f, W - 0.2f), y1, dep + 0.18f, 0.45f, H, 0.4f, shade(wall, -8)); uu += step }
+                for (k in 1..(H / fh / 6f).toInt()) f.box(b, W / 2, y1 + k * 6 * fh - 0.2f, dep / 2, W + 0.5f, 0.4f, dep + 0.5f, shade(wall, -14))
+                val top = y1 + H
+                mass(W / 2, top, dep / 2, W + 0.3f, 1.4f, dep + 0.3f, shade(wall, -18), Mt.PLASTER, 0.5f)
+                val hr = min(W, dep) * 0.36f
+                b.m(Mt.PLAIN)
+                b.cyl(f.x(W / 2, dep / 2), top + 1.4f, f.z(W / 2, dep / 2), hr, hr, 0.06f, C("#4A4D52"), true, 28)
+                b.cyl(f.x(W / 2, dep / 2), top + 1.42f, f.z(W / 2, dep / 2), hr * 0.92f, hr * 0.92f, 0.06f, C("#F2C230"), true, 28)
+                b.cyl(f.x(W / 2, dep / 2), top + 1.44f, f.z(W / 2, dep / 2), hr * 0.86f, hr * 0.86f, 0.06f, C("#4A4D52"), true, 28)
+                f.box(b, W / 2 - hr * 0.3f, top + 1.47f, dep / 2, 0.5f, 0.05f, hr * 0.9f, C("#F4F4F4"))
+                f.box(b, W / 2 + hr * 0.3f, top + 1.47f, dep / 2, 0.5f, 0.05f, hr * 0.9f, C("#F4F4F4"))
+                f.box(b, W / 2, top + 1.47f, dep / 2, hr * 0.6f, 0.05f, 0.5f, C("#F4F4F4"))
+                beacon(0.6f, top + 1.4f, 0.6f); beacon(W - 0.6f, top + 1.4f, dep - 0.6f)
+                return top + 3f
+            }
+            2 -> { // janelas em fita: vidro escuro corrido e faixa branca em cada andar, laje de cobertura em balanço
+                val wall = C(arrayOf("#F2F0EB", "#E6E1D7", "#DADFE3")[r.i(3)])
+                mass(W / 2, y1, dep / 2, W - 0.1f, H, dep, wall, Mt.PLASTER, 0.5f)
+                b.m(Mt.GLASS, 1f); g.f.m(Mt.GLASS, 1f)
+                val gl = C(arrayOf("#3B5568", "#2F4F4F", "#44505C", "#4D6B7E")[r.i(4)])
+                for (k in 0 until (H / fh).toInt()) {
+                    f.box(b, W / 2, y1 + k * fh + 1.0f, dep / 2, W + 0.06f, 1.75f, dep + 0.06f, gl)
+                    if (k % 2 == 0) f.box(g.f, W / 2, y1 + k * fh + 1.0f, dep / 2, W + 0.06f, 3.5f, dep + 0.06f, gl)
+                }
+                val top = y1 + H
+                mass(W / 2, top, dep / 2, W + 2.4f, 0.6f, dep + 2.4f, wall, Mt.PLASTER, 0.5f)
+                b.m(Mt.METAL, 1f); for (s2 in floatArrayOf(0.3f, 0.7f)) f.box(b, W * s2, top + 0.6f, dep / 2, 0.25f, 9f + s2 * 6f, 0.25f, C("#B0B6BC"))
+                beacon(W * 0.7f, top + 0.6f + 13.2f, dep / 2)
+                return top + 15f
+            }
+            3 -> { // cilindro de vidro com anéis e coroa
+                val rr = min(W, dep) / 2 - 0.4f; val cx = f.x(W / 2, dep / 2); val cz = f.z(W / 2, dep / 2)
+                for (mb in arrayOf(b, g.f)) { mb.m(Mt.CURTAIN, 1f / 3f, 0f, -y1 / 3f); mb.cyl(cx, y1, cz, rr, rr, H, tint, true, 28) }
+                b.m(Mt.METAL, 1f)
+                var k = 4; while (k * fh < H) { b.cyl(cx, y1 + k * fh - 0.15f, cz, rr + 0.2f, rr + 0.2f, 0.3f, C("#DDE1E4"), true, 28); k += 4 }
+                val top = y1 + H
+                for (mb in arrayOf(b, g.f)) { mb.m(Mt.METAL, 1f); mb.cyl(cx, top, cz, rr + 0.3f, rr * 0.7f, 2.5f, C("#DDE1E4"), true, 28); mb.cyl(cx, top + 2.5f, cz, rr * 0.55f, rr * 0.45f, 7f, shade(tint, 20), true, 24); mb.cyl(cx, top + 9.5f, cz, 0.35f, 0.08f, 16f, C("#C9CED3"), true, 8) }
+                beacon(W / 2, top + 25.5f, dep / 2)
+                return top + 26f
+            }
+            4 -> { // torre com colunas de pedra nas quinas e coroa em pirâmide dourada
+                val ins = min(W, dep) * 0.08f; val tw2 = W - 2 * ins; val td = dep - 2 * ins
+                val pod = 3 * fh
+                mass(W / 2, y1, dep / 2, W - 0.1f, pod, dep, C(FACADES[r.i(FACADES.size)]), Mt.FACADE)
+                mass(W / 2, y1 + pod, dep / 2, tw2, H - pod, td, tint)
+                b.m(Mt.STONE, 0.5f); g.f.m(Mt.STONE, 0.5f)
+                val stc = C(arrayOf("#D9D2C2", "#C8BBA6", "#E5E0D6")[r.i(3)])
+                for (cu in floatArrayOf(ins, W - ins)) for (cv in floatArrayOf(ins, dep - ins)) for (mb in arrayOf(b, g.f)) f.box(mb, cu, y1 + pod, cv, 1.4f, H - pod + 1f, 1.4f, stc)
+                val top = y1 + H + 1f
+                var y = top; var sw = tw2; var sd = td
+                b.m(Mt.METAL, 1f); g.f.m(Mt.METAL, 1f)
+                val gold = C(arrayOf("#C9A227", "#B9B9B9", "#5E7F6E")[r.i(3)])
+                for (q in 0 until 6) { for (mb in arrayOf(b, g.f)) f.box(mb, W / 2, y, dep / 2, sw, 1.6f, sd, gold); y += 1.6f; sw *= 0.78f; sd *= 0.78f }
+                for (mb in arrayOf(b, g.f)) f.box(mb, W / 2, y, dep / 2, 0.3f, 8f, 0.3f, gold)
+                beacon(W / 2, y + 8f, dep / 2)
+                return y + 8f
+            }
+            5 -> { // vidro bronze com brises verticais e coroa vazada
+                val bz = C(arrayOf("#B08D6A", "#9C8B78", "#8E9A86")[r.i(3)])
+                mass(W / 2, y1, dep / 2, W - 0.1f, H, dep, bz)
+                b.m(Mt.METAL, 1f)
+                val fin = shade(bz, -45)
+                var uu = 0.75f; while (uu < W - 0.5f) { f.box(b, uu, y1, -0.3f, 0.14f, H + 2f, 0.6f, fin); f.box(b, uu, y1, dep + 0.3f, 0.14f, H + 2f, 0.6f, fin); uu += 1.5f }
+                val top = y1 + H
+                for (mb in arrayOf(b, g.f)) {
+                    mb.m(Mt.METAL, 1f)
+                    for (cu in floatArrayOf(0.4f, W - 0.4f)) for (cv in floatArrayOf(0.4f, dep - 0.4f)) f.box(mb, cu, top, cv, 0.8f, 9f, 0.8f, fin)
+                    f.box(mb, W / 2, top + 8f, 0.4f, W, 1f, 0.8f, fin); f.box(mb, W / 2, top + 8f, dep - 0.4f, W, 1f, 0.8f, fin)
+                    f.box(mb, 0.4f, top + 8f, dep / 2, 0.8f, 1f, dep, fin); f.box(mb, W - 0.4f, top + 8f, dep / 2, 0.8f, 1f, dep, fin)
+                }
+                b.m(Mt.METAL, 1f); f.box(b, W / 2, top, dep / 2, W * 0.4f, 3f, dep * 0.4f, C("#9EA4AA"))
+                beacon(0.4f, top + 9f, 0.4f)
+                return top + 9f
+            }
+            else -> { // torres gêmeas ligadas por uma passarela de vidro
+                val sw = W * 0.4f; val h2 = (H * 0.78f / fh).toInt() * fh
+                mass(W * 0.21f, y1, dep / 2, sw, H, dep * 0.9f, tint)
+                mass(W * 0.79f, y1, dep / 2, sw, h2, dep * 0.9f, shade(tint, 8))
+                val by = y1 + (h2 * 0.6f / fh).toInt() * fh
+                mass(W / 2, by, dep / 2, W * 0.2f + 0.4f, 2 * fh, dep * 0.4f, C("#DDE6EC"), Mt.GLASS, 1f)
+                b.m(Mt.METAL, 1f)
+                f.box(b, W * 0.21f, y1 + H, dep / 2, sw + 0.4f, 1.2f, dep * 0.9f + 0.4f, C("#DDE1E4"))
+                f.box(b, W * 0.79f, y1 + h2, dep / 2, sw + 0.4f, 1.2f, dep * 0.9f + 0.4f, C("#DDE1E4"))
+                beacon(W * 0.21f, y1 + H + 1.2f, dep / 2)
+                return y1 + H + 2f
+            }
+        }
     }
 
     /** Miolo do quarteirão. */

@@ -55,8 +55,8 @@ object Elevado {
         val e = E(axis, c, a0, a1, name)
         var s = a0 + RAMP * 0.75f
         while (s < a1 - RAMP * 0.75f) {
-            val near = cross.any { abs(it - s) < 17f }
-            if (!near) { e.pillars.add(s); s += 30f } else s += 3f
+            val near = cross.any { abs(it - s) < 16f }
+            if (!near) { e.pillars.add(s); s += 24f } else s += 2f
         }
         list.add(e)
         for ((ei, ed) in Town.edges.withIndex()) { val m = ed.pts.size / 4 * 2; val x = ed.pts[m]; val z = ed.pts[m + 1]
@@ -111,7 +111,7 @@ object Elevado {
         }
     }
 
-    private val CON = C("#B9B4AA"); private val CON_D = C("#8F8A80"); private val ASPH = C("#4A4C50"); private val RAILC = C("#D6D2C8")
+    private val CON = C("#CFCAC0"); private val CON_D = C("#B3ADA2"); private val ASPH = C("#EDEDED"); private val RAILC = C("#E4E0D7")
 
     /** Quadrilátero com normal calculada (a, b, c, d em sentido anti-horário visto de fora). */
     private fun q(b: MB, p: FloatArray, col: Int) {
@@ -120,7 +120,7 @@ object Elevado {
         val ax = if (abs(ny) > 0.6f) 1 else if (abs(nx) > abs(nz)) 0 else 2
         fun v(i: Int) { val x = p[i * 3]; val y = p[i * 3 + 1]; val z = p[i * 3 + 2]; when (ax) { 0 -> b.v(x, y, z, nx, ny, nz, col, z, y); 1 -> b.v(x, y, z, nx, ny, nz, col, x, z); else -> b.v(x, y, z, nx, ny, nz, col, x, y) } }
         for (i in intArrayOf(0, 1, 2, 0, 2, 3)) v(i)
-        for (i in intArrayOf(0, 2, 1, 0, 3, 2)) { val x = p[i * 3]; val y = p[i * 3 + 1]; val z = p[i * 3 + 2]; b.v(x, y, z, -nx, -ny, -nz, col, if (ax == 0) z else x, if (ax == 1) z else y) }
+        for (i in intArrayOf(0, 2, 1, 0, 3, 2)) { val x = p[i * 3] - nx * 0.008f; val y = p[i * 3 + 1] - ny * 0.008f; val z = p[i * 3 + 2] - nz * 0.008f; b.v(x, y, z, -nx, -ny, -nz, col, if (ax == 0) z else x, if (ax == 1) z else y) }
     }
     /** Faixa ao longo do elevado entre as laterais l0..l1, de s0 a s1, com altura y(s) + dy (topo) — passos de 5 m. */
     private fun strip(b: MB, e: E, s0: Float, s1: Float, l0: Float, l1: Float, dy: Float, col: Int) {
@@ -137,40 +137,48 @@ object Elevado {
     }
 
     private fun piece(b: MB, e: E, s0: Float, s1: Float) {
-        // pista: asfalto, laje (espessura 0,9 m) e vigas por baixo
+        // pista: asfalto liso, laje de concreto claro (sem textura áspera), três vigas por baixo e faixa de acabamento na beirada
         b.m(Mt.ASPHALT, 0.25f); strip(b, e, s0, s1, -HW, HW, 0.02f, ASPH)
-        b.m(Mt.STONE, 0.5f)
-        strip(b, e, s0, s1, -HW - 0.35f, HW + 0.35f, -0.9f, CON_D)
-        side(b, e, s0, s1, -HW - 0.35f, -0.9f, 0.02f, CON); side(b, e, s0, s1, HW + 0.35f, -0.9f, 0.02f, CON)
-        for (l in floatArrayOf(-2.6f, 0f, 2.6f)) { side(b, e, s0, s1, l - 0.35f, -1.6f, -0.9f, CON_D); side(b, e, s0, s1, l + 0.35f, -1.6f, -0.9f, CON_D); strip(b, e, s0, s1, l - 0.35f, l + 0.35f, -1.6f, CON_D) }
-        // sinalização: faixa dupla amarela no meio, brancas nas bordas, tachões
+        b.m(Mt.PLASTER, 0.35f)
+        strip(b, e, s0, s1, -HW - 0.45f, HW + 0.45f, -0.7f, CON_D)
+        side(b, e, s0, s1, -HW - 0.45f, -0.7f, 0.02f, CON); side(b, e, s0, s1, HW + 0.45f, -0.7f, 0.02f, CON)
+        for (l in floatArrayOf(-2.9f, 0f, 2.9f)) { side(b, e, s0, s1, l - 0.4f, -1.7f, -0.7f, CON_D); side(b, e, s0, s1, l + 0.4f, -1.7f, -0.7f, CON_D); strip(b, e, s0, s1, l - 0.4f, l + 0.4f, -1.7f, CON_D) }
         b.m(Mt.PLAIN)
+        for (sg in floatArrayOf(-1f, 1f)) { side(b, e, s0, s1, sg * (HW + 0.47f), -0.55f, -0.35f, C("#3E6E8E")); side(b, e, s0, s1, sg * (HW + 0.46f), -0.72f, -0.66f, C("#5E5A54")) }   // friso azul e pingadeira
+        // sinalização: faixa dupla amarela no meio, brancas nas bordas, tachões refletivos
         strip(b, e, s0, s1, -0.22f, -0.1f, 0.035f, C("#F2C230")); strip(b, e, s0, s1, 0.1f, 0.22f, 0.035f, C("#F2C230"))
         strip(b, e, s0, s1, -HW + 0.35f, -HW + 0.5f, 0.035f, C("#F4F4F0")); strip(b, e, s0, s1, HW - 0.5f, HW - 0.35f, 0.035f, C("#F4F4F0"))
-        // barreiras tipo New Jersey (base larga, topo estreito) dos dois lados
-        b.m(Mt.STONE, 0.5f)
+        run { var t = Math.ceil(s0 / 8.0).toFloat() * 8f; while (t < s1) { if (!e.prof(t).isNaN()) for (l in floatArrayOf(-0.4f, 0.4f)) b.box(e.px(t, l), e.prof(t) + 0.045, e.pz(t, l), 0.12, 0.03, 0.12, C("#FFF59D"), false); t += 8f } }
+        // barreiras tipo New Jersey dos dois lados, com corrimão metálico em cima
+        b.m(Mt.PLASTER, 0.35f)
         for (sg in floatArrayOf(-1f, 1f)) {
             val lo = sg * HW; val li = sg * (HW - 0.4f); val lt = sg * (HW - 0.15f)
-            side(b, e, s0, s1, li, 0.02f, 0.35f, RAILC); side(b, e, s0, s1, lt, 0.35f, 1.0f, RAILC)
-            side(b, e, s0, s1, lo + sg * 0.35f, 0.02f, 1.0f, CON)
-            strip(b, e, s0, s1, min(lt, lo + sg * 0.35f), max(lt, lo + sg * 0.35f), 1.0f, RAILC)
+            side(b, e, s0, s1, li, 0.02f, 0.35f, RAILC); side(b, e, s0, s1, lt, 0.35f, 0.95f, RAILC)
+            side(b, e, s0, s1, lo + sg * 0.45f, 0.02f, 0.95f, CON)
+            strip(b, e, s0, s1, min(lt, lo + sg * 0.45f), max(lt, lo + sg * 0.45f), 0.95f, RAILC)
             strip(b, e, s0, s1, min(li, lt), max(li, lt), 0.35f, RAILC)
         }
-        // aterro com muro de contenção onde a alça ainda é baixa (passar por baixo não dá)
+        b.m(Mt.METAL)
+        for (sg in floatArrayOf(-1f, 1f)) { side(b, e, s0, s1, sg * (HW + 0.2f), 1.18f, 1.26f, C("#8A9096")); var t = Math.ceil(s0 / 2.5).toFloat() * 2.5f; while (t < s1) { val y = e.prof(t); if (!y.isNaN()) b.box(e.px(t, sg * (HW + 0.2f)), y + 1.1, e.pz(t, sg * (HW + 0.2f)), 0.06, 0.3, 0.06, C("#8A9096")); t += 2.5f } }
+        // aterro com muro de contenção em placas (onde a alça ainda é baixa) e coroamento
         var s = s0
         while (s < s1 - 0.01f) {
             val t = min(s1, s + 5f)
-            if (e.prof(t) < 5.2f || e.prof(s) < 5.2f) { b.m(Mt.STONE, 0.6f); side(b, e, s, t, -HW - 0.36f, 0f, -0.9f, C("#A39B8E"), true); side(b, e, s, t, HW + 0.36f, 0f, -0.9f, C("#A39B8E"), true) }
+            if (e.prof(t) < 5.2f || e.prof(s) < 5.2f) {
+                b.m(Mt.STONE, 0.35f); side(b, e, s, t, -HW - 0.46f, 0f, -0.7f, C("#BDB5A6"), true); side(b, e, s, t, HW + 0.46f, 0f, -0.7f, C("#BDB5A6"), true)
+                b.m(Mt.PLAIN); for (sg in floatArrayOf(-1f, 1f)) side(b, e, s, t, sg * (HW + 0.48f), -0.15f, 0.02f, C("#9A9286"))
+            }
             s = t
         }
-        // pilares em T
+        // pilares redondos com capitel em martelo (afinando para baixo) e base com faixa de segurança
         for (p in e.pillars) if (p >= s0 && p < s1) {
-            val y = e.prof(p) - 1.6f
-            b.m(Mt.STONE, 0.5f)
-            b.box(e.px(p, 0f), y / 2, e.pz(p, 0f), 1.5f, y, 1.5f, CON)
-            val cw = if (e.axis == 0) 1.6f else HW * 2 + 0.4f; val cd = if (e.axis == 0) HW * 2 + 0.4f else 1.6f
-            b.box(e.px(p, 0f), y - 0.45f, e.pz(p, 0f), cw, 0.9f, cd, CON_D)
-            b.m(Mt.PLAIN); b.box(e.px(p, 0f), 0.6, e.pz(p, 0f), 1.56f, 0.5f, 1.56f, C("#F2C230")); b.box(e.px(p, 0f), 0.85, e.pz(p, 0f), 1.57f, 0.12f, 1.57f, C("#222222"))
+            val y = e.prof(p) - 1.7f
+            b.m(Mt.PLASTER, 0.35f)
+            b.cyl(e.px(p, 0f), 0.0, e.pz(p, 0f), 0.85, 0.75, y - 1.0, CON, true, 18)
+            val cw = if (e.axis == 0) 1.9f else HW * 2 + 0.6f; val cd = if (e.axis == 0) HW * 2 + 0.6f else 1.9f
+            b.box(e.px(p, 0f), y - 0.5, e.pz(p, 0f), cw, 1.0f, cd, CON_D)
+            b.box(e.px(p, 0f), y - 1.05, e.pz(p, 0f), cw * (if (e.axis == 0) 1f else 0.55f), 0.3f, cd * (if (e.axis == 0) 0.55f else 1f), CON_D)
+            b.m(Mt.PLAIN); b.cyl(e.px(p, 0f), 0.0, e.pz(p, 0f), 0.88, 0.88, 0.9, C("#F2C230"), true, 18); b.cyl(e.px(p, 0f), 0.45, e.pz(p, 0f), 0.89, 0.89, 0.15, C("#222222"), true, 18)
         }
         // postes de luz no tabuleiro, alternando de lado a cada 40 m
         var lp = Math.ceil((s0 - e.a0) / 40.0).toFloat() * 40f + e.a0

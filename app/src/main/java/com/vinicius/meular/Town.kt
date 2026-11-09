@@ -452,6 +452,12 @@ object Town {
             if (x1 - m1 - x0 - m0 < 30f || z1 - m3 - z0 - m2 < 30f) continue
             urban.add(Urban(bi, x0 + m0, z0 + m2, x1 - m1, z1 - m3, t, bi % 7, 1 + bi % 5))
         }
+        // Etapa 149: a Praça Central (uma só) no coração do centro, cercada pelos arranha-céus
+        run {
+            val pcx = TownPlan.XS[2]; val pcz = TownPlan.ZS[2]
+            urban.filter { it.type == "perim" && TownPlan.districtAt((it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2).let { d -> d == TownPlan.DOWN || d == TownPlan.COM } && it.x1 - it.x0 >= 40f && it.z1 - it.z0 >= 50f }
+                .minByOrNull { kotlin.math.hypot((it.x0 + it.x1) / 2 - pcx, (it.z0 + it.z1) / 2 - pcz) }?.type = "praca"
+        }
         // Etapa 141: um lugar de trabalho único por profissão (níveis 3 e 4 no centro, os outros no comércio e nos bairros urbanos)
         val cxC = TownPlan.XS[2]; val czC = (TownPlan.ZS[1] + TownPlan.ZS[2]) / 2
         for (job in Jobs.ALL) {

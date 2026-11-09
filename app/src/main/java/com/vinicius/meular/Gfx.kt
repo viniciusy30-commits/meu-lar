@@ -51,9 +51,13 @@ object Mt {
     /** Etapa 126: frente de prateleira com mercadorias (embalagens com rótulo) e lombadas de livros — realismo sem polígonos. */
     const val GOODS = 22
     const val BOOKS = 23
-    const val COUNT = 24
-    fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f)
+    /** Etapa 149: pele de vidro (curtain wall) dos arranha-céus: painéis de 1,5 m, montantes, faixa opaca entre andares e reflexo do céu. */
+    const val CURTAIN = 24
+    /** Etapa 149: copa florida (ipê roxo/amarelo) — folha clara, a cor vem do vértice. */
+    const val BLOSSOM = 25
+    const val COUNT = 26
+    fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB || m == BLOSSOM
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f, 0.70f, 0.0f)
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -179,7 +183,7 @@ object Noise {
 
 object Tex {
     /** Etapa 125: materiais que vêm de PNG da flora (o simulador de testes também lê). */
-    @JvmStatic val EXTRA = mapOf(Mt.LEAF to "leaf_oak", Mt.LEAF2 to "leaf_maple", Mt.BARK to "bark_oak", Mt.LEAFB to "leaf_bush")
+    @JvmStatic val EXTRA = mapOf(Mt.LEAF to "leaf_oak", Mt.LEAF2 to "leaf_maple", Mt.BARK to "bark_oak", Mt.LEAFB to "leaf_bush", Mt.BLOSSOM to "leaf_blossom")
     val ids = IntArray(Mt.COUNT)
     private val cache = arrayOfNulls<IntArray>(Mt.COUNT)
     private const val S = 256
@@ -294,6 +298,7 @@ object Tex {
                     px(k, k, k * 1.03f)
                 }
                 Mt.FACADE -> facade(x, y, u, v)
+                Mt.CURTAIN -> curtain(x, y, u, v)
                 Mt.GOODS -> goods(x, y)
                 Mt.BOOKS -> books(x, y)
                 else -> Color.WHITE
@@ -319,6 +324,23 @@ object Tex {
         if (v < 0.06f) return px(wall * 0.82f, wall * 0.82f, wall * 0.82f)   // faixa entre andares
         if (v > 0.19f && v < 0.22f && frX) return px(0.62f, 0.62f, 0.64f)   // peitoril
         return px(wall, wall, wall)
+    }
+
+    /** Etapa 149: módulo de 3 × 3 m de pele de vidro (a cor do vidro vem do vértice). */
+    private fun curtain(x: Int, y: Int, u: Float, v: Float): Int {
+        val pu = (u * 2f) % 1f; val pan = if (u < 0.5f) 0 else 1
+        if (pu < 0.018f || pu > 0.982f) return px(0.93f, 0.94f, 0.95f)                  // montante
+        if (v > 0.83f) {                                                                 // faixa opaca (laje) entre andares
+            if (v < 0.845f || v > 0.985f) return px(0.93f, 0.94f, 0.95f)
+            val n = 0.62f + 0.05f * Noise.h(x, y, 171); return px(n, n, n * 1.02f)
+        }
+        // vidro: reflexo do céu (mais claro em cima), nuvem suave, e cada painel com um tom um pouco diferente
+        val sky = 0.58f + 0.22f * (1f - v / 0.83f)
+        val cl = 0.08f * Noise.fbm(u, v, 3, 2, 3, 173)
+        val pt = 0.94f + 0.12f * Noise.h(pan, 0, 177)
+        val diag = if (abs(pu - v * 0.6f - 0.15f) < 0.05f) 0.07f else 0f                 // brilho diagonal
+        val k = (sky + cl + diag) * pt
+        return px(k * 0.96f, k, k * 1.04f)
     }
 
     private val GOODS_PAL = floatArrayOf(
@@ -405,7 +427,7 @@ object Tex {
     }
 
     private val FILES = arrayOf(null, "mat_floor_l", "mat_floor_d", "mat_tile", "mat_stone", "mat_plaster",
-        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null, "leaf_oak", "leaf_maple", "bark_oak", "leaf_bush")
+        "mat_wood", "mat_fabric", "mat_grass", "mat_paver", null, "mat_metal", null, "mat_siding", "mat_roof", null, null, null, "leaf_oak", "leaf_maple", "bark_oak", "leaf_bush", null, null, null, "leaf_blossom")
 
     /**
      * Etapa 127: mipmaps que preservam a cobertura do recorte (folhas, letras). Com o mipmap comum o alfa vira média,

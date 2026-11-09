@@ -217,7 +217,7 @@ object CityGeo {
         }
         // canteiro: terra e grade em volta (só na calçada)
         val base = when (kind) { 1 -> C("#8FCB5A"); 2 -> C("#B07ACB"); 3 -> C("#F2C94C"); else -> C(rng.pick(arrayOf("#5E9E48", "#6AA84F", "#4F8F3F"))) }
-        val mat = if (kind == 1 || kind == 2 || kind == 3) Mt.LEAF2 else Mt.LEAF
+        val mat = if (kind == 2 || kind == 3) Mt.BLOSSOM else if (kind == 1) Mt.LEAF2 else Mt.LEAF
         b.m(mat, 1f)
         val nc = (if (kind == 4) 13 else 16)
         val ccx = x + lx; val ccz = z + lz
@@ -2569,6 +2569,32 @@ object CityGeo {
         }
         // fim sul: coreto no eixo
         coreto(g, cx, cz + 19.2f)
+        // Etapa 149: quadra grande — passeio em volta com fileira de ipês e oitis, bancos, e bosque nos cantos (nada de gramado vazio)
+        if (hw > 16f || hd > 27f) {
+            b.m(Mt.PAVER, 0.7f)
+            val pw = 3.2f
+            b.box(cx, CURB + 0.012f, g.z0 + pw / 2, hw * 2, 0.02f, pw, C("#E2D9C8")); b.box(cx, CURB + 0.012f, g.z1 - pw / 2, hw * 2, 0.02f, pw, C("#E2D9C8"))
+            b.box(g.x0 + pw / 2, CURB + 0.012f, cz, pw, 0.02f, hd * 2 - 2 * pw, C("#E2D9C8")); b.box(g.x1 - pw / 2, CURB + 0.012f, cz, pw, 0.02f, hd * 2 - 2 * pw, C("#E2D9C8"))
+            fun free(x: Float, z: Float) = !(abs(x - cx) < 12.5f && abs(z - cz) < 24.5f) && abs(x - cx) > 3.4f && abs(z - cz) > 3.4f
+            // fileira de árvores na beira interna do passeio, alternando ipê roxo e amarelo
+            var k = 0
+            fun rowTree(x: Float, z: Float) { if (free(x, z)) { tree(g, x, z, rng.r(0.9f, 1.15f), CURB, if (k % 2 == 0) 2 else 3); g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f) }; k++ }
+            var t = g.x0 + 5f; while (t < g.x1 - 4f) { rowTree(t, g.z0 + pw + 1.2f); rowTree(t, g.z1 - pw - 1.2f); t += 8f }
+            t = g.z0 + 12f; while (t < g.z1 - 11f) { rowTree(g.x0 + pw + 1.2f, t); rowTree(g.x1 - pw - 1.2f, t); t += 8f }
+            // bancos virados para o passeio
+            t = g.x0 + 9f; while (t < g.x1 - 8f) { for (sz in floatArrayOf(-1f, 1f)) { val z = if (sz < 0) g.z0 + pw + 0.5f else g.z1 - pw - 0.5f; if (free(t, z)) { publicBench(b, t, z, 0f, sz); g.solid(t - 0.95f, z - 0.5f, t + 0.95f, z + 0.5f) } }; t += 16f }
+            // bosque nos quatro cantos (copas grandes e variadas) com canteiros de flores
+            for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) {
+                val qx0 = if (sx < 0) g.x0 + pw + 4f else cx + 6f; val qx1 = if (sx < 0) cx - 6f else g.x1 - pw - 4f
+                val qz0 = if (sz < 0) g.z0 + pw + 4f else cz + 6f; val qz1 = if (sz < 0) cz - 6f else g.z1 - pw - 4f
+                var x = qx0; var j = 0
+                while (x < qx1) { var z = qz0 + (j % 2) * 4f
+                    while (z < qz1) { val jx = x + rng.r(-1.5f, 1.5f); val jz = z + rng.r(-1.5f, 1.5f)
+                        if (free(jx, jz)) { tree(g, jx, jz, rng.r(0.95f, 1.35f), CURB, intArrayOf(0, 1, 4, 0, 2)[rng.i(5)]); g.solid(jx - 0.3f, jz - 0.3f, jx + 0.3f, jz + 0.3f) }
+                        z += 8f }
+                    x += 7f; j++ }
+            }
+        }
         g.place(City.Place("Praça Central", cx, cz, 0xFF43A047.toInt(), 'P'))
         return 10f
     }
