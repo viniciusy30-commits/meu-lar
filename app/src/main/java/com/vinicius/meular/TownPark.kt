@@ -60,9 +60,7 @@ object TownPark {
         var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }; cx /= n; cz /= n
         if (Town.urban.any { it.block == bi }) return false
         val d = TownPlan.districtAt(cx, cz)
-        if (d == TownPlan.PARK) return true
-        // quarteirões grandes de centro/comércio que não viraram quadra de prédios: praça
-        return (d == TownPlan.DOWN || d == TownPlan.COM) && abs(Town.polyArea(bl)) > 1500f
+        return d == TownPlan.PARK
     }
 
     fun plan(bi: Int): Plan {

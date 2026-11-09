@@ -24,11 +24,11 @@ object TownPlan {
 
     /** Bairro de cada superquadra [linha z][coluna x]. */
     val D = arrayOf(
-        intArrayOf(MAN, SUB, MAN, PARK, MAN),
+        intArrayOf(MAN, SUB, MAN, SUB, MAN),
         intArrayOf(SUB, COM, DOWN, DOWN, SUB),
         intArrayOf(PARK, SUB, HOME, DOWN, COM),
         intArrayOf(SUB, COM, SUB, COM, SUB),
-        intArrayOf(SUB, SUB, SUB, SUB, PARK))
+        intArrayOf(SUB, SUB, SUB, SUB, SUB))
 
     /** Distrito de cada quarteirão (pelo centro) — usado depois para escolher o que construir. */
     fun districtAt(x: Float, z: Float): Int {
@@ -39,11 +39,11 @@ object TownPlan {
 
     /** Nível das casas de cada superquadra de subúrbio (1 pequena, 2 média, 3 grande). */
     val TIER = arrayOf(
-        intArrayOf(4, 3, 4, 0, 4),
+        intArrayOf(4, 3, 4, 3, 4),
         intArrayOf(1, 0, 0, 0, 3),
         intArrayOf(0, 2, 2, 0, 0),
         intArrayOf(1, 0, 1, 0, 3),
-        intArrayOf(1, 2, 1, 2, 0))
+        intArrayOf(1, 2, 1, 2, 3))
     fun tierAt(x: Float, z: Float): Int {
         var c = 0; while (c < 4 && x > XS[c + 1]) c++
         var r = 0; while (r < 4 && z > ZS[r + 1]) r++

@@ -341,6 +341,7 @@ object City {
         Town.clear()
         bandX = FloatArray(0); bandZ = FloatArray(0); blkX = FloatArray(0); blkZ = FloatArray(0)
         types = emptyArray()
+        Vehicles.build()   // os carros estacionados dos lotes usam os modelos
         Town.build(out)
         X0 = Town.minX - 200f; X1 = Town.maxX + 200f; Z0 = Town.minZ - 200f; Z1 = Town.maxZ + 200f
         // praia ao sul da Av. Beira-Mar (reta): calçadão, areia, mar e píer
@@ -349,7 +350,6 @@ object City {
         out.add(CityFun.beach(out.size))
         progress = 0.6f
         chunks = out
-        Vehicles.build()
         spawnTownTraffic()
         buildPeds()
         places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))

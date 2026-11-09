@@ -729,3 +729,8 @@ Etapa 136 – Praia, mansões únicas e parques diferentes
 Etapa 137 – Cidade ocupada
 - Todo espaço que sobrava nos quarteirões (miolo das superquadras, beira das avenidas, em volta da sua casa) agora é preenchido: o jogo mapeia o espaço livre de cada quarteirão e encaixa conjuntos sem encostar em rua, calçada, lotes ou parques.
 - Bairros residenciais ganham casas em fileira, condomínios de prédios, escolas, igrejas e mercadinhos; áreas comerciais ganham lojas, mercados, postos, delegacia, hospital e prédios; o centro ganha mais prédios, hotéis e shopping. São 571 construções com interior conferidas (nenhuma na calçada, nenhuma porta bloqueada).
+
+Etapa 138 – Menos parques, mais cidade
+- Ficou só um parque, o Parque Central (grande, com lago, caminhos e áreas). Os outros quarteirões de parque e as pracinhas do centro viraram cidade.
+- Espaços pequenos (12 a 36 m) que sobravam entre lotes e prédios agora recebem construções: sobrados geminados (cada casa com cor e porta próprias), prédios residenciais de 3 a 7 andares com varandas e portaria, comércios de bairro com vitrine, toldo e letreiro, prédios de escritórios de vidro, estacionamentos com carros e pátios com pérgola. Cada um vira para a rua mais perto e sorteia medidas, cores e detalhes.
+- São 684 construções com interior conferidas e mais 414 construções pequenas.

@@ -378,10 +378,11 @@ object Town {
             val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
             if (d == TownPlan.PARK) continue
             var guard = 0
-            while (guard++ < 30) {
-                // maior retângulo livre (histograma), lados entre 40 e 92 m
+            var small = false
+            while (guard++ < 80) {
+                // maior retângulo livre (histograma): primeiro conjuntos grandes (40 a 92 m), depois construções pequenas (12 a 36 m)
                 val hgt = IntArray(nz); var best = 0; var bi0 = 0; var bj0 = 0; var bw = 0; var bh = 0
-                val maxC = (92f / C).toInt(); val minC = (40f / C).toInt()
+                val maxC = ((if (small) 36f else 92f) / C).toInt(); val minC = ((if (small) 12f else 40f) / C).toInt()
                 for (i in 0 until nx) {
                     for (j in 0 until nz) hgt[j] = if (free[i][j]) hgt[j] + 1 else 0
                     for (j in 0 until nz) {
@@ -393,9 +394,9 @@ object Town {
                         }
                     }
                 }
-                if (best == 0) break
+                if (best == 0) { if (!small) { small = true; continue } else break }
                 val rx0 = x0 + bi0 * C + 1f; val rz0 = z0 + bj0 * C + 1f; val rx1 = x0 + (bi0 + bw) * C - 1f; val rz1 = z0 + (bj0 + bh) * C - 1f
-                val t = when (d) { TownPlan.DOWN -> downT[(nDown++) % downT.size]; TownPlan.COM -> comT[(nCom++) % comT.size]; else -> resT[(nRes++) % resT.size] }
+                val t = if (small) "small" else when (d) { TownPlan.DOWN -> downT[(nDown++) % downT.size]; TownPlan.COM -> comT[(nCom++) % comT.size]; else -> resT[(nRes++) % resT.size] }
                 urban.add(Urban(bi, rx0, rz0, rx1, rz1, t, (bi + guard) % 7, 1 + (bi * 3 + guard) % 5, true))
                 for (i in max(0, bi0 - 1) until min(nx, bi0 + bw + 1)) for (j in max(0, bj0 - 1) until min(nz, bj0 + bh + 1)) free[i][j] = false
             }
