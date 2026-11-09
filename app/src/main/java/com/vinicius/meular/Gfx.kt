@@ -772,6 +772,25 @@ class MB {
         }
     }
 
+    /** Etapa 134: copia [o] girado em volta de y (cos c, sen s: x' = x·c + z·s, z' = −x·s + z·c) e deslocado. */
+    fun appendRot(o: MB, c: Float, s: Float, tx: Float, ty: Float, tz: Float) {
+        for ((k, f) in o.bufs) {
+            if (f.n == 0) continue
+            val d = bufs.getOrPut(k) { FA() }
+            if (d.n + f.n > d.a.size) d.a = d.a.copyOf(maxOf(d.a.size * 2, d.n + f.n))
+            var i = 0
+            while (i < f.n) {
+                val x = f.a[i]; val z = f.a[i + 2]; val nx = f.a[i + 3]; val nz = f.a[i + 5]
+                val j = d.n + i
+                System.arraycopy(f.a, i, d.a, j, STRIDE)
+                d.a[j] = x * c + z * s + tx; d.a[j + 1] = f.a[i + 1] + ty; d.a[j + 2] = -x * s + z * c + tz
+                d.a[j + 3] = nx * c + nz * s; d.a[j + 5] = -nx * s + nz * c
+                i += STRIDE
+            }
+            d.n += f.n
+        }
+    }
+
     fun isEmpty(): Boolean = bufs.values.all { it.n == 0 }
 
     /** Etapa 127: altura máxima (y) de toda a geometria (sombra dos prédios). */

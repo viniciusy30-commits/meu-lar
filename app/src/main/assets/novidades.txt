@@ -708,3 +708,9 @@ Etapa 133 – Centro e comércio
 - As lojas e prédios voltaram com interior (dá para entrar), letreiros e portas que abrem — agora encaixados nas quadras da cidade nova.
 - Quinas dos quarteirões retas (como a quina de um prédio) com a guia arredondada: no centro a calçada fica larga nas esquinas.
 - Cada prédio foi conferido para não encostar em calçada ou rua, e cada porta para ter passagem livre.
+
+Etapa 134 – Bairros cheios e casas variadas
+- Quase o dobro de casas (866 lotes): lotes mais estreitos e casas também de frente para as ruas coletoras.
+- Seis estilos de casa: colonial, rancho de tijolo, craftsman (varanda com colunas em base de pedra), moderna (laje plana, vidro e painel de madeira), espanhola (reboco e telha de barro) e cape cod (telhado alto com águas-furtadas); algumas em L, com garagem avançada ou sem garagem, carros na entrada, chaminés, canteiros, deck e churrasqueira ou piscina no quintal.
+- Muros e cercas agora fecham o terreno inteiro (frente, lados até o fundo e fundo), com vão e portão na entrada de carro e na calçadinha: muro rebocado, grade de ferro sobre mureta, cerquinha branca, cerca viva, mureta de pedra ou frente aberta com o quintal fechado por cerca de madeira e portão do lado da casa.
+- Mansões gigantes em terrenos de ~120 × 150 m: muro com grade e portaria, alameda de palmeiras, pátio circular com chafariz grande, palacete de 3 andares com pórtico de 6 colunas, varanda e torres redondas, garagem para 6 carros, lago com deck, piscina enorme com espreguiçadeiras e guarda-sóis, casa de piscina, jardim formal, quadra de tênis e heliponto (quando o terreno comporta).
