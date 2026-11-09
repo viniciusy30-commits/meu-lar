@@ -539,9 +539,31 @@ class MB {
 
     /** Etapa 147: malha da cidade que acompanha o relevo (cada vértice sobe/desce com Town.terrain na hora de fechar a malha). */
     @JvmField var warp = false
+    /** usa a altura com os platôs dos lotes (sombras) em vez do relevo puro */
+    @JvmField var warpElev = false
     private var warped = false
+    // trechos da malha que sobem por igual (lote nivelado num platô): material -> [início, fim) em vértices, e a altura
+    private var fixStart: HashMap<Int, Int>? = null
+    private var fixDy = 0f
+    private val fixes = ArrayList<FloatArray>()   // [mat, início, fim, dy]
+    /** Tudo o que for desenhado até endFixed() sobe [dy] por igual (casa no platô, sem entortar). */
+    fun beginFixed(dy: Float) { if (!warp) return; fixStart = counts(); fixDy = dy }
+    fun endFixed() {
+        val st = fixStart ?: return
+        for ((k, f) in bufs) { val a = st[k] ?: 0; val e = f.n / STRIDE; if (e > a) fixes.add(floatArrayOf(k.toFloat(), a.toFloat(), e.toFloat(), fixDy)) }
+        fixStart = null
+    }
     private fun warpY() {
-        for ((_, f) in bufs) { var i = 0; while (i < f.n) { f.a[i + 1] += Town.terrain(f.a[i], f.a[i + 2]); i += STRIDE } }
+        for ((k, f) in bufs) {
+            val rs = fixes.filter { it[0].toInt() == k }.sortedBy { it[1] }
+            var ri = 0; var v = 0; var i = 0
+            while (i < f.n) {
+                while (ri < rs.size && v >= rs[ri][2].toInt()) ri++
+                val dy = if (ri < rs.size && v >= rs[ri][1].toInt()) rs[ri][3] else if (warpElev) Town.elev(f.a[i], f.a[i + 2]) else Town.terrain(f.a[i], f.a[i + 2])
+                f.a[i + 1] += dy
+                i += STRIDE; v++
+            }
+        }
     }
 
     fun box(cx: Number, cy: Number, cz: Number, sx: Number, sy: Number, sz: Number, c: Int, lit: Boolean = true) {

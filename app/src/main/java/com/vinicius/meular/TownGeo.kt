@@ -143,7 +143,7 @@ object TownGeo {
         // quadras do centro e do comércio: prédios e lojas (com interior) do gerador de quarteirões
         for ((ui, u) in Town.urban.withIndex()) {
             val g = CityGeo.Gen(out.size, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, true)
-            val h = if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
+            val h = buildUrban(g, u, ui)
             val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
             val c = City.Chunk(null, far, u.x0, u.z0, u.x1, u.z1, h)
             c.lazyI = ui; c.lazyJ = -2
@@ -157,8 +157,35 @@ object TownGeo {
     fun urbanNear(ci: Int, ui: Int): Pair<Mesh, Flora.Batch> {
         val u = Town.urban[ui]
         val g = CityGeo.Gen(ci, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, false)
-        if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
+        buildUrban(g, u, ui)
         return Pair(g.b.toMesh(true), g.fl)
+    }
+
+    private fun buildUrban(g: CityGeo.Gen, u: Town.Urban, ui: Int): Float {
+        val pad = if (u.type == "small") u.padY() else Float.NaN
+        if (!pad.isNaN()) { g.b.beginFixed(pad); g.f.beginFixed(pad); g.fl.fixedY = pad }
+        val h = if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
+        if (!pad.isNaN()) {
+            val ring = floatArrayOf(u.x0, u.z0, u.x1, u.z0, u.x1, u.z1, u.x0, u.z1)
+            skirt(g.b, ring); skirt(g.f, ring)
+            g.b.endFixed(); g.f.endFixed(); g.fl.fixedY = Float.NaN
+        }
+        return h
+    }
+
+    /** Etapa 148: muro de arrimo em volta de um platô (de 3 m abaixo até a borda do gramado) — some no lado alto, aparece no baixo. */
+    fun skirt(b: MB, c: FloatArray) {
+        b.m(Mt.STONE, 0.5f)
+        val col = C("#A8A196")
+        for (i in 0 until 4) {
+            val j = (i + 1) % 4
+            val ax = c[i * 2]; val az = c[i * 2 + 1]; val bx = c[j * 2]; val bz = c[j * 2 + 1]
+            val dx = bx - ax; val dz = bz - az; val l = max(1e-4f, hypot(dx, dz)); val nx = dz / l; val nz = -dx / l
+            for (sg in floatArrayOf(1f, -1f)) {
+                b.v(ax, -3f, az, nx * sg, 0f, nz * sg, col, ax + az, -3f); b.v(bx, -3f, bz, nx * sg, 0f, nz * sg, col, bx + bz, -3f); b.v(bx, 0.01f, bz, nx * sg, 0f, nz * sg, col, bx + bz, 0.01f)
+                b.v(ax, -3f, az, nx * sg, 0f, nz * sg, col, ax + az, -3f); b.v(bx, 0.01f, bz, nx * sg, 0f, nz * sg, col, bx + bz, 0.01f); b.v(ax, 0.01f, az, nx * sg, 0f, nz * sg, col, ax + az, 0.01f)
+            }
+        }
     }
 
     /** Gera o pedaço [ti] (perto em g.b, longe em g.f se [far]). */
@@ -184,7 +211,16 @@ object TownGeo {
             }
         }
         for (bi in t.blocks) if (TownPark.isPark(bi)) TownPark.draw(g, bi, !far, far)
-        for (li in t.lots) TownHouses.draw(g, TownHouses.lots[li], !far, far)
+        for (li in t.lots) {
+            val l = TownHouses.lots[li]
+            if (!l.pad.isNaN()) { g.b.beginFixed(l.pad); if (far) g.f.beginFixed(l.pad); g.fl.fixedY = l.pad }
+            TownHouses.draw(g, l, !far, far)
+            if (!l.pad.isNaN()) {
+                val c = TownHouses.corners(l)
+                skirt(g.b, c); if (far) skirt(g.f, c)
+                g.b.endFixed(); if (far) g.f.endFixed(); g.fl.fixedY = Float.NaN
+            }
+        }
         if (!far) return
         val f = g.f
         for (ei in t.edges) {

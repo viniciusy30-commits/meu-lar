@@ -405,7 +405,14 @@ object Town {
         }
     }
 
-    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, var type: String, val i: Int, val j: Int, val infill: Boolean = false)
+    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, var type: String, val i: Int, val j: Int, val infill: Boolean = false) {
+        /** Etapa 148: platô (nos bairros com relevo) */
+        var pad = Float.NaN; private var padDone = false
+        fun padY(): Float {
+            if (!padDone) { padDone = true; var m = -1e9f; var any = false; for (a in 0..4) for (b in 0..4) { val t = terrain(x0 + (x1 - x0) * a / 4, z0 + (z1 - z0) * b / 4); if (abs(t) > 0.02f) any = true; m = max(m, t) }; pad = if (any) m + 0.06f else Float.NaN }
+            return pad
+        }
+    }
     val urban = ArrayList<Urban>()
 
     private fun classify() {
@@ -746,9 +753,18 @@ object Town {
         return a * su * su * sv * sv
     }
 
-    fun groundFlat(x: Float, z: Float): Float = groundH(x, z) - terrain(x, z)
+    fun groundFlat(x: Float, z: Float): Float = groundH(x, z) - elev(x, z)
 
-    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else terrain(x, z) + when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
+    /** Etapa 148: altura do chão pelo relevo, já com os platôs dos lotes e conjuntos pequenos (nivelados). */
+    fun elev(x: Float, z: Float): Float {
+        val t = terrain(x, z)
+        if (t == 0f) return 0f
+        val p = TownHouses.padAt(x, z); if (!p.isNaN()) return p
+        for (u in urban) if (u.type == "small" && x > u.x0 - 0.05f && x < u.x1 + 0.05f && z > u.z0 - 0.05f && z < u.z1 + 0.05f) { val q = u.padY(); if (!q.isNaN()) return q }
+        return t
+    }
+
+    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else elev(x, z) + when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
 
     /** Fora do mapa (além do contorno da cidade + calçada externa). */
     fun outside(x: Float, z: Float) = outline.isNotEmpty() && x > minX - 60f && x < maxX + 60f && z > minZ - 60f && z < maxZ + 60f && false

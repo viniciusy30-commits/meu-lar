@@ -21,6 +21,10 @@ object TownHouses {
     /** Lote: frente no ponto (fx, fz) da calçada, [tx, tz] ao longo da rua, [nx, nz] entrando no lote. */
     class Lot(val fx: Float, val fz: Float, val tx: Float, val tz: Float, val nx: Float, val nz: Float, val w: Float, val d: Float, val tier: Int, val seed: Int) {
         var forSale = false
+        /** Etapa 148: altura do platô do lote no relevo (o lote inteiro fica nivelado) */
+        var pad = Float.NaN
+        /** o ponto (x, z) cai dentro do lote? */
+        fun has(x: Float, z: Float): Boolean { val dx = x - fx; val dz = z - fz; val u = dx * tx + dz * tz; val v = dx * nx + dz * nz; return u > -w / 2 - 0.05f && u < w / 2 + 0.05f && v > -0.05f && v < d + 0.05f }
         var price = 0
         /** estilo da mansão (0 clássica, 1 moderna, 2 mediterrânea, 3 castelo) */
         var style = 0
@@ -51,6 +55,13 @@ object TownHouses {
 
     private val lotBy = HashMap<Int, ArrayList<Lot>>()
     private fun cell(x: Float, z: Float) = (Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)
+
+    /** Etapa 148: platô do lote que contém (x, z), ou NaN. */
+    fun padAt(x: Float, z: Float): Float {
+        val lst = lotBy[(Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)] ?: return Float.NaN
+        for (l in lst) if (!l.pad.isNaN() && l.has(x, z)) return l.pad
+        return Float.NaN
+    }
 
     fun corners(l: Lot): FloatArray = floatArrayOf(l.wx(-l.w / 2, 0f), l.wz(-l.w / 2, 0f), l.wx(l.w / 2, 0f), l.wz(l.w / 2, 0f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d))
 
@@ -166,6 +177,12 @@ object TownHouses {
             }
         }
         // cada mansão num estilo, alternando (vizinhas nunca iguais)
+        // Etapa 148: platô de cada lote = ponto mais alto do relevo dentro dele (nada fica enterrado; no lado baixo aparece o muro de arrimo)
+        for (l in lots) {
+            var m = -1e9f; var any = false
+            for (a in 0..4) for (b in 0..4) { val t = Town.terrain(l.wx(-l.w / 2 + l.w * a / 4, l.d * b / 4), l.wz(-l.w / 2 + l.w * a / 4, l.d * b / 4)); if (abs(t) > 0.02f) any = true; m = max(m, t) }
+            l.pad = if (any) m + 0.06f else Float.NaN
+        }
         // Etapa 146: em cada bairro nobre as mansões têm estilos todos diferentes (e o outro bairro começa por outro estilo)
         val groups = lots.filter { it.tier == 4 }.groupBy { val c = TownPlan.cellCenter(it.cx, it.cz); c[0] * 10000f + c[1] }
         var gi = 0

@@ -103,6 +103,8 @@ object Flora {
     }
 
     class Batch {
+        /** Etapa 148: altura fixa (platô do lote) para as árvores plantadas agora; NaN = segue o relevo */
+        @JvmField var fixedY = Float.NaN
         private val accs = LinkedHashMap<String, ArrayList<Acc>>()
 
         /** Põe uma instância de [id] em (x,y,z), com escala [s], giro [ry] (rad, em Y) e cor multiplicada (variação entre árvores). */
@@ -112,7 +114,7 @@ object Flora {
             val pg = if (id.startsWith("pine")) 1.2f else 1f
             val tr = tr0 * boost * (if (pg > 1f) 1.1f else 1f); val tg = tg0 * boost * pg; val tb = tb0 * boost * (if (pg > 1f) 1.05f else 1f)
             val cs = cos(ry).toFloat(); val sn = sin(ry).toFloat(); val sc = s.toFloat()
-            val ty0 = if (City.TOWN) Town.terrain(x.toFloat(), z.toFloat()) else 0f   // Etapa 147: árvore acompanha o relevo
+            val ty0 = if (!fixedY.isNaN()) fixedY else if (City.TOWN) Town.terrain(x.toFloat(), z.toFloat()) else 0f   // Etapa 147: árvore acompanha o relevo (ou o platô do lote)
             for (src in read(id)) {
                 val key = "${src.mat}|${src.tex}|${src.cut}"
                 val list = accs.getOrPut(key) { ArrayList() }

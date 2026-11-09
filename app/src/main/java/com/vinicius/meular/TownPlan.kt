@@ -43,7 +43,7 @@ object TownPlan {
         floatArrayOf(8f, -6f, 0f, 7f),
         floatArrayOf(9f, 0f, 0f, 0f),
         floatArrayOf(0f, 0f, 0f, -6f),
-        floatArrayOf(11f, 0f, 6f, 9f))
+        floatArrayOf(5f, 0f, 6f, 4.5f))
 
     /** Centro da superquadra que contém (x, z). */
     fun cellCenter(x: Float, z: Float): FloatArray {
