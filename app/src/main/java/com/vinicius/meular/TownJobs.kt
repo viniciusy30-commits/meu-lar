@@ -26,8 +26,10 @@ object TownJobs {
         fun chair(u: Float, v: Float, c: Int = C("#2E3135")) { box(u, FL + 0.42f, v, 0.48f, 0.07f, 0.46f, c, Mt.FABRIC); box(u, FL + 0.45f, v + 0.22f, 0.48f, 0.5f, 0.06f, c, Mt.FABRIC); box(u, FL, v, 0.06f, 0.42f, 0.06f, C("#555555")) }
         fun shelf(u: Float, v: Float, len: Float, alongU: Boolean = true, c: Int = C("#B0B6BC"), goods: Boolean = true) {
             val su = if (alongU) len else 0.45f; val sv = if (alongU) 0.45f else len
-            box(u, FL, v, su, 1.9f, sv, c, Mt.METAL)
-            if (goods) for (k in 0..3) box(u, FL + 0.25f + k * 0.45f, v, su - 0.1f, 0.28f, sv - 0.08f, C(arrayOf("#D32F2F", "#1976D2", "#FBC02D", "#388E3C", "#F57C00", "#7B1FA2")[(k + (u * 3).toInt()) and 3 + 1]), Mt.GOODS, 0.7f)
+            // estante de verdade: painel central, prateleiras e produtos dos dois lados
+            box(u, FL, v, if (alongU) su else 0.05f, 1.9f, if (alongU) 0.05f else sv, c, Mt.METAL)
+            for (k in 0..4) box(u, FL + 0.08f + k * 0.44f, v, su, 0.04f, sv, shade(c, -15), Mt.METAL)
+            if (goods) for (k in 0..3) box(u, FL + 0.12f + k * 0.44f, v, su - 0.08f, 0.3f, sv - 0.06f, C(arrayOf("#D32F2F", "#1976D2", "#FBC02D", "#388E3C", "#F57C00", "#7B1FA2")[Math.floorMod(k + (u * 3).toInt(), 6)]), Mt.GOODS, 0.7f)
             solid(u - su / 2, v - sv / 2, u + su / 2, v + sv / 2)
         }
         fun counter(u0: Float, u1: Float, v: Float, d: Float = 0.7f, c: Int = C("#5A3A22"), top: Int = C("#E8E2D6")) { box((u0 + u1) / 2, FL, v, u1 - u0, 1.0f, d, c, Mt.WOOD, 0.5f); box((u0 + u1) / 2, FL + 1.0f, v, u1 - u0 + 0.06f, 0.05f, d + 0.06f, top, Mt.STONE, 1f); solid(u0, v - d / 2, u1, v + d / 2) }
@@ -115,7 +117,7 @@ object TownJobs {
             H.box(cx, FL + hh + (floors - 1) * 1.8f, (z0 + z1) / 2, bw, (floors - 1) * 3.6f, bd, if (job.id == "empresario" || job.id == "programador" || job.id == "advogado") C("#3F5F6E") else wallC)
         }
         H.m(Mt.STONE, 0.5f); H.box(cx, top + 0.3f, (z0 + z1) / 2, bw + 0.3f, 0.6f, bd + 0.3f, shade(wallC, -25))
-        H.m(Mt.STONE, 0.5f); H.box(cx, FL + hh - 0.05f, (z0 + z1) / 2, bw - 0.4f, 0.1f, bd - 0.4f, C("#F7F7F5"))   // forro do térreo
+        H.m(Mt.PLASTER, 0.4f); H.box(cx, FL + hh - 0.05f, (z0 + z1) / 2, bw - 0.4f, 0.1f, bd - 0.4f, C("#F7F7F5"))   // forro do térreo
         // marquise e letreiro
         H.m(Mt.METAL, 1f); H.box(cx, FL + 2.95f, zf + fz * 1.3f, dw + 3f, 0.16f, 2.6f, C("#3B3F44"))
         H.m(Mt.PLAIN); H.box(cx, FL + 2.86f, zf + fz * 1.3f, dw + 2.6f, 0.02f, 2.3f, C("#FFF6D8"), false)
@@ -124,6 +126,7 @@ object TownJobs {
         g.place(City.Place(job.place, cx, zf + fz * 4f, C(arrayOf("#2E7D32", "#1565C0", "#C62828", "#F9A825")[job.level - 1]), job.name.first()))
         // interior
         val inn = S(g, x0 + 0.3f, x1 - 0.3f, zf - fz * 0.3f, fz, bd - 0.6f, hh)
+        decorate(inn, job, r)
         when (job.id) {
             "diarista" -> diarista(inn); "lixeiro" -> lixeiro(inn); "atendente" -> lanchonete(inn); "entregador" -> entregas(inn); "frentista" -> posto(inn, g, cx, zf, fz, r); "repositor" -> mercado(inn)
             "professor" -> escola(inn); "secretario" -> escritorio(inn); "policial" -> delegacia(inn); "bombeiro" -> quartel(inn); "mecanico" -> oficina(inn); "enfermeiro" -> clinica(inn)
@@ -138,13 +141,44 @@ object TownJobs {
         return top + 4f
     }
 
+    /** Acabamento comum a todos: luminárias no forro, rodapé, quadros, relógio, extintor, bebedouro, lixeiras, ar-condicionado, vasos nos cantos, capacho. */
+    private fun decorate(s: S, job: Jobs.Job, r: City.Rng) {
+        val d = s.depth; val yc = FL + s.h - 0.12f
+        val accent = C(arrayOf("#2E7D32", "#1565C0", "#C62828", "#C9A227")[job.level - 1])
+        // luminárias embutidas em grade
+        var u = s.x0 + 2f
+        while (u < s.x1 - 1f) { var v = 1.8f; while (v < d - 0.8f) { s.box(u, yc, v, 1.2f, 0.06f, 0.6f, C("#FFFBEA")); v += 3.4f }; u += 3.4f }
+        // rodapé nas laterais e no fundo
+        s.box(s.x0 + 0.04f, FL, d / 2, 0.06f, 0.12f, d, C("#8D8D8D")); s.box(s.x1 - 0.04f, FL, d / 2, 0.06f, 0.12f, d, C("#8D8D8D")); s.box(s.cx, FL, d - 0.04f, s.w, 0.12f, 0.06f, C("#8D8D8D"))
+        // quadros nas paredes laterais (cores diferentes) e faixa da cor do nível
+        var v = 2.5f; var k = 0
+        while (v < d - 1.5f) {
+            for (side in floatArrayOf(-1f, 1f)) {
+                val wu = if (side < 0) s.x0 + 0.07f else s.x1 - 0.07f
+                s.box(wu, FL + 1.4f, v, 0.04f, 0.8f, 1.1f, C("#3B3F44")); s.box(wu - side * 0.02f, FL + 1.47f, v, 0.03f, 0.66f, 0.96f, C(arrayOf("#E57373", "#64B5F6", "#81C784", "#FFD54F", "#BA68C8", "#4DB6AC", "#FF8A65")[(k + job.level) % 7]))
+            }
+            v += 4.2f; k++
+        }
+        s.box(s.x0 + 0.05f, FL + 0.95f, d / 2, 0.04f, 0.08f, d - 0.4f, accent); s.box(s.x1 - 0.05f, FL + 0.95f, d / 2, 0.04f, 0.08f, d - 0.4f, accent)
+        // relógio, extintor, bebedouro, lixeiras, ar-condicionado
+        s.box(s.cx, FL + s.h - 0.9f, d - 0.06f, 0.4f, 0.4f, 0.04f, C("#FAFAFA")); s.box(s.cx, FL + s.h - 0.9f, d - 0.09f, 0.05f, 0.18f, 0.01f, C("#212121"))
+        s.box(s.x0 + 0.25f, FL + 0.2f, 0.9f, 0.18f, 0.55f, 0.18f, C("#D32F2F")); s.box(s.x0 + 0.12f, FL + 1.1f, 0.9f, 0.02f, 0.3f, 0.3f, C("#D32F2F"))
+        s.box(s.x1 - 0.4f, FL, 1.2f, 0.32f, 1.0f, 0.32f, C("#ECEFF1"), Mt.METAL); s.box(s.x1 - 0.4f, FL + 1.0f, 1.2f, 0.26f, 0.4f, 0.26f, C("#90CAF9")); s.solid(s.x1 - 0.6f, 1.0f, s.x1 - 0.2f, 1.4f)
+        for (q in 0..1) s.box(if (q == 0) s.x0 + 0.5f else s.x1 - 0.5f, FL, d - 0.5f, 0.35f, 0.5f, 0.35f, C("#546E7A"), Mt.METAL)
+        s.box(s.x0 + 0.12f, FL + s.h - 0.7f, d * 0.5f, 0.22f, 0.3f, 1.0f, C("#F5F5F5")); s.box(s.x1 - 0.12f, FL + s.h - 0.7f, d * 0.5f, 0.22f, 0.3f, 1.0f, C("#F5F5F5"))
+        // vasos nos cantos da frente e capacho na entrada
+        s.plant(s.x0 + 0.6f, d - 0.6f); s.plant(s.x1 - 0.6f, d - 0.6f)
+        s.box(s.cx, FL, 0.9f, 2.2f, 0.015f, 1.2f, shade(accent, -20), Mt.RUG, 1f)
+        if (r.chance(2f)) Unit
+    }
+
     // ------------------------------------------------------------ interiores (cada um com a sua planta)
 
     private fun diarista(s: S) {
         val w = s.w; val d = s.depth
         s.counter(s.cx - 2.5f, s.cx + 2.5f, 3f); s.pc(s.cx - 1f, 2.8f); s.chair(s.cx - 1f, 3.9f)
         s.sofa(s.x0 + 2f, 1.5f, 2.2f, C("#00ACC1")); s.plant(s.x0 + 0.6f, 0.6f); s.plant(s.x1 - 0.6f, 0.6f)
-        s.wallTo(d * 0.55f, s.x0, s.x1, s.cx)
+        s.wallTo(d * 0.62f, s.x0, s.x1, s.cx)
         // depósito: estantes com produtos de limpeza, carrinhos, baldes
         for (k in 0..2) s.shelf(s.x0 + 2f + k * 3.5f, d - 0.6f, 3f)
         for (k in 0..3) { s.box(s.x1 - 1.5f - k * 1.3f, FL, d * 0.75f, 0.9f, 0.9f, 0.6f, C("#1976D2"), Mt.PLASTER); s.box(s.x1 - 1.5f - k * 1.3f, FL + 0.9f, d * 0.75f, 0.2f, 0.6f, 0.04f, C("#FBC02D")) }
@@ -228,7 +262,7 @@ object TownJobs {
         val d = s.depth
         s.counter(s.cx - 3f, s.cx + 3f, 3f, 0.8f, C("#0E2A5C"), C("#ECEFF1")); s.pc(s.cx - 1f, 2.8f); s.pc(s.cx + 1.5f, 2.8f)
         for (k in 0..3) s.chair(s.x0 + 1.5f + k * 0.6f, 1f, C("#455A64"))
-        s.wallTo(5f, s.x0, s.x1, s.cx)
+        s.wallTo(d * 0.5f, s.x0, s.x1, s.cx)
         // celas com grade no fundo
         val n = 3; val cw = (s.w * 0.55f) / n
         for (k in 0 until n) {
