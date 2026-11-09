@@ -334,6 +334,7 @@ class MainActivity : AppCompatActivity() {
         viewIcon = dv.second
         dockR.addView(dv.first)
         dockR.addView(topBtn(Ic.MAP, Tn.SUN) { abrirMapa() }.first)   // Etapa 122: mapa da cidade + GPS
+        dockR.addView(topBtn(Ic.WORK, Tn.CORAL) { profissoes() }.first)   // Etapa 143: profissões
         dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
         dockR.addView(topBtn(Ic.GEAR, Tn.MINT) { config() }.first)
         root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(8), dp(10), 0) })
@@ -1104,6 +1105,75 @@ class MainActivity : AppCompatActivity() {
         st.money -= preco; st.gw += 1; st.gh += 1
         st.save(); atualizarDinheiro(true); refreshShop()
         msg("Casa ampliada para ${st.gw}x${st.gh}!")
+    }
+
+    // ------------------------------------------------------------ Etapa 143: profissões
+
+    private fun lugarDe(j: Jobs.Job): City.Place? = City.places.firstOrNull { it.name == j.place }
+        ?: Town.urban.firstOrNull { it.type == "job:" + j.id }?.let { City.Place(j.place, (it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2, 0, 'T') }
+    private fun distAte(j: Jobs.Job): Float { val p = lugarDe(j) ?: return Float.MAX_VALUE; return kotlin.math.hypot(p.x - game.r.px, p.z - game.r.pz) }
+    private fun moeda(v: Long) = "R$ " + String.format(java.util.Locale("pt", "BR"), "%,d", v)
+
+    /** Lista das profissões por nível: atual no topo, bater ponto, ir com GPS e escolher outra. */
+    private fun profissoes() {
+        if (!City.on) { msg("As profissões ficam na cidade, não na sala de testes"); return }
+        var dlg: Dialog? = null
+        dlg = sheet("Profissões", Ic.WORK, Tn.CORAL) { panel ->
+            val atual = Jobs.byId(st.job)
+            val nivelAtual = (1..4).lastOrNull { Jobs.unlocked(it, st.shifts) } ?: 1
+            val prox = Jobs.NEED.getOrNull(nivelAtual + 1)
+            val resumo = tv(if (atual == null) "Você ainda não tem emprego. Escolha um do nível 1 para começar." else
+                "${atual.name} em ${atual.place}\nSalário: ${moeda(atual.salary.toLong())} por turno · Vantagem: ${atual.perk}", 14f, Pal.TEXT, true)
+            resumo.setPadding(dp(14), dp(12), dp(14), dp(12)); resumo.background = Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, Pal.LINE, dpf(1f))
+            panel.addView(resumo, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(8) })
+            val info = tv("Turnos: ${st.shifts} · Total ganho: ${moeda(st.earned)}" + (if (prox != null && nivelAtual < 4) " · Nível ${nivelAtual + 1} com ${prox} turnos" else " · Todos os níveis liberados"), 13f, Pal.SUB, false)
+            panel.addView(info, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10); it.leftMargin = dp(4) })
+            if (atual != null) {
+                val d = distAte(atual)
+                linha(panel, Ic.CHECK, if (d < 30f) "Bater ponto (trabalhar um turno)" else "Bater ponto: vá até ${atual.place}", Tn.MINT) {
+                    val agora = System.currentTimeMillis()
+                    if (distAte(atual) >= 30f) { dlg?.dismiss(); irPara(atual); return@linha }
+                    if (agora - st.lastShift < Jobs.SHIFT_MS) { msg("Descanse um pouco: o próximo turno libera em ${((Jobs.SHIFT_MS - (agora - st.lastShift)) / 1000)} s"); return@linha }
+                    val antes = (1..4).lastOrNull { Jobs.unlocked(it, st.shifts) } ?: 1
+                    st.shifts++; st.earned += atual.salary; st.lastShift = agora; st.save(); dlg?.dismiss()
+                    val depois = (1..4).lastOrNull { Jobs.unlocked(it, st.shifts) } ?: 1
+                    msg(if (depois > antes) "Turno feito! +${moeda(atual.salary.toLong())} · Nível ${depois} liberado!" else "Turno feito! +${moeda(atual.salary.toLong())}")
+                }
+                linha(panel, Ic.MAP, "Ir com GPS até ${atual.place}", Tn.SUN) { dlg?.dismiss(); irPara(atual) }
+            }
+            for (lv in 1..4) {
+                val livre = Jobs.unlocked(lv, st.shifts)
+                val cab = tv("Nível $lv · ${Jobs.LEVEL_NAME[lv]}" + (if (livre) "" else "  🔒 ${Jobs.NEED[lv]} turnos"), 15f, if (livre) Pal.TEXT else Pal.SUB, true)
+                panel.addView(cab, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8); it.bottomMargin = dp(6); it.leftMargin = dp(4) })
+                for (j in Jobs.ALL.filter { it.level == lv }) {
+                    val eu = j.id == st.job
+                    val tone = if (eu) Tn.MINT else if (livre) arrayOf(Tn.SKY, Tn.LAV, Tn.SUN, Tn.ROSE)[lv - 1] else Tn.GHOST
+                    linha(panel, Ic.WORK, "${j.name}${if (eu) " · atual" else ""}\n${moeda(j.salary.toLong())}/turno · ${j.place}", tone) { detalheProfissao(j) { dlg?.dismiss() } }
+                }
+            }
+        }
+        dlg?.show()
+    }
+
+    private fun detalheProfissao(j: Jobs.Job, fechar: () -> Unit) {
+        var dlg: Dialog? = null
+        dlg = sheet(j.name, Ic.WORK, Tn.CORAL) { panel ->
+            val livre = Jobs.unlocked(j.level, st.shifts)
+            val txt = tv("Local: ${j.place}\nNível ${j.level} (${Jobs.LEVEL_NAME[j.level]})\nSalário: ${moeda(j.salary.toLong())} por turno\nVantagem: ${j.perk}" +
+                (if (j.requires.isNotEmpty()) "\nFormação: ${j.requires}" else "") + "\nMinigame: em breve", 15f, Pal.TEXT, false)
+            txt.setPadding(dp(14), dp(12), dp(14), dp(12)); txt.background = Ui.chunky(Tn.CARD, dpf(20f), dpf(3f), false, Pal.LINE, dpf(1f))
+            panel.addView(txt, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
+            if (j.id == st.job) linha(panel, Ic.CLOSE, "Pedir demissão", Tn.ROSE) { st.job = ""; st.save(); dlg?.dismiss(); fechar(); msg("Você saiu de ${j.place}") }
+            else if (livre) linha(panel, Ic.CHECK, "Trabalhar aqui", Tn.MINT) { st.job = j.id; st.save(); dlg?.dismiss(); fechar(); msg("Contratado(a) como ${j.name}! Vá até ${j.place} para bater ponto.") }
+            else linha(panel, Ic.CLOSE, "Bloqueado: precisa de ${Jobs.NEED[j.level]} turnos (você tem ${st.shifts})", Tn.GHOST) { }
+            linha(panel, Ic.MAP, "Ver no mapa com GPS", Tn.SUN) { dlg?.dismiss(); fechar(); irPara(j) }
+        }
+        dlg?.show()
+    }
+
+    private fun irPara(j: Jobs.Job) {
+        val p = lugarDe(j) ?: run { msg("${j.place} ainda não apareceu no mapa"); return }
+        Gps.setDest(p.x, p.z, j.place, game.r.px, game.r.pz); msg("GPS ligado até ${j.place}: siga a faixa azul")
     }
 
     // ------------------------------------------------------------ configurações e novidades

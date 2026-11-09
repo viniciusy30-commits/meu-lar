@@ -86,12 +86,13 @@ object Models {
 
     // ------------------------------------------------------------ casa
 
-    fun interior(gw: Int, gh: Int, fl: Finish.Floor): Mesh {
+    fun interior(gw: Int, gh: Int, fl: Finish.Floor, wallCol: Int = C("#F2EEE6")): Mesh {
         val b = MB()
         b.m(fl.mat, 1f)
         b.plane(0, 0, gw, gh, 0.0, fl.tint)
         b.m(Mt.STONE, 0.5f)
         b.box(gw / 2.0, -0.205, gh / 2.0, gw + 0.5, 0.4, gh + 0.5, C("#C9C3B9"))
+        if (HouseLayout.active(gw, gh)) HouseLayout.build(b, wallCol)   // Etapa 144: cômodos
         return b.toMesh(true)
     }
 
@@ -354,6 +355,7 @@ object Models {
         val fl = Flora.Batch()
         val W = gw.toDouble(); val H = gh.toDouble()
         val x0 = -7.0; val x1 = W + 7.0; val z0 = Pool.BACK_Z.toDouble(); val z1 = H + 9.0   // Etapa 118: fundos do quintal maiores (piscina)
+        if (!vitrine && HouseLayout.active(gw, gh)) HouseLayout.garage(b)   // Etapa 144: garagem coberta
         val white = C("#FFFFFF")
 
         // chão: malha de células de 6 m com variação suave de cor por vértice (sem o xadrez repetido)

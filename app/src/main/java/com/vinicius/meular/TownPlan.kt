@@ -255,7 +255,7 @@ object TownPlan {
 
     /** Bairro da casa: rua reta passando na frente do terreno (z ≈ 52), ruas sem saída para cima e um laço embaixo. */
     private fun homeSub(N: Curve, S: Curve, W: Curve, E: Curve) {
-        val z = 52f; val name = "R. das Magnólias"
+        val z = 30f; val name = "R. das Magnólias"   // Etapa 144: rua colada na frente do terreno (antes 52 m, sobrava gramado)
         val w = nodeAt(W.at(W.tAtZ(z)), true); val e = nodeAt(E.at(E.tAtZ(z)), true)
         val xs = floatArrayOf(-118f, -64f, 84f, 120f)
         val ids = IntArray(xs.size) { Town.n(xs[it], z) }

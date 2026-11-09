@@ -583,23 +583,24 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         inBld = null
         City.clear()
         if (!st.testRoom) City.buildAsync(gw, gh)   // Etapa 122: a cidade é montada em segundo plano
-        floorM = Models.interior(gw, gh, fl)
+        floorM = Models.interior(gw, gh, fl, wl.cor)
         ceilM = Models.ceiling(gw, gh)
         doorM = Models.doorLeaf()
         val W = gw.toDouble()
         val H = gh.toDouble()
-        walls[0] = Models.wall(W, listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
+        val plan = HouseLayout.active(gw, gh)   // Etapa 144: casa com cômodos — uma janela por cômodo
+        walls[0] = Models.wall(W, if (plan) listOf(Opening(1.8, 1.25, false), Opening(5.7, 0.8, false), Opening(9.4, 1.4, false)) else listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
         walls[1] = Models.wall(W, listOf(Opening(W / 2, 1.1, true), Opening(W * 0.22, 1.25, false), Opening(W * 0.78, 1.25, false)), wl.cor, true, false)
-        walls[2] = Models.wall(H, listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
-        walls[3] = Models.wall(H, emptyList(), wl.cor, false, true)
+        walls[2] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
+        walls[3] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else emptyList(), wl.cor, false, true)
         bw = gw; bh = gh; bf = st.floorIdx; bwl = st.wallIdx; bTest = st.testRoom
         // cortinas simuladas (uma por janela; a cor segue a regra antiga: rosada na metade esquerda, dourada na direita)
         cloth.clear()
         fun cur(wall: Int, c: Double, w: Double, len: Double) =
             cloth.addWindow(wall, c, w, if (c < len / 2) C("#D9786B") else C("#E4B25F"))
-        cur(0, W / 2, 1.9, W)
+        if (plan) { cur(0, 1.8, 1.25, W); cur(0, 9.4, 1.4, W); cur(2, H * 0.25, 1.2, H); cur(2, H * 0.75, 1.2, H); cur(3, H * 0.25, 1.2, H); cur(3, H * 0.75, 1.2, H) }
+        else { cur(0, W / 2, 1.9, W); cur(2, H / 2, 1.6, H) }
         cur(1, W * 0.22, 1.25, W); cur(1, W * 0.78, 1.25, W)
-        cur(2, H / 2, 1.6, H)
     }
 
     private fun wallModel(i: Int, gw: Float, gh: Float) {
@@ -627,7 +628,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = nx > 0.32f && nx < gw - 0.32f && nz > 0.32f && nz < gh - 0.32f
             val door = abs(nx - gw / 2f) < 0.42f && nz > gh - 0.4f && nz < gh + 0.45f
             if (!ins && !door) return false
+            if (HouseLayout.blocks(st.gw, st.gh, nx, nz) && !HouseLayout.blocks(st.gw, st.gh, ox, oz)) return false
         } else if (!yardOk(nx, nz)) return false
+        else if (HouseLayout.yardBlocks(st.gw, st.gh, nx, nz) && !HouseLayout.yardBlocks(st.gw, st.gh, ox, oz)) return false
         if (swimPh == 0 && Pool.blocksWalker(st.gw, nx, nz)) return false   // Etapa 118: a água só se entra correndo (mergulho)
         val g = grabbed
         for (o in st.items) {
@@ -678,7 +681,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         if (carX.isNaN()) {
             // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
-            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 52f   // Etapa 131: R. das Magnólias, em frente de casa
+            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 30f   // Etapa 131: R. das Magnólias, em frente de casa
             carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
         }
         City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
@@ -1233,7 +1236,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
             val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
             if (!ins && !door) return true
+            if (HouseLayout.blocks(st.gw, st.gh, x, z)) return true   // Etapa 144: paredes internas
         } else if (!yardOk(x, z)) return true   // fora do quintal (ou prédio/carro da cidade)
+        else if (HouseLayout.yardBlocks(st.gw, st.gh, x, z)) return true
         if (Pool.blocksWalker(st.gw, x, z)) return true   // Etapa 118: piscina
         for (o in st.items) {
             if (o.type.rug || o.type.dyn || Foot.height(o.type) < 0.12f) continue
@@ -2015,7 +2020,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 for (i in 0..12) {
                     val cd = if (fly) 3.6f + min(2.6f, flySpeed / 15f) else 2.7f   // Etapa 128: voando, a câmera afasta com a velocidade
                     ox = tx - fx * cd * t; oy = ty - fy * cd * t; oz = tz - fz * cd * t
-                    val okRoom = !inRoom || (ox > 0.2f && ox < gw - 0.2f && oz > 0.2f && oz < gh - 0.2f && oy < 2.3f)
+                    val okRoom = !inRoom || (ox > 0.2f && ox < gw - 0.2f && oz > 0.2f && oz < gh - 0.2f && oy < 2.3f && !HouseLayout.crosses(st.gw, st.gh, tx, tz, ox, oz))
                     // Etapa 126: dentro de loja/prédio a câmera fica do lado de dentro das paredes e abaixo do teto
                     val okBld = cb == null || (ox > cb.x0 + 0.45f && ox < cb.x1 - 0.45f && oz > cb.z0 + 0.45f && oz < cb.z1 - 0.45f && oy < 2.75f)
                     if (okRoom && okBld) break
@@ -2317,6 +2322,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private fun buildStatics() {
         statics.clear()
+        if (HouseLayout.active(st.gw, st.gh)) for (r in HouseLayout.rects + HouseLayout.fixtures) statics.add(SBox(r[0], 0f, r[1], r[2], Models.HH.toFloat(), r[3]))
         for (o in st.items) {
             if (o.type.rug || o.type.dyn) continue
             val g = o.type.glb?.let { Glb.get(it) }

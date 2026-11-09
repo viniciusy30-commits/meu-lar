@@ -112,6 +112,11 @@ class GameState(ctx: Context) {
     /** Etapa 123: veículo escolhido na loja (-1 = nenhum) e cor. */
     var vehKind = -1
     var vehColor = 0xFFC62828.toInt()
+    /** Etapa 143: profissão atual, turnos trabalhados (contam para subir de nível), total ganho e hora do último ponto. */
+    var job = ""
+    var shifts = 0
+    var earned = 0L
+    var lastShift = 0L
     var avatar = Avatar()
     var avatarSet = false
     val items = CopyOnWriteArrayList<Item>()
@@ -169,6 +174,7 @@ class GameState(ctx: Context) {
         ownWalls = prefs.getInt("ownW", 1) or 1
         sens = prefs.getInt("sens", 1).coerceIn(0, 2)
         vehKind = prefs.getInt("vehKind", -1)
+        job = prefs.getString("job", "") ?: ""; shifts = prefs.getInt("shifts", 0); earned = prefs.getLong("earned", 0L); lastShift = prefs.getLong("lastShift", 0L)
         vehColor = prefs.getInt("vehColor", 0xFFC62828.toInt())
         Avatar.decode(prefs.getString("avatar", null))?.let { avatar = it; avatarSet = true }
         CuteColor.setColors(avatar.cc)
@@ -196,26 +202,40 @@ class GameState(ctx: Context) {
                 items.clear(); money = 50; gw = 6; gh = 5
             }
         }
-        if (!ok) {
-            // casa inicial só com móveis do Plano Mestre: cama de casal, mesa de jantar e duas cadeiras viradas para a mesa
-            items.add(Item(Type.G_CAMA, 0, 0))
-            items.add(Item(Type.G_MESA, 3, 3))
-            items.add(Item(Type.G_CADEIRA, 3, 2))
-            items.add(Item(Type.G_CADEIRA, 4, 2))
+        // Etapa 144: casa nova (2 quartos, suíte, banheiro, sala, cozinha, garagem) — os móveis antigos saem e entra a mobília de cada cômodo
+        if (!ok || !prefs.getBoolean("casa2", false)) {
+            gw = HouseLayout.W; gh = HouseLayout.H
+            starter(items)
+            prefs.edit().putBoolean("casa2", true).apply()
             save()
         }
+    }
+
+    /** Móveis iniciais da casa nova (cada cômodo arrumado). */
+    private fun starter(items: MutableList<Item>) {
+        items.clear()
+        // suíte
+        items.add(Item(Type.G_GUARDA_ROUPA, 0, 0)); items.add(Item(Type.G_CAMA, 0, 1)); items.add(Item(Type.G_VASO, 0, 3))
+        // quarto 2
+        items.add(Item(Type.G_CAMA, 10, 0)); items.add(Item(Type.G_GUARDA_ROUPA, 7, 0)); items.add(Item(Type.G_POLTRONA, 9, 2))
+        // sala
+        items.add(Item(Type.G_SOFA3, 1, 7)); items.add(Item(Type.G_POLTRONA, 4, 6)); items.add(Item(Type.G_APARADOR, 3, 8)); items.add(Item(Type.G_VASO, 0, 8))
+        // cozinha e jantar
+        items.add(Item(Type.G_PIA, 9, 4)); items.add(Item(Type.G_FOGAO, 10, 4)); items.add(Item(Type.G_GELADEIRA, 11, 4))
+        items.add(Item(Type.G_MESA, 9, 7)); items.add(Item(Type.G_CADEIRA, 9, 6)); items.add(Item(Type.G_CADEIRA, 10, 6)); items.add(Item(Type.G_CADEIRA, 9, 8)); items.add(Item(Type.G_CADEIRA, 10, 8))
     }
 
     fun nivelCasa(): Int = gw - 5
 
     fun precoAmpliar(): Int = 200 * nivelCasa()
 
-    fun podeAmpliar(): Boolean = gw < 10
+    fun podeAmpliar(): Boolean = false   // Etapa 144: a casa tem planta fixa
 
     // Cabe aqui? Usa o tamanho real do móvel (não a casa inteira): dois móveis só colidem se os corpos se encostam.
     fun canPlace(item: Item, nx: Int, ny: Int, rot: Int, ox: Float = item.ox, oz: Float = item.oz): Boolean {
         val r = Foot.rect(item.type, rot, nx, ny, ox, oz)
         if (r[0] < -0.001f || r[1] < -0.001f || r[2] > gw + 0.001f || r[3] > gh + 0.001f) return false
+        if (!item.type.dyn && HouseLayout.overlaps(gw, gh, r)) return false   // Etapa 144: não entra na parede interna
         if (item.type.rug || item.type.dyn) return true      // objeto solto: a física resolve onde ele fica
         val mine = Foot.blockRects(item.type, rot, nx, ny, ox, oz) ?: listOf(r)
         return items.none { o ->
@@ -305,6 +325,7 @@ class GameState(ctx: Context) {
             .putInt("ownF", ownFloors).putInt("ownW", ownWalls)
             .putInt("sens", sens)
             .putInt("vehKind", vehKind).putInt("vehColor", vehColor)
+            .putString("job", job).putInt("shifts", shifts).putLong("earned", earned).putLong("lastShift", lastShift)
             .putString("avatar", avatar.encode())
             .apply()
     }

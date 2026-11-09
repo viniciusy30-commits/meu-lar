@@ -126,7 +126,8 @@ object TownHouses {
                 val LWt = LW[tier]
                 // profundidade que cabe neste lado (testada no meio da rua)
                 var dep = 0f
-                for (k in floatArrayOf(1f, 0.9f, 0.8f, 0.7f, 0.6f)) { if (fits(lotAt(cum[n - 1] / 2, 4f, LD[tier] * k, tier))) { dep = LD[tier] * k; break } }
+                // Etapa 144: testa em vários pontos da rua (o meio pode cair no terreno do jogador)
+                run { for (k in floatArrayOf(1f, 0.9f, 0.8f, 0.7f, 0.6f)) for (f in floatArrayOf(0.5f, 0.25f, 0.75f, 0.12f, 0.88f)) if (fits(lotAt(cum[n - 1] * f, 4f, LD[tier] * k, tier))) { dep = LD[tier] * k; return@run } }
                 if (dep == 0f) { dbgNoDep++; continue }
                 // trechos válidos (centros possíveis)
                 val ok = ArrayList<FloatArray>(); var a0 = -1f

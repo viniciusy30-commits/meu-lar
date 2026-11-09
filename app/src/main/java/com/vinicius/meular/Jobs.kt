@@ -34,4 +34,11 @@ object Jobs {
         Job("prefeito", "Prefeito(a)", 4, "Prefeitura", "PREFEITURA", 1200, "Decide obras da cidade", "Eleição"))
 
     fun byId(id: String) = ALL.firstOrNull { it.id == id }
+
+    /** Turnos trabalhados necessários para liberar cada nível (nível 1 é livre). */
+    val NEED = intArrayOf(0, 0, 5, 15, 35)
+    val LEVEL_NAME = arrayOf("", "Começo", "Técnico", "Faculdade", "Topo")
+    fun unlocked(level: Int, shifts: Int) = shifts >= NEED[level.coerceIn(1, 4)]
+    /** Intervalo mínimo entre dois pontos batidos (um turno). */
+    const val SHIFT_MS = 90_000L
 }

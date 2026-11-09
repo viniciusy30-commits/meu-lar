@@ -63,6 +63,11 @@ object JobRooms {
         s.table(L + 2.6f, (wv + d) / 2 + 0.3f, 2.0f, 0.9f, C("#FAFAFA")); for (k in 0..2) s.box(L + 2.0f + k * 0.55f, FL + 0.75f, (wv + d) / 2 + 0.3f, 0.4f, 0.06f + k * 0.05f, 0.3f, pcU(k))
         s.chairW(L + 2.1f, (wv + d) / 2 - 0.5f, 1, C("#00838F"), metal = true); s.chairW(L + 3.1f, (wv + d) / 2 - 0.5f, 1, C("#00838F"), metal = true)
         s.board(R - 0.03f, (wv + d) / 2, 3, 2.0f, 0)
+        // arara de uniformes, tábua de passar e prateleira de toalhas
+        s.oc(c + 1.6f, wv + 1.0f, 0, 0f, FL, 0f, 0.03f, 1.6f, C("#9E9E9E"), Mt.METAL, 6); s.oc(c + 3.2f, wv + 1.0f, 0, 0f, FL, 0f, 0.03f, 1.6f, C("#9E9E9E"), Mt.METAL, 6); s.box(c + 2.4f, FL + 1.58f, wv + 1.0f, 1.65f, 0.03f, 0.03f, C("#9E9E9E"), Mt.METAL)
+        for (k in 0..5) s.box(c + 1.8f + k * 0.24f, FL + 0.75f, wv + 1.0f, 0.04f, 0.8f, 0.5f, C(if (k % 2 == 0) "#00838F" else "#4DD0E1"), Mt.FABRIC)
+        s.solid(c + 1.5f, wv + 0.7f, c + 3.3f, wv + 1.3f)
+        s.box(c - 1.8f, FL + 0.85f, wv + 1.3f, 1.3f, 0.04f, 0.4f, C("#ECEFF1"), Mt.FABRIC); s.box(c - 2.2f, FL, wv + 1.3f, 0.04f, 0.85f, 0.04f, C("#757575"), Mt.METAL); s.box(c - 1.4f, FL, wv + 1.3f, 0.04f, 0.85f, 0.04f, C("#757575"), Mt.METAL); s.box(c - 1.6f, FL + 0.89f, wv + 1.3f, 0.25f, 0.12f, 0.14f, C("#29B6F6")); s.solid(c - 2.5f, wv + 1.05f, c - 1.1f, wv + 1.55f)
         s.clock(c, d - 0.03f, 1, FL + 2.3f)
     }
     private fun pcU(k: Int) = C(arrayOf("#4FC3F7", "#81C784", "#FFB74D")[k % 3])
@@ -484,9 +489,13 @@ object JobRooms {
         s.box(c, FL + 0.002f, hv / 2, s.w - 0.1f, 0.004f, hv, C("#E8E0D0"), Mt.STONE, 0.5f)
         for (k in 0..3) { val pu = L + 2f + k * (s.w - 4f) / 3; if (abs(pu - c) < 1.6f) continue; s.oc(pu, 3.5f, 0, 0f, FL, 0f, 0.35f, s.h, C("#EFE6D8"), Mt.STONE, 14); s.box(pu, FL, 3.5f, 0.9f, 0.2f, 0.9f, C("#D8CCB4"), Mt.STONE); s.solid(pu - 0.45f, 3.05f, pu + 0.45f, 3.95f) }
         // detector de metal e esteira de raio-x
-        for (sd in floatArrayOf(-0.5f, 0.5f)) s.box(c + sd, FL, 2.2f, 0.12f, 2.2f, 0.5f, C("#9E9E9E"), Mt.METAL); s.box(c, FL + 2.2f, 2.2f, 1.12f, 0.15f, 0.5f, C("#9E9E9E"), Mt.METAL)
-        s.solid(c - 0.56f, 1.95f, c - 0.44f, 2.45f); s.solid(c + 0.44f, 1.95f, c + 0.56f, 2.45f)
-        s.box(c + 1.8f, FL, 2.2f, 0.8f, 0.85f, 2.2f, C("#616161"), Mt.METAL); s.box(c + 1.8f, FL + 0.85f, 2.2f, 0.6f, 0.03f, 2.2f, C("#212121")); s.box(c + 1.8f, FL + 0.85f, 2.2f, 0.85f, 0.6f, 0.9f, C("#757575"), Mt.METAL); s.solid(c + 1.4f, 1.1f, c + 2.2f, 3.3f)
+        // segurança na lateral direita do saguão: detector, raio-x e catracas com fita
+        val dx = c + 2.6f
+        for (sd in floatArrayOf(-0.5f, 0.5f)) s.box(dx + sd, FL, 4.6f, 0.12f, 2.2f, 0.5f, C("#9E9E9E"), Mt.METAL); s.box(dx, FL + 2.2f, 4.6f, 1.12f, 0.15f, 0.5f, C("#9E9E9E"), Mt.METAL)
+        s.solid(dx - 0.56f, 4.35f, dx - 0.44f, 4.85f); s.solid(dx + 0.44f, 4.35f, dx + 0.56f, 4.85f)
+        s.box(dx + 1.6f, FL, 4.6f, 0.8f, 0.85f, 2.2f, C("#616161"), Mt.METAL); s.box(dx + 1.6f, FL + 0.85f, 4.6f, 0.6f, 0.03f, 2.2f, C("#212121")); s.box(dx + 1.6f, FL + 0.85f, 4.6f, 0.85f, 0.6f, 0.9f, C("#757575"), Mt.METAL); s.solid(dx + 1.2f, 3.5f, dx + 2.0f, 5.7f)
+        for (k in 0..3) { s.oc(c + 1.5f, 1.6f + k * 0.9f, 0, 0f, FL, 0f, 0.04f, 0.95f, C("#C9A227"), Mt.METAL, 6); s.oc(c + 1.5f, 1.6f + k * 0.9f, 0, 0f, FL, 0f, 0.15f, 0.03f, C("#C9A227"), Mt.METAL, 8); s.solid(c + 1.42f, 1.52f + k * 0.9f, c + 1.58f, 1.68f + k * 0.9f) }
+        s.box(c + 1.5f, FL + 0.85f, 2.95f, 0.03f, 0.06f, 2.7f, C("#B71C1C"), Mt.FABRIC); s.solid(c + 1.46f, 1.6f, c + 1.54f, 4.3f)
         s.reception(L + 2.8f, 1.6f, 3, 2.4f, C("#5D4037"), C("#EFE6D8"), C("#C9A227"), 1); s.waitRow(R - 2.0f, 5.4f, 0, 4, C("#6D4C41"))
         s.wallTo(hv, L, R, c, C("#E8DCC4"))
         // tribunal
@@ -602,6 +611,7 @@ object JobRooms {
             s.box(bu, FL + 2.4f, 6.3f, 1.4f, 0.4f, 0.05f, C("#1B3A5C")); s.box(bu, FL + 2.45f, 6.27f, 1.2f, 0.3f, 0.01f, C("#FFF59D"), Mt.PLAIN, 1f, false)
             s.waitRow(c + sd * (s.w / 2 - 3.2f), 3.9f, 1, 4, C("#1B3A5C")) }
         s.rug(c, (wv - 3.4f) / 2 + 0.2f, 1.8f, wv - 3.6f, C("#8E2424"), C("#C9A227"))
+        for (sd in floatArrayOf(-1f, 1f)) { s.bench(c + sd * 1.7f, wv - 6.0f, if (sd < 0) 3 else 2, 1.8f, C("#5D4037"), C("#C9A227")); s.plant(c + sd * 1.7f, wv - 4.4f, 1, C("#C9A227")) }
         // estátua do fundador no centro do saguão (depois do corredor)
         val sv = wv - 2.2f
         s.box(c, FL, sv, 2.4f, 0.5f, 2.4f, C("#C9A227"), Mt.STONE); s.box(c, FL + 0.5f, sv, 1.0f, 1.2f, 1.0f, C("#E0D8C8"), Mt.STONE, 0.6f); s.oc(c, sv, 0, 0f, FL + 1.7f, 0f, 0.25f, 1.0f, C("#8D6E63"), Mt.METAL, 10, 0.2f); s.ball(c, FL + 2.85f, sv, 0.2f, C("#8D6E63")); s.solid(c - 1.2f, sv - 1.2f, c + 1.2f, sv + 1.2f)
