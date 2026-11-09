@@ -42,10 +42,10 @@ object TownPlan {
 
     /** Etapa 147: altura do morro (+) ou fundura do vale (−) no meio de cada superquadra, em metros. */
     val RELIEF = arrayOf(
-        floatArrayOf(6f, -4.5f, 0f, 5f),
-        floatArrayOf(6.5f, 0f, 0f, 0f),
-        floatArrayOf(0f, 0f, 0f, -4.5f),
-        floatArrayOf(3.5f, 0f, 4.5f, 3.2f))
+        floatArrayOf(4.2f, -3.2f, 0f, 3.5f),
+        floatArrayOf(4.5f, 0f, 0f, 0f),
+        floatArrayOf(0f, 0f, 0f, -3.2f),
+        floatArrayOf(2.5f, 0f, 3.2f, 2.3f))
 
     /** Centro da superquadra que contém (x, z). */
     fun cellCenter(x: Float, z: Float): FloatArray {

@@ -612,7 +612,7 @@ object City {
         val rng = Rng(4242)
         for ((ei, ed) in Town.edges.withIndex()) {
             if (ed.len < 30f) continue
-            val per = if (ed.avenue) 120f else 260f   // Etapa 139: cidade grande — menos carros por rua (desempenho)
+            val per = if (ed.avenue) 95f else 190f   // Etapa 152: mais trânsito   // Etapa 139: cidade grande — menos carros por rua (desempenho)
             val n = (ed.len / per).toInt() + (if (rng.f() < (ed.len % per) / per) 1 else 0)
             if (n == 0) continue
             for (k in 0 until n) {

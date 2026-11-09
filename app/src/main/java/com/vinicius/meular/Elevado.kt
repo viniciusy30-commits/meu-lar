@@ -79,6 +79,16 @@ object Elevado {
     }
     /** Ruas que passam por baixo de um elevado: os carros usam só a faixa da direita (a de dentro tem pilar e aterro). */
     val edgeSet = HashSet<Int>()
+    /** Etapa 152: trecho do aterro fechado (alça baixa) em metros a partir da ponta. */
+    const val CLOSED = 62f
+    /** Etapa 152: canteiro central — 0 normal, 1 sem canteiro (entrada da alça e debaixo do aterro), 2 debaixo do tabuleiro (calçado). */
+    fun zone(x: Float, z: Float): Int {
+        for (e in list) { if (abs(e.lat(x, z)) > 4f) continue; val s = e.sOf(x, z)
+            if ((s > e.a0 - 60f && s < e.a0 + CLOSED + 3f) || (s > e.a1 - CLOSED - 3f && s < e.a1 + 60f)) return 1
+            if (s > e.a0 && s < e.a1) return 2 }
+        return 0
+    }
+
     /** O ponto está debaixo de algum elevado (para não plantar árvore no canteiro)? */
     fun covers(x: Float, z: Float) = list.any { abs(it.lat(x, z)) < HW + 1f && it.sOf(x, z) > it.a0 - 3f && it.sOf(x, z) < it.a1 + 3f }
 
@@ -106,8 +116,8 @@ object Elevado {
         }
         return false
     }
-    fun blockedCar(x: Float, z: Float, ref: Float) = list.isNotEmpty() && blocked(x, z, ref, 0.9f, 1.6f, 4.6f, HW - 0.45f, 0.95f)
-    fun blockedWalk(x: Float, z: Float, ref: Float) = list.isNotEmpty() && blocked(x, z, ref, 0.45f, 1.0f, 2.3f, HW - 0.35f, 1.0f)
+    fun blockedCar(x: Float, z: Float, ref: Float) = list.isNotEmpty() && blocked(x, z, ref, 0.9f, 1.6f, 6.4f, HW - 0.45f, 0.95f)
+    fun blockedWalk(x: Float, z: Float, ref: Float) = list.isNotEmpty() && blocked(x, z, ref, 0.45f, 1.0f, 6.4f, HW - 0.35f, 1.0f)
 
     // ---------------------------------------------------------------- geometria
     /** Um pedaço de cada elevado por chunk (~120 m), sempre carregado. */
@@ -176,12 +186,30 @@ object Elevado {
         b.m(Mt.METAL)
         for (sg in floatArrayOf(-1f, 1f)) { side(b, e, s0, s1, sg * (HW + 0.2f), 1.18f, 1.26f, C("#8A9096")); var t = Math.ceil(s0 / 2.5).toFloat() * 2.5f; while (t < s1) { val y = e.prof(t); if (!y.isNaN()) b.box(e.px(t, sg * (HW + 0.2f)), y + 1.1, e.pz(t, sg * (HW + 0.2f)), 0.06, 0.3, 0.06, C("#8A9096")); t += 2.5f } }
         // aterro com muro de contenção em placas (onde a alça ainda é baixa) e coroamento
+        // Etapa 152: aterro maciço — fechado dos lados (muro grosso com pilastras) e com a cabeceira fechada onde o vão começa
+        fun closed(q: Float) = q < e.a0 + CLOSED || q > e.a1 - CLOSED
         var s = s0
         while (s < s1 - 0.01f) {
             val t = min(s1, s + 5f)
-            if (e.prof(t) < 5.2f || e.prof(s) < 5.2f) {
-                b.m(Mt.STONE, 0.35f); side(b, e, s, t, -HW - 0.46f, 0f, -0.7f, C("#BDB5A6"), true); side(b, e, s, t, HW + 0.46f, 0f, -0.7f, C("#BDB5A6"), true)
+            val mid = (s + t) / 2
+            if (closed(mid)) {
+                b.m(Mt.STONE, 0.35f); side(b, e, s, t, -HW - 0.46f, 0f, -0.7f, C("#C6BFB1"), true); side(b, e, s, t, HW + 0.46f, 0f, -0.7f, C("#C6BFB1"), true)
                 b.m(Mt.PLAIN); for (sg in floatArrayOf(-1f, 1f)) side(b, e, s, t, sg * (HW + 0.48f), -0.15f, 0.02f, C("#9A9286"))
+                // rodapé e pilastras
+                val y = e.prof(mid)
+                b.m(Mt.STONE, 0.5f)
+                for (sg in floatArrayOf(-1f, 1f)) {
+                    val bx = e.px(mid, sg * (HW + 0.6f)); val bz = e.pz(mid, sg * (HW + 0.6f))
+                    b.box(bx, 0.2, bz, if (e.axis == 0) t - s else 0.35f, 0.4f, if (e.axis == 0) 0.35f else t - s, C("#A8A092"))
+                    if (y > 1.4f && ((s - e.a0) / 5f).toInt() % 2 == 0) b.box(e.px(s, sg * (HW + 0.62f)), (y - 0.7f) / 2, e.pz(s, sg * (HW + 0.62f)), 0.55f, y - 0.7f, 0.55f, C("#B3AC9E"))
+                }
+            }
+            // cabeceira: parede de concreto fechando o aterro de lado a lado
+            for (edge in floatArrayOf(e.a0 + CLOSED, e.a1 - CLOSED)) if (edge >= s && edge < t) {
+                val y = e.prof(edge) - 0.7f
+                b.m(Mt.STONE, 0.35f)
+                b.box(e.px(edge, 0f), y / 2, e.pz(edge, 0f), if (e.axis == 0) 1.0f else HW * 2 + 1.1f, y, if (e.axis == 0) HW * 2 + 1.1f else 1.0f, C("#C6BFB1"))
+                b.box(e.px(edge, 0f), 0.25, e.pz(edge, 0f), if (e.axis == 0) 1.5f else HW * 2 + 1.5f, 0.5f, if (e.axis == 0) HW * 2 + 1.5f else 1.5f, C("#A8A092"))
             }
             s = t
         }
