@@ -38,6 +38,13 @@ object TownPlan {
         return D[r][c]
     }
 
+    /** Etapa 147: altura do morro (+) ou fundura do vale (−) no meio de cada superquadra, em metros. */
+    val RELIEF = arrayOf(
+        floatArrayOf(8f, -6f, 0f, 7f),
+        floatArrayOf(9f, 0f, 0f, 0f),
+        floatArrayOf(0f, 0f, 0f, -6f),
+        floatArrayOf(11f, 0f, 6f, 9f))
+
     /** Centro da superquadra que contém (x, z). */
     fun cellCenter(x: Float, z: Float): FloatArray {
         var c = 0; while (c < N - 1 && x > XS[c + 1]) c++
@@ -111,8 +118,10 @@ object TownPlan {
         // bairros (as curvas de cada lado guardadas antes de qualquer divisão)
         val HC = Array(N + 1) { r -> Array(N) { c -> curveOf(H[r][c]) } }; val VC = Array(N) { r -> Array(N + 1) { c -> curveOf(V[r][c]) } }
         // primeiro as malhas retas (centro, comércio, urbano), depois os bairros de traçado livre (que se ligam nelas)
-        for (pass in 0..1) for (r in 0 until N) for (c in 0 until N) {
-            if ((pass == 0) != urbanSide(r, c)) continue
+        // Etapa 147: centro/comércio primeiro, depois o bairro da casa, depois os outros (que continuam as ruas já feitas)
+        for (pass in 0..2) for (r in 0 until N) for (c in 0 until N) {
+            val wp = if (urbanSide(r, c)) 0 else if (D[r][c] == HOME) 1 else 2
+            if (pass != wp) continue
             val N = HC[r][c]; val S = HC[r + 1][c]; val W = VC[r][c]; val E = VC[r][c + 1]
             val q = arrayOf(Town.nodes[G[r][c]], Town.nodes[G[r][c + 1]], Town.nodes[G[r + 1][c + 1]], Town.nodes[G[r + 1][c]])
             fun bil(u: Float, v: Float): FloatArray {
@@ -125,7 +134,7 @@ object TownPlan {
                 DOWN -> grid(N, S, W, E, 4, 16f, DOWN)
                 COM -> grid(N, S, W, E, 3, 16f, COM)
                 URB -> grid(N, S, W, E, 3, 14f, URB)
-                PARK -> grid(N, S, W, E, 3, 12f, PARK)   // só a quadra do meio vira parque; as outras têm casas
+                PARK -> grid(N, S, W, E, 3, 12f, PARK, 4, gapU = 0.22f, gapV = 0.18f)   // só a quadra do meio vira parque; as outras têm casas
                 MAN -> {
                     // bairro nobre: poucas ruas, longas e curvas
                     val rot = cr.i(4)
@@ -147,7 +156,8 @@ object TownPlan {
                     val across = Math.round((if (rot % 2 == 0) hz else wx) / (2 * ld + 17f)).coerceAtLeast(2)
                     val along = Math.round((if (rot % 2 == 0) wx else hz) / 150f).coerceAtLeast(1)
                     val bend = (if (mir) 1f else -1f) * cr.r(3f, 7f)
-                    if (rot % 2 == 0) grid(N, S, W, E, along, 12f, SUB, across, bend) else grid(N, S, W, E, across, 12f, SUB, along, bend)
+                    val gAcross = (1.5f * ld + 16f) / (if (rot % 2 == 0) hz else wx); val gAlong = 70f / (if (rot % 2 == 0) wx else hz)
+                    if (rot % 2 == 0) grid(N, S, W, E, along, 12f, SUB, across, bend, gapU = gAlong, gapV = gAcross) else grid(N, S, W, E, across, 12f, SUB, along, bend, gapU = gAcross, gapV = gAlong)
                     if (P(0f, 0f).isEmpty()) loopSub(P, cr)
                 }
                 HOME -> homeSub(N, S, W, E)
@@ -182,35 +192,35 @@ object TownPlan {
      * Etapa 146: posições das ruas paralelas — primeiro as que continuam ruas do outro lado da avenida (cruzamento em X,
      * nada de T desencontrado), depois completa os vãos com o espaçamento desejado (1/k).
      */
-    private fun lineTs(A: Curve, B: Curve, k: Int): List<Pair<Float, Float>> {
+    private fun lineTs(A: Curve, B: Curve, k: Int, minGap: Float = 0.6f / k): List<Pair<Float, Float>> {
         val ea = existingT(A); val eb = existingT(B)
         val pri = if (ea.size >= eb.size) ea else eb; val sec = if (ea.size >= eb.size) eb else ea; val aPri = ea.size >= eb.size
         val base = ArrayList<Pair<Float, Float>>()
         for (t in pri) { val m = sec.minByOrNull { abs(it - t) }; val o = if (m != null && abs(m - t) < 0.035f) m else t; base.add(if (aPri) Pair(t, o) else Pair(o, t)) }
-        for (t in sec) if (base.none { abs((if (aPri) it.second else it.first) - t) < 0.5f / k }) base.add(if (aPri) Pair(t, t) else Pair(t, t))
-        base.sortBy { (it.first + it.second) / 2 }
+        for (t in sec) if (base.none { abs((if (aPri) it.second else it.first) - t) < 0.5f / k }) base.add(Pair(t, t))
+        fun mid(p: Pair<Float, Float>) = (p.first + p.second) / 2
+        // Etapa 147: continua as ruas do vizinho só se a quadra não ficar rasa demais (fundo mínimo minGap)
+        val kept = ArrayList<Pair<Float, Float>>()
+        for (p in base.sortedBy { mid(it) }) if (mid(p) >= minGap && mid(p) <= 1 - minGap && kept.none { abs(mid(it) - mid(p)) < minGap }) kept.add(p)
+        val pts = ArrayList<Pair<Float, Float>>(); pts.add(Pair(0f, 0f)); pts.addAll(kept); pts.add(Pair(1f, 1f))
         val out = ArrayList<Pair<Float, Float>>()
-        val pts = ArrayList<Pair<Float, Float>>(); pts.add(Pair(0f, 0f)); pts.addAll(base); pts.add(Pair(1f, 1f))
         for (i in 0 until pts.size - 1) {
-            val a = pts[i]; val b = pts[i + 1]
-            val n = Math.round(((b.first + b.second) / 2 - (a.first + a.second) / 2) * k).coerceAtLeast(1)
-            for (j in 1 until n) { val f = j / n.toFloat(); out.add(Pair(a.first + (b.first - a.first) * f, a.second + (b.second - a.second) * f)) }
+            val a = pts[i]; val b = pts[i + 1]; val g = mid(b) - mid(a)
+            var n = Math.round(g * k).coerceAtLeast(1)
+            while (n > 1 && g / n < minGap) n--
+            for (q in 1 until n) { val f = q / n.toFloat(); out.add(Pair(a.first + (b.first - a.first) * f, a.second + (b.second - a.second) * f)) }
             if (i < pts.size - 2) out.add(b)
         }
-        // nada de ruas coladas
-        val clean = ArrayList<Pair<Float, Float>>()
-        val e = 0.3f / k
-        for (p in out) if (p.first > e && p.first < 1 - e && p.second > e && p.second < 1 - e && clean.none { abs(it.first - p.first) < 0.35f / k }) clean.add(p)
-        return clean
+        return out.sortedBy { mid(it) }
     }
 
-    private fun grid(N: Curve, S: Curve, W: Curve, E: Curve, k: Int, w: Float, kind: Int, kz: Int = k, bend: Float = 0f, align: Boolean = true) {
+    private fun grid(N: Curve, S: Curve, W: Curve, E: Curve, k: Int, w: Float, kind: Int, kz: Int = k, bend: Float = 0f, align: Boolean = true, gapU: Float = 0.6f / k, gapV: Float = 0.6f / kz) {
         class Ln(val p: FloatArray, val q: FloatArray, val name: String) { val nodes = ArrayList<Pair<Float, Int>>() }
         val lines = ArrayList<Ln>()
         fun uni(n: Int) = (1 until n).map { Pair(it / n.toFloat(), it / n.toFloat()) }
-        for (t in if (align) lineTs(N, S, k) else uni(k)) lines.add(Ln(N.at(t.first), S.at(t.second), street()))
+        for (t in if (align) lineTs(N, S, k, gapU) else uni(k)) lines.add(Ln(N.at(t.first), S.at(t.second), street()))
         val nV = lines.size
-        for (t in if (align) lineTs(W, E, kz) else uni(kz)) lines.add(Ln(W.at(t.first), E.at(t.second), street()))
+        for (t in if (align) lineTs(W, E, kz, gapV) else uni(kz)) lines.add(Ln(W.at(t.first), E.at(t.second), street()))
         // malha reta: liga exatamente no ponto (sem aproveitar ligação vizinha, senão a rua sai torta)
         for (ln in lines) { ln.nodes.add(Pair(0f, Town.splitNear(ln.p[0], ln.p[1], reuseDist = 14f))); ln.nodes.add(Pair(1f, Town.splitNear(ln.q[0], ln.q[1], reuseDist = 14f))) }
         for (a in 0 until nV) for (b in nV until lines.size) {
@@ -314,20 +324,34 @@ object TownPlan {
      * ruas em z = -95, -40, 30 (a da casa), 95 e 150, ligadas por duas ruas transversais (x = -64 e 84).
      */
     private fun homeSub(N: Curve, S: Curve, W: Curve, E: Curve) {
-        class Ln(val nodes: ArrayList<Pair<Float, Int>>, val name: String)
-        val zs = floatArrayOf(-95f, -40f, 30f, 95f, 150f)
+        val zs = floatArrayOf(-95f, -40f, 33f, 97f, 152f)
         val xs = floatArrayOf(-64f, 84f)
-        val hz = ArrayList<Ln>(); val vx = ArrayList<Ln>()
+        // ponta da rua no lado da superquadra: aproveita a rua que já chega ali (até r metros), senão abre um cruzamento novo
+        fun endAt(p: FloatArray, r: Float): Int {
+            var bi = -1; var bd = r
+            for ((ni, n) in Town.nodes.withIndex()) { val d = hypot(n.x - p[0], n.z - p[1]); if (d < bd) { bd = d; bi = ni } }
+            return if (bi >= 0) bi else Town.splitNear(p[0], p[1], reuseDist = 3f)
+        }
+        class Ln(val nodes: ArrayList<Pair<Float, Int>>, val name: String)
+        val hz = ArrayList<Ln>()
         for (z in zs) {
-            val name = if (z == 30f) "R. das Magnólias" else street()
-            val a = Town.splitNear(W.at(W.tAtZ(z))[0], W.at(W.tAtZ(z))[1], reuseDist = 14f); val b = Town.splitNear(E.at(E.tAtZ(z))[0], E.at(E.tAtZ(z))[1], reuseDist = 14f)
-            hz.add(Ln(arrayListOf(Pair(-1e9f, a), Pair(1e9f, b)), name))
+            val home = z == 33f
+            val a = endAt(W.at(W.tAtZ(z)), if (home) 3f else 24f); val b = endAt(E.at(E.tAtZ(z)), if (home) 3f else 24f)
+            hz.add(Ln(arrayListOf(Pair(Town.nodes[a].x, a), Pair(Town.nodes[b].x, b)), if (home) "R. das Magnólias" else street()))
         }
+        val vx = ArrayList<Ln>()
         for (x in xs) {
-            val a = Town.splitNear(N.at(N.tAtX(x))[0], N.at(N.tAtX(x))[1], reuseDist = 14f); val b = Town.splitNear(S.at(S.tAtX(x))[0], S.at(S.tAtX(x))[1], reuseDist = 14f)
-            vx.add(Ln(arrayListOf(Pair(-1e9f, a), Pair(1e9f, b)), street()))
+            val a = endAt(N.at(N.tAtX(x)), 6f); val b = endAt(S.at(S.tAtX(x)), 6f)
+            vx.add(Ln(arrayListOf(Pair(Town.nodes[a].z, a), Pair(Town.nodes[b].z, b)), street()))
         }
-        for ((hi, z) in zs.withIndex()) for ((vi, x) in xs.withIndex()) { val ni = Town.n(x, z); hz[hi].nodes.add(Pair(x, ni)); vx[vi].nodes.add(Pair(z, ni)) }
+        // cruzamentos internos: na reta de cada rua (que pode ter ficado levemente inclinada)
+        for (h in hz) {
+            val A = Town.nodes[h.nodes[0].second]; val B = Town.nodes[h.nodes[1].second]
+            for ((vi, x) in xs.withIndex()) {
+                val f = (x - A.x) / (B.x - A.x); val z = A.z + (B.z - A.z) * f
+                val ni = Town.n(x, z); h.nodes.add(Pair(x, ni)); vx[vi].nodes.add(Pair(z, ni))
+            }
+        }
         for (ln in hz + vx) {
             ln.nodes.sortBy { it.first }
             for (i in 0 until ln.nodes.size - 1) { val ei = Town.e(ln.nodes[i].second, ln.nodes[i + 1].second, if (ln.name == "R. das Magnólias") 14f else 12f, 0f, ln.name); Town.edges[ei].kind = HOME }

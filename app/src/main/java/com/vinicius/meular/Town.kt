@@ -730,7 +730,25 @@ object Town {
         return s * 95f * n * fade
     }
 
-    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
+    /**
+     * Etapa 147: relevo dentro da cidade — cada bairro de casas é um morro (ou um vale), com o topo no meio e plano nas
+     * bordas (as avenidas, o centro, o comércio, o parque e o bairro da casa ficam planos). Inclinação máxima ~6%.
+     */
+    fun terrain(x: Float, z: Float): Float {
+        if (outline.isEmpty()) return 0f
+        val X = TownPlan.XS; val Z = TownPlan.ZS; val N = TownPlan.N
+        if (x <= X[0] || x >= X[N] || z <= Z[0] || z >= Z[N]) return 0f
+        var c = 0; while (c < N - 1 && x > X[c + 1]) c++
+        var r = 0; while (r < N - 1 && z > Z[r + 1]) r++
+        val a = TownPlan.RELIEF[r][c]; if (a == 0f) return 0f
+        val u = (x - X[c]) / (X[c + 1] - X[c]); val v = (z - Z[r]) / (Z[r + 1] - Z[r])
+        val su = kotlin.math.sin(Math.PI.toFloat() * u); val sv = kotlin.math.sin(Math.PI.toFloat() * v)
+        return a * su * su * sv * sv
+    }
+
+    fun groundFlat(x: Float, z: Float): Float = groundH(x, z) - terrain(x, z)
+
+    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else terrain(x, z) + when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
 
     /** Fora do mapa (além do contorno da cidade + calçada externa). */
     fun outside(x: Float, z: Float) = outline.isNotEmpty() && x > minX - 60f && x < maxX + 60f && z > minZ - 60f && z < maxZ + 60f && false

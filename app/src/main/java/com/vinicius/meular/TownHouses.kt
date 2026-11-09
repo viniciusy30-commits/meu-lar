@@ -106,7 +106,8 @@ object TownHouses {
         dbgNoDep = 0; dbgNoIv = 0
         lots.clear(); lotBy.clear(); solids.clear(); solidBy.clear()
         var seed = 1
-        for ((ei, ed) in Town.edges.withIndex()) {
+        // Etapa 147: ruas compridas primeiro (as casas ficam de frente para o lado comprido da quadra, como nos EUA)
+        for ((ei, ed) in Town.edges.withIndex().sortedByDescending { it.value.len }) {
             if (ed.w > 16f) continue   // casas não ficam de frente para avenida
             val p = ed.pts; val n = p.size / 2
             if (n < 3) continue
@@ -130,7 +131,15 @@ object TownHouses {
                 // profundidade que cabe neste lado (testada no meio da rua)
                 var dep = 0f
                 // Etapa 144: testa em vários pontos da rua (o meio pode cair no terreno do jogador)
-                run { for (k in floatArrayOf(1f, 0.9f, 0.8f, 0.7f, 0.6f)) for (f in floatArrayOf(0.5f, 0.25f, 0.75f, 0.12f, 0.88f)) if (fits(lotAt(cum[n - 1] * f, 4f, LD[tier] * k, tier))) { dep = LD[tier] * k; return@run } }
+                // Etapa 147: fundo do lote = metade da quadra (casas de fundo com fundo, sem miolo vazio); quadra muito funda: fundo normal
+                var avail = Float.MAX_VALUE
+                for (f in floatArrayOf(0.3f, 0.5f, 0.7f)) {
+                    val q = frame(cum[n - 1] * f); var t = 3f
+                    while (t < 160f) { val x = q[0] + q[4] * t; val z = q[1] + q[5] * t; if (Town.clearance(x, z) < 0.1f || !Town.inAnyBlock(x, z)) break; t += 1.5f }
+                    avail = min(avail, t)
+                }
+                val want = if (tier < 4 && avail < LD[tier] * 2.9f) (avail / 2f - 0.8f).coerceIn(LD[tier] * 0.6f, LD[tier] * 1.45f) else LD[tier]
+                run { for (k in floatArrayOf(1f, 0.92f, 0.84f, 0.76f, 0.68f, 0.6f, 0.52f)) for (f in floatArrayOf(0.5f, 0.25f, 0.75f, 0.12f, 0.88f)) if (want * k >= LD[tier] * 0.5f && fits(lotAt(cum[n - 1] * f, 4f, want * k, tier))) { dep = want * k; return@run } }
                 if (dep == 0f) { dbgNoDep++; continue }
                 // trechos válidos (centros possíveis)
                 val ok = ArrayList<FloatArray>(); var a0 = -1f

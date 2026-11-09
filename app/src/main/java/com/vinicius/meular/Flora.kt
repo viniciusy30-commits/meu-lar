@@ -112,6 +112,7 @@ object Flora {
             val pg = if (id.startsWith("pine")) 1.2f else 1f
             val tr = tr0 * boost * (if (pg > 1f) 1.1f else 1f); val tg = tg0 * boost * pg; val tb = tb0 * boost * (if (pg > 1f) 1.05f else 1f)
             val cs = cos(ry).toFloat(); val sn = sin(ry).toFloat(); val sc = s.toFloat()
+            val ty0 = if (City.TOWN) Town.terrain(x.toFloat(), z.toFloat()) else 0f   // Etapa 147: árvore acompanha o relevo
             for (src in read(id)) {
                 val key = "${src.mat}|${src.tex}|${src.cut}"
                 val list = accs.getOrPut(key) { ArrayList() }
@@ -124,7 +125,7 @@ object Flora {
                     val nx = src.nor[i * 3]; val ny = src.nor[i * 3 + 1]; val nz = src.nor[i * 3 + 2]
                     val o = (a.nv + i) * STRIDE
                     a.v[o] = (px * cs + pz * sn + x).toFloat()
-                    a.v[o + 1] = (py + y).toFloat()
+                    a.v[o + 1] = (py + y).toFloat() + ty0
                     a.v[o + 2] = (-px * sn + pz * cs + z).toFloat()
                     a.v[o + 3] = nx * cs + nz * sn
                     a.v[o + 4] = ny

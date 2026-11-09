@@ -24,7 +24,7 @@ object Shade {
     /** Só a montagem principal da cidade grava sombras (o detalhe carregado depois não repete). */
     @Volatile var on = false
 
-    fun reset() { b = MB(); on = true; probes.clear() }
+    fun reset() { b = MB().also { it.warp = City.TOWN }; on = true; probes.clear() }
 
     // ---------------------------------------------------------------- geometria 2D
     private fun cross(o: FloatArray, a: FloatArray, c: FloatArray) = (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0])
@@ -78,7 +78,7 @@ object Shade {
         if (!yAt.isNaN()) { emit(h, yAt, alpha); return }
         if (City.TOWN) {   // Etapa 131: cidade nova — altura do chão no meio da sombra
             var cx = 0f; var cz = 0f; for (q in h) { cx += q[0]; cz += q[1] }
-            emit(h, if (Town.groundH(cx / h.size, cz / h.size) > 0.05f) Y_HIGH else Y_ROAD, alpha); return
+            emit(h, if (Town.groundFlat(cx / h.size, cz / h.size) > 0.05f) Y_HIGH else Y_ROAD, alpha); return
         }
         val bx = City.bandX; val bz = City.bandZ
         val S = City.SIDE
@@ -158,6 +158,6 @@ object Shade {
         on = false
         val m = b
         mesh = if (m.isEmpty()) null else m.toMesh(true)
-        b = MB()
+        b = MB().also { it.warp = City.TOWN }
     }
 }

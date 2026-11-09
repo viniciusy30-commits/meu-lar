@@ -51,8 +51,21 @@ object TownGeo {
     fun tris(b: MB, t: FloatArray, y: Float, c: Int) {
         var i = 0
         while (i + 5 < t.size) {
-            b.v(t[i], y, t[i + 1], 0f, 1f, 0f, c, t[i], t[i + 1]); b.v(t[i + 2], y, t[i + 3], 0f, 1f, 0f, c, t[i + 2], t[i + 3]); b.v(t[i + 4], y, t[i + 5], 0f, 1f, 0f, c, t[i + 4], t[i + 5])
+            if (b.warp) split(b, t[i], t[i + 1], t[i + 2], t[i + 3], t[i + 4], t[i + 5], y, c, 0)
+            else { b.v(t[i], y, t[i + 1], 0f, 1f, 0f, c, t[i], t[i + 1]); b.v(t[i + 2], y, t[i + 3], 0f, 1f, 0f, c, t[i + 2], t[i + 3]); b.v(t[i + 4], y, t[i + 5], 0f, 1f, 0f, c, t[i + 4], t[i + 5]) }
             i += 6
+        }
+    }
+
+    /** Etapa 147: triângulo grande vira pedaços de até ~7 m (o relevo dobra o chão sem buraco). */
+    private fun split(b: MB, ax: Float, az: Float, bx: Float, bz: Float, cx: Float, cz: Float, y: Float, c: Int, d: Int) {
+        val ab = hypot(bx - ax, bz - az); val bc = hypot(cx - bx, cz - bz); val ca = hypot(ax - cx, az - cz)
+        val m = max(ab, max(bc, ca))
+        if (m <= 7f || d > 14) { b.v(ax, y, az, 0f, 1f, 0f, c, ax, az); b.v(bx, y, bz, 0f, 1f, 0f, c, bx, bz); b.v(cx, y, cz, 0f, 1f, 0f, c, cx, cz); return }
+        when (m) {
+            ab -> { val mx = (ax + bx) / 2; val mz = (az + bz) / 2; split(b, ax, az, mx, mz, cx, cz, y, c, d + 1); split(b, mx, mz, bx, bz, cx, cz, y, c, d + 1) }
+            bc -> { val mx = (bx + cx) / 2; val mz = (bz + cz) / 2; split(b, ax, az, bx, bz, mx, mz, y, c, d + 1); split(b, ax, az, mx, mz, cx, cz, y, c, d + 1) }
+            else -> { val mx = (cx + ax) / 2; val mz = (cz + az) / 2; split(b, ax, az, bx, bz, mx, mz, y, c, d + 1); split(b, mx, mz, bx, bz, cx, cz, y, c, d + 1) }
         }
     }
 
@@ -347,7 +360,7 @@ object TownGeo {
         // Etapa 146: morros em volta (malha de 24 m), com mata mais escura nas encostas altas e árvores espalhadas
         val cs = 24f
         val nx = ((g.x1 - g.x0) / cs).toInt(); val nz = ((zb - g.z0) / cs).toInt()
-        fun hy(x: Float, z: Float): Float { val h = Town.hill(x, z); return if (h <= 0f) -0.06f else h }
+        fun hy(x: Float, z: Float): Float { val h = Town.hill(x, z); return if (h <= 0f) -0.6f else h }
         fun col(h: Float, x: Float, z: Float): Int { val k = (h / 70f).coerceIn(0f, 1f); val v = kotlin.math.sin(x * 0.05f) * kotlin.math.cos(z * 0.043f) * 0.08f
             val r = (0xCF * (1 - k) + 0x5E * k) * (1 + v); val gg = (0xE6 * (1 - k) + 0x8A * k) * (1 + v); val bb = (0xB8 * (1 - k) + 0x4E * k) * (1 + v)
             return android.graphics.Color.rgb(r.toInt().coerceIn(0, 255), gg.toInt().coerceIn(0, 255), bb.toInt().coerceIn(0, 255)) }

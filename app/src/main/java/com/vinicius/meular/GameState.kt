@@ -203,10 +203,10 @@ class GameState(ctx: Context) {
             }
         }
         // Etapa 144: casa nova (2 quartos, suíte, banheiro, sala, cozinha, garagem) — os móveis antigos saem e entra a mobília de cada cômodo
-        if (!ok || !prefs.getBoolean("casa2", false)) {
+        if (!ok || !prefs.getBoolean("casa3", false)) {
             gw = HouseLayout.W; gh = HouseLayout.H
             starter(items)
-            prefs.edit().putBoolean("casa2", true).apply()
+            prefs.edit().putBoolean("casa3", true).apply()
             save()
         }
     }
@@ -214,15 +214,16 @@ class GameState(ctx: Context) {
     /** Móveis iniciais da casa nova (cada cômodo arrumado). */
     private fun starter(items: MutableList<Item>) {
         items.clear()
-        // suíte
-        items.add(Item(Type.G_GUARDA_ROUPA, 0, 0)); items.add(Item(Type.G_CAMA, 0, 1)); items.add(Item(Type.G_VASO, 0, 3))
+        fun add(t: Type, x: Int, z: Int, rot: Int = 0, ox: Float = 0f, oz: Float = 0f) { val it = Item(t, x, z, rot); it.ox = ox; it.oz = oz; items.add(it) }
+        // suíte: cama encostada no fundo, guarda-roupa na parede da esquerda, poltrona de leitura, planta
+        add(Type.G_CAMA, 1, 0); add(Type.G_GUARDA_ROUPA, 0, 3, 1); add(Type.G_POLTRONA, 5, 3, 3); add(Type.G_VASO, 3, 0)
         // quarto 2
-        items.add(Item(Type.G_CAMA, 10, 0)); items.add(Item(Type.G_GUARDA_ROUPA, 7, 0)); items.add(Item(Type.G_POLTRONA, 9, 2))
-        // sala
-        items.add(Item(Type.G_SOFA3, 1, 7)); items.add(Item(Type.G_POLTRONA, 4, 6)); items.add(Item(Type.G_APARADOR, 3, 8)); items.add(Item(Type.G_VASO, 0, 8))
-        // cozinha e jantar
-        items.add(Item(Type.G_PIA, 9, 4)); items.add(Item(Type.G_FOGAO, 10, 4)); items.add(Item(Type.G_GELADEIRA, 11, 4))
-        items.add(Item(Type.G_MESA, 9, 7)); items.add(Item(Type.G_CADEIRA, 9, 6)); items.add(Item(Type.G_CADEIRA, 10, 6)); items.add(Item(Type.G_CADEIRA, 9, 8)); items.add(Item(Type.G_CADEIRA, 10, 8))
+        add(Type.G_CAMA, 11, 0); add(Type.G_GUARDA_ROUPA, 9, 2, 1, 0.1f); add(Type.G_POLTRONA, 13, 3, 3, -0.1f)
+        // sala: sofá de costas para os quartos virado para a TV (aparador) na parede da frente, poltrona de lado
+        add(Type.G_SOFA3, 2, 6); add(Type.G_APARADOR, 2, 10, 2); add(Type.G_POLTRONA, 6, 8, 3); add(Type.G_VASO, 0, 11); add(Type.G_VASO, 9, 6)
+        // cozinha (bancada na parede do fundo) e copa
+        add(Type.G_PIA, 12, 5, 0, 0f, 0.3f); add(Type.G_FOGAO, 13, 5, 0, 0f, 0.3f); add(Type.G_GELADEIRA, 14, 5, 0, 0f, 0.3f)
+        add(Type.G_MESA, 13, 8); add(Type.G_CADEIRA, 13, 7); add(Type.G_CADEIRA, 14, 7); add(Type.G_CADEIRA, 13, 9, 2); add(Type.G_CADEIRA, 14, 9, 2)
     }
 
     fun nivelCasa(): Int = gw - 5

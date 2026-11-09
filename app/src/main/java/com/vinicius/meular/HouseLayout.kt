@@ -11,33 +11,43 @@ import kotlin.math.min
  * Garagem coberta encostada na lateral direita (x 12..16.4) e quintal cercado (cerca do quintal já existente).
  */
 object HouseLayout {
-    const val W = 12
-    const val H = 9
+    // Etapa 147: casa maior — 18 x 12 m (antes 12 x 9), cômodos folgados e portas de 1 m
+    const val W = 18
+    const val H = 12
     const val T = 0.12f
-    const val DOOR = 0.9f
+    const val DOOR = 1.0f
+    const val ZA = 5.2f            // parede entre os quartos (fundo) e a área social (frente)
 
     /** Parede: eixo 0 = ao longo de x (em z = c, de a a b); eixo 1 = ao longo de z (em x = c). Portas = centros das aberturas. */
     class Wall(val axis: Int, val c: Float, val a: Float, val b: Float, val doors: FloatArray, val doorW: Float = DOOR)
 
+    /*
+     * fundo (z 0..5.2): suíte (x 0..6.4) com banheiro próprio (x 4.4..6.4, z 0..2.8), banheiro social (x 6.4..9),
+     *                   quarto 2 (x 9..14), lavanderia (x 14..18)
+     * frente (z 5.2..12): sala de estar (x 0..10.5) e cozinha com copa (x 10.5..18), passagem larga de 2,4 m entre elas
+     */
     val walls = listOf(
-        Wall(0, 4.0f, 0f, 12f, floatArrayOf(2.2f, 5.7f, 7.55f)),
-        Wall(1, 4.6f, 0f, 4.0f, floatArrayOf()),
-        Wall(1, 6.8f, 0f, 4.0f, floatArrayOf()),
-        Wall(0, 2.0f, 2.9f, 4.6f, floatArrayOf()),
-        Wall(1, 2.9f, 0f, 2.0f, floatArrayOf(1.45f), 0.8f),
-        Wall(1, 7.0f, 4.0f, 9f, floatArrayOf(6.6f), 1.8f))
+        Wall(0, ZA, 0f, 18f, floatArrayOf(3.0f, 7.7f, 9.85f, 17.25f)),
+        Wall(1, 6.4f, 0f, ZA, floatArrayOf()),
+        Wall(1, 9.0f, 0f, ZA, floatArrayOf()),
+        Wall(1, 14.0f, 0f, ZA, floatArrayOf()),
+        Wall(0, 2.8f, 4.4f, 6.4f, floatArrayOf()),
+        Wall(1, 4.4f, 0f, 2.8f, floatArrayOf(2.15f), 0.85f),
+        Wall(1, 10.5f, ZA, 12f, floatArrayOf(8.7f), 2.4f))
 
-    /** Banheiros e cozinha têm piso frio. [x0, z0, x1, z1] */
-    val tiles = listOf(floatArrayOf(4.66f, 0f, 6.74f, 3.94f), floatArrayOf(2.96f, 0f, 4.54f, 1.94f), floatArrayOf(7.06f, 4.06f, 12f, 9f))
+    /** Banheiros, lavanderia e cozinha têm piso frio. [x0, z0, x1, z1] */
+    val tiles = listOf(floatArrayOf(6.46f, 0f, 8.94f, ZA - 0.06f), floatArrayOf(4.46f, 0f, 6.34f, 2.74f), floatArrayOf(14.06f, 0f, 18f, ZA - 0.06f), floatArrayOf(10.56f, ZA + 0.06f, 18f, 12f))
 
-    /** Peças fixas do banheiro e da garagem que bloqueiam o caminho: [x0, z0, x1, z1]. */
+    /** Peças fixas (louças, lavanderia) que bloqueiam o caminho: [x0, z0, x1, z1]. */
     val fixtures = listOf(
-        floatArrayOf(4.7f, 0.05f, 5.6f, 0.95f),     // box do banheiro social
-        floatArrayOf(6.2f, 0.1f, 6.75f, 0.75f),     // vaso
-        floatArrayOf(4.7f, 2.4f, 5.2f, 3.4f),       // pia
-        floatArrayOf(3.0f, 0.05f, 3.85f, 0.9f),     // box da suíte
-        floatArrayOf(4.05f, 1.35f, 4.55f, 1.95f),   // vaso da suíte
-        floatArrayOf(4.1f, 0.1f, 4.55f, 0.95f))     // pia da suíte
+        floatArrayOf(6.46f, 0.05f, 7.6f, 1.15f),     // box do banheiro social
+        floatArrayOf(8.32f, 0.12f, 8.9f, 0.75f),     // vaso
+        floatArrayOf(8.5f, 2.15f, 8.96f, 3.05f),     // pia
+        floatArrayOf(5.3f, 0.05f, 6.36f, 1.05f),     // box da suíte
+        floatArrayOf(4.62f, 0.12f, 5.18f, 0.75f),    // vaso da suíte
+        floatArrayOf(5.92f, 1.55f, 6.38f, 2.45f),    // pia da suíte
+        floatArrayOf(14.1f, 0.05f, 16.9f, 0.75f),    // máquinas e tanque da lavanderia
+        floatArrayOf(17.3f, 0.05f, 17.95f, 1.6f))    // aquecedor e armário
 
     /** Retângulos sólidos das paredes internas (já sem as portas). */
     val rects: List<FloatArray> by lazy {
@@ -55,7 +65,7 @@ object HouseLayout {
     fun active(gw: Int, gh: Int) = gw == W && gh == H
 
     /** O ponto (com folga m) bate em parede interna ou peça fixa? */
-    fun blocks(gw: Int, gh: Int, x: Float, z: Float, m: Float = 0.22f): Boolean {
+    fun blocks(gw: Int, gh: Int, x: Float, z: Float, m: Float = 0.16f): Boolean {
         if (!active(gw, gh)) return false
         for (r in rects) if (x > r[0] - m && x < r[2] + m && z > r[1] - m && z < r[3] + m) return true
         for (r in fixtures) if (x > r[0] - m * 0.6f && x < r[2] + m * 0.6f && z > r[1] - m * 0.6f && z < r[3] + m * 0.6f) return true
@@ -79,7 +89,7 @@ object HouseLayout {
     }
 
     // ---------------------------------------------------------------- garagem (fora da casa, lateral direita)
-    const val GX0 = 12.15f; const val GX1 = 16.4f; const val GZ0 = 2.2f; const val GZ1 = 9.0f
+    const val GX0 = W + 0.15f; const val GX1 = W + 4.6f; const val GZ0 = H - 6.8f; const val GZ1 = H.toFloat()
     /** Paredes da garagem (fundo e lateral externa) e bancada: bloqueiam quem anda no quintal. */
     val garageSolids = listOf(
         floatArrayOf(GX0, GZ0 - 0.1f, GX1, GZ0 + 0.1f),
@@ -128,33 +138,63 @@ object HouseLayout {
         // pisos frios (cerâmica) nos banheiros e na cozinha
         b.m(Mt.TILE, 0.5f)
         for ((i, r) in tiles.withIndex()) b.plane(r[0], r[1], r[2], r[3], 0.004, C(if (i == 2) "#E8E2D6" else "#DCE6EA"))
-        // ---- banheiro social: box com vidro, vaso, pia com espelho, toalheiro
-        bath(b, 4.7f, 0.05f, 5.6f, 0.95f, 6.47f, 0.42f, 4.95f, 2.9f, false)
-        // ---- banheiro da suíte (espelhado)
-        bath(b, 3.0f, 0.05f, 3.85f, 0.9f, 4.3f, 1.65f, 4.32f, 0.52f, true)
+        // ---- banheiro social: box com vidro (encostado na parede da suíte), vaso no fundo, pia com espelho na parede do quarto 2
+        bath(b, 6.46f, 0.05f, 7.6f, 1.15f, false, 8.61f, 0.43f, 8.72f, 2.6f, 1f, C("#80CBC4"))
+        // ---- banheiro da suíte: box no canto direito, vaso no fundo, pia na parede da direita
+        bath(b, 5.3f, 0.05f, 6.36f, 1.05f, true, 4.9f, 0.43f, 6.12f, 2.0f, 1f, C("#F8BBD0"))
+        // ---- lavanderia: lavadora, secadora, tanque, prateleira, aquecedor, varal
+        laundry(b)
         // ---- luminárias: uma plafon por cômodo
         b.m(Mt.PLAIN)
-        for (p in arrayOf(floatArrayOf(1.5f, 2.6f), floatArrayOf(5.7f, 2.0f), floatArrayOf(9.4f, 2.0f), floatArrayOf(3.7f, 1.0f), floatArrayOf(10.6f, 6.6f))) {
-            b.cyl(p[0], hh - 0.06, p[1], 0.22, 0.22, 0.05, C("#ECEFF1"), true, 14); b.cyl(p[0], hh - 0.065, p[1], 0.19, 0.19, 0.006, C("#FFF6D6"), false, 14)
+        for (p in arrayOf(floatArrayOf(2.4f, 2.8f), floatArrayOf(7.7f, 2.9f), floatArrayOf(11.5f, 2.6f), floatArrayOf(5.4f, 1.9f), floatArrayOf(16f, 2.8f), floatArrayOf(5.2f, 8.6f), floatArrayOf(14.2f, 8.6f))) {
+            b.cyl(p[0], hh - 0.06, p[1], 0.24, 0.24, 0.05, C("#ECEFF1"), true, 14); b.cyl(p[0], hh - 0.065, p[1], 0.21, 0.21, 0.006, C("#FFF6D6"), false, 14)
         }
     }
 
-    private fun bath(b: MB, sx0: Float, sz0: Float, sx1: Float, sz1: Float, tx: Float, tz: Float, px: Float, pz: Float, suite: Boolean) {
+    /**
+     * Banheiro: box (sx0..sx1, sz0..sz1, encostado no fundo z=0; vidro na frente e no lado aberto: direita se glassRight),
+     * vaso em (tx, tz) com a caixa para o fundo, pia em (px, pz) encostada numa parede em x (wall = +1 parede em x maior).
+     */
+    private fun bath(b: MB, sx0: Float, sz0: Float, sx1: Float, sz1: Float, glassLeft: Boolean, tx: Float, tz: Float, px: Float, pz: Float, wall: Float, towel: Int) {
         val white = C("#FAFAFA"); val chrome = C("#CFD8DC")
-        // box: base, vidro, chuveiro
+        val gx = if (glassLeft) sx0 else sx1; val wx = if (glassLeft) sx1 else sx0
         b.m(Mt.TILE, 0.4f); b.box((sx0 + sx1) / 2, 0.03, (sz0 + sz1) / 2, sx1 - sx0, 0.06, sz1 - sz0, C("#B0BEC5"))
-        b.m(Mt.GLASS); b.box((sx0 + sx1) / 2, 1.0, sz1, sx1 - sx0, 1.9, 0.02, C("#D6EEF5")); b.box(sx1, 1.0, (sz0 + sz1) / 2, 0.02, 1.9, sz1 - sz0, C("#D6EEF5"))
-        b.m(Mt.METAL); b.box(sx1, 1.0, sz1, 0.03, 1.95, 0.03, chrome); b.cyl((sx0 + sx1) / 2, 1.9, sz0 + 0.12, 0.1, 0.1, 0.02, chrome, true, 10); b.box((sx0 + sx1) / 2, 1.6, sz0 + 0.04, 0.03, 0.6, 0.03, chrome)
-        b.m(Mt.TILE, 0.35f); b.box((sx0 + sx1) / 2, 1.1, sz0 + 0.02, sx1 - sx0, 2.0, 0.02, C("#E0F2F1"))
-        // vaso sanitário
-        b.m(Mt.PLAIN); b.box(tx, 0.2, tz, 0.38, 0.4, 0.5, white); b.box(tx, 0.42, tz, 0.4, 0.04, 0.48, white); b.box(tx, 0.62, tz - (if (suite) -0.22f else 0.22f), 0.42, 0.4, 0.16, white)
-        // pia com gabinete e espelho
+        b.m(Mt.GLASS); b.box((sx0 + sx1) / 2, 1.0, sz1, sx1 - sx0, 1.9, 0.02, C("#D6EEF5")); b.box(gx, 1.0, (sz0 + sz1) / 2, 0.02, 1.9, sz1 - sz0, C("#D6EEF5"))
+        b.m(Mt.METAL); b.box(gx, 1.0, sz1, 0.03, 1.95, 0.03, chrome); b.cyl((sx0 + sx1) / 2, 1.9, sz0 + 0.14, 0.1, 0.1, 0.02, chrome, true, 10); b.box((sx0 + sx1) / 2, 1.6, sz0 + 0.04, 0.03, 0.6, 0.03, chrome)
+        b.m(Mt.TILE, 0.35f); b.box((sx0 + sx1) / 2, 1.1, sz0 + 0.02, sx1 - sx0, 2.0, 0.02, C("#E0F2F1")); b.box(wx + (if (glassLeft) -0.01f else 0.01f), 1.1, (sz0 + sz1) / 2, 0.02, 2.0, sz1 - sz0, C("#E0F2F1"))
+        // vaso: base, assento, caixa acoplada no fundo
+        b.m(Mt.PLAIN); b.box(tx, 0.2, tz + 0.04f, 0.38, 0.4, 0.5, white); b.box(tx, 0.42, tz + 0.04f, 0.4, 0.04, 0.48, white); b.box(tx, 0.62, tz - 0.2f, 0.42, 0.4, 0.16, white)
+        b.m(Mt.METAL); b.box(tx + 0.12f, 0.84, tz - 0.2f, 0.06, 0.02, 0.04, chrome)
+        // pia: gabinete de madeira, tampo de pedra, torneira junto da parede, espelho na parede
         b.m(Mt.WOOD, 0.5f); b.box(px, 0.42, pz, 0.46, 0.8, 0.9, C("#8D6E63"))
         b.m(Mt.STONE, 0.6f); b.box(px, 0.85, pz, 0.5, 0.05, 0.95, C("#ECEFF1"))
-        b.m(Mt.METAL); b.cyl(px - (if (suite) -0.12f else 0.12f), 0.88, pz, 0.025, 0.025, 0.2, chrome, true, 8)
-        b.m(Mt.GLASS); b.box(px - (if (suite) -0.22f else 0.22f), 1.55, pz, 0.02, 0.8, 0.7, C("#E3F2FD"))
-        // toalha
-        b.m(Mt.FABRIC); b.box(px, 1.25, pz + (if (suite) -0.62f else 0.62f), 0.04, 0.5, 0.35, C(if (suite) "#F8BBD0" else "#80CBC4"))
+        b.m(Mt.PLAIN); b.box(px - wall * 0.02f, 0.885, pz, 0.32, 0.01, 0.5, C("#FFFFFF"))
+        b.m(Mt.METAL); b.cyl(px + wall * 0.17f, 0.88, pz, 0.025, 0.025, 0.2, chrome, true, 8); b.box(px + wall * 0.1f, 1.06, pz, 0.14, 0.025, 0.025, chrome)
+        b.m(Mt.GLASS); b.box(px + wall * 0.22f, 1.55, pz, 0.02, 0.8, 0.7, C("#E3F2FD"))
+        b.m(Mt.FABRIC); b.box(px + wall * 0.2f, 1.2, pz + 0.65f, 0.04, 0.5, 0.35, towel)
+    }
+
+    private fun laundry(b: MB) {
+        val white = C("#F5F5F5")
+        for ((i, x) in floatArrayOf(14.5f, 15.25f).withIndex()) {
+            b.m(Mt.METAL); b.box(x.toDouble(), 0.43, 0.38, 0.66, 0.86, 0.62, white)
+            b.m(Mt.PLAIN); b.cyl(x.toDouble(), 0.4, 0.69, 0.2, 0.2, 0.01, C(if (i == 0) "#90A4AE" else "#B0BEC5"), true, 14)
+            b.box(x.toDouble(), 0.78, 0.7, 0.5, 0.06, 0.01, C("#263238")); b.box(x + 0.2, 0.79, 0.71, 0.06, 0.03, 0.01, C("#4FC3F7"), false)
+        }
+        // tanque com torneira
+        b.m(Mt.STONE, 0.6f); b.box(16.3, 0.45, 0.38, 0.9, 0.9, 0.62, C("#E0E0E0")); b.box(16.3, 0.9, 0.38, 0.95, 0.05, 0.66, C("#EEEEEE"))
+        b.m(Mt.METAL); b.cyl(16.3, 0.93, 0.12, 0.025, 0.025, 0.25, C("#CFD8DC"), true, 8)
+        // prateleira com produtos de limpeza
+        b.m(Mt.WOOD, 0.5f); b.box(15.4, 1.6, 0.16, 2.6, 0.04, 0.3, C("#A1887F"))
+        b.m(Mt.PLAIN); for (k in 0 until 7) b.box(14.3 + k * 0.33, 1.72, 0.16, 0.12, 0.2 + (k % 3) * 0.05, 0.1, C(arrayOf("#1E88E5", "#E53935", "#FDD835", "#43A047", "#8E24AA", "#FB8C00", "#00ACC1")[k]))
+        // aquecedor e armário alto
+        b.m(Mt.WOOD, 0.5f); b.box(17.62, 1.0, 0.82, 0.6, 2.0, 1.5, C("#ECE6DA")); b.m(Mt.METAL); b.box(17.31, 1.1, 0.82, 0.02, 0.1, 0.5, C("#9E9E9E"))
+        b.m(Mt.METAL); b.cyl(17.62, 2.05, 0.82, 0.22, 0.22, 0.4, C("#ECEFF1"), true, 12)
+        // varal de teto com roupas
+        b.m(Mt.METAL); b.box(15.6, 2.4, 2.6, 2.6, 0.03, 0.03, C("#9E9E9E")); b.box(15.6, 2.4, 3.2, 2.6, 0.03, 0.03, C("#9E9E9E"))
+        b.m(Mt.FABRIC); for (k in 0 until 5) b.box(14.6 + k * 0.5, 2.15, 2.6 + (k % 2) * 0.6, 0.35, 0.5, 0.02, C(arrayOf("#EF5350", "#42A5F5", "#FFFFFF", "#66BB6A", "#FFCA28")[k]))
+        // cesto de roupa
+        b.m(Mt.PLAIN); b.cyl(16.9, 0.0, 1.5, 0.25, 0.28, 0.5, C("#D7CCC8"), true, 10)
     }
 
     /** Garagem coberta: piso de concreto, colunas, laje, paredes do fundo e lateral, bancada, prateleira e bicicleta. */

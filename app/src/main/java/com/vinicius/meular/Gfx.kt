@@ -537,7 +537,21 @@ class MB {
         for (i in intArrayOf(0, 1, 2, 0, 2, 3)) vp(ax, p[i * 3], p[i * 3 + 1], p[i * 3 + 2], nx, ny, nz, c)
     }
 
+    /** Etapa 147: malha da cidade que acompanha o relevo (cada vértice sobe/desce com Town.terrain na hora de fechar a malha). */
+    @JvmField var warp = false
+    private var warped = false
+    private fun warpY() {
+        for ((_, f) in bufs) { var i = 0; while (i < f.n) { f.a[i + 1] += Town.terrain(f.a[i], f.a[i + 2]); i += STRIDE } }
+    }
+
     fun box(cx: Number, cy: Number, cz: Number, sx: Number, sy: Number, sz: Number, c: Int, lit: Boolean = true) {
+        // chão grande e baixo numa malha com relevo: vira ladrilhos de até 6 m para dobrar junto com o terreno
+        if (warp && sy.toFloat() < 0.7f && (sx.toFloat() > 8f || sz.toFloat() > 8f)) {
+            val nx = Math.ceil(sx.toDouble() / 6.0).toInt(); val nz = Math.ceil(sz.toDouble() / 6.0).toInt()
+            val ax = cx.toFloat() - sx.toFloat() / 2f; val az = cz.toFloat() - sz.toFloat() / 2f; val dx = sx.toFloat() / nx; val dz = sz.toFloat() / nz
+            for (i in 0 until nx) for (j in 0 until nz) box(ax + dx * (i + 0.5f), cy, az + dz * (j + 0.5f), dx, sy, dz, c, lit)
+            return
+        }
         val x0 = cx.toFloat() - sx.toFloat() / 2f
         val x1 = cx.toFloat() + sx.toFloat() / 2f
         val y0 = cy.toFloat() - sy.toFloat() / 2f
@@ -716,6 +730,14 @@ class MB {
 
     /** Plano horizontal (normal para cima, ou para baixo se flip). */
     fun plane(x0: Number, z0: Number, x1: Number, z1: Number, y: Number, c: Int, lit: Boolean = true, flip: Boolean = false) {
+        if (warp && (abs(x1.toFloat() - x0.toFloat()) > 8f || abs(z1.toFloat() - z0.toFloat()) > 8f)) {
+            val ax = x0.toFloat(); val az = z0.toFloat(); val bx = x1.toFloat(); val bz = z1.toFloat()
+            val nx = Math.ceil(abs(bx - ax) / 6.0).toInt().coerceAtLeast(1); val nz = Math.ceil(abs(bz - az) / 6.0).toInt().coerceAtLeast(1)
+            val w = warp; warp = false
+            for (i in 0 until nx) for (j in 0 until nz) plane(ax + (bx - ax) * i / nx, az + (bz - az) * j / nz, ax + (bx - ax) * (i + 1) / nx, az + (bz - az) * (j + 1) / nz, y, c, lit, flip)
+            warp = w
+            return
+        }
         val a = x0.toFloat(); val b = z0.toFloat(); val d = x1.toFloat(); val e = z1.toFloat(); val yy = y.toFloat()
         val ny = if (!lit) 0f else if (flip) -1f else 1f
         quad(1, floatArrayOf(a, yy, b, d, yy, b, d, yy, e, a, yy, e), 0f, ny, 0f, c)
@@ -799,6 +821,7 @@ class MB {
     fun clear() { for (f in bufs.values) f.n = 0 }
 
     fun toMesh(gpu: Boolean = false): Mesh {
+        if (warp && !warped) { warped = true; warpY() }
         val parts = ArrayList<Part>()
         for ((mat, f) in bufs) {
             if (f.n == 0) continue

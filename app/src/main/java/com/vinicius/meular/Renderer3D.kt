@@ -589,7 +589,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val W = gw.toDouble()
         val H = gh.toDouble()
         val plan = HouseLayout.active(gw, gh)   // Etapa 144: casa com cômodos — uma janela por cômodo
-        walls[0] = Models.wall(W, if (plan) listOf(Opening(1.8, 1.25, false), Opening(5.7, 0.8, false), Opening(9.4, 1.4, false)) else listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
+        walls[0] = Models.wall(W, if (plan) listOf(Opening(2.2, 1.4, false), Opening(7.7, 0.8, false), Opening(11.5, 1.4, false), Opening(15.6, 1.0, false)) else listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
         walls[1] = Models.wall(W, listOf(Opening(W / 2, 1.1, true), Opening(W * 0.22, 1.25, false), Opening(W * 0.78, 1.25, false)), wl.cor, true, false)
         walls[2] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
         walls[3] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else emptyList(), wl.cor, false, true)
@@ -598,7 +598,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         cloth.clear()
         fun cur(wall: Int, c: Double, w: Double, len: Double) =
             cloth.addWindow(wall, c, w, if (c < len / 2) C("#D9786B") else C("#E4B25F"))
-        if (plan) { cur(0, 1.8, 1.25, W); cur(0, 9.4, 1.4, W); cur(2, H * 0.25, 1.2, H); cur(2, H * 0.75, 1.2, H); cur(3, H * 0.25, 1.2, H); cur(3, H * 0.75, 1.2, H) }
+        if (plan) { cur(0, 2.2, 1.4, W); cur(0, 11.5, 1.4, W); cur(2, H * 0.25, 1.2, H); cur(2, H * 0.75, 1.2, H); cur(3, H * 0.25, 1.2, H); cur(3, H * 0.75, 1.2, H) }
         else { cur(0, W / 2, 1.9, W); cur(2, H / 2, 1.6, H) }
         cur(1, W * 0.22, 1.25, W); cur(1, W * 0.78, 1.25, W)
     }
@@ -682,7 +682,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         if (carX.isNaN()) {
             // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
-            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 30f   // Etapa 131: R. das Magnólias, em frente de casa
+            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 33f   // Etapa 131: R. das Magnólias, em frente de casa
             carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
         }
         City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
@@ -1088,7 +1088,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (!boxVisible(car.x - 6f, 0f, car.z - 6f, car.x + 6f, 3.4f, car.z + 6f)) continue
             val m = cm.getOrNull(car.mesh) ?: continue
             Matrix.setIdentityM(mdl, 0)
-            Matrix.translateM(mdl, 0, car.x, 0f, car.z)
+            Matrix.translateM(mdl, 0, car.x, Town.terrain(car.x, car.z), car.z)
             Matrix.rotateM(mdl, 0, car.yaw, 0f, 1f, 0f)
             draw(m, mdl, 1f)
         }
@@ -1107,7 +1107,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val sw = sin(p.ph) * 28f * min(1f, p.v / 0.6f)
             val bob = abs(cos(p.ph)) * 0.03f * min(1f, p.v / 0.6f)
             Matrix.setIdentityM(pmdl, 0)
-            Matrix.translateM(pmdl, 0, p.x, City.CURB + bob, p.z)
+            Matrix.translateM(pmdl, 0, p.x, City.CURB + bob + Town.terrain(p.x, p.z), p.z)
             Matrix.rotateM(pmdl, 0, p.yaw, 0f, 1f, 0f)
             draw(body, pmdl, 1f)
             for (side in 0..1) {

@@ -25,8 +25,8 @@ object CityGeo {
     // ============================================================ geração de um pedaço
 
     class Gen(val idx: Int, val rng: City.Rng, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val reg: Boolean = true) {
-        val b = MB()
-        val f = MB()
+        val b = MB().also { it.warp = City.TOWN }
+        val f = MB().also { it.warp = City.TOWN }
         val fl = Flora.Batch()
         var A: MB = b
         var H: MB = b
