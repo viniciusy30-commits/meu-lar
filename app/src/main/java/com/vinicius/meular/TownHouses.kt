@@ -32,8 +32,8 @@ object TownHouses {
     val lots = ArrayList<Lot>()
 
     // tamanho do lote por nível: frente, fundo
-    private val LW = floatArrayOf(0f, 16f, 20f, 28f, 118f)
-    private val LD = floatArrayOf(0f, 28f, 33f, 42f, 150f)
+    private val LW = floatArrayOf(0f, 15f, 18f, 24f, 110f)
+    private val LD = floatArrayOf(0f, 25f, 30f, 40f, 150f)
 
     fun tierOf(x: Float, z: Float): Int {
         val d = TownPlan.districtAt(x, z)
@@ -98,7 +98,9 @@ object TownHouses {
             lotBy.getOrPut((gx + 3000) * 8192 + (gz + 3000)) { ArrayList() }.add(l)
     }
 
+    var dbgNoDep = 0; var dbgNoIv = 0
     fun plan() {
+        dbgNoDep = 0; dbgNoIv = 0
         lots.clear(); lotBy.clear(); solids.clear(); solidBy.clear()
         var seed = 1
         for ((ei, ed) in Town.edges.withIndex()) {
@@ -107,27 +109,46 @@ object TownHouses {
             if (n < 3) continue
             val cum = FloatArray(n); for (i in 1 until n) cum[i] = cum[i - 1] + hypot(p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1])
             for (sd in intArrayOf(-1, 1)) {
-                var s = 3f
-                while (s < cum[n - 1] - 3f) {
+                // Etapa 140: primeiro acha os trechos da rua onde cabe lote, depois divide cada trecho em lotes iguais (casas alinhadas e centradas)
+                fun frame(s: Float): FloatArray {
                     var i = 0; while (i < n - 2 && cum[i + 1] < s) i++
-                    val f = (s - cum[i]) / max(1e-4f, cum[i + 1] - cum[i])
+                    val f = ((s - cum[i]) / max(1e-4f, cum[i + 1] - cum[i])).coerceIn(0f, 1f)
                     val px = p[i * 2] + (p[i * 2 + 2] - p[i * 2]) * f; val pz = p[i * 2 + 1] + (p[i * 2 + 3] - p[i * 2 + 1]) * f
                     var tx = p[i * 2 + 2] - p[i * 2]; var tz = p[i * 2 + 3] - p[i * 2 + 1]; val tl = max(1e-4f, hypot(tx, tz)); tx /= tl; tz /= tl
-                    // para dentro do lote = lado sd da rua (offsetEdge positivo = (-tz, tx))
                     val nx = -tz * sd; val nz = tx * sd
                     val off = ed.w / 2 + Town.SW + 0.6f
-                    val fx = px + nx * off; val fz = pz + nz * off
-                    val tier = tierOf(fx + nx * 15f, fz + nz * 15f)
-                    if (tier == 0) { s += 6f; continue }
-                    // a frente do lote corre ao longo da rua: vira-se o tangente para quem olha da rua (x para a direita)
-                    val ltx = -sd * tx; val ltz = -sd * tz
-                    var placed: Lot? = null
-                    for (k in floatArrayOf(1f, 0.85f, 0.7f)) {
-                        val w = LW[tier]; val d = LD[tier] * k
-                        val l = Lot(fx + tx * w / 2 * 1f, fz + tz * w / 2 * 1f, ltx, ltz, nx, nz, w - 0.25f, d, tier, seed)
-                        if (fits(l)) { placed = l; break }
+                    return floatArrayOf(px + nx * off, pz + nz * off, tx, tz, nx, nz)
+                }
+                fun lotAt(s: Float, w: Float, d: Float, tier: Int): Lot { val q = frame(s); return Lot(q[0], q[1], -sd * q[2], -sd * q[3], q[4], q[5], w, d, tier, seed) }
+                val mid = frame(cum[n - 1] / 2)
+                val tier = tierOf(mid[0] + mid[4] * 15f, mid[1] + mid[5] * 15f)
+                if (tier == 0) continue
+                val LWt = LW[tier]
+                // profundidade que cabe neste lado (testada no meio da rua)
+                var dep = 0f
+                for (k in floatArrayOf(1f, 0.9f, 0.8f, 0.7f, 0.6f)) { if (fits(lotAt(cum[n - 1] / 2, 4f, LD[tier] * k, tier))) { dep = LD[tier] * k; break } }
+                if (dep == 0f) { dbgNoDep++; continue }
+                // trechos válidos (centros possíveis)
+                val ok = ArrayList<FloatArray>(); var a0 = -1f
+                var s = LWt / 2
+                while (s <= cum[n - 1] - LWt / 2) {
+                    val good = fits(lotAt(s, LWt - 0.25f, dep, tier))
+                    if (good && a0 < 0f) a0 = s
+                    if (!good && a0 >= 0f) { ok.add(floatArrayOf(a0, s - 1f)); a0 = -1f }
+                    s += 1f
+                }
+                if (a0 >= 0f) ok.add(floatArrayOf(a0, s - 1f))
+                if (ok.isEmpty()) dbgNoIv++
+                for (iv in ok) {
+                    val span = iv[1] - iv[0]
+                    val cnt = (span / LWt).toInt() + 1
+                    val step = if (cnt > 1) span / (cnt - 1) else 0f
+                    val w = (if (cnt > 1) min(step, LWt * 1.3f) else LWt) - 0.25f
+                    for (q in 0 until cnt) {
+                        val c = if (cnt == 1) (iv[0] + iv[1]) / 2 else iv[0] + step * q
+                        val l = lotAt(c, w, dep, tier)
+                        if (fits(l)) { add(l); seed++ } else { val l2 = lotAt(c, LWt - 0.25f, dep, tier); if (fits(l2)) { add(l2); seed++ } }
                     }
-                    if (placed != null) { add(placed); seed++; s += LW[tier] } else s += 2.5f
                 }
             }
         }
@@ -235,14 +256,14 @@ object TownHouses {
         val wallH = if (style == MODERN) 3.1f else 2.9f
         val H = wallH * floors
         // garagem
-        val gw = when (t) { 1 -> if (r.chance(0.3f)) 0f else 3.6f; 2 -> 6.2f; else -> 8.8f }
+        val gw = when (t) { 1 -> if (r.chance(0.3f)) 0f else 3.4f; 2 -> if (r.chance(0.4f)) 3.6f else 6.0f; else -> 6.2f }
         val frontGarage = gw > 0f && (style == RANCH || style == MODERN) && r.chance(0.5f)   // garagem avançada na frente
         val gSide = if (r.chance(0.5f)) 1f else -1f
         // largura e fundo da casa (o resto do lote é jardim)
-        val sideGap = when (t) { 1 -> 2.2f; 2 -> 2.8f; else -> 3.5f }
-        val hw = (W - 2 * sideGap - gw).coerceIn(7f, if (style == RANCH) 20f else 17f)
+        val sideGap = when (t) { 1 -> 1.6f; 2 -> 1.9f; else -> 2.5f }
+        val hw = (W - 2 * sideGap - gw).coerceIn(6f, if (style == RANCH) 20f else 17f)
         val hd = when (style) { RANCH -> 9f; MODERN -> 10.5f; else -> 9f + t * 0.8f }.coerceAtMost(D * 0.38f)
-        val set = when (t) { 1 -> 6f; 2 -> 7.5f; else -> 9.5f } + r.r(-0.6f, 0.8f)
+        val set = when (t) { 1 -> 5f; 2 -> 5.8f; else -> 7f }
         val total = hw + gw
         val hx0 = -total / 2 + (if (gSide < 0) gw else 0f)
         val gx0 = if (gSide < 0) -total / 2 else hx0 + hw
@@ -552,7 +573,7 @@ object TownHouses {
         val rk = when (ms) { 2 -> 0.6f; 3 -> 2.2f; else -> 1f }
         val stone = C(arrayOf("#CFC6B4", "#D6CFC2", "#BFB6A4", "#E0D8C8")[r.i(4)])
         // medidas desta mansão
-        val set = r.r(44f, 56f)
+        val set = r.r(40f, 48f)
         val fh = r.r(3.7f, 4.2f)
         val floors = if (ms == 1) 2 else if (r.chance(0.6f)) 3 else 2
         val cw = r.r(34f, 44f); val cd = r.r(20f, 27f); val ch = fh * floors

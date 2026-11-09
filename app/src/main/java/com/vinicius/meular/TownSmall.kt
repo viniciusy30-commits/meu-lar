@@ -47,7 +47,7 @@ object TownSmall {
         val urbanD = d == TownPlan.DOWN || d == TownPlan.COM
         CityGeo.groundBox(b, u.x0, u.z0, u.x1, u.z1, if (urbanD) Mt.PAVER else Mt.GRASS, if (urbanD) 0.9f else 0.3f, if (urbanD) C("#E3E0DA") else C("#D6EEC4"))
         CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, if (urbanD) Mt.PAVER else Mt.GRASS, if (urbanD) 0.9f else 0.3f, if (urbanD) C("#E3E0DA") else C("#D6EEC4"))
-        val kind = when {
+        val kind = if (d == TownPlan.MAN) 5 else if (d == TownPlan.SUB || d == TownPlan.HOME) (if (W >= 14f && D >= 14f) 0 else 5) else when {
             W < 14f || D < 12f -> if (r.chance(0.5f)) 4 else 5
             urbanD -> intArrayOf(2, 3, 1, 2, 3, 4, 1)[r.i(7)]
             else -> intArrayOf(0, 0, 1, 2, 0, 1, 5, 4)[r.i(8)]

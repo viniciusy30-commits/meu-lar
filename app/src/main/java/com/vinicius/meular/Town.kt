@@ -378,7 +378,8 @@ object Town {
             val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
             if (d == TownPlan.PARK) continue
             var guard = 0
-            var small = false
+            // bairros de casas e o nobre: só coisas pequenas e no estilo do bairro (sem prédios grandes no meio das casas)
+            var small = d == TownPlan.SUB || d == TownPlan.MAN || d == TownPlan.HOME
             while (guard++ < 80) {
                 // maior retângulo livre (histograma): primeiro conjuntos grandes (40 a 92 m), depois construções pequenas (12 a 36 m)
                 val hgt = IntArray(nz); var best = 0; var bi0 = 0; var bj0 = 0; var bw = 0; var bh = 0

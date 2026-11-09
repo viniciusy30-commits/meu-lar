@@ -121,7 +121,8 @@ object TownPlan {
                     // bairro nobre: poucas ruas, longas e curvas
                     val rot = cr.i(4)
                     val P: (Float, Float) -> FloatArray = { u0, v0 -> val (u, v) = when (rot) { 1 -> Pair(1 - v0, u0); 2 -> Pair(1 - u0, 1 - v0); 3 -> Pair(v0, 1 - u0); else -> Pair(u0, v0) }; bil(u, v) }
-                    estateSub(P, cr)
+                    grid(N, S, W, E, 2, 12f, MAN)
+                    if (P(0f, 0f).isEmpty()) estateSub(P, cr)
                 }
                 SUB -> {
                     // padrão girado (0..3 × 90°) e espelhado ao acaso: cada bairro fica diferente
@@ -131,7 +132,10 @@ object TownPlan {
                         val (u, v) = when (rot) { 1 -> Pair(1 - v0, u1); 2 -> Pair(1 - u1, 1 - v0); 3 -> Pair(v0, 1 - u1); else -> Pair(u1, v0) }
                         bil(u, v)
                     }
-                    when (cr.i(4)) { 0 -> loopSub(P, cr); 1 -> meanderSub(P, cr); 2 -> crescentSub(P, cr); else -> courtSub(P, cr) }
+                    // Etapa 140: subúrbio em malha regular (quadras do tamanho exato de dois lotes de fundo com fundo: nada de miolo vazio)
+                    val k = when (TIER[r][c].coerceIn(1, 3)) { 1 -> 5; 2 -> 4; else -> 3 }
+                    grid(N, S, W, E, k, 12f, SUB)
+                    if (P(0f, 0f).isEmpty()) loopSub(P, cr)
                 }
                 HOME -> homeSub(N, S, W, E)
                 else -> {}

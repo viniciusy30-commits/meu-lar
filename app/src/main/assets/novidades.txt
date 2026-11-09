@@ -740,3 +740,8 @@ Etapa 139 – Metrópole
 - Cada lote de cada quarteirão sorteia o seu prédio: reboco com janelas e varandas, tijolo aparente com escada de incêndio, vidro com montantes, torre sobre embasamento com coroa (no centro), art déco escalonado ou sobrados geminados com escadinha; altura, cores, térreo comercial (vitrine com caixilho, toldo e letreiro) e cobertura (casa de máquinas, caixa d'água de madeira, jardim) variam. Esquinas com prédios mais altos e vitrine também na lateral.
 - Ficaram como bairros de casas: o bairro da sua casa, dois subúrbios (casas à venda) e o bairro nobre das mansões; mais o Parque Central e a praia.
 - Ruas das malhas retas sempre retas; trânsito mais leve para o celular (cada carro só olha os vizinhos).
+
+Etapa 140 – Bairros de casas refeitos
+- Subúrbios e bairro nobre em malha regular: as quadras têm o tamanho certo para dois lotes de fundo com fundo, sem miolo vazio.
+- Lotes divididos por igual ao longo de cada rua (todos da mesma largura no trecho), casa centralizada no lote, virada para a rua, com recuo e espaço entre casas menores.
+- Nos bairros de casas não aparecem mais prédios no meio: o que sobra vira sobrados geminados ou jardins; no bairro nobre, jardins.
