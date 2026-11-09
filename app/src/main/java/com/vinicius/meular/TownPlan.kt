@@ -17,14 +17,14 @@ import kotlin.math.min
  *  - CASA: o bairro da casa do jogador (rua reta na frente do terreno).
  */
 object TownPlan {
-    const val SUB = 0; const val DOWN = 1; const val COM = 2; const val PARK = 3; const val HOME = 4
+    const val SUB = 0; const val DOWN = 1; const val COM = 2; const val PARK = 3; const val HOME = 4; const val MAN = 5
 
     val XS = floatArrayOf(-880f, -530f, -180f, 170f, 520f, 870f)
     val ZS = floatArrayOf(-850f, -500f, -150f, 200f, 550f, 900f)
 
     /** Bairro de cada superquadra [linha z][coluna x]. */
     val D = arrayOf(
-        intArrayOf(SUB, SUB, SUB, PARK, SUB),
+        intArrayOf(SUB, SUB, MAN, PARK, MAN),
         intArrayOf(SUB, COM, DOWN, DOWN, SUB),
         intArrayOf(PARK, SUB, HOME, DOWN, COM),
         intArrayOf(SUB, COM, SUB, COM, SUB),
@@ -35,6 +35,19 @@ object TownPlan {
         var c = 0; while (c < 4 && x > XS[c + 1]) c++
         var r = 0; while (r < 4 && z > ZS[r + 1]) r++
         return D[r][c]
+    }
+
+    /** Nível das casas de cada superquadra de subúrbio (1 pequena, 2 média, 3 grande). */
+    val TIER = arrayOf(
+        intArrayOf(2, 3, 4, 0, 4),
+        intArrayOf(1, 0, 0, 0, 3),
+        intArrayOf(0, 2, 2, 0, 0),
+        intArrayOf(1, 0, 1, 0, 3),
+        intArrayOf(1, 2, 1, 2, 0))
+    fun tierAt(x: Float, z: Float): Int {
+        var c = 0; while (c < 4 && x > XS[c + 1]) c++
+        var r = 0; while (r < 4 && z > ZS[r + 1]) r++
+        return TIER[r][c].coerceIn(1, 3)
     }
 
     private val STREETS = arrayOf("R. dos Ipês", "R. das Flores", "R. Aurora", "R. da Paz", "R. do Sol", "R. Primavera", "R. das Acácias", "R. Bela Vista",
@@ -94,6 +107,12 @@ object TownPlan {
             when (D[r][c]) {
                 DOWN -> grid(N, S, W, E, 3, 16f, DOWN)
                 COM -> grid(N, S, W, E, 2, 16f, COM)
+                MAN -> {
+                    // bairro nobre: poucas ruas, longas e curvas
+                    val rot = cr.i(4)
+                    val P: (Float, Float) -> FloatArray = { u0, v0 -> val (u, v) = when (rot) { 1 -> Pair(1 - v0, u0); 2 -> Pair(1 - u0, 1 - v0); 3 -> Pair(v0, 1 - u0); else -> Pair(u0, v0) }; bil(u, v) }
+                    estateSub(P, cr)
+                }
                 SUB -> {
                     // padrão girado (0..3 × 90°) e espelhado ao acaso: cada bairro fica diferente
                     val rot = cr.i(4); val mir = cr.chance(0.5f)
@@ -207,6 +226,16 @@ object TownPlan {
         Town.e(hub2, inner(P, 0.22f, 0.2f), 12f, r.r(-10f, 10f), cul())
         Town.e(hub2, inner(P, 0.78f, 0.2f), 12f, r.r(-10f, 10f), cul())
         Town.e(hub2, side(P, 0.5f + j(r), 0f), 12f, r.r(-8f, 8f), street())
+    }
+
+    /** Bairro nobre: uma alameda curva atravessando e duas ruas sem saída longas (terrenos enormes dos dois lados). */
+    private fun estateSub(P: (Float, Float) -> FloatArray, r: City.Rng) {
+        val name = "Al. " + arrayOf("dos Jacarandás", "das Sibipirunas", "Imperial", "dos Ipês Roxos", "do Lago Azul", "das Palmeiras Reais")[r.i(6)]
+        val a = side(P, 0f, 0.5f + j(r)); val b = side(P, 1f, 0.5f + j(r))
+        val e = Town.e(a, b, 12f, r.r(30f, 45f) * (if (r.chance(0.5f)) 1 else -1), name)
+        val m = Town.split(e, 0.5f)
+        Town.e(m, inner(P, 0.5f + j(r), 0.14f), 12f, r.r(-18f, 18f), cul())
+        Town.e(m, inner(P, 0.5f + j(r), 0.86f), 12f, r.r(-18f, 18f), cul())
     }
 
     /** Bairro da casa: rua reta passando na frente do terreno (z ≈ 52), ruas sem saída para cima e um laço embaixo. */

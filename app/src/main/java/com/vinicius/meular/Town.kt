@@ -530,6 +530,35 @@ object Town {
         return 1
     }
 
+    /** Folga até a calçada mais perto (negativo = em cima de rua, calçada ou cruzamento). */
+    fun clearance(x: Float, z: Float): Float {
+        var best = 99f
+        val gx = Math.floor(x / 16.0).toInt(); val gz = Math.floor(z / 16.0).toInt()
+        for (cx in gx - 1..gx + 1) for (cz in gz - 1..gz + 1) {
+            val c = (cx + 2000) * 8192 + (cz + 2000)
+            nodeBy[c]?.let { l -> for (ni in l) {
+                val nd = nodes[ni]
+                if (inside(nd.poly, x, z)) return -1f
+                val d = hypot(x - nd.x, z - nd.z) - polyRadius(nd) - SW
+                if (d < best) best = d
+            } }
+            segBy[c]?.let { l -> for (k in l) {
+                val ed = edges[k shr 12]; val i = k and 4095; val p = ed.pts
+                val ax = p[i * 2]; val az = p[i * 2 + 1]; val bx = p[i * 2 + 2]; val bz = p[i * 2 + 3]
+                val dx = bx - ax; val dz = bz - az; val l2 = max(1e-6f, dx * dx + dz * dz)
+                val t = (((x - ax) * dx + (z - az) * dz) / l2).coerceIn(0f, 1f)
+                val d = hypot(x - ax - dx * t, z - az - dz * t) - ed.w / 2 - SW
+                if (d < best) best = d
+            } }
+        }
+        return best
+    }
+
+    /** raio até o ponto mais longe do contorno do cruzamento (as esquinas com calçada ficam dentro de raio + SW) */
+    private fun polyRadius(nd: Node): Float { var m = 0f; var k = 0; while (k < nd.poly.size) { m = max(m, hypot(nd.poly[k] - nd.x, nd.poly[k + 1] - nd.z)); k += 2 }; return m }
+
+    fun inAnyBlock(x: Float, z: Float): Boolean { for (b in blocks) if (inside(b, x, z)) return true; return false }
+
     fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) 0f else when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
 
     /** Fora do mapa (além do contorno da cidade + calçada externa). */
@@ -543,6 +572,7 @@ object Town {
         buildNodes()
         buildBlocks()
         index()
+        TownHouses.plan()
         minX = nodes.minOf { it.x } - 30f; maxX = nodes.maxOf { it.x } + 30f
         minZ = nodes.minOf { it.z } - 30f; maxZ = nodes.maxOf { it.z } + 30f
         TownGeo.build(out)

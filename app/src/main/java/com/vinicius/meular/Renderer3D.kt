@@ -678,7 +678,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         if (carX.isNaN()) {
             // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
-            val zc = (City.bandZ[8] + City.bandZ[9]) / 2f
+            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 52f   // Etapa 131: R. das Magnólias, em frente de casa
             carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
         }
         City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())

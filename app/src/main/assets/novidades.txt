@@ -696,3 +696,9 @@ Etapa 131b – Cidade grande
 - Ruas que chegam dos dois lados de uma avenida no mesmo ponto viram um cruzamento só.
 - A cidade é carregada por partes perto do jogador, para não pesar.
 - Os quarteirões ainda estão vazios: as construções vêm na próxima atualização.
+
+Etapa 132 – Casas e bairro nobre
+- Corrigido o travamento ao entrar no mapa (carro do jogador procurava a rua da cidade antiga).
+- Lotes recortados ao longo das ruas, virados para a calçada e acompanhando as curvas — conferidos um a um para não invadir rua, calçada, outro lote ou o seu terreno.
+- Bairros com nível: casas pequenas, médias (2 andares, varanda) e grandes (garagem tripla, piscina), e um bairro nobre com mansões gigantes: pórtico de colunas, alas laterais, entrada circular com chafariz, muro com grade e portão, garagem para 3 carros, piscina e casa de piscina.
+- Cada casa tem entrada de carro até o meio-fio, caixa de correio, cerca no quintal (algumas com cerquinha branca na frente), árvores e arbustos. Algumas estão à venda (placa vermelha), já pensando na compra de casas.

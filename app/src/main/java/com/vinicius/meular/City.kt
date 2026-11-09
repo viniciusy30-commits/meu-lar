@@ -474,6 +474,7 @@ object City {
             val onPier = (abs(x - PIER_X) < 2.3f && z < SEA_Z + 62f) || (abs(x - PIER_X) < 5.8f && z >= SEA_Z + 62f && z < SEA_Z + 67.8f)
             if (!onPier) return true
         }
+        if (TOWN && TownHouses.blocked(x, z)) return true
         val l = solidsBy[cell(x, z)]
         if (l != null) for (r in l) if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true
         for (c in cars) {

@@ -92,7 +92,7 @@ object TownGeo {
 
     const val TILE = 360f
     class Tile(val i: Int, val j: Int) {
-        val edges = ArrayList<Int>(); val nodes = ArrayList<Int>(); val blocks = ArrayList<Int>()
+        val edges = ArrayList<Int>(); val nodes = ArrayList<Int>(); val blocks = ArrayList<Int>(); val lots = ArrayList<Int>()
         var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
         fun grow(p: FloatArray, m: Float) { var k = 0; while (k < p.size) { x0 = min(x0, p[k] - m); x1 = max(x1, p[k] + m); z0 = min(z0, p[k + 1] - m); z1 = max(z1, p[k + 1] + m); k += 2 } }
     }
@@ -112,6 +112,10 @@ object TownGeo {
         for ((bi, bl) in Town.blocks.withIndex()) {
             var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }
             val t = tileOf(cx / n, cz / n, map); t.blocks.add(bi); t.grow(bl, 1f)
+        }
+        for ((li, l) in TownHouses.lots.withIndex()) {
+            val t = tileOf(l.cx, l.cz, map); t.lots.add(li)
+            t.grow(floatArrayOf(l.wx(-l.w / 2, -SW - 1f), l.wz(-l.w / 2, -SW - 1f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d), l.wx(l.w / 2, -SW - 1f), l.wz(l.w / 2, -SW - 1f)), 4f)
         }
         tiles.addAll(map.values)
         for ((ti, t) in tiles.withIndex()) {
@@ -142,6 +146,7 @@ object TownGeo {
                 g.b.m(Mt.STONE, 1f); curbWall(g.b, ring, 0f, CURB, true, CURBC)
             }
         }
+        for (li in t.lots) TownHouses.draw(g, TownHouses.lots[li], !far, far)
         if (!far) return
         val f = g.f
         for (ei in t.edges) {

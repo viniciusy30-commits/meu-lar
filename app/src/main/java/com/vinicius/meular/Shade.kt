@@ -76,6 +76,10 @@ object Shade {
         val h = hull(pts)
         if (h.size < 3) return
         if (!yAt.isNaN()) { emit(h, yAt, alpha); return }
+        if (City.TOWN) {   // Etapa 131: cidade nova — altura do chão no meio da sombra
+            var cx = 0f; var cz = 0f; for (q in h) { cx += q[0]; cz += q[1] }
+            emit(h, if (Town.groundH(cx / h.size, cz / h.size) > 0.05f) Y_HIGH else Y_ROAD, alpha); return
+        }
         val bx = City.bandX; val bz = City.bandZ
         val S = City.SIDE
         val nX = bx.size / 2; val nZ = bz.size / 2
