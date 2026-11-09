@@ -725,3 +725,7 @@ Etapa 136 – Praia, mansões únicas e parques diferentes
 - Mansões únicas: além do estilo, cada uma sorteia o tamanho da casa, número de andares, alas, torres, colunas do pórtico, cores, chafariz (3 desenhos), alameda (palmeiras, ciprestes ou árvores) e o conjunto do quintal (piscina, casa de piscina, quadra de tênis, heliponto, lago, jardim formal, pomar, estufa, coreto, horta, lounge com fogueira). As modernas têm três composições de volumes, espelhadas ou não.
 - Quintal das mansões sem nada atravessando nada: cada área reserva seu espaço e só é colocada onde cabe, longe da casa, da garagem, do pátio, da alameda e das outras áreas.
 - Parques diferentes entre si: lago redondo, em elipse, comprido ou praça com chafariz no lugar do lago, e cada um com um conjunto próprio de áreas (playground, basquete, futebol, academia, quiosque, coreto, pista de skate, cachorródromo, anfiteatro, vôlei de areia, roseiral, obelisco, piquenique).
+
+Etapa 137 – Cidade ocupada
+- Todo espaço que sobrava nos quarteirões (miolo das superquadras, beira das avenidas, em volta da sua casa) agora é preenchido: o jogo mapeia o espaço livre de cada quarteirão e encaixa conjuntos sem encostar em rua, calçada, lotes ou parques.
+- Bairros residenciais ganham casas em fileira, condomínios de prédios, escolas, igrejas e mercadinhos; áreas comerciais ganham lojas, mercados, postos, delegacia, hospital e prédios; o centro ganha mais prédios, hotéis e shopping. São 571 construções com interior conferidas (nenhuma na calçada, nenhuma porta bloqueada).

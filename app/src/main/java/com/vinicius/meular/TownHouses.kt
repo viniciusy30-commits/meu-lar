@@ -50,10 +50,10 @@ object TownHouses {
     private val lotBy = HashMap<Int, ArrayList<Lot>>()
     private fun cell(x: Float, z: Float) = (Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)
 
-    private fun corners(l: Lot): FloatArray = floatArrayOf(l.wx(-l.w / 2, 0f), l.wz(-l.w / 2, 0f), l.wx(l.w / 2, 0f), l.wz(l.w / 2, 0f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d))
+    fun corners(l: Lot): FloatArray = floatArrayOf(l.wx(-l.w / 2, 0f), l.wz(-l.w / 2, 0f), l.wx(l.w / 2, 0f), l.wz(l.w / 2, 0f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d))
 
     /** Separação por eixos (dois retângulos girados se sobrepõem?). */
-    private fun overlap(a: FloatArray, b: FloatArray): Boolean {
+    fun overlap(a: FloatArray, b: FloatArray): Boolean {
         for (poly in arrayOf(a, b)) for (i in 0 until 4) {
             val j = (i + 1) % 4
             val ex = poly[j * 2] - poly[i * 2]; val ez = poly[j * 2 + 1] - poly[i * 2 + 1]

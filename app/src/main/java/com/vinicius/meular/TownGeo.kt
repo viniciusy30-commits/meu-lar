@@ -154,8 +154,11 @@ object TownGeo {
         val lot = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1)
         for (bi in t.blocks) {
             val bl = Town.blocks[bi]
-            val u = Town.urban.firstOrNull { it.block == bi }
-            val holes = if (bi == Town.homeBlock) listOf(lot) else if (u != null) listOf(floatArrayOf(u.x0, u.z0, u.x1, u.z0, u.x1, u.z1, u.x0, u.z1)) else emptyList()
+            val us = Town.urban.filter { it.block == bi }
+            val u = us.firstOrNull { !it.infill }
+            val holes = ArrayList<FloatArray>()
+            if (bi == Town.homeBlock) holes.add(lot)
+            for (q in us) holes.add(floatArrayOf(q.x0, q.z0, q.x1, q.z0, q.x1, q.z1, q.x0, q.z1))
             val tr = Town.triangulate(bl, holes)
             val mat = if (u != null) Mt.PAVER else Mt.GRASS; val col = if (u != null) WALK else GRASS; val sc = if (u != null) 0.9f else 0.3f
             g.b.m(mat, sc); tris(g.b, tr, CURB, col)

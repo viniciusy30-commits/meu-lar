@@ -343,7 +343,66 @@ object Town {
     }
 
     /** Quadra retangular do centro/comércio: retângulo útil (x0, z0, x1, z1) e o tipo do que é construído nela. */
-    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val type: String, val i: Int, val j: Int)
+    /**
+     * Etapa 137: preenche o que sobra de cada quarteirão (miolo das superquadras, beira das avenidas, em volta da casa):
+     * grade de ocupação de 4 m (livre = dentro do quarteirão, longe da calçada, fora dos lotes, parques e do terreno da casa);
+     * o maior retângulo livre (até 90 m) recebe um conjunto do gerador de quarteirões (casas em fileira, condomínio, lojas,
+     * mercado, escola, igreja, posto, prédios...), conforme o bairro; repete até não caber mais nada útil.
+     */
+    private fun infill() {
+        val C = 4f
+        val lotPolys = TownHouses.lots.map { TownHouses.corners(it) }
+        var nRes = 0; var nCom = 0; var nDown = 0
+        val resT = arrayOf("res", "apt", "res", "lots", "res", "apt", "school", "res", "church", "res", "apt", "super")
+        val comT = arrayOf("shops", "super", "apt", "gas", "shops", "school", "church", "shops", "police", "apt", "hospital", "shops")
+        val downT = arrayOf("down", "hotel", "apt", "down", "mall", "down", "shops", "hotel")
+        for ((bi, bl) in blocks.withIndex()) {
+            if (urban.any { it.block == bi && it.type != "infill" } && urban.first { it.block == bi }.let { u -> (u.x1 - u.x0) * (u.z1 - u.z0) > abs(area(bl)) * 0.7f }) continue
+            if (TownPark.isPark(bi)) continue
+            var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+            var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
+            val nx = ((x1 - x0) / C).toInt(); val nz = ((z1 - z0) / C).toInt()
+            if (nx < 8 || nz < 8) continue
+            val free = Array(nx) { BooleanArray(nz) }
+            val home = floatArrayOf(City.lotX0 - 14f, City.lotZ0 - 14f, City.lotX1 + 14f, City.lotZ1 + 6f)
+            for (i in 0 until nx) for (j in 0 until nz) {
+                val cx = x0 + (i + 0.5f) * C; val cz = z0 + (j + 0.5f) * C
+                if (!inside(bl, cx, cz) || clearance(cx, cz) < C * 0.75f) continue
+                if (cx > home[0] && cx < home[2] && cz > home[1] && cz < home[3]) continue
+                val cell = floatArrayOf(cx - C / 2, cz - C / 2, cx + C / 2, cz - C / 2, cx + C / 2, cz + C / 2, cx - C / 2, cz + C / 2)
+                var hit = false
+                for (lp in lotPolys) { if (abs(lp[0] - cx) > 200f) continue; if (TownHouses.overlap(cell, lp)) { hit = true; break } }
+                if (!hit) for (u in urban) if (u.block == bi && cx > u.x0 - 2f && cx < u.x1 + 2f && cz > u.z0 - 2f && cz < u.z1 + 2f) { hit = true; break }
+                free[i][j] = !hit
+            }
+            val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
+            if (d == TownPlan.PARK) continue
+            var guard = 0
+            while (guard++ < 30) {
+                // maior retângulo livre (histograma), lados entre 40 e 92 m
+                val hgt = IntArray(nz); var best = 0; var bi0 = 0; var bj0 = 0; var bw = 0; var bh = 0
+                val maxC = (92f / C).toInt(); val minC = (40f / C).toInt()
+                for (i in 0 until nx) {
+                    for (j in 0 until nz) hgt[j] = if (free[i][j]) hgt[j] + 1 else 0
+                    for (j in 0 until nz) {
+                        var mh = Int.MAX_VALUE
+                        for (j2 in j until min(nz, j + maxC)) {
+                            mh = min(mh, min(hgt[j2], maxC)); if (mh < minC) break
+                            val w = j2 - j + 1
+                            if (w >= minC && mh * w > best) { best = mh * w; bi0 = i - mh + 1; bj0 = j; bw = mh; bh = w }
+                        }
+                    }
+                }
+                if (best == 0) break
+                val rx0 = x0 + bi0 * C + 1f; val rz0 = z0 + bj0 * C + 1f; val rx1 = x0 + (bi0 + bw) * C - 1f; val rz1 = z0 + (bj0 + bh) * C - 1f
+                val t = when (d) { TownPlan.DOWN -> downT[(nDown++) % downT.size]; TownPlan.COM -> comT[(nCom++) % comT.size]; else -> resT[(nRes++) % resT.size] }
+                urban.add(Urban(bi, rx0, rz0, rx1, rz1, t, (bi + guard) % 7, 1 + (bi * 3 + guard) % 5, true))
+                for (i in max(0, bi0 - 1) until min(nx, bi0 + bw + 1)) for (j in max(0, bj0 - 1) until min(nz, bj0 + bh + 1)) free[i][j] = false
+            }
+        }
+    }
+
+    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val type: String, val i: Int, val j: Int, val infill: Boolean = false)
     val urban = ArrayList<Urban>()
 
     private fun classify() {
@@ -630,6 +689,7 @@ object Town {
         index()
         classify()
         TownHouses.plan()
+        infill()
         minX = nodes.minOf { it.x } - 30f; maxX = nodes.maxOf { it.x } + 30f
         minZ = nodes.minOf { it.z } - 30f; maxZ = nodes.maxOf { it.z } + 30f
         TownGeo.build(out)
