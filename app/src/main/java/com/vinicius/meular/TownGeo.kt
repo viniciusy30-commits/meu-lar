@@ -656,35 +656,32 @@ object TownGeo {
             b.v(xa, ya, za, nxv / nl, 1f / nl, nzv / nl, c1, xa, za); b.v(xb, yb, za, nxv / nl, 1f / nl, nzv / nl, c2, xb, za); b.v(xb, yc, zc, nxv / nl, 1f / nl, nzv / nl, c3, xb, zc)
             b.v(xa, ya, za, nxv / nl, 1f / nl, nzv / nl, c1, xa, za); b.v(xb, yc, zc, nxv / nl, 1f / nl, nzv / nl, c3, xb, zc); b.v(xa, yd, zc, nxv / nl, 1f / nl, nzv / nl, c4, xa, zc)
         }
-        // mata: copas cônicas espalhadas nos morros
+        // Etapa 154: mata leve (o pedaço dos morros fica sempre carregado: poucos triângulos por árvore, senão estoura a memória do celular)
+        fun pine(x: Float, y: Float, z: Float, s: Float, gc: Int) {
+            b.m(Mt.BARK, 1f); b.cyl(x, y - 0.5f, z, 0.3f * s, 0.2f * s, 3.0f * s, C("#5D4037"), true, 4)
+            b.m(Mt.PLAIN); b.cyl(x, y + 2.0f * s, z, 2.7f * s, 1.0f * s, 3.0f * s, gc, true, 5); b.cyl(x, y + 4.6f * s, z, 1.8f * s, 0.1f, 3.6f * s, shade(gc, 14), true, 5)
+        }
+        fun round(x: Float, y: Float, z: Float, s: Float, gc: Int) {
+            b.m(Mt.BARK, 1f); b.cyl(x, y - 0.5f, z, 0.35f * s, 0.25f * s, 4.2f * s, C("#6B5442"), true, 4)
+            b.m(Mt.PLAIN); CityGeo.ball(b, x, y + 5.4f * s, z, 3.0f * s, gc, 2.3f * s, 5)
+        }
+        val PINE = arrayOf("#2E5E32", "#3B6E3A", "#27522C", "#44783F"); val LEAF = arrayOf("#3F7A35", "#4E8B3A", "#5B8A44", "#356B2E")
         val tr = City.Rng(77)
-        repeat(2300) {
+        repeat(1700) {
             val x = tr.r(g.x0, g.x1); val z = tr.r(g.z0, zb); val h = Town.hill(x, z)
             if (h < 4f) return@repeat
             val s = tr.r(0.8f, 1.5f)
-            // Etapa 152: mata variada — pinheiros em três andares, copas redondas, e pedras nas encostas
-            if (tr.chance(0.55f)) {
-                val gc = C(arrayOf("#2E5E32", "#3B6E3A", "#27522C", "#44783F")[tr.i(4)])
-                b.m(Mt.BARK, 1f); b.cyl(x, h - 0.5f, z, 0.35f * s, 0.2f * s, 3.2f * s, C("#5D4037"), true, 5)
-                b.m(Mt.PLAIN)
-                b.cyl(x, h + 2.0f * s, z, 2.7f * s, 1.2f * s, 2.6f * s, gc, true, 7); b.cyl(x, h + 4.0f * s, z, 2.0f * s, 0.8f * s, 2.4f * s, shade(gc, 10), true, 7); b.cyl(x, h + 5.9f * s, z, 1.3f * s, 0.1f, 2.6f * s, shade(gc, 20), true, 7)
-            } else {
-                val gc = C(arrayOf("#3F7A35", "#4E8B3A", "#5B8A44", "#356B2E")[tr.i(4)])
-                b.m(Mt.BARK, 1f); b.cyl(x, h - 0.5f, z, 0.4f * s, 0.28f * s, 4.2f * s, C("#6B5442"), true, 5)
-                b.m(Mt.PLAIN); CityGeo.ball(b, x, h + 5.6f * s, z, 3.1f * s, gc, 2.4f * s, 7); CityGeo.ball(b, x + 1.6f * s, h + 4.6f * s, z + 0.8f * s, 2.0f * s, shade(gc, -12), 1.6f * s, 6); CityGeo.ball(b, x - 1.4f * s, h + 4.9f * s, z - 1.0f * s, 2.1f * s, shade(gc, 10), 1.7f * s, 6)
-            }
+            if (tr.chance(0.55f)) pine(x, h, z, s, C(PINE[tr.i(4)])) else round(x, h, z, s, C(LEAF[tr.i(4)]))
         }
-        repeat(520) {
+        repeat(220) {
             val x = tr.r(g.x0, g.x1); val z = tr.r(g.z0, zb); val h = Town.hill(x, z)
             if (h < 1.5f) return@repeat
             val s = tr.r(0.6f, 2.2f); val rc = C(arrayOf("#8E8A84", "#9C978E", "#7C7872", "#A6A096")[tr.i(4)])
-            b.m(Mt.STONE, 0.4f); CityGeo.ball(b, x, h + 0.2f * s, z, 1.1f * s, rc, 0.7f * s, 6)
-            if (tr.chance(0.5f)) CityGeo.ball(b, x + 1.2f * s, h + 0.1f, z + 0.5f * s, 0.6f * s, shade(rc, -12), 0.45f * s, 5)
-            // moita ao lado da pedra
-            b.m(Mt.PLAIN); CityGeo.ball(b, x - 1.3f * s, h + 0.3f, z + 0.9f * s, 0.9f * s, C(if (tr.chance(0.5f)) "#4E8B3A" else "#6BA84F"), 0.6f * s, 6)
+            b.m(Mt.STONE, 0.4f); CityGeo.ball(b, x, h + 0.2f * s, z, 1.1f * s, rc, 0.7f * s, 5)
+            b.m(Mt.PLAIN); CityGeo.ball(b, x - 1.3f * s, h + 0.3f, z + 0.9f * s, 0.9f * s, C(if (tr.chance(0.5f)) "#4E8B3A" else "#6BA84F"), 0.6f * s, 5)
         }
         val ol = Town.outline
-        // Etapa 150: mata fechada logo depois da rua de contorno (nada de campo vazio entre a cidade e os morros)
+        // mata fechada logo depois da rua de contorno: árvores de verdade só bem na beira, o resto leve
         if (ol.isNotEmpty()) {
             fun distOut(x: Float, z: Float): Float {
                 if (Town.inside(ol, x, z)) return -1f
@@ -695,17 +692,15 @@ object TownGeo {
                 return d
             }
             val fr = City.Rng(919)
-            var placed = 0; var tries = 0
-            while (placed < 1500 && tries < 20000) {
+            var placed = 0; var tries = 0; var real = 0
+            while (placed < 1300 && tries < 20000) {
                 tries++
                 val x = fr.r(Town.minX - 160f, Town.maxX + 160f); val z = fr.r(Town.minZ - 160f, zb - 25f)
                 val d = distOut(x, z); if (d < 9f || d > 150f) continue
                 if (fr.r(0f, 1f) < d / 220f) continue   // mais fechada junto da cidade
                 val y = hy(x, z) + 0.6f
-                if (d < 45f || fr.chance(0.35f)) CityGeo.tree(g, x, z, fr.r(1.0f, 1.6f), y, if (fr.chance(0.6f)) 0 else 4)
-                else { val sc = fr.r(0.9f, 1.5f); val gc = C(arrayOf("#2E5E32", "#3B6E3A", "#27522C", "#44783F")[fr.i(4)])
-                    b.m(Mt.BARK, 1f); b.cyl(x, y - 0.5f, z, 0.35f * sc, 0.2f * sc, 3.2f * sc, C("#5D4037"), true, 5)
-                    b.m(Mt.PLAIN); b.cyl(x, y + 2.0f * sc, z, 2.7f * sc, 1.2f * sc, 2.6f * sc, gc, true, 7); b.cyl(x, y + 4.0f * sc, z, 2.0f * sc, 0.8f * sc, 2.4f * sc, shade(gc, 10), true, 7); b.cyl(x, y + 5.9f * sc, z, 1.3f * sc, 0.1f, 2.6f * sc, shade(gc, 20), true, 7) }
+                if (d < 30f && real < 260 && fr.chance(0.6f)) { CityGeo.tree(g, x, z, fr.r(1.0f, 1.6f), y, if (fr.chance(0.6f)) 0 else 4); real++ }
+                else if (fr.chance(0.5f)) pine(x, y, z, fr.r(0.9f, 1.5f), C(PINE[fr.i(4)])) else round(x, y, z, fr.r(0.9f, 1.4f), C(LEAF[fr.i(4)]))
                 placed++
             }
         }

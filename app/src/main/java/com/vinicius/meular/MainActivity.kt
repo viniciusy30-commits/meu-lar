@@ -390,6 +390,8 @@ class MainActivity : AppCompatActivity() {
                     actBox.translationY = if (dv) -dpf(150f) else 0f
                     if (!dv) { game.r.gasIn = false; game.r.brakeIn = false; game.r.hbIn = false }
                 }
+                // Etapa 154: se a cidade falhar ao montar, avisa na hora (em vez de ficar sem aparecer sem explicação)
+                City.error?.let { e -> if (e != lastCityErr && jogando) { lastCityErr = e; msg("A cidade não carregou: $e") } }
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
                 portrait.visibility = if (mm) View.GONE else View.VISIBLE   // o retrato volta quando não há cidade (sala de testes, vista aérea)
@@ -907,6 +909,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Jogar: some o menu e entra a tela de carregamento até a cidade e os quarteirões em volta estarem prontos. */
+    private var lastCityErr: String? = null
     private fun jogar(root: FrameLayout) {
         if (loadView != null) return
         val ld = LoadingScreen(this, {
