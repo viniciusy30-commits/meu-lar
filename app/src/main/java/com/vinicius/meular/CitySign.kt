@@ -106,6 +106,16 @@ object Signs {
         "ESCRITÓRIOS" -> S("Atlântico Office", "", LETTERS, "#000000", "#000000", "#C8CDD2", 4)
         "POUSADA" -> S("Pousada Mar Azul", "", BOARD, "#0D5C8C", "#0A4A70", "#FFFFFF", 5)
         "CLÍNICA" -> S("Clínica Vida+", "MEDICINA & SAÚDE", LETTERS, "#000000", "#000000", "#00897B", 0, "cross", 13)
+        "LIMPEZA BRILHO" -> S("Brilho Limpeza", "SERVIÇOS DE LIMPEZA", BOX, "#00ACC1", "#00838F", "#FFFFFF", 0, "star")
+        "CENTRAL DE COLETA" -> S("CENTRAL DE COLETA", "LIMPEZA URBANA", BOX, "#2E7D32", "#1B5E20", "#FFFFFF", 3)
+        "CENTRAL DE ENTREGAS" -> S("Expresso Já", "CENTRAL DE ENTREGAS", BOX, "#E65100", "#BF4000", "#FFFFFF", 3, "star")
+        "OFICINA" -> S("Oficina do Toninho", "MECÂNICA · FUNILARIA", BOARD, "#263238", "#1C2529", "#FFC107", 3)
+        "ADVOCACIA" -> S("Almeida & Prado", "ADVOGADOS", LETTERS, "#000000", "#000000", "#D4AF37", 1)
+        "FÓRUM" -> S("FÓRUM DA COMARCA", "PODER JUDICIÁRIO", PLATE, "#3E2723", "#2B1B17", "#F5E6C8", 1)
+        "CONSTRUTORA" -> S("Pilar Construtora", "ENGENHARIA", BOX, "#F9A825", "#F57F17", "#212121", 3)
+        "TECNOLOGIA" -> S("NOVA TECH", "SOFTWARE", NEON, "#0D1B2A", "#0D1B2A", "#4FC3F7", 4)
+        "SEDE" -> S("GRUPO ATLAS", "SEDE", LETTERS, "#000000", "#000000", "#E8C26E", 1)
+        "PREFEITURA" -> S("PREFEITURA MUNICIPAL", "", PLATE, "#1B3A5C", "#122A44", "#FFFFFF", 1)
         else -> if (name.startsWith("AV.") || name.startsWith("R.")) S(name, "", PLATE, "#1B7F3B", "#16692F", "#FFFFFF", 3) else S(name, "", BOX, "#37474F", "#263238", "#FFFFFF", 0)
     }
 

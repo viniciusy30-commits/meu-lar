@@ -129,7 +129,7 @@ object TownGeo {
         // quadras do centro e do comércio: prédios e lojas (com interior) do gerador de quarteirões
         for ((ui, u) in Town.urban.withIndex()) {
             val g = CityGeo.Gen(out.size, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, true)
-            val h = if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
+            val h = if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
             val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
             val c = City.Chunk(null, far, u.x0, u.z0, u.x1, u.z1, h)
             c.lazyI = ui; c.lazyJ = -2
@@ -142,7 +142,7 @@ object TownGeo {
     fun urbanNear(ci: Int, ui: Int): Pair<Mesh, Flora.Batch> {
         val u = Town.urban[ui]
         val g = CityGeo.Gen(ci, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, false)
-        if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
+        if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
         return Pair(g.b.toMesh(true), g.fl)
     }
 

@@ -137,19 +137,19 @@ object City {
         Triple("PET SHOP", "#25A8E0", "#FFFFFF"), Triple("ÓTICA", "#FFFFFF", "#222222"), Triple("SORVETERIA", "#FFC6DA", "#C2185B"),
         Triple("MODA", "#000000", "#FFFFFF"), Triple("RESTAURANTE", "#8E1B1B", "#FBE3B0"), Triple("BOMBEIROS", "#C62828", "#FFFFFF"),
         Triple("HOTEL", "#2B2B2B", "#E8C26E"), Triple("ELETRÔNICOS", "#1565C0", "#FFFFFF"), Triple("FLORICULTURA", "#7CB342", "#FFFFFF"),
-        Triple("PRONTO-SOCORRO", "#D62828", "#FFFFFF"), Triple("ESTACIONAMENTO", "#1F4FA8", "#FFFFFF"), Triple("PRAÇA CENTRAL", "#5D4037", "#FFF3D6"),
-        Triple("ACADEMIA AO AR LIVRE", "#2E7D32", "#FFFFFF"), Triple("À VENDA", "#C62828", "#FFFFFF"), Triple("TERRENO À VENDA", "#F2C230", "#1A1A1A"),
-        Triple("PARQUE DE DIVERSÕES", "#6A1B9A", "#FFD54F"), Triple("QUIOSQUE", "#00838F", "#FFFFFF"), Triple("SALVA-VIDAS", "#D32F2F", "#FFEB3B"),
+        Triple("PRONTO-SOCORRO", "#D62828", "#FFFFFF"), Triple("ESTACIONAMENTO", "#1F4FA8", "#FFFFFF"), Triple("PREFEITURA", "#1B3A5C", "#FFFFFF"),
+        Triple("LIMPEZA BRILHO", "#00ACC1", "#FFFFFF"), Triple("À VENDA", "#C62828", "#FFFFFF"), Triple("TERRENO À VENDA", "#F2C230", "#1A1A1A"),
+        Triple("CENTRAL DE COLETA", "#2E7D32", "#FFFFFF"), Triple("QUIOSQUE", "#00838F", "#FFFFFF"), Triple("SALVA-VIDAS", "#D32F2F", "#FFEB3B"),
         Triple("IGREJA MATRIZ", "#4E342E", "#FFF3E0"), Triple("HAMBÚRGUER", "#FF6F00", "#FFFFFF"), Triple("SUSHI", "#111111", "#FF5252"),
         Triple("BARBEARIA", "#263238", "#FFFFFF"), Triple("PAPELARIA", "#FFEB3B", "#1565C0"), Triple("AÇAÍ", "#4A148C", "#E1BEE7"),
         Triple("MERCADINHO", "#2E7D32", "#FFEB3B"), Triple("CASA DE CÂMBIO", "#004D40", "#FFD54F"), Triple("CONDOMÍNIO", "#37474F", "#FFFFFF"),
         Triple("RESIDENCIAL", "#455A64", "#ECEFF1"), Triple("SHOPPING", "#880E4F", "#FFFFFF"), Triple("CINEMA", "#B71C1C", "#FFD600"),
-        Triple("MONTANHA-RUSSA", "#E65100", "#FFFFFF"), Triple("RODA-GIGANTE", "#1565C0", "#FFFFFF"), Triple("CARROSSEL", "#AD1457", "#FFF59D"),
-        Triple("BATE-BATE", "#2E7D32", "#FFFFFF"), Triple("PIPOCA", "#FBC02D", "#C62828"), Triple("ALGODÃO DOCE", "#F8BBD0", "#AD1457"),
+        Triple("CENTRAL DE ENTREGAS", "#E65100", "#FFFFFF"), Triple("OFICINA", "#263238", "#FFC107"), Triple("ADVOCACIA", "#1A1A1A", "#D4AF37"),
+        Triple("FÓRUM", "#3E2723", "#F5E6C8"), Triple("CONSTRUTORA", "#F9A825", "#212121"), Triple("TECNOLOGIA", "#0D1B2A", "#4FC3F7"),
         Triple("BEIRA-MAR", "#0277BD", "#FFFFFF"), Triple("PÍER", "#5D4037", "#FFFFFF"), Triple("ESCRITÓRIOS", "#263238", "#B0BEC5"),
         Triple("AV. BRASIL", "#1B7F3B", "#FFFFFF"), Triple("R. DAS FLORES", "#1B7F3B", "#FFFFFF"), Triple("AV. PAULISTA", "#1B7F3B", "#FFFFFF"),
         Triple("R. DO SOL", "#1B7F3B", "#FFFFFF"), Triple("AV. ATLÂNTICA", "#1B7F3B", "#FFFFFF"), Triple("R. DA PAZ", "#1B7F3B", "#FFFFFF"),
-        Triple("AV. CENTRAL", "#1B7F3B", "#FFFFFF"), Triple("POUSADA", "#6D4C41", "#FFFFFF"), Triple("CLÍNICA", "#00897B", "#FFFFFF"))
+        Triple("AV. CENTRAL", "#1B7F3B", "#FFFFFF"), Triple("POUSADA", "#6D4C41", "#FFFFFF"), Triple("CLÍNICA", "#00897B", "#FFFFFF"), Triple("SEDE", "#111111", "#E8C26E"))
 
     fun signIdx(name: String): Int { for (i in SIGNS.indices) if (SIGNS[i].first == name) return i; return 0 }
 

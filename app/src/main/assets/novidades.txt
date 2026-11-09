@@ -745,3 +745,8 @@ Etapa 140 – Bairros de casas refeitos
 - Subúrbios e bairro nobre em malha regular: as quadras têm o tamanho certo para dois lotes de fundo com fundo, sem miolo vazio.
 - Lotes divididos por igual ao longo de cada rua (todos da mesma largura no trecho), casa centralizada no lote, virada para a rua, com recuo e espaço entre casas menores.
 - Nos bairros de casas não aparecem mais prédios no meio: o que sobra vira sobrados geminados ou jardins; no bairro nobre, jardins.
+
+Etapa 141 – Profissões e locais de trabalho únicos
+- 19 profissões em 4 níveis, cada uma com salário, vantagem, requisito e um prédio único no mapa (não se repete): Brilho Limpeza, Central de Coleta, Lanchonete do Zé, Expresso Já (entregas), Posto Rota Sul, SuperBom (nível 1); Escola Primavera, Escritório Central, Delegacia, Quartel dos Bombeiros, Oficina do Toninho, Clínica Aurora (nível 2); Hospital Santa Clara, Almeida & Prado Advogados, Fórum da Comarca, Pilar Construtora, Nova Tech (nível 3); Grupo Atlas e Prefeitura (nível 4).
+- Cada um tem fachada, cor e letreiro próprios, porta que abre, terreno com calçada, vagas, árvores e mastro com bandeira da cor do nível, marcador no mapa e interior com planta própria (recepção, salas, celas, leitos, tribunal, garagem de caminhões, elevadores de carro, ilhas de programação, sala de diretoria, gabinete…).
+- Hospital, delegacia, escola, posto e mercado genéricos que se repetiam pela cidade foram tirados.

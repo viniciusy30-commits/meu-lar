@@ -353,9 +353,9 @@ object Town {
         val C = 4f
         val lotPolys = TownHouses.lots.map { TownHouses.corners(it) }
         var nRes = 0; var nCom = 0; var nDown = 0
-        val resT = arrayOf("res", "apt", "res", "lots", "res", "apt", "school", "res", "church", "res", "apt", "super")
-        val comT = arrayOf("shops", "super", "apt", "gas", "shops", "school", "church", "shops", "police", "apt", "hospital", "shops")
-        val downT = arrayOf("down", "hotel", "apt", "down", "mall", "down", "shops", "hotel")
+        val resT = arrayOf("res", "apt", "res", "lots", "res", "apt", "res", "res", "apt")
+        val comT = arrayOf("shops", "apt", "shops", "shops", "apt", "shops")
+        val downT = arrayOf("down", "apt", "down", "down", "shops")
         for ((bi, bl) in blocks.withIndex()) {
             if (urban.any { it.block == bi && it.type != "infill" } && urban.first { it.block == bi }.let { u -> (u.x1 - u.x0) * (u.z1 - u.z0) > abs(area(bl)) * 0.7f }) continue
             if (TownPark.isPark(bi)) continue
@@ -404,7 +404,7 @@ object Town {
         }
     }
 
-    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val type: String, val i: Int, val j: Int, val infill: Boolean = false)
+    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, var type: String, val i: Int, val j: Int, val infill: Boolean = false)
     val urban = ArrayList<Urban>()
 
     private fun classify() {
@@ -412,9 +412,10 @@ object Town {
         val down = arrayOf("down", "hotel", "down", "mall", "down", "apt", "hotel", "down", "hospital", "down", "police", "down", "hotel", "praca", "down", "apt")
         val com = arrayOf("shops", "super", "shops", "gas", "school", "shops", "church", "apt", "shops", "super", "gas", "shops", "apt", "shops", "church", "school")
         var nd = 0; var nc = 0; var nu = 0
-        val landD = arrayOf("mall", "hotel", "hospital", "police")
-        val landC = arrayOf("super", "gas", "school", "church", "mall")
-        val landU = arrayOf("school", "church", "super", "gas", "police", "school")
+        // marcos sem profissão (os lugares de trabalho são únicos e entram depois)
+        val landD = arrayOf("mall", "hotel")
+        val landC = arrayOf("church")
+        val landU = arrayOf("church")
         for ((bi, bl) in blocks.withIndex()) {
             var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
             var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
@@ -442,6 +443,15 @@ object Town {
             }
             if (x1 - m1 - x0 - m0 < 30f || z1 - m3 - z0 - m2 < 30f) continue
             urban.add(Urban(bi, x0 + m0, z0 + m2, x1 - m1, z1 - m3, t, bi % 7, 1 + bi % 5))
+        }
+        // Etapa 141: um lugar de trabalho único por profissão (níveis 3 e 4 no centro, os outros no comércio e nos bairros urbanos)
+        val cxC = (TownPlan.XS[2] + TownPlan.XS[3]) / 2; val czC = (TownPlan.ZS[1] + TownPlan.ZS[2]) / 2
+        for (job in Jobs.ALL) {
+            val want = if (job.level >= 3) intArrayOf(TownPlan.DOWN) else intArrayOf(TownPlan.COM, TownPlan.URB)
+            val need = when (job.id) { "medico" -> 56f; "prefeito" -> 50f; "professor", "repositor" -> 50f; "juiz" -> 44f; else -> 34f }
+            val cand = urban.filter { it.type == "perim" && TownPlan.districtAt((it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2) in want && it.x1 - it.x0 >= need && it.z1 - it.z0 >= 34f && urban.none { o -> o.type.startsWith("job:") && kotlin.math.hypot((o.x0 + o.x1) / 2 - (it.x0 + it.x1) / 2, (o.z0 + o.z1) / 2 - (it.z0 + it.z1) / 2) < 160f } }
+                .sortedBy { kotlin.math.hypot((it.x0 + it.x1) / 2 - cxC, (it.z0 + it.z1) / 2 - czC) * (if (job.level >= 3) 1f else -0.3f) + (it.block * 37 % 100) }
+            (cand.firstOrNull() ?: urban.firstOrNull { it.type == "perim" && it.x1 - it.x0 >= need })?.type = "job:" + job.id
         }
     }
     var outline = FloatArray(0)
