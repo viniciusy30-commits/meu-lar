@@ -752,3 +752,5 @@ Etapa 141 – Profissões e locais de trabalho únicos
 - Hospital, delegacia, escola, posto e mercado genéricos que se repetiam pela cidade foram tirados.
 
 Etapa 141b — Interiores dos empregos: luzes no teto, rodapés, quadros, faixa na cor do nível, relógio, extintor, bebedouro, ar-condicionado e plantas. Prateleiras do mercado agora têm produtos coloridos; divisórias mais ao fundo para a entrada ficar livre.
+
+Etapa 142 — Interiores refeitos do zero: cada local de trabalho ganhou planta própria e mobília detalhada (cadeiras giratórias, mesas com gaveteiro, monitores, estantes com livros, gôndolas com produtos, geladeiras de vidro, caixas de mercado, macas com soro e monitor, beliches, armários de vestiário, caminhões, carros nos elevadores, tribunal com júri e plateia, cabines da lanchonete, troféus da escola e muito mais). Pisos por tipo de lugar, prédios com tamanho realista, entrada sempre livre e portas em todas as salas.
