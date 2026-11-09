@@ -886,7 +886,10 @@ object City {
         if (TOWN) {
             for (bl in Town.blocks) {
                 val path = Town.polyOffset(bl, 1.5f)
-                val n = max(1, (kotlin.math.abs(Town.polyArea(bl)) / 2500f).toInt().coerceAtMost(4))
+                // Etapa 153: mais gente na rua — o centro e o comércio bem movimentados
+                var mcx = 0f; var mcz = 0f; val np = bl.size / 2; for (q in 0 until np) { mcx += bl[q * 2]; mcz += bl[q * 2 + 1] }
+                val dd = TownPlan.districtAt(mcx / np, mcz / np); val busy = dd == TownPlan.DOWN || dd == TownPlan.COM || dd == TownPlan.URB
+                val n = max(1, (kotlin.math.abs(Town.polyArea(bl)) / (if (busy) 900f else 1700f)).toInt().coerceAtMost(if (busy) 8 else 5))
                 for (k in 0 until n) {
                     val p = Ped(0f, 0f, 0f, 0f, 0f, if (rng.f() < 0.5f) 1 else -1, rng.r(1.0f, 1.45f), rng.i(14), path)
                     p.t = rng.r(0f, p.per); p.v = p.vmax

@@ -199,8 +199,60 @@ object TownBlock {
                 }
             }
         }
+        // ------------------------------------------------ Etapa 153: fachada viva
+        val dark = C("#2B2E31")
+        if (kind != 2) {   // ar-condicionado de janela, cada prédio com os seus
+            b.m(Mt.METAL, 1f)
+            val nw = max(2, (W / 2.6f).toInt())
+            for (fl in 0 until floors) for (k in 0 until nw) if (r.chance(0.15f)) { val wu = W * (k + 0.5f) / nw
+                f.box(b, wu, y1 + fl * fh + 0.42f, -0.22f, 0.75f, 0.42f, 0.4f, C("#D9D9D6")); f.box(b, wu, y1 + fl * fh + 0.48f, -0.43f, 0.6f, 0.3f, 0.02f, C("#8A8F94")) }
+        }
+        if (shopGround && floors >= 3 && r.chance(0.5f)) {   // letreiro vertical em bandeira
+            val sc = C(arrayOf("#C62828", "#1565C0", "#2E7D32", "#F9A825", "#6A1B9A", "#EF6C00", "#00838F", "#AD1457")[r.i(8)])
+            val su = if (r.chance(0.5f)) 0.7f else W - 0.7f; val sh = min(floors * fh * 0.6f, 7f)
+            b.m(Mt.PLAIN); f.box(b, su, y1 + 0.8f, -0.6f, 0.2f, sh, 0.95f, sc)
+            var q = 0; while (q * 1.1f + 0.9f < sh) { f.box(b, su, y1 + 1.0f + q * 1.1f, -0.6f, 0.22f, 0.7f, 0.62f, C("#FFFFFF")); f.box(b, su, y1 + 1.15f + q * 1.1f, -0.6f, 0.23f, 0.4f, 0.4f, sc); q++ }
+            b.m(Mt.METAL, 1f); for (k in floatArrayOf(0.15f, 0.85f)) f.box(b, su, y1 + 0.8f + sh * k, -0.07f, 0.07f, 0.07f, 0.14f, dark)
+        }
+        if (shopGround) {   // arandelas no térreo
+            b.m(Mt.PLAIN); var lu = 2.2f; while (lu < W - 1f) { f.box(b, lu, CURB + 3.05f, -0.1f, 0.2f, 0.28f, 0.16f, C("#FFF2C8")); lu += 6.5f }
+        }
+        if (shopGround && W > 9f && r.chance(0.4f)) {   // mesinhas de café na calçada com guarda-sol
+            val umb = C(arrayOf("#C62828", "#1565C0", "#2E7D32", "#F9A825", "#FAFAFA", "#EF6C00")[r.i(6)]); val chairC = C(arrayOf("#37474F", "#6D4C41", "#ECEFF1")[r.i(3)])
+            var tu = 2.2f; var nt = 0
+            while (tu < W - 1.6f && nt < 3) {
+                b.m(Mt.METAL, 1f); f.box(b, tu, CURB, -1.75f, 0.06f, 2.1f, 0.06f, C("#9E9E9E")); f.box(b, tu, CURB + 0.72f, -1.75f, 0.8f, 0.04f, 0.8f, C("#F2F2F2"))
+                for (sg in floatArrayOf(-1f, 1f)) { f.box(b, tu + sg * 0.68f, CURB, -1.75f, 0.4f, 0.45f, 0.4f, chairC); f.box(b, tu + sg * 0.86f, CURB + 0.45f, -1.75f, 0.04f, 0.42f, 0.4f, chairC) }
+                b.m(Mt.FABRIC, 1f); f.box(b, tu, CURB + 2.1f, -1.75f, 1.9f, 0.08f, 1.9f, umb); f.box(b, tu, CURB + 2.18f, -1.75f, 1.0f, 0.1f, 1.0f, shade(umb, -20))
+                if (g.reg) f.solid(g, tu - 0.9f, -2.25f, tu + 0.9f, -1.25f)
+                tu += 3.4f; nt++
+            }
+        } else if (r.chance(0.6f)) {   // vasos grandes ladeando a entrada
+            for (sg in floatArrayOf(-1f, 1f)) { val pu = (W / 2 + sg * 1.5f).coerceIn(0.5f, W - 0.5f)
+                b.m(Mt.STONE, 0.8f); f.box(b, pu, CURB, -0.5f, 0.55f, 0.55f, 0.55f, C(arrayOf("#B5603A", "#8C8F94", "#E2DCCF")[r.i(3)]))
+                CityGeo.bush(g, f.x(pu, -0.5f), f.z(pu, -0.5f), 0.42f, CURB + 0.5f)
+                if (g.reg) f.solid(g, pu - 0.3f, -0.8f, pu + 0.3f, -0.2f) }
+        }
         // cobertura: casa de máquinas, caixas, antenas, jardim às vezes
         val ry = y1 + floors * fh + 0.6f
+        // platibanda em volta do telhado
+        b.m(Mt.PLASTER, 0.5f); val pc = shade(col, -18)
+        f.box(b, W / 2, ry, 0.12f, W - 0.1f, 0.5f, 0.24f, pc); f.box(b, W / 2, ry, dep - 0.12f, W - 0.1f, 0.5f, 0.24f, pc)
+        f.box(b, 0.17f, ry, dep / 2, 0.24f, 0.5f, dep - 0.4f, pc); f.box(b, W - 0.17f, ry, dep / 2, 0.24f, 0.5f, dep - 0.4f, pc)
+        if (W > 9f && dep > 9f && r.chance(0.4f)) {   // placas solares
+            b.m(Mt.METAL, 1f); val sx0 = W * 0.2f; val sz0 = dep * 0.55f
+            for (i in 0 until min(4, ((W * 0.6f) / 1.9f).toInt())) for (j in 0..1) { f.box(b, sx0 + i * 1.9f, ry + 0.25f, sz0 + j * 1.3f, 1.7f, 0.06f, 1.1f, C("#1F3A5F")); f.box(b, sx0 + i * 1.9f, ry, sz0 + j * 1.3f, 0.08f, 0.25f, 0.08f, C("#9E9E9E")) }
+        }
+        if (r.chance(0.5f)) { b.m(Mt.METAL, 1f); val du = W * r.r(0.15f, 0.85f); val dv = dep * r.r(0.2f, 0.5f)   // parabólica
+            f.box(b, du, ry, dv, 0.06f, 1.1f, 0.06f, C("#9E9E9E")); b.cyl(f.x(du, dv), ry + 1.0f, f.z(du, dv), 0.1f, 0.6f, 0.25f, C("#E6E6E6"), true, 10) }
+        if (floors >= 5 && W > 10f && r.chance(0.35f)) {   // outdoor no topo
+            b.m(Mt.METAL, 1f); val bw = min(W - 2f, 9f); val bh = bw / 3.2f
+            for (sg in floatArrayOf(-0.4f, 0.4f)) f.box(b, W / 2 + sg * bw, ry, 0.7f, 0.14f, 1.4f + bh, 0.14f, dark)
+            f.box(b, W / 2, ry + 1.3f, 0.62f, bw + 0.3f, bh + 0.3f, 0.12f, dark)
+            b.m(Mt.PLAIN); val ad = C(arrayOf("#E53935", "#1E88E5", "#FDD835", "#43A047", "#8E24AA", "#FB8C00", "#00ACC1", "#F06292")[r.i(8)])
+            f.box(b, W / 2, ry + 1.45f, 0.54f, bw, bh, 0.03f, ad); f.box(b, W / 2 - bw * 0.22f, ry + 1.45f + bh * 0.25f, 0.51f, bw * 0.4f, bh * 0.5f, 0.02f, C("#FFFFFF")); f.box(b, W / 2 + bw * 0.25f, ry + 1.45f + bh * 0.15f, 0.51f, bw * 0.3f, bh * 0.18f, 0.02f, shade(ad, -60))
+            CityGeo.sign(b, f.x(W / 2, 0.48f), ry + 1.45f + bh * 0.82f, f.z(W / 2, 0.48f), f.fx, f.fz, bw * 0.8f, bw * 0.1f, SIGNS[r.i(SIGNS.size)], false)
+        }
         b.m(Mt.METAL, 1f)
         if (r.chance(0.7f)) f.box(b, W * r.r(0.25f, 0.75f), ry, dep * r.r(0.3f, 0.7f), min(4f, W * 0.3f), 2.4f, min(4f, dep * 0.3f), C("#B0B6BC"))
         if (r.chance(0.5f)) f.box(b, W * 0.2f, ry, dep * 0.75f, 1.6f, 1f, 1.2f, C("#C8CCD0"))

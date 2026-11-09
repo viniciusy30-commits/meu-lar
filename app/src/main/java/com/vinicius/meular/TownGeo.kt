@@ -594,6 +594,24 @@ object TownGeo {
             b.m(Mt.STONE, 1f); ribbon(b, gi, c, CURB + 0.012f, CURBC)
             curbWall(b, c, 0f, CURB + 0.012f, true, CURBC)
         }
+        // Etapa 153: semáforos e placas de rua nas esquinas dos cruzamentos maiores
+        if (nd.round == 0f && nd.edges.size >= 3 && nd.edges.any { Town.edges[it].w >= 16f }) {
+            for ((_, c) in nd.corners) {
+                val o = Town.outward(c, 0.75f); val m = (o.size / 4) * 2
+                val x = o[m]; val z = o[m + 1]
+                b.m(Mt.METAL, 1f)
+                b.cyl(x, CURB, z, 0.14f, 0.09f, 0.5f, C("#2B2E31"), true, 8); b.cyl(x, CURB + 0.5f, z, 0.07f, 0.06f, 4.3f, C("#3B4046"), true, 7)
+                b.box(x, CURB + 5.3f, z, 0.34f, 1.0f, 0.34f, C("#1E1E1E")); b.box(x, CURB + 5.85f, z, 0.44f, 0.06f, 0.44f, C("#1E1E1E"))
+                b.m(Mt.PLAIN)
+                for ((k, lc) in arrayOf("#E53935", "#5A4A12", "#1F4A22").withIndex()) { b.box(x, CURB + 5.62f - k * 0.31f, z, 0.37f, 0.2f, 0.2f, C(lc), false); b.box(x, CURB + 5.62f - k * 0.31f, z, 0.2f, 0.2f, 0.37f, C(lc), false) }
+                // sinal de pedestre e placas verdes com o nome das ruas
+                b.box(x, CURB + 3.0f, z, 0.26f, 0.42f, 0.26f, C("#1E1E1E")); b.box(x, CURB + 3.08f, z, 0.29f, 0.16f, 0.16f, C("#E53935"), false); b.box(x, CURB + 3.08f, z, 0.16f, 0.16f, 0.29f, C("#E53935"), false)
+                b.box(x, CURB + 3.75f, z, 1.1f, 0.24f, 0.03f, C("#1B5E20")); b.box(x, CURB + 3.75f, z, 0.9f, 0.05f, 0.035f, C("#FFFFFF"))
+                b.box(x, CURB + 4.05f, z, 0.03f, 0.24f, 1.1f, C("#1B5E20")); b.box(x, CURB + 4.05f, z, 0.035f, 0.05f, 0.9f, C("#FFFFFF"))
+                Shade.pole(x, z, 5.8f, 0.09f)
+                g.solid(x - 0.15f, z - 0.15f, x + 0.15f, z + 0.15f)
+            }
+        }
         if (nd.round > 0f) {
             // ilha da rotatória: grama, guia, faixa de paralelepípedo e uma árvore grande no meio
             val ir = nd.round - 8f
