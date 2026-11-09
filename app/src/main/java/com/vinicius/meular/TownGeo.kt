@@ -88,21 +88,71 @@ object TownGeo {
 
     // ------------------------------------------------------------ ruas
 
-    fun roads(out: ArrayList<City.Chunk>) {
-        val g = CityGeo.Gen(out.size, City.Rng(31), Town.minX, Town.minZ, Town.maxX, Town.maxZ)
-        val b = g.b; val f = g.f
-        for ((ei, ed) in Town.edges.withIndex()) edge(g, ei, ed)
-        for ((ni, nd) in Town.nodes.withIndex()) node(g, ni, nd)
-        // versão de longe: só asfalto e calçada
-        for (ed in Town.edges) {
+    // ------------------------------------------------------------ pedaços (carregados perto do jogador)
+
+    const val TILE = 360f
+    class Tile(val i: Int, val j: Int) {
+        val edges = ArrayList<Int>(); val nodes = ArrayList<Int>(); val blocks = ArrayList<Int>()
+        var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+        fun grow(p: FloatArray, m: Float) { var k = 0; while (k < p.size) { x0 = min(x0, p[k] - m); x1 = max(x1, p[k] + m); z0 = min(z0, p[k + 1] - m); z1 = max(z1, p[k + 1] + m); k += 2 } }
+    }
+    val tiles = ArrayList<Tile>()
+
+    private fun tileOf(x: Float, z: Float, map: HashMap<Long, Tile>): Tile {
+        val i = Math.floor(x / TILE.toDouble()).toInt(); val j = Math.floor(z / TILE.toDouble()).toInt()
+        return map.getOrPut(i.toLong() * 100000L + j) { Tile(i, j) }
+    }
+
+    /** Monta os pedaços: cada um com a versão de longe pronta e a de perto gerada de novo quando o jogador chegar. */
+    fun build(out: ArrayList<City.Chunk>) {
+        tiles.clear()
+        val map = HashMap<Long, Tile>()
+        for ((ei, ed) in Town.edges.withIndex()) { val m = ed.pts.size / 4 * 2; val t = tileOf(ed.pts[m], ed.pts[m + 1], map); t.edges.add(ei); t.grow(ed.pts, ed.w / 2 + SW + 3f) }
+        for ((ni, nd) in Town.nodes.withIndex()) { val t = tileOf(nd.x, nd.z, map); t.nodes.add(ni); t.grow(nd.poly, SW + 3f) }
+        for ((bi, bl) in Town.blocks.withIndex()) {
+            var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }
+            val t = tileOf(cx / n, cz / n, map); t.blocks.add(bi); t.grow(bl, 1f)
+        }
+        tiles.addAll(map.values)
+        for ((ti, t) in tiles.withIndex()) {
+            val g = CityGeo.Gen(out.size, City.Rng(ti * 13 + 1), t.x0, t.z0, t.x1, t.z1, true)
+            tile(g, ti, true)
+            val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
+            val c = City.Chunk(null, far, t.x0, t.z0, t.x1, t.z1, 30f)
+            c.lazyI = ti; c.lazyJ = -1
+            out.add(c)
+        }
+        out.add(outside(out.size))
+    }
+
+    /** Gera o pedaço [ti] (perto em g.b, longe em g.f se [far]). */
+    fun tile(g: CityGeo.Gen, ti: Int, far: Boolean) {
+        val t = tiles[ti]
+        for (ei in t.edges) edge(g, ei, Town.edges[ei])
+        for (ni in t.nodes) node(g, ni, Town.nodes[ni])
+        val lot = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1)
+        for (bi in t.blocks) {
+            val bl = Town.blocks[bi]
+            val holes = if (bi == Town.homeBlock) listOf(lot) else emptyList()
+            val tr = Town.triangulate(bl, holes)
+            g.b.m(Mt.GRASS, 0.3f); tris(g.b, tr, CURB, GRASS)
+            if (far) { g.f.m(Mt.GRASS, 0.3f); tris(g.f, tr, CURB, GRASS) }
+            if (bi == Town.homeBlock) {
+                val ring = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1, City.lotX0, City.lotZ0)
+                g.b.m(Mt.STONE, 1f); curbWall(g.b, ring, 0f, CURB, true, CURBC)
+            }
+        }
+        if (!far) return
+        val f = g.f
+        for (ei in t.edges) {
+            val ed = Town.edges[ei]
             val hw = ed.w / 2
             f.m(Mt.ASPHALT, 0.25f); ribbon(f, Town.offset(ed.pts, -hw), Town.offset(ed.pts, hw), 0f, ASPH)
             f.m(Mt.PAVER, 0.9f)
             ribbon(f, Town.offset(ed.pts, -hw - SW), Town.offset(ed.pts, -hw), CURB, WALK)
             ribbon(f, Town.offset(ed.pts, hw), Town.offset(ed.pts, hw + SW), CURB, WALK)
         }
-        for (nd in Town.nodes) { f.m(Mt.ASPHALT, 0.25f); fan(f, nd.x, nd.z, nd.poly, 0f, ASPH) }
-        out.add(g.finish(12f))
+        for (ni in t.nodes) { val nd = Town.nodes[ni]; f.m(Mt.ASPHALT, 0.25f); fan(f, nd.x, nd.z, nd.poly, 0f, ASPH); f.m(Mt.PAVER, 0.9f); for ((_, c) in nd.corners) ribbon(f, Town.outward(c, SW), c, CURB, WALK) }
     }
 
     private fun edge(g: CityGeo.Gen, ei: Int, ed: Town.Edge) {
@@ -258,32 +308,16 @@ object TownGeo {
 
     // ------------------------------------------------------------ chão dos quarteirões e de fora da cidade
 
-    fun ground(out: ArrayList<City.Chunk>) {
-        val g = CityGeo.Gen(out.size, City.Rng(32), Town.minX - 400f, Town.minZ - 400f, Town.maxX + 400f, Town.maxZ + 400f)
-        val b = g.b; val f = g.f
-        val lot = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1)
-        for ((bi, bl) in Town.blocks.withIndex()) {
-            val holes = if (bi == Town.homeBlock) listOf(lot) else emptyList()
-            val t = Town.triangulate(bl, holes)
-            b.m(Mt.GRASS, 0.3f); tris(b, t, CURB, GRASS)
-            f.m(Mt.GRASS, 0.3f); tris(f, t, CURB, GRASS)
-        }
-        if (Town.homeBlock >= 0) {
-            // degrau do terreno da casa (o terreno fica no nível 0)
-            val ring = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1, City.lotX0, City.lotZ0)
-            b.m(Mt.STONE, 1f); curbWall(b, ring, 0f, CURB, true, CURBC)
-        }
-        // fora da cidade: campo em volta do contorno
-        val x0 = Town.minX - 400f; val x1 = Town.maxX + 400f; val z0 = Town.minZ - 400f; val z1 = Town.maxZ + 400f
-        // campo em volta, um pouco abaixo do asfalto (a cidade fica num platô com guia na borda)
-        b.m(Mt.GRASS, 0.3f); b.plane(x0, z0, x1, z1, -0.06f, C("#CFE6B8"))
-        f.m(Mt.GRASS, 0.3f); f.plane(x0, z0, x1, z1, -0.06f, C("#CFE6B8"))
+    /** Campo em volta da cidade (um pouco abaixo do asfalto) e a guia na borda do contorno. */
+    private fun outside(idx: Int): City.Chunk {
+        val g = CityGeo.Gen(idx, City.Rng(32), Town.minX - 600f, Town.minZ - 600f, Town.maxX + 600f, Town.maxZ + 600f)
+        val b = g.b
+        b.m(Mt.GRASS, 0.3f); b.plane(g.x0, g.z0, g.x1, g.z1, -0.06f, C("#CFE6B8"))
         val ol = Town.outline
         if (ol.isNotEmpty()) {
             val ring = FloatArray(ol.size + 2); System.arraycopy(ol, 0, ring, 0, ol.size); ring[ol.size] = ol[0]; ring[ol.size + 1] = ol[1]
-            // o contorno de fora anda no sentido anti-horário: o lado de fora fica à direita
             b.m(Mt.STONE, 1f); curbWall(b, ring, -0.06f, CURB, Town.polyArea(ol) < 0, CURBC)
         }
-        out.add(g.finish(0f))
+        return g.finish(1f)
     }
 }

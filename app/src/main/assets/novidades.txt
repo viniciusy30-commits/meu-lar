@@ -689,3 +689,10 @@ Etapa 131 – Cidade nova (parte 1: motor de ruas curvas)
 - Quarteirões com formato livre, gerados a partir das ruas.
 - Carros seguem as curvas, fazem conversões e contornam as rotatórias no sentido certo; pedestres andam nas calçadas em volta dos quarteirões.
 - Nesta etapa os quarteirões ainda estão vazios (só gramado): prédios, casas, lojas, relevo e viadutos vêm nas próximas.
+
+Etapa 131b – Cidade grande
+- A cidade ficou cerca de 3 vezes maior (uns 1,8 km de lado), com 25 superquadras cercadas por avenidas e ruas principais curvas e três rotatórias.
+- Cada bairro tem o próprio traçado: centro com quadras pequenas em malha, área comercial com quadras maiores e subúrbios no estilo americano, com ruas em laço, serpenteando ou em leque e várias ruas sem saída com bolsão de retorno.
+- Ruas que chegam dos dois lados de uma avenida no mesmo ponto viram um cruzamento só.
+- A cidade é carregada por partes perto do jogador, para não pesar.
+- Os quarteirões ainda estão vazios: as construções vêm na próxima atualização.

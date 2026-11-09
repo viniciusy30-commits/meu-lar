@@ -33,7 +33,11 @@ object Town {
         val corners = HashMap<Int, FloatArray>()    // rua -> curva da guia até a próxima rua (x, z)
     }
 
-    class Edge(val a: Int, val b: Int, val w: Float, val bend: Float, val name: String) {
+    class Edge(var a: Int, var b: Int, val w: Float, val bend: Float, val name: String) {
+        /** pontos de controle da curva (Bézier cúbica a → c1 → c2 → b) */
+        var c1x = 0f; var c1z = 0f; var c2x = 0f; var c2z = 0f
+        /** distrito (para o que for construído dos lados) */
+        var kind = 0
         var pts = FloatArray(0)     // eixo já cortado nos cruzamentos (x, z)
         var len = 0f
         val avenue get() = w >= 22f
@@ -49,8 +53,60 @@ object Town {
 
     // ------------------------------------------------------------ planta
 
-    private fun n(x: Float, z: Float, round: Float = 0f): Int { nodes.add(Node(x, z, round)); return nodes.size - 1 }
-    private fun e(a: Int, b: Int, w: Float, bend: Float, name: String) { edges.add(Edge(a, b, w, bend, name)); nodes[a].edges.add(edges.size - 1); nodes[b].edges.add(edges.size - 1) }
+    fun n(x: Float, z: Float, round: Float = 0f): Int { nodes.add(Node(x, z, round)); return nodes.size - 1 }
+    fun e(a: Int, b: Int, w: Float, bend: Float, name: String): Int {
+        val ed = Edge(a, b, w, bend, name)
+        val A = nodes[a]; val B = nodes[b]
+        val dx = B.x - A.x; val dz = B.z - A.z; val l = max(1e-3f, hypot(dx, dz))
+        val nx = -dz / l * bend; val nz = dx / l * bend
+        ed.c1x = A.x + dx / 3 + nx; ed.c1z = A.z + dz / 3 + nz; ed.c2x = A.x + dx * 2 / 3 + nx; ed.c2z = A.z + dz * 2 / 3 + nz
+        edges.add(ed); A.edges.add(edges.size - 1); B.edges.add(edges.size - 1)
+        return edges.size - 1
+    }
+
+    /** Ponto da curva da rua no parâmetro t. */
+    fun at(ed: Edge, t: Float): FloatArray {
+        val a = nodes[ed.a]; val b = nodes[ed.b]; val u = 1 - t
+        return floatArrayOf(u * u * u * a.x + 3 * u * u * t * ed.c1x + 3 * u * t * t * ed.c2x + t * t * t * b.x,
+                            u * u * u * a.z + 3 * u * u * t * ed.c1z + 3 * u * t * t * ed.c2z + t * t * t * b.z)
+    }
+
+    /** Divide a rua no parâmetro t (de Casteljau): devolve o nó novo. */
+    fun split(ei: Int, t: Float): Int {
+        val ed = edges[ei]; val A = nodes[ed.a]; val B = nodes[ed.b]
+        fun l(a: Float, b: Float) = a + (b - a) * t
+        val q0x = l(A.x, ed.c1x); val q0z = l(A.z, ed.c1z); val q1x = l(ed.c1x, ed.c2x); val q1z = l(ed.c1z, ed.c2z); val q2x = l(ed.c2x, B.x); val q2z = l(ed.c2z, B.z)
+        val r0x = l(q0x, q1x); val r0z = l(q0z, q1z); val r1x = l(q1x, q2x); val r1z = l(q1z, q2z)
+        val sx = l(r0x, r1x); val sz = l(r0z, r1z)
+        val ni = n(sx, sz)
+        val ob = ed.b
+        val e2 = Edge(ni, ob, ed.w, 0f, ed.name); e2.kind = ed.kind
+        e2.c1x = r1x; e2.c1z = r1z; e2.c2x = q2x; e2.c2z = q2z
+        ed.b = ni; ed.c1x = q0x; ed.c1z = q0z; ed.c2x = r0x; ed.c2z = r0z
+        edges.add(e2); val i2 = edges.size - 1
+        nodes[ob].edges.remove(ei); nodes[ob].edges.add(i2)
+        nodes[ni].edges.add(ei); nodes[ni].edges.add(i2)
+        return ni
+    }
+
+    /** Divide a rua que passa mais perto de (x, z) no ponto mais próximo (para ligar ruas novas às existentes). */
+    fun splitNear(x: Float, z: Float, only: Set<Int>? = null): Int {
+        var be = -1; var bt = 0f; var bd = Float.MAX_VALUE
+        for ((ei, ed) in edges.withIndex()) {
+            if (only != null && ei !in only) continue
+            for (k in 0..64) { val t = k / 64f; val p = at(ed, t); val d = hypot(p[0] - x, p[1] - z); if (d < bd) { bd = d; be = ei; bt = t } }
+        }
+        val ed = edges[be]
+        var lo = max(0f, bt - 1 / 64f); var hi = min(1f, bt + 1 / 64f)
+        repeat(20) { val m1 = lo + (hi - lo) / 3; val m2 = hi - (hi - lo) / 3; val p1 = at(ed, m1); val p2 = at(ed, m2); if (hypot(p1[0] - x, p1[1] - z) < hypot(p2[0] - x, p2[1] - z)) hi = m2 else lo = m1 }
+        val t = (lo + hi) / 2
+        // já existe uma ligação (T) bem perto do outro lado da rua: vira um cruzamento só
+        val p = at(ed, t)
+        for (k in intArrayOf(ed.a, ed.b)) { val nd = nodes[k]; if (nd.edges.size == 3 && hypot(nd.x - p[0], nd.z - p[1]) < 38f) return k }
+        if (t < 0.02f) return ed.a
+        if (t > 0.98f) return ed.b
+        return split(be, t)
+    }
 
     /** Traçado da cidade. A casa fica em x [-10, 36], z [-22, 39]; o quarteirão dela é 0-1-2-3. */
     private fun layout() {
@@ -87,11 +143,8 @@ object Town {
 
     // ------------------------------------------------------------ geometria
 
-    private fun bez(a: Node, b: Node, bend: Float, t: Float, out: FloatArray) {
-        val dx = b.x - a.x; val dz = b.z - a.z; val l = hypot(dx, dz)
-        val nx = -dz / l * bend; val nz = dx / l * bend
-        val c1x = a.x + dx / 3 + nx; val c1z = a.z + dz / 3 + nz
-        val c2x = a.x + dx * 2 / 3 + nx; val c2z = a.z + dz * 2 / 3 + nz
+    private fun bez(a: Node, b: Node, ed: Edge, t: Float, out: FloatArray) {
+        val c1x = ed.c1x; val c1z = ed.c1z; val c2x = ed.c2x; val c2z = ed.c2z
         val u = 1 - t
         out[0] = u * u * u * a.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * b.x
         out[1] = u * u * u * a.z + 3 * u * u * t * c1z + 3 * u * t * t * c2z + t * t * t * b.z
@@ -102,7 +155,7 @@ object Town {
         val a = nodes[ed.a]; val b = nodes[ed.b]
         val N = 400; val xs = FloatArray(N + 1); val zs = FloatArray(N + 1); val ls = FloatArray(N + 1)
         val p = FloatArray(2)
-        for (i in 0..N) { bez(a, b, ed.bend, i / N.toFloat(), p); xs[i] = p[0]; zs[i] = p[1]; if (i > 0) ls[i] = ls[i - 1] + hypot(xs[i] - xs[i - 1], zs[i] - zs[i - 1]) }
+        for (i in 0..N) { bez(a, b, ed, i / N.toFloat(), p); xs[i] = p[0]; zs[i] = p[1]; if (i > 0) ls[i] = ls[i - 1] + hypot(xs[i] - xs[i - 1], zs[i] - zs[i - 1]) }
         // corta onde a curva sai do círculo de cada cruzamento
         var s0 = 0f; for (i in 0..N) if (hypot(xs[i] - a.x, zs[i] - a.z) >= a.r) { s0 = ls[i]; break }
         var s1 = ls[N]; for (i in N downTo 0) if (hypot(xs[i] - b.x, zs[i] - b.z) >= b.r) { s1 = ls[i]; break }
@@ -297,18 +350,18 @@ object Town {
     private fun unloop(p0: FloatArray): FloatArray {
         var p = p0
         var guard = 0
-        outer@ while (guard++ < 200) {
+        outer@ while (guard++ < 60) {
             val n = p.size / 2
             for (i in 0 until n) {
                 val i2 = (i + 1) % n
-                for (w in 2..min(60, n - 2)) {
-                    val j = (i + w) % n; val j2 = (j + 1) % n
+                for (j in i + 2 until n) {
+                    val j2 = (j + 1) % n
                     if (j2 == i) continue
                     val q = segPt(p[i * 2], p[i * 2 + 1], p[i2 * 2], p[i2 * 2 + 1], p[j * 2], p[j * 2 + 1], p[j2 * 2], p[j2 * 2 + 1]) ?: continue
-                    // corta i2..j e põe o ponto de cruzamento
+                    // tira o lado menor do laço (i2..j ou j2..i) e põe o ponto de cruzamento
                     val o = ArrayList<Float>()
-                    var k = j2
-                    while (true) { o.add(p[k * 2]); o.add(p[k * 2 + 1]); if (k == i) break; k = (k + 1) % n }
+                    if (j - i <= n - (j - i)) { var k = j2; while (true) { o.add(p[k * 2]); o.add(p[k * 2 + 1]); if (k == i) break; k = (k + 1) % n } }
+                    else { var k = i2; while (true) { o.add(p[k * 2]); o.add(p[k * 2 + 1]); if (k == j) break; k = (k + 1) % n } }
                     o.add(q[0]); o.add(q[1])
                     p = o.toFloatArray()
                     continue@outer
@@ -486,14 +539,13 @@ object Town {
 
     fun build(out: ArrayList<City.Chunk>) {
         warn = 0
-        layout()
+        TownPlan.generate()
         buildNodes()
         buildBlocks()
         index()
         minX = nodes.minOf { it.x } - 30f; maxX = nodes.maxOf { it.x } + 30f
         minZ = nodes.minOf { it.z } - 30f; maxZ = nodes.maxOf { it.z } + 30f
-        TownGeo.roads(out)
-        TownGeo.ground(out)
+        TownGeo.build(out)
         on = true
     }
 

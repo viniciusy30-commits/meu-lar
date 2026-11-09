@@ -372,7 +372,11 @@ object City {
         val i = c.lazyI; val j = c.lazyJ
         loader.execute {
             try {
-                if (tk == token) {
+                if (tk == token && TOWN) {
+                    val g = CityGeo.Gen(ci, Rng(i * 13 + 1), c.x0, c.z0, c.x1, c.z1, false)
+                    TownGeo.tile(g, i, false)
+                    if (tk == token) c.result = Pair(g.b.toMesh(true), g.fl)
+                } else if (tk == token) {
                     val g = CityGeo.Gen(ci, Rng(i * 131 + j * 17 + 7), blkX[i * 2], blkZ[j * 2], blkX[i * 2 + 1], blkZ[j * 2 + 1], false)
                     CityGeo.block(g, types[i][j], i, j)
                     if (tk == token) c.result = Pair(g.b.toMesh(true), g.fl)
