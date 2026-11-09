@@ -92,6 +92,7 @@ object Gps {
 
     fun compute(px: Float, pz: Float) {
         if (!City.on) return
+        if (City.bandX.isEmpty()) { route = floatArrayOf(px, pz, destX, destZ); ver++; lastPx = px; lastPz = pz; return }
         lastRoute = System.currentTimeMillis()
         val xs = centers(City.bandX); val zs = centers(City.bandZ)
         val s = snap(px, pz); val t = snap(destX, destZ)
@@ -121,6 +122,7 @@ object Gps {
 
     private fun roadName(x0: Float, z0: Float, x1: Float, z1: Float): String {
         val xs = centers(City.bandX); val zs = centers(City.bandZ)
+        if (xs.isEmpty() || zs.isEmpty()) return ""
         if (abs(z1 - z0) < 0.5f) { val k = zs.indices.minByOrNull { abs(zs[it] - z0) } ?: 0; if (abs(zs[k] - z0) < 3f) return City.ROAD_NAMES_X[k] }
         if (abs(x1 - x0) < 0.5f) { val k = xs.indices.minByOrNull { abs(xs[it] - x0) } ?: 0; if (abs(xs[k] - x0) < 3f) return City.ROAD_NAMES_Z[k] }
         return ""
@@ -223,8 +225,21 @@ object MapPaint {
             fill.color = if (t == "home") 0xFFC8E6C9.toInt() else blockColor(t)
             c.drawRect(City.blkX[i * 2], City.blkZ[j * 2], City.blkX[i * 2 + 1], City.blkZ[j * 2 + 1], fill)
         }
+        if (Town.on) {
+            // Etapa 131: cidade nova — quarteirões e ruas curvas
+            fill.color = 0xFFE8E3D3.toInt()
+            for (bl in Town.blocks) { val p = Path(); p.moveTo(bl[0], bl[1]); var i = 2; while (i < bl.size) { p.lineTo(bl[i], bl[i + 1]); i += 2 }; p.close(); c.drawPath(p, fill) }
+            val rp = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+            for (ed in Town.edges) {
+                val p = Path(); p.moveTo(ed.pts[0], ed.pts[1]); var i = 2; while (i < ed.pts.size) { p.lineTo(ed.pts[i], ed.pts[i + 1]); i += 2 }
+                rp.color = 0xFFDCD8D0.toInt(); rp.strokeWidth = ed.w + 2 * Town.SW; c.drawPath(p, rp)
+                rp.color = road.color; rp.strokeWidth = ed.w; c.drawPath(p, rp)
+            }
+            for (nd in Town.nodes) { val p = Path(); p.moveTo(nd.poly[0], nd.poly[1]); var i = 2; while (i < nd.poly.size) { p.lineTo(nd.poly[i], nd.poly[i + 1]); i += 2 }; p.close(); c.drawPath(p, road) }
+            for (nd in Town.nodes) if (nd.round > 0f) { fill.color = 0xFFB5DDA0.toInt(); c.drawCircle(nd.x, nd.z, nd.round - 8f, fill) }
+        }
         val bx = City.bandX; val bz = City.bandZ
-        if (ph == null) {
+        if (ph == null && !Town.on) {
             fill.color = 0xFFDCD8D0.toInt()
             for (k in 0 until bz.size / 2) c.drawRect(City.X0, bz[k * 2], City.X1, bz[k * 2 + 1], fill)
             for (k in 0 until bx.size / 2) c.drawRect(bx[k * 2], City.Z0, bx[k * 2 + 1], City.Z1, fill)

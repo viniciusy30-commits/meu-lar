@@ -244,6 +244,7 @@ object City {
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
         solidsBy.clear(); bldBy.clear(); blds.clear(); places.clear(); cars.clear(); peds.clear()
         Gps.clear()
+        Town.clear()
     }
 
     /** Monta a cidade numa thread separada (o jogo continua rodando dentro de casa enquanto isso). */
@@ -282,6 +283,7 @@ object City {
         val out = ArrayList<Chunk>()
         Shade.reset()   // Etapa 127: sombras projetadas
         progress = 0.04f
+        if (TOWN) { buildTown(out, W, H, tk); return }
         CityGeo.roads(out)
         progress = 0.12f
         for (i in 0 until NB) for (j in 0 until NB) {
@@ -329,6 +331,33 @@ object City {
         for (d in CityFun.dyn) d.mesh.gpuOnly()
         builtGen = startGen   // Etapa 126: se o contexto caiu durante a montagem, monta de novo
         builds++
+        on = true
+    }
+
+    /** Etapa 131: cidade nova (ruas curvas). A antiga (grade) fica no código só até a nova ficar completa. */
+    const val TOWN = true
+
+    private fun buildTown(out: ArrayList<Chunk>, W: Float, H: Float, tk: Int) {
+        Town.clear()
+        bandX = FloatArray(0); bandZ = FloatArray(0); blkX = FloatArray(0); blkZ = FloatArray(0)
+        types = emptyArray()
+        Town.build(out)
+        X0 = Town.minX - 200f; X1 = Town.maxX + 200f; Z0 = Town.minZ - 200f; Z1 = Town.maxZ + 200f
+        BEACH_Z = 1e6f; SEA_Z = 1e6f; PIER_X = -1e6f
+        progress = 0.6f
+        chunks = out
+        Vehicles.build()
+        spawnTownTraffic()
+        buildPeds()
+        places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
+        if (tk != token) return
+        Shade.finish(); Shade.mesh?.gpuOnly()
+        for (c in out) { c.near?.gpuOnly(); c.far?.gpuOnly() }
+        Vehicles.meshes.forEach { it?.gpuOnly() }
+        pedBody.forEach { it?.gpuOnly() }; pedLeg.forEach { it?.gpuOnly() }; pedArm.forEach { it?.gpuOnly() }
+        builtGen = startGen
+        builds++
+        progress = 1f
         on = true
     }
 
@@ -415,6 +444,7 @@ object City {
         if (!on || inLot(x, z)) return 0f
         for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
         bldAt(x, z)?.let { return FLOOR }
+        if (TOWN) return Town.groundH(x, z)
         if (z > Z1) {
             if (z < BEACH_Z) return CURB
             val pz0 = BEACH_Z + 4f
@@ -445,7 +475,8 @@ object City {
         for (c in cars) {
             val dx = x - c.x; val dz = z - c.z
             if (dx * dx + dz * dz > 16f) continue
-            val fx = if (c.axis == 0) c.dir.toFloat() else 0f; val fz = if (c.axis == 1) c.dir.toFloat() else 0f
+            val yr = Math.toRadians(c.yaw.toDouble()).toFloat()
+            val fx = sin(yr); val fz = cos(yr)
             val along = dx * fx + dz * fz; val side = dx * fz - dz * fx
             if (abs(along) < c.halfL + 0.25f && abs(side) < c.halfW + 0.25f) return true
         }
@@ -458,6 +489,10 @@ object City {
         var x = 0f; var z = 0f; var axis = 0; var dir = 1; var yaw = 0f
         var wheel = 0f
         var brake = false
+        // Etapa 131: trajeto livre (cidade nova)
+        var path = FloatArray(0); var cum = FloatArray(0)
+        var edge = -1; var fwd = true; var laneO = 0f; var onTurn = false; var node = -1; var nextEdge = -1; var nextFwd = true
+        var holding = -1; var wait = 0f
     }
     class Lane(val axis: Int, val dir: Int, val c: Float, val lo: Float, val hi: Float)
     val lanes = ArrayList<Lane>()
@@ -504,6 +539,148 @@ object City {
         else { c.x = ln.c; c.z = c.s; c.yaw = if (ln.dir > 0) 0f else 180f }
     }
 
+    // ------------------------------------------------------------ trânsito da cidade nova
+
+    private val nodeOcc = HashMap<Int, IntArray>()   // nó -> (chave da entrada, quantos dentro)
+
+    private fun setPath(c: Car, p: FloatArray) {
+        c.path = p; val n = p.size / 2; val cu = FloatArray(n); for (i in 1 until n) cu[i] = cu[i - 1] + kotlin.math.hypot(p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1]); c.cum = cu; c.s = 0f
+    }
+
+    private fun laneOff(ei: Int, k: Int): Float { val o = laneOffsets(Town.edges[ei].w); return o[k.coerceIn(0, o.size - 1)] }
+
+    private fun chooseNext(c: Car, rng: Rng) {
+        val to = if (c.fwd) Town.edges[c.edge].b else Town.edges[c.edge].a
+        val nd = Town.nodes[to]
+        val opts = nd.edges.filter { it != c.edge }
+        val ne = if (opts.isEmpty()) c.edge else opts[rng.i(opts.size)]
+        c.node = to; c.nextEdge = ne; c.nextFwd = Town.edges[ne].a == to
+    }
+
+    private val trng = Rng(999)
+
+    private fun spawnTownTraffic() {
+        cars.clear(); lanes.clear(); nodeOcc.clear()
+        val rng = Rng(4242)
+        for ((ei, ed) in Town.edges.withIndex()) {
+            if (ed.len < 30f) continue
+            val per = if (ed.avenue) 70f else 110f
+            val n = max(1, (ed.len / per).toInt())
+            for (k in 0 until n) {
+                val fwd = (k % 2 == 0); val lk = if (ed.avenue) rng.i(2) else 0
+                val m = Vehicles.pick(rng)
+                val vm = rng.r(8f, 12.5f) * Vehicles.speedK(m) * (if (ed.avenue) 1.15f else 0.9f)
+                val c = Car(0, 0f, vm * 0.5f, vm, m, Vehicles.halfL(m), Vehicles.halfW(m))
+                c.edge = ei; c.fwd = fwd; c.laneO = laneOff(ei, lk)
+                setPath(c, Town.lanePath(ei, fwd, c.laneO))
+                c.s = c.cum.last() * (k + rng.r(0.15f, 0.7f)) / n
+                chooseNext(c, rng)
+                placeT(c)
+                cars.add(c)
+            }
+        }
+    }
+
+    private fun placeT(c: Car) {
+        val p = c.path; val cu = c.cum; val n = p.size / 2
+        if (n < 2) return
+        var i = 0; while (i < n - 2 && cu[i + 1] < c.s) i++
+        val f = ((c.s - cu[i]) / max(1e-4f, cu[i + 1] - cu[i])).coerceIn(0f, 1f)
+        c.x = p[i * 2] + (p[i * 2 + 2] - p[i * 2]) * f; c.z = p[i * 2 + 1] + (p[i * 2 + 3] - p[i * 2 + 1]) * f
+        // rumo olhando um pouco à frente (suaviza as curvas)
+        val ahead = c.s + 2.5f
+        var j = i; while (j < n - 2 && cu[j + 1] < ahead) j++
+        val f2 = ((ahead - cu[j]) / max(1e-4f, cu[j + 1] - cu[j])).coerceIn(0f, 1f)
+        val ax = p[j * 2] + (p[j * 2 + 2] - p[j * 2]) * f2; val az = p[j * 2 + 1] + (p[j * 2 + 3] - p[j * 2 + 1]) * f2
+        val dx = ax - c.x; val dz = az - c.z
+        if (dx * dx + dz * dz > 1e-4f) {
+            val y = Math.toDegrees(kotlin.math.atan2(dx.toDouble(), dz.toDouble())).toFloat()
+            var dl = y - c.yaw; while (dl > 180f) dl -= 360f; while (dl < -180f) dl += 360f
+            c.yaw += dl * 0.5f
+        }
+    }
+
+    private fun updateTown(dt: Float, px: Float, pz: Float) {
+        for (c in cars) {
+            val len = c.cum.last()
+            var target = c.vmax * (if (c.onTurn) 0.55f else 1f)
+            val yr = Math.toRadians(c.yaw.toDouble()).toFloat()
+            val fx = sin(yr); val fz = cos(yr)
+            fun obstacle(ox: Float, oz: Float, half: Float, lat: Float) {
+                val dx = ox - c.x; val dz = oz - c.z
+                val along = dx * fx + dz * fz; val side = abs(dx * fz - dz * fx)
+                if (along > 0f && along < 20f && side < lat) target = min(target, max(0f, along - c.halfL - half - 1.6f) * 1.1f)
+            }
+            for (o in cars) {
+                if (o === c) continue
+                val dx = o.x - c.x; val dz = o.z - c.z
+                if (dx * dx + dz * dz > 400f) continue
+                obstacle(o.x, o.z, o.halfL, 1.7f)
+            }
+            obstacle(px, pz, if (driverHalf > 0f) driverHalf else 0.2f, 2.0f)
+            ownCar?.let { o -> obstacle(o[0], o[1], o[3], 2.2f) }
+            // cruzamento: só entra quem vem da mesma rua enquanto houver carro de outra direção dentro
+            if (!c.onTurn && c.node >= 0) {
+                val nd = Town.nodes[c.node]
+                if (nd.round <= 0f && nd.edges.size >= 3) {
+                    val key = c.edge * 2 + (if (c.fwd) 1 else 0)
+                    val occ = nodeOcc[c.node]
+                    val free = occ == null || occ[1] == 0 || occ[0] == key
+                    if (!free && c.holding != c.node) {
+                        val d = len - c.s
+                        if (d < 12f) target = min(target, max(0f, d - c.halfL - 0.6f) * 1.4f)
+                        c.wait += dt
+                    }
+                }
+            }
+            val acc = if (target > c.v) 2.6f else 7f
+            c.brake = target < c.v - 0.3f
+            c.v += (target - c.v).coerceIn(-acc * dt, acc * dt)
+            if (c.v < 0f) c.v = 0f
+            c.s += c.v * dt
+            c.wheel += c.v * dt / 0.34f
+            // reserva o cruzamento perto da entrada
+            if (!c.onTurn && c.node >= 0 && c.holding != c.node && len - c.s < 4f) {
+                val nd = Town.nodes[c.node]
+                if (nd.round <= 0f && nd.edges.size >= 3) {
+                    val key = c.edge * 2 + (if (c.fwd) 1 else 0)
+                    val occ = nodeOcc.getOrPut(c.node) { intArrayOf(key, 0) }
+                    if (occ[1] == 0 || occ[0] == key) { occ[0] = key; occ[1]++; c.holding = c.node }
+                    else c.s = min(c.s, len - 4f)
+                }
+            }
+            if (c.s >= len) {
+                val over = c.s - len
+                if (!c.onTurn) {
+                    // fim da faixa: entra na conversão
+                    val lk = if (Town.edges[c.nextEdge].avenue) (if (laneOffsets(Town.edges[c.edge].w).size > 1 && c.laneO > 5f) 1 else 0) else 0
+                    val nl = laneOff(c.nextEdge, lk)
+                    val a = c.path; val b = Town.lanePath(c.nextEdge, c.nextFwd, nl)
+                    setPath(c, Town.turnPath(c.node, a, b)); c.onTurn = true; c.s = over
+                    c.edge = c.nextEdge; c.fwd = c.nextFwd; c.laneO = nl
+                } else {
+                    // saiu do cruzamento
+                    if (c.holding >= 0) { nodeOcc[c.holding]?.let { it[1] = max(0, it[1] - 1) }; c.holding = -1 }
+                    setPath(c, Town.lanePath(c.edge, c.fwd, c.laneO)); c.onTurn = false; c.s = over
+                    chooseNext(c, trng); c.wait = 0f
+                }
+            }
+            placeT(c)
+        }
+        for (p in peds) {
+            val dx = px - p.x; val dz = pz - p.z
+            val near = dx * dx + dz * dz < 1.4f
+            val tv = if (near) 0f else p.vmax
+            p.v += (tv - p.v) * min(1f, dt * 4f)
+            p.t += p.v * dt * p.dir
+            val per = p.per
+            if (p.t > per) p.t -= per else if (p.t < 0f) p.t += per
+            pedPlace(p, dt)
+            p.ph += p.v * dt * 5.2f
+        }
+        Gps.update(px, pz)
+    }
+
     /** Meio comprimento do veículo que o jogador dirige (0 = a pé). */
     @Volatile var driverHalf = 0f
 
@@ -511,6 +688,7 @@ object City {
         if (!on) return
         val dt = dt0.coerceIn(0f, 0.1f)
         tLight += dt; time += dt
+        if (TOWN) { updateTown(dt, px, pz); return }
         val ph = lightPhase
         for (c in cars) {
             val ln = lanes[c.lane]
@@ -573,9 +751,10 @@ object City {
 
     // ------------------------------------------------------------ pedestres
 
-    class Ped(val x0: Float, val z0: Float, val x1: Float, val z1: Float, var t: Float, val dir: Int, val vmax: Float, val look: Int) {
+    class Ped(val x0: Float, val z0: Float, val x1: Float, val z1: Float, var t: Float, val dir: Int, val vmax: Float, val look: Int, val path: FloatArray? = null) {
         var x = 0f; var z = 0f; var yaw = 0f; var v = 0f; var ph = 0f
-        val per: Float get() = 2 * (x1 - x0) + 2 * (z1 - z0)
+        val cum: FloatArray? = path?.let { p -> val n = p.size / 2; val c = FloatArray(n + 1); for (i in 0 until n) { val j = (i + 1) % n; c[i + 1] = c[i] + kotlin.math.hypot(p[j * 2] - p[i * 2], p[j * 2 + 1] - p[i * 2 + 1]) }; c }
+        val per: Float = cum?.last() ?: (2 * (x1 - x0) + 2 * (z1 - z0))
     }
     val peds = ArrayList<Ped>()
     var pedBody: Array<Mesh?> = arrayOfNulls(0); private set
@@ -583,6 +762,21 @@ object City {
     var pedArm: Array<Mesh?> = arrayOfNulls(0); private set
 
     private fun pedPlace(p: Ped, dt: Float) {
+        val pp = p.path; val cu = p.cum
+        if (pp != null && cu != null) {
+            val n = pp.size / 2
+            var i = 0; while (i < n - 1 && cu[i + 1] < p.t) i++
+            val j = (i + 1) % n
+            val f = ((p.t - cu[i]) / max(1e-4f, cu[i + 1] - cu[i])).coerceIn(0f, 1f)
+            p.x = pp[i * 2] + (pp[j * 2] - pp[i * 2]) * f; p.z = pp[i * 2 + 1] + (pp[j * 2 + 1] - pp[i * 2 + 1]) * f
+            var yaw = Math.toDegrees(kotlin.math.atan2((pp[j * 2] - pp[i * 2]).toDouble(), (pp[j * 2 + 1] - pp[i * 2 + 1]).toDouble())).toFloat()
+            if (p.dir < 0) yaw += 180f
+            var dl = yaw - p.yaw
+            while (dl > 180f) dl -= 360f
+            while (dl < -180f) dl += 360f
+            p.yaw += dl * min(1f, dt * 8f)
+            return
+        }
         val w = p.x1 - p.x0; val d = p.z1 - p.z0
         var t = p.t
         val tx: Float; val tz: Float; var yaw: Float
@@ -634,6 +828,19 @@ object City {
         pedBody = bl.toTypedArray(); pedLeg = ll.toTypedArray(); pedArm = al.toTypedArray()
         peds.clear()
         val rng = Rng(77)
+        if (TOWN) {
+            for (bl in Town.blocks) {
+                val path = Town.polyOffset(bl, 1.5f)
+                val n = max(1, (kotlin.math.abs(Town.polyArea(bl)) / 2500f).toInt().coerceAtMost(4))
+                for (k in 0 until n) {
+                    val p = Ped(0f, 0f, 0f, 0f, 0f, if (rng.f() < 0.5f) 1 else -1, rng.r(1.0f, 1.45f), rng.i(14), path)
+                    p.t = rng.r(0f, p.per); p.v = p.vmax
+                    pedPlace(p, 1f)
+                    peds.add(p)
+                }
+            }
+            return
+        }
         for (i in 0 until NB) for (j in 0 until NB) {
             val x0 = blkX[i * 2] - SIDE * 0.5f; val x1 = blkX[i * 2 + 1] + SIDE * 0.5f
             val z0 = blkZ[j * 2] - SIDE * 0.5f; val z1 = blkZ[j * 2 + 1] + SIDE * 0.5f

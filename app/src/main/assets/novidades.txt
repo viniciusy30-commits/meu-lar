@@ -682,3 +682,10 @@ Etapa 91 — Sims 4: cabelo Bernard refeito para a cabeça do Sims 4; cabelos do
 Etapa 130b – Quarteirões mais variados
 - Quarteirões residenciais agora têm variações: viela de pedra passando no meio, ou vila sem saída (com canteiro, árvore e bancos) aberta para a esquerda ou direita.
 - Casas ajustadas à profundidade de cada lote, com postes e árvores alternados ao longo da viela.
+
+Etapa 131 – Cidade nova (parte 1: motor de ruas curvas)
+- A cidade antiga em grade foi substituída por um motor novo: as ruas agora são curvas, com larguras diferentes, avenidas com canteiro central arborizado e duas rotatórias.
+- Esquinas com guia arredondada, faixas de pedestre, linha de parada, rua sem saída com bolsão de retorno.
+- Quarteirões com formato livre, gerados a partir das ruas.
+- Carros seguem as curvas, fazem conversões e contornam as rotatórias no sentido certo; pedestres andam nas calçadas em volta dos quarteirões.
+- Nesta etapa os quarteirões ainda estão vazios (só gramado): prédios, casas, lojas, relevo e viadutos vêm nas próximas.
