@@ -90,7 +90,7 @@ object Town {
     }
 
     /** Divide a rua que passa mais perto de (x, z) no ponto mais próximo (para ligar ruas novas às existentes). */
-    fun splitNear(x: Float, z: Float, only: Set<Int>? = null): Int {
+    fun splitNear(x: Float, z: Float, only: Set<Int>? = null, reuse: Boolean = true, reuseDist: Float = 38f): Int {
         var be = -1; var bt = 0f; var bd = Float.MAX_VALUE
         for ((ei, ed) in edges.withIndex()) {
             if (only != null && ei !in only) continue
@@ -102,7 +102,7 @@ object Town {
         val t = (lo + hi) / 2
         // já existe uma ligação (T) bem perto do outro lado da rua: vira um cruzamento só
         val p = at(ed, t)
-        for (k in intArrayOf(ed.a, ed.b)) { val nd = nodes[k]; if (nd.edges.size == 3 && hypot(nd.x - p[0], nd.z - p[1]) < 38f) return k }
+        if (reuse) for (k in intArrayOf(ed.a, ed.b)) { val nd = nodes[k]; if (nd.edges.size == 3 && hypot(nd.x - p[0], nd.z - p[1]) < reuseDist) return k }
         if (t < 0.02f) return ed.a
         if (t > 0.98f) return ed.b
         return split(be, t)
@@ -410,12 +410,15 @@ object Town {
         urban.clear()
         val down = arrayOf("down", "hotel", "down", "mall", "down", "apt", "hotel", "down", "hospital", "down", "police", "down", "hotel", "praca", "down", "apt")
         val com = arrayOf("shops", "super", "shops", "gas", "school", "shops", "church", "apt", "shops", "super", "gas", "shops", "apt", "shops", "church", "school")
-        var nd = 0; var nc = 0
+        var nd = 0; var nc = 0; var nu = 0
+        val landD = arrayOf("mall", "hotel", "hospital", "police")
+        val landC = arrayOf("super", "gas", "school", "church", "mall")
+        val landU = arrayOf("school", "church", "super", "gas", "police", "school")
         for ((bi, bl) in blocks.withIndex()) {
             var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
             var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
             val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
-            if (d != TownPlan.DOWN && d != TownPlan.COM) continue
+            if (d != TownPlan.DOWN && d != TownPlan.COM && d != TownPlan.URB) continue
             val fill = abs(area(bl)) / ((x1 - x0) * (z1 - z0))
             if (fill < 0.94f || x1 - x0 < 30f || z1 - z0 < 30f) continue
             // encolhe cada lado até o retângulo inteiro ficar longe das calçadas
@@ -430,7 +433,12 @@ object Town {
                 q = 0; while (q <= 10) { val z = az + (bz - az) * q / 10; if (!ok(bx, z)) { m1 += 0.5f; moved = true; break }; q++ }
                 if (!moved) return@repeat
             }
-            val t = if (d == TownPlan.DOWN) down[(nd++) % down.size] else com[(nc++) % com.size]
+            // poucos marcos únicos (com interior) e o resto em quarteirões de prédios colados, todos diferentes
+            val t = when (d) {
+                TownPlan.DOWN -> if (nd < landD.size) landD[nd++] else "perim"
+                TownPlan.COM -> if (nc < landC.size) landC[nc++] else "perim"
+                else -> if (nu < landU.size && (bi % 5 == 2)) landU[nu++] else "perim"
+            }
             if (x1 - m1 - x0 - m0 < 30f || z1 - m3 - z0 - m2 < 30f) continue
             urban.add(Urban(bi, x0 + m0, z0 + m2, x1 - m1, z1 - m3, t, bi % 7, 1 + bi % 5))
         }

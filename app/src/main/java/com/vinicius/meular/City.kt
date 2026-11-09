@@ -575,8 +575,9 @@ object City {
         val rng = Rng(4242)
         for ((ei, ed) in Town.edges.withIndex()) {
             if (ed.len < 30f) continue
-            val per = if (ed.avenue) 70f else 110f
-            val n = max(1, (ed.len / per).toInt())
+            val per = if (ed.avenue) 120f else 260f   // Etapa 139: cidade grande — menos carros por rua (desempenho)
+            val n = (ed.len / per).toInt() + (if (rng.f() < (ed.len % per) / per) 1 else 0)
+            if (n == 0) continue
             for (k in 0 until n) {
                 val fwd = (k % 2 == 0); val lk = if (ed.avenue) rng.i(2) else 0
                 val m = Vehicles.pick(rng)
@@ -611,7 +612,12 @@ object City {
         }
     }
 
+    private val carGrid = HashMap<Int, ArrayList<Car>>()
+
     private fun updateTown(dt: Float, px: Float, pz: Float) {
+        // grade de 24 m: cada carro só olha os vizinhos (antes era todo mundo contra todo mundo)
+        for (l in carGrid.values) l.clear()
+        for (c in cars) carGrid.getOrPut((Math.floor(c.x / 24.0).toInt() + 500) * 2048 + (Math.floor(c.z / 24.0).toInt() + 500)) { ArrayList() }.add(c)
         for (c in cars) {
             val len = c.cum.last()
             var target = c.vmax * (if (c.onTurn) 0.55f else 1f)
@@ -622,12 +628,13 @@ object City {
                 val along = dx * fx + dz * fz; val side = abs(dx * fz - dz * fx)
                 if (along > 0f && along < 20f && side < lat) target = min(target, max(0f, along - c.halfL - half - 1.6f) * 1.1f)
             }
-            for (o in cars) {
+            val gx = Math.floor(c.x / 24.0).toInt() + 500; val gz = Math.floor(c.z / 24.0).toInt() + 500
+            for (ix in gx - 1..gx + 1) for (iz in gz - 1..gz + 1) carGrid[ix * 2048 + iz]?.let { l -> for (o in l) {
                 if (o === c) continue
                 val dx = o.x - c.x; val dz = o.z - c.z
                 if (dx * dx + dz * dz > 400f) continue
                 obstacle(o.x, o.z, o.halfL, 1.7f)
-            }
+            } }
             obstacle(px, pz, if (driverHalf > 0f) driverHalf else 0.2f, 2.0f)
             ownCar?.let { o -> obstacle(o[0], o[1], o[3], 2.2f) }
             // cruzamento: só entra quem vem da mesma rua enquanto houver carro de outra direção dentro

@@ -17,18 +17,18 @@ import kotlin.math.min
  *  - CASA: o bairro da casa do jogador (rua reta na frente do terreno).
  */
 object TownPlan {
-    const val SUB = 0; const val DOWN = 1; const val COM = 2; const val PARK = 3; const val HOME = 4; const val MAN = 5
+    const val SUB = 0; const val DOWN = 1; const val COM = 2; const val PARK = 3; const val HOME = 4; const val MAN = 5; const val URB = 6
 
     val XS = floatArrayOf(-880f, -530f, -180f, 170f, 520f, 870f)
     val ZS = floatArrayOf(-850f, -500f, -150f, 200f, 550f, 900f)
 
     /** Bairro de cada superquadra [linha z][coluna x]. */
     val D = arrayOf(
-        intArrayOf(MAN, SUB, MAN, SUB, MAN),
-        intArrayOf(SUB, COM, DOWN, DOWN, SUB),
-        intArrayOf(PARK, SUB, HOME, DOWN, COM),
-        intArrayOf(SUB, COM, SUB, COM, SUB),
-        intArrayOf(SUB, SUB, SUB, SUB, SUB))
+        intArrayOf(MAN, URB, MAN, SUB, MAN),
+        intArrayOf(URB, COM, DOWN, DOWN, URB),
+        intArrayOf(PARK, URB, HOME, DOWN, COM),
+        intArrayOf(URB, COM, SUB, COM, URB),
+        intArrayOf(URB, URB, URB, URB, URB))
 
     /** Distrito de cada quarteirão (pelo centro) — usado depois para escolher o que construir. */
     fun districtAt(x: Float, z: Float): Int {
@@ -43,7 +43,7 @@ object TownPlan {
         intArrayOf(1, 0, 0, 0, 3),
         intArrayOf(0, 2, 2, 0, 0),
         intArrayOf(1, 0, 1, 0, 3),
-        intArrayOf(1, 2, 1, 2, 3))
+        intArrayOf(1, 2, 2, 2, 3))
     fun tierAt(x: Float, z: Float): Int {
         var c = 0; while (c < 4 && x > XS[c + 1]) c++
         var r = 0; while (r < 4 && z > ZS[r + 1]) r++
@@ -69,7 +69,7 @@ object TownPlan {
     private fun curveOf(ei: Int): Curve { val e = Town.edges[ei]; val a = Town.nodes[e.a]; val b = Town.nodes[e.b]; return Curve(a.x, a.z, e.c1x, e.c1z, e.c2x, e.c2z, b.x, b.z) }
 
     /** Centro e comércio ficam em malha reta (alinhada aos eixos): prédios e lojas com interior são montados em quadras retangulares. */
-    private fun urbanSide(r: Int, c: Int) = r in 0..4 && c in 0..4 && (D[r][c] == DOWN || D[r][c] == COM)
+    private fun urbanSide(r: Int, c: Int) = r in 0..4 && c in 0..4 && (D[r][c] == DOWN || D[r][c] == COM || D[r][c] == URB)
     private fun urbanCorner(r: Int, c: Int) = urbanSide(r - 1, c - 1) || urbanSide(r - 1, c) || urbanSide(r, c - 1) || urbanSide(r, c)
 
     fun generate() {
@@ -102,7 +102,9 @@ object TownPlan {
         }
         // bairros (as curvas de cada lado guardadas antes de qualquer divisão)
         val HC = Array(6) { r -> Array(5) { c -> curveOf(H[r][c]) } }; val VC = Array(5) { r -> Array(6) { c -> curveOf(V[r][c]) } }
-        for (r in 0..4) for (c in 0..4) {
+        // primeiro as malhas retas (centro, comércio, urbano), depois os bairros de traçado livre (que se ligam nelas)
+        for (pass in 0..1) for (r in 0..4) for (c in 0..4) {
+            if ((pass == 0) != urbanSide(r, c)) continue
             val N = HC[r][c]; val S = HC[r + 1][c]; val W = VC[r][c]; val E = VC[r][c + 1]
             val q = arrayOf(Town.nodes[G[r][c]], Town.nodes[G[r][c + 1]], Town.nodes[G[r + 1][c + 1]], Town.nodes[G[r + 1][c]])
             fun bil(u: Float, v: Float): FloatArray {
@@ -113,7 +115,8 @@ object TownPlan {
             val cr = City.Rng(r * 31 + c * 7 + 3)
             when (D[r][c]) {
                 DOWN -> grid(N, S, W, E, 4, 16f, DOWN)
-                COM -> grid(N, S, W, E, 3, 16f, COM)
+                COM -> grid(N, S, W, E, 4, 16f, COM)
+                URB -> grid(N, S, W, E, 4, 14f, URB)
                 MAN -> {
                     // bairro nobre: poucas ruas, longas e curvas
                     val rot = cr.i(4)
@@ -148,7 +151,8 @@ object TownPlan {
         for (i in 1 until k) { val t = i / k.toFloat(); lines.add(Ln(N.at(t), S.at(t), street())) }
         val nV = lines.size
         for (i in 1 until k) { val t = i / k.toFloat(); lines.add(Ln(W.at(t), E.at(t), street())) }
-        for (ln in lines) { ln.nodes.add(Pair(0f, nodeAt(ln.p, true))); ln.nodes.add(Pair(1f, nodeAt(ln.q, true))) }
+        // malha reta: liga exatamente no ponto (sem aproveitar ligação vizinha, senão a rua sai torta)
+        for (ln in lines) { ln.nodes.add(Pair(0f, Town.splitNear(ln.p[0], ln.p[1], reuseDist = 14f))); ln.nodes.add(Pair(1f, Town.splitNear(ln.q[0], ln.q[1], reuseDist = 14f))) }
         for (a in 0 until nV) for (b in nV until lines.size) {
             val A = lines[a]; val B = lines[b]
             val x = segX(A.p, A.q, B.p, B.q) ?: continue

@@ -14,7 +14,7 @@ object TownSmall {
     private const val CURB = Town.CURB
 
     /** Quadro local: u ao longo da frente, v da frente (0) para o fundo. */
-    private class F(val x0: Float, val z0: Float, val x1: Float, val z1: Float, val side: Int) {
+    class F(val x0: Float, val z0: Float, val x1: Float, val z1: Float, val side: Int) {
         // side: 0 frente em z0 (olhando −z), 1 frente em x1 (+x), 2 frente em z1 (+z), 3 frente em x0 (−x)
         val W get() = if (side % 2 == 0) x1 - x0 else z1 - z0
         val D get() = if (side % 2 == 0) z1 - z0 else x1 - x0

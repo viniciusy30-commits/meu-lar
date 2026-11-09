@@ -734,3 +734,9 @@ Etapa 138 – Menos parques, mais cidade
 - Ficou só um parque, o Parque Central (grande, com lago, caminhos e áreas). Os outros quarteirões de parque e as pracinhas do centro viraram cidade.
 - Espaços pequenos (12 a 36 m) que sobravam entre lotes e prédios agora recebem construções: sobrados geminados (cada casa com cor e porta próprias), prédios residenciais de 3 a 7 andares com varandas e portaria, comércios de bairro com vitrine, toldo e letreiro, prédios de escritórios de vidro, estacionamentos com carros e pátios com pérgola. Cada um vira para a rua mais perto e sorteia medidas, cores e detalhes.
 - São 684 construções com interior conferidas e mais 414 construções pequenas.
+
+Etapa 139 – Metrópole
+- A maior parte da cidade virou quarteirões urbanos densos (estilo Nova York / Los Angeles): prédios colados em volta de cada quarteirão, com a fachada alinhada na calçada, e pátio no miolo (jardim, estacionamento, piscina, quadra ou playground).
+- Cada lote de cada quarteirão sorteia o seu prédio: reboco com janelas e varandas, tijolo aparente com escada de incêndio, vidro com montantes, torre sobre embasamento com coroa (no centro), art déco escalonado ou sobrados geminados com escadinha; altura, cores, térreo comercial (vitrine com caixilho, toldo e letreiro) e cobertura (casa de máquinas, caixa d'água de madeira, jardim) variam. Esquinas com prédios mais altos e vitrine também na lateral.
+- Ficaram como bairros de casas: o bairro da sua casa, dois subúrbios (casas à venda) e o bairro nobre das mansões; mais o Parque Central e a praia.
+- Ruas das malhas retas sempre retas; trânsito mais leve para o celular (cada carro só olha os vizinhos).
