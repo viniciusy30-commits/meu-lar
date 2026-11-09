@@ -40,10 +40,10 @@ object TownPlan {
 
     /** Etapa 147: altura do morro (+) ou fundura do vale (−) no meio de cada superquadra, em metros. */
     val RELIEF = arrayOf(
-        floatArrayOf(8f, -6f, 0f, 7f),
-        floatArrayOf(9f, 0f, 0f, 0f),
-        floatArrayOf(0f, 0f, 0f, -6f),
-        floatArrayOf(5f, 0f, 6f, 4.5f))
+        floatArrayOf(6f, -4.5f, 0f, 5f),
+        floatArrayOf(6.5f, 0f, 0f, 0f),
+        floatArrayOf(0f, 0f, 0f, -4.5f),
+        floatArrayOf(3.5f, 0f, 4.5f, 3.2f))
 
     /** Centro da superquadra que contém (x, z). */
     fun cellCenter(x: Float, z: Float): FloatArray {
@@ -219,14 +219,23 @@ object TownPlan {
     }
 
     private fun grid(N: Curve, S: Curve, W: Curve, E: Curve, k: Int, w: Float, kind: Int, kz: Int = k, bend: Float = 0f, align: Boolean = true, gapU: Float = 0.6f / k, gapV: Float = 0.6f / kz) {
-        class Ln(val p: FloatArray, val q: FloatArray, val name: String) { val nodes = ArrayList<Pair<Float, Int>>() }
+        class Ln(val p: FloatArray, val q: FloatArray, val name: String, val cutP: Boolean = false, val cutQ: Boolean = false) { val nodes = ArrayList<Pair<Float, Int>>() }
         val lines = ArrayList<Ln>()
         fun uni(n: Int) = (1 until n).map { Pair(it / n.toFloat(), it / n.toFloat()) }
-        for (t in if (align) lineTs(N, S, k, gapU) else uni(k)) lines.add(Ln(N.at(t.first), S.at(t.second), street()))
+        for (t in if (align) lineTs(N, S, k, gapU) else uni(k)) { val p = N.at(t.first); val q = S.at(t.second); lines.add(Ln(p, q, street(), noCross(p), noCross(q))) }
         val nV = lines.size
         for (t in if (align) lineTs(W, E, kz, gapV) else uni(kz)) lines.add(Ln(W.at(t.first), E.at(t.second), street()))
+        // Etapa 150: se uma rua não pode chegar na Av. Paulista (alça do elevado), uma rua paralela à avenida recolhe as transversais
+        // (a quadra junto da avenida fica com o fundo normal de dois lotes, sem miolo vazio)
+        for (side in 0..1) {
+            if (lines.take(nV).none { if (side == 0) it.cutQ else it.cutP }) continue
+            val zt = ZS[1] + (if (side == 0) -62f else 62f)
+            if (lines.drop(nV).any { abs((it.p[1] + it.q[1]) / 2 - zt) < 30f }) continue
+            lines.add(Ln(W.at(W.tAtZ(zt)), E.at(E.tAtZ(zt)), street()))
+        }
         // malha reta: liga exatamente no ponto (sem aproveitar ligação vizinha, senão a rua sai torta)
-        for (ln in lines) { ln.nodes.add(Pair(0f, Town.splitNear(ln.p[0], ln.p[1], reuseDist = 14f))); ln.nodes.add(Pair(1f, Town.splitNear(ln.q[0], ln.q[1], reuseDist = 14f))) }
+        // Etapa 150: a ponta que cairia junto da alça do elevado não chega na avenida (a rua termina no cruzamento anterior)
+        for (ln in lines) { if (!ln.cutP) ln.nodes.add(Pair(0f, Town.splitNear(ln.p[0], ln.p[1], reuseDist = 14f))); if (!ln.cutQ) ln.nodes.add(Pair(1f, Town.splitNear(ln.q[0], ln.q[1], reuseDist = 14f))) }
         for (a in 0 until nV) for (b in nV until lines.size) {
             val A = lines[a]; val B = lines[b]
             val x = segX(A.p, A.q, B.p, B.q) ?: continue
@@ -238,6 +247,12 @@ object TownPlan {
             for (i in 0 until ln.nodes.size - 1) { val ei = Town.e(ln.nodes[i].second, ln.nodes[i + 1].second, w, if (ln.nodes.size == 2) bend else 0f, ln.name); Town.edges[ei].kind = kind }
         }
     }
+
+    /**
+     * Etapa 150: trechos da Av. Paulista junto das rotatórias onde fica a alça do elevado — nenhuma rua transversal chega ali
+     * (a quadra fica comprida e ninguém precisa cruzar o canteiro debaixo da rampa).
+     */
+    private fun noCross(p: FloatArray): Boolean = abs(p[1] - ZS[1]) < 10f && ((p[0] > XS[1] + 8f && p[0] < XS[1] + 150f) || (p[0] > XS[3] - 150f && p[0] < XS[3] - 8f))
 
     private fun segX(a: FloatArray, b: FloatArray, c: FloatArray, d: FloatArray): FloatArray? {
         val rx = b[0] - a[0]; val rz = b[1] - a[1]; val sx = d[0] - c[0]; val sz = d[1] - c[1]

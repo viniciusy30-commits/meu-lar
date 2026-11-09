@@ -61,7 +61,15 @@ object TownGeo {
     private fun split(b: MB, ax: Float, az: Float, bx: Float, bz: Float, cx: Float, cz: Float, y: Float, c: Int, d: Int) {
         val ab = hypot(bx - ax, bz - az); val bc = hypot(cx - bx, cz - bz); val ca = hypot(ax - cx, az - cz)
         val m = max(ab, max(bc, ca))
-        if (m <= 7f || d > 14) { b.v(ax, y, az, 0f, 1f, 0f, c, ax, az); b.v(bx, y, bz, 0f, 1f, 0f, c, bx, bz); b.v(cx, y, cz, 0f, 1f, 0f, c, cx, cz); return }
+        // Etapa 150: no relevo, pedaços de ~2 m (a malha acompanha os platôs sem rampa de grama por cima do gramado)
+        // Etapa 150: triângulo inteiro dentro de um lote do relevo some (o lote tem o próprio gramado); na borda de lote, pedaços de ~1 m
+        var lim = 7f
+        if (b.warp && m <= 7f) {
+            val la = TownHouses.reliefLot(ax, az); val lb = TownHouses.reliefLot(bx, bz); val lc = TownHouses.reliefLot(cx, cz)
+            if (la != null && la === lb && la === lc) return
+            if (la != null || lb != null || lc != null || TownHouses.reliefLot((ax + bx) / 2, (az + bz) / 2) != null || TownHouses.reliefLot((bx + cx) / 2, (bz + cz) / 2) != null || TownHouses.reliefLot((cx + ax) / 2, (cz + az) / 2) != null || TownHouses.reliefLot((ax + bx + cx) / 3, (az + bz + cz) / 3) != null) lim = 2.0f
+        }
+        if (m <= lim || d > 20) { b.v(ax, y, az, 0f, 1f, 0f, c, ax, az); b.v(bx, y, bz, 0f, 1f, 0f, c, bx, bz); b.v(cx, y, cz, 0f, 1f, 0f, c, cx, cz); return }
         when (m) {
             ab -> { val mx = (ax + bx) / 2; val mz = (az + bz) / 2; split(b, ax, az, mx, mz, cx, cz, y, c, d + 1); split(b, mx, mz, bx, bz, cx, cz, y, c, d + 1) }
             bc -> { val mx = (bx + cx) / 2; val mz = (bz + cz) / 2; split(b, ax, az, bx, bz, mx, mz, y, c, d + 1); split(b, ax, az, mx, mz, cx, cz, y, c, d + 1) }
@@ -166,11 +174,51 @@ object TownGeo {
         if (!pad.isNaN()) { g.b.beginFixed(pad); g.f.beginFixed(pad); g.fl.fixedY = pad }
         val h = if (u.type == "small") TownSmall.build(g, u, ui) else if (u.type == "perim") TownBlock.build(g, u, ui) else if (u.type.startsWith("job:")) TownJobs.build(g, u, ui) else CityGeo.block(g, u.type, u.i, u.j)
         if (!pad.isNaN()) {
-            val ring = floatArrayOf(u.x0, u.z0, u.x1, u.z0, u.x1, u.z1, u.x0, u.z1)
-            skirt(g.b, ring); skirt(g.f, ring)
             g.b.endFixed(); g.f.endFixed(); g.fl.fixedY = Float.NaN
+            // Etapa 150: muro de arrimo em volta (do chão de fora até o platô)
+            for (mb in arrayOf(g.b, g.f)) {
+                mb.beginFixed(0f); mb.m(Mt.STONE, 0.5f)
+                retain(mb, u.x0, u.z0, u.x1, u.z0, 0f, -1f, pad + CURB); retain(mb, u.x1, u.z0, u.x1, u.z1, 1f, 0f, pad + CURB)
+                retain(mb, u.x1, u.z1, u.x0, u.z1, 0f, 1f, pad + CURB); retain(mb, u.x0, u.z1, u.x0, u.z0, -1f, 0f, pad + CURB)
+                mb.endFixed()
+            }
         }
         return h
+    }
+
+    /**
+     * Etapa 150: muro de arrimo ao longo da borda a→b de um platô de altura [top] (já com a guia), com o lado de fora em (ox, oz):
+     * de 35 cm abaixo do chão mais baixo até o chão mais alto (o de dentro ou o de fora), amostrado a cada ~1 m. [skip](t) pula trechos.
+     */
+    fun retain(b: MB, ax: Float, az: Float, bx: Float, bz: Float, ox: Float, oz: Float, top: Float, skip: (Float) -> Boolean = { false }) {
+        val L = hypot(bx - ax, bz - az); if (L < 0.05f) return
+        val n = max(1, Math.ceil(L.toDouble()).toInt())
+        val col = C("#A39C90"); val cap = C("#CBC5B9")
+        var px = 0f; var pz = 0f; var pt = 0f; var pb = 0f; var pok = false
+        for (i in 0..n) {
+            val t = i / n.toFloat(); val x = ax + (bx - ax) * t; val z = az + (bz - az) * t
+            val o = Town.groundH(x + ox * 0.35f, z + oz * 0.35f)
+            val hi = max(top, o); val lo = min(top, o) - 0.35f
+            val ok = abs(top - o) > 0.04f && !skip(t)
+            if (i > 0 && (ok || pok) && !skip(t - 0.5f / n)) {
+                for (sg in floatArrayOf(1f, -1f)) {
+                    val nx = ox * sg; val nz = oz * sg; val dx = if (sg < 0f) -ox * 0.015f else 0f; val dz = if (sg < 0f) -oz * 0.015f else 0f
+                    val ax2 = px + dx; val az2 = pz + dz; val bx2 = x + dx; val bz2 = z + dz
+                    b.v(ax2, pb, az2, nx, 0f, nz, col, px + pz, pb); b.v(bx2, lo, bz2, nx, 0f, nz, col, x + z, lo); b.v(bx2, hi, bz2, nx, 0f, nz, col, x + z, hi)
+                    b.v(ax2, pb, az2, nx, 0f, nz, col, px + pz, pb); b.v(bx2, hi, bz2, nx, 0f, nz, col, x + z, hi); b.v(ax2, pt, az2, nx, 0f, nz, col, px + pz, pt)
+                }
+                // coroamento por cima, onde o desnível passa de 30 cm
+                if (max(pt, hi) - max(pb, lo) > 0.65f) {
+                    val y = max(pt, hi) + 0.025f; val w = 0.13f
+                    b.v(px - ox * w, y, pz - oz * w, 0f, 1f, 0f, cap, px, pz); b.v(x + ox * w, y, z + oz * w, 0f, 1f, 0f, cap, x, z); b.v(x - ox * w, y, z - oz * w, 0f, 1f, 0f, cap, x, z)
+                    b.v(px - ox * w, y, pz - oz * w, 0f, 1f, 0f, cap, px, pz); b.v(px + ox * w, y, pz + oz * w, 0f, 1f, 0f, cap, px, pz); b.v(x + ox * w, y, z + oz * w, 0f, 1f, 0f, cap, x, z)
+                    for (q in 0..1) { val sx = if (q == 0) -1f else 1f   // laterais do coroamento (5 cm)
+                        b.v(px + sx * ox * w, y, pz + sx * oz * w, sx * ox, 0f, sx * oz, cap, px, y); b.v(x + sx * ox * w, y - 0.05f, z + sx * oz * w, sx * ox, 0f, sx * oz, cap, x, y - 0.05f); b.v(x + sx * ox * w, y, z + sx * oz * w, sx * ox, 0f, sx * oz, cap, x, y)
+                        b.v(px + sx * ox * w, y, pz + sx * oz * w, sx * ox, 0f, sx * oz, cap, px, y); b.v(px + sx * ox * w, y - 0.05f, pz + sx * oz * w, sx * ox, 0f, sx * oz, cap, px, y - 0.05f); b.v(x + sx * ox * w, y - 0.05f, z + sx * oz * w, sx * ox, 0f, sx * oz, cap, x, y - 0.05f) }
+                }
+            }
+            px = x; pz = z; pt = hi; pb = lo; pok = ok
+        }
     }
 
     /** Etapa 148: muro de arrimo em volta de um platô (de 3 m abaixo até a borda do gramado) — some no lado alto, aparece no baixo. */
@@ -216,9 +264,8 @@ object TownGeo {
             if (!l.pad.isNaN()) { g.b.beginFixed(l.pad); if (far) g.f.beginFixed(l.pad); g.fl.fixedY = l.pad }
             TownHouses.draw(g, l, !far, far)
             if (!l.pad.isNaN()) {
-                val c = TownHouses.corners(l)
-                skirt(g.b, c); if (far) skirt(g.f, c)
                 g.b.endFixed(); if (far) g.f.endFixed(); g.fl.fixedY = Float.NaN
+                TownHouses.walls(g, l, far)
             }
         }
         if (!far) return
@@ -319,9 +366,9 @@ object TownGeo {
             g.solid(q[0] - 0.15f, q[1] - 0.15f, q[0] + 0.15f, q[1] + 0.15f)
             s += 26f; k++
         }
-        // Etapa 149: cada rua com a sua espécie de árvore (ipê roxo, ipê amarelo, sibipiruna, oiti, palmeira...), dos dois lados
+        // Etapa 149: cada rua com a sua espécie de árvore (Etapa 150: só árvores verdes — copa redonda, copa clara ou copa alta), dos dois lados
         val res = ed.kind == TownPlan.SUB || ed.kind == TownPlan.HOME || ed.kind == TownPlan.MAN || ed.kind == TownPlan.PARK
-        val species = intArrayOf(0, 2, 3, 1, 4, 0, 3, 2)[Math.floorMod(ed.name.hashCode(), 8)]
+        val species = intArrayOf(0, 1, 4, 0, 1, 4, 0, 1)[Math.floorMod(ed.name.hashCode(), 8)]
         if (ed.len > 16f) {
             var st = 6f; var q = 0
             val step = if (ed.avenue) 15f else if (res) 13f else 13f
@@ -465,6 +512,30 @@ object TownGeo {
             b.m(Mt.PLAIN); b.cyl(x, h + 2.2f * s, z, 2.6f * s, 0.2f, 6.5f * s, C(if (tr.chance(0.5f)) "#2E5E32" else "#3B6E3A"), true, 7)
         }
         val ol = Town.outline
+        // Etapa 150: mata fechada logo depois da rua de contorno (nada de campo vazio entre a cidade e os morros)
+        if (ol.isNotEmpty()) {
+            fun distOut(x: Float, z: Float): Float {
+                if (Town.inside(ol, x, z)) return -1f
+                var d = Float.MAX_VALUE; val n = ol.size / 2
+                for (i in 0 until n) { val j = (i + 1) % n; val ax = ol[i * 2]; val az = ol[i * 2 + 1]; val bx = ol[j * 2]; val bz = ol[j * 2 + 1]
+                    val ux = bx - ax; val uz = bz - az; val l2 = max(1e-4f, ux * ux + uz * uz); val t = (((x - ax) * ux + (z - az) * uz) / l2).coerceIn(0f, 1f)
+                    d = min(d, hypot(x - ax - ux * t, z - az - uz * t)) }
+                return d
+            }
+            val fr = City.Rng(919)
+            var placed = 0; var tries = 0
+            while (placed < 1500 && tries < 20000) {
+                tries++
+                val x = fr.r(Town.minX - 160f, Town.maxX + 160f); val z = fr.r(Town.minZ - 160f, zb - 25f)
+                val d = distOut(x, z); if (d < 9f || d > 150f) continue
+                if (fr.r(0f, 1f) < d / 220f) continue   // mais fechada junto da cidade
+                val y = hy(x, z) + 0.6f
+                if (d < 45f || fr.chance(0.35f)) CityGeo.tree(g, x, z, fr.r(1.0f, 1.6f), y, if (fr.chance(0.6f)) 0 else 4)
+                else { val sc = fr.r(0.9f, 1.5f); b.m(Mt.BARK, 1f); b.cyl(x, y - 0.5f, z, 0.35f * sc, 0.25f * sc, 3.5f * sc, C("#5D4037"), true, 5)
+                    b.m(Mt.PLAIN); b.cyl(x, y + 2.2f * sc, z, 2.6f * sc, 0.2f, 6.5f * sc, C(if (fr.chance(0.5f)) "#2E5E32" else "#3B6E3A"), true, 7) }
+                placed++
+            }
+        }
         if (ol.isNotEmpty()) {
             val ring = FloatArray(ol.size + 2); System.arraycopy(ol, 0, ring, 0, ol.size); ring[ol.size] = ol[0]; ring[ol.size + 1] = ol[1]
             b.m(Mt.STONE, 1f); curbWall(b, ring, -0.06f, CURB, Town.polyArea(ol) < 0, CURBC)

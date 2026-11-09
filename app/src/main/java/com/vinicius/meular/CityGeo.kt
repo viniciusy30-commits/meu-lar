@@ -202,7 +202,8 @@ object CityGeo {
      */
     fun tree(g: Gen, x: Float, z: Float, s: Float, y: Float = CURB, kind0: Int = -1) {
         val b = g.b; val rng = g.rng
-        val kind = if (kind0 >= 0) kind0 else rng.pick(arrayOf(0, 0, 1, 4, 4, 2, 3, 0, 1))
+        // Etapa 150: só árvores verdes (os ipês roxo/amarelo viram copa redonda e copa clara)
+        val kind = (if (kind0 >= 0) kind0 else rng.pick(arrayOf(0, 0, 1, 4, 4, 0, 1, 0, 1))).let { if (it == 2) 0 else if (it == 3) 1 else it }
         val H = (if (kind == 4) 3.4f else 2.6f) * s
         val R = (if (kind == 4) 1.9f else 2.3f) * s
         val trunk = C(rng.pick(arrayOf("#6B5442", "#7A604A", "#5E4A3A")))
@@ -2569,16 +2570,16 @@ object CityGeo {
         }
         // fim sul: coreto no eixo
         coreto(g, cx, cz + 19.2f)
-        // Etapa 149: quadra grande — passeio em volta com fileira de ipês e oitis, bancos, e bosque nos cantos (nada de gramado vazio)
+        // Etapa 149: quadra grande — passeio em volta com fileira de árvores, bancos, e bosque nos cantos (nada de gramado vazio)
         if (hw > 16f || hd > 27f) {
             b.m(Mt.PAVER, 0.7f)
             val pw = 3.2f
             b.box(cx, CURB + 0.012f, g.z0 + pw / 2, hw * 2, 0.02f, pw, C("#E2D9C8")); b.box(cx, CURB + 0.012f, g.z1 - pw / 2, hw * 2, 0.02f, pw, C("#E2D9C8"))
             b.box(g.x0 + pw / 2, CURB + 0.012f, cz, pw, 0.02f, hd * 2 - 2 * pw, C("#E2D9C8")); b.box(g.x1 - pw / 2, CURB + 0.012f, cz, pw, 0.02f, hd * 2 - 2 * pw, C("#E2D9C8"))
             fun free(x: Float, z: Float) = !(abs(x - cx) < 12.5f && abs(z - cz) < 24.5f) && abs(x - cx) > 3.4f && abs(z - cz) > 3.4f
-            // fileira de árvores na beira interna do passeio, alternando ipê roxo e amarelo
+            // fileira de árvores na beira interna do passeio, alternando copa redonda e copa clara
             var k = 0
-            fun rowTree(x: Float, z: Float) { if (free(x, z)) { tree(g, x, z, rng.r(0.9f, 1.15f), CURB, if (k % 2 == 0) 2 else 3); g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f) }; k++ }
+            fun rowTree(x: Float, z: Float) { if (free(x, z)) { tree(g, x, z, rng.r(0.9f, 1.15f), CURB, if (k % 2 == 0) 0 else 1); g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f) }; k++ }
             var t = g.x0 + 5f; while (t < g.x1 - 4f) { rowTree(t, g.z0 + pw + 1.2f); rowTree(t, g.z1 - pw - 1.2f); t += 8f }
             t = g.z0 + 12f; while (t < g.z1 - 11f) { rowTree(g.x0 + pw + 1.2f, t); rowTree(g.x1 - pw - 1.2f, t); t += 8f }
             // bancos virados para o passeio
@@ -2590,7 +2591,7 @@ object CityGeo {
                 var x = qx0; var j = 0
                 while (x < qx1) { var z = qz0 + (j % 2) * 4f
                     while (z < qz1) { val jx = x + rng.r(-1.5f, 1.5f); val jz = z + rng.r(-1.5f, 1.5f)
-                        if (free(jx, jz)) { tree(g, jx, jz, rng.r(0.95f, 1.35f), CURB, intArrayOf(0, 1, 4, 0, 2)[rng.i(5)]); g.solid(jx - 0.3f, jz - 0.3f, jx + 0.3f, jz + 0.3f) }
+                        if (free(jx, jz)) { tree(g, jx, jz, rng.r(0.95f, 1.35f), CURB, intArrayOf(0, 1, 4, 0, 1)[rng.i(5)]); g.solid(jx - 0.3f, jz - 0.3f, jx + 0.3f, jz + 0.3f) }
                         z += 8f }
                     x += 7f; j++ }
             }

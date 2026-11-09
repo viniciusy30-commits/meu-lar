@@ -581,7 +581,7 @@ class MB {
             var ri = 0; var v = 0; var i = 0
             while (i < f.n) {
                 while (ri < rs.size && v >= rs[ri][2].toInt()) ri++
-                val dy = if (ri < rs.size && v >= rs[ri][1].toInt()) rs[ri][3] else if (warpElev) Town.elev(f.a[i], f.a[i + 2]) else Town.terrain(f.a[i], f.a[i + 2])
+                val dy = if (ri < rs.size && v >= rs[ri][1].toInt()) rs[ri][3] else if (warpElev) Town.elev(f.a[i], f.a[i + 2]) else Town.meshElev(f.a[i], f.a[i + 2])
                 f.a[i + 1] += dy
                 i += STRIDE; v++
             }

@@ -34,11 +34,26 @@ object Elevado {
     fun plan() {
         list.clear(); edgeSet.clear()
         if (!City.TOWN) return
-        // Etapa 146: tenta as quatro avenidas largas e fica com as que cabem sem cruzar outro elevado no mesmo nível
-        fit(0, TownPlan.ZS[1], TownPlan.XS[0] + 30f, TownPlan.XS[TownPlan.N] - 30f, "Elevado Paulista")
-        fit(0, TownPlan.ZS[3], TownPlan.XS[0] + 30f, TownPlan.XS[TownPlan.N] - 30f, "Elevado Atlântica")
-        fit(1, TownPlan.XS[2], TownPlan.ZS[0] + 30f, TownPlan.ZS[TownPlan.N] - 40f, "Elevado Brasil")
-        fit(1, TownPlan.XS[1], TownPlan.ZS[0] + 30f, TownPlan.ZS[TownPlan.N] - 40f, "Elevado Santos Dumont")
+        // Etapa 150: um elevado só, onde faz sentido — a via expressa da Av. Paulista que passa por cima do centro, ligando
+        // as duas rotatórias grandes (a planta deixa as quadras junto das rotatórias compridas, sem rua cruzando debaixo das alças)
+        between(0, TownPlan.ZS[1], TownPlan.XS[1], TownPlan.XS[3], "Elevado Paulista")
+    }
+
+    /** Elevado sobre a avenida (eixo [axis], linha c) de uma rotatória (sA) até a outra (sB): alças a 12 m das rotatórias. */
+    private fun between(axis: Int, c: Float, sA: Float, sB: Float, name: String) {
+        val near = Town.nodes.filter { n -> abs(if (axis == 0) n.z - c else n.x - c) < 18f + n.r }.map { n -> floatArrayOf(if (axis == 0) n.x else n.z, n.r) }
+        val ra = near.minByOrNull { abs(it[0] - sA) }?.get(1) ?: 24f; val rb = near.minByOrNull { abs(it[0] - sB) }?.get(1) ?: 24f
+        val e = E(axis, c, sA + ra + 12f, sB - rb - 12f, name)
+        // nenhum cruzamento pode ficar debaixo da parte baixa das alças (os carros da transversal passam por baixo com folga)
+        for (nd in near) if (nd[0] > e.a0 && nd[0] < e.a1) { val lo = min(e.prof(nd[0] - nd[1] - 2f), e.prof(nd[0] + nd[1] + 2f)); if (lo.isNaN() || lo < 6.2f) println("Elevado: cruzamento em ${nd[0]} debaixo da alça (%.1f m)".format(lo)) }
+        // pilares a cada ~24 m, longe dos cruzamentos e das faixas de pedestre
+        var s = e.a0 + RAMP * 0.72f
+        while (s < e.a1 - RAMP * 0.72f) {
+            if (near.none { abs(it[0] - s) < it[1] + 9f }) { e.pillars.add(s); s += 24f } else s += 2f
+        }
+        list.add(e)
+        for ((ei, ed) in Town.edges.withIndex()) { val m = ed.pts.size / 4 * 2; val x = ed.pts[m]; val z = ed.pts[m + 1]
+            if (abs(e.lat(x, z)) < 3f && e.sOf(x, z) > e.a0 - 15f && e.sOf(x, z) < e.a1 + 15f) edgeSet.add(ei) }
     }
 
     /** Ajusta as pontas para as alças não caírem em cruzamento e põe pilares longe das ruas transversais. */

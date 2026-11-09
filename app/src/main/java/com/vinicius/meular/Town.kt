@@ -409,7 +409,11 @@ object Town {
         /** Etapa 148: platô (nos bairros com relevo) */
         var pad = Float.NaN; private var padDone = false
         fun padY(): Float {
-            if (!padDone) { padDone = true; var m = -1e9f; var any = false; for (a in 0..4) for (b in 0..4) { val t = terrain(x0 + (x1 - x0) * a / 4, z0 + (z1 - z0) * b / 4); if (abs(t) > 0.02f) any = true; m = max(m, t) }; pad = if (any) m + 0.06f else Float.NaN }
+            if (!padDone) { padDone = true; var any = false; for (a in 0..4) for (b in 0..4) { val t = terrain(x0 + (x1 - x0) * a / 4, z0 + (z1 - z0) * b / 4); if (abs(t) > 0.02f) any = true }
+                // Etapa 150: nivelado na altura da calçada do lado que dá para a rua (a porta fica no nível da rua)
+                val mids = arrayOf(floatArrayOf((x0 + x1) / 2, z0, 0f, -1f), floatArrayOf((x0 + x1) / 2, z1, 0f, 1f), floatArrayOf(x0, (z0 + z1) / 2, -1f, 0f), floatArrayOf(x1, (z0 + z1) / 2, 1f, 0f))
+                val m = mids.minByOrNull { clearance(it[0] + it[2] * 3f, it[1] + it[3] * 3f) }!!
+                pad = if (any) terrain(m[0] + m[2] * 3f, m[1] + m[3] * 3f) else Float.NaN }
             return pad
         }
     }
@@ -759,13 +763,16 @@ object Town {
         return a * su * su * sv * sv
     }
 
+    /** Etapa 150: altura da malha do chão (relevo; afundada debaixo dos lotes, que têm o próprio gramado nivelado). */
+    fun meshElev(x: Float, z: Float): Float { val s = TownHouses.sinkAt(x, z); return if (!s.isNaN()) s else terrain(x, z) }
+
     fun groundFlat(x: Float, z: Float): Float = groundH(x, z) - elev(x, z)
 
     /** Etapa 148: altura do chão pelo relevo, já com os platôs dos lotes e conjuntos pequenos (nivelados). */
     fun elev(x: Float, z: Float): Float {
+        val p = TownHouses.padAt(x, z); if (!p.isNaN()) return p
         val t = terrain(x, z)
         if (t == 0f) return 0f
-        val p = TownHouses.padAt(x, z); if (!p.isNaN()) return p
         for (u in urban) if (u.type == "small" && x > u.x0 - 0.05f && x < u.x1 + 0.05f && z > u.z0 - 0.05f && z < u.z1 + 0.05f) { val q = u.padY(); if (!q.isNaN()) return q }
         return t
     }

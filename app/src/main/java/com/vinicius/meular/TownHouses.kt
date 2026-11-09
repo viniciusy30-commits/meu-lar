@@ -23,6 +23,11 @@ object TownHouses {
         var forSale = false
         /** Etapa 148: altura do platô do lote no relevo (o lote inteiro fica nivelado) */
         var pad = Float.NaN
+        /** Etapa 150: escada da calçadinha (quando a calçada e o platô ficam em alturas diferentes): faixa [stU0, stU1], comprimento stLen, altura da calçada stS */
+        var stU0 = 0f; var stU1 = 0f; var stLen = 0f; var stS = 0f
+        /** coordenadas do lote (u ao longo da rua, v entrando) */
+        fun lu(x: Float, z: Float) = (x - fx) * tx + (z - fz) * tz
+        fun lv(x: Float, z: Float) = (x - fx) * nx + (z - fz) * nz
         /** o ponto (x, z) cai dentro do lote? */
         fun has(x: Float, z: Float): Boolean { val dx = x - fx; val dz = z - fz; val u = dx * tx + dz * tz; val v = dx * nx + dz * nz; return u > -w / 2 - 0.05f && u < w / 2 + 0.05f && v > -0.05f && v < d + 0.05f }
         var price = 0
@@ -59,8 +64,47 @@ object TownHouses {
     /** Etapa 148: platô do lote que contém (x, z), ou NaN. */
     fun padAt(x: Float, z: Float): Float {
         val lst = lotBy[(Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)] ?: return Float.NaN
-        for (l in lst) if (!l.pad.isNaN() && l.has(x, z)) return l.pad
+        for (l in lst) {
+            if (l.pad.isNaN()) continue
+            val u = l.lu(x, z); val v = l.lv(x, z)
+            if (u < -l.w / 2 - 0.05f || u > l.w / 2 + 0.05f || v < FO + 0.05f || v > l.d + 0.05f) continue
+            // Etapa 150: na escada da entrada o chão vai da calçada até o platô (rampa para quem anda)
+            if (l.stLen > 0f && u > l.stU0 && u < l.stU1 && v < FO + l.stLen) return l.stS + (l.pad - l.stS) * ((v - FO) / l.stLen)
+            return l.pad
+        }
         return Float.NaN
+    }
+
+    /** Etapa 150: lote do relevo (com platô) que contém o ponto (lista de lotes), ou null. */
+    fun reliefLot(x: Float, z: Float): Lot? {
+        val lst = lotBy[(Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)] ?: return null
+        for (l in lst) {
+            if (l.pad.isNaN()) continue
+            val u = l.lu(x, z); val v = l.lv(x, z)
+            if (u > -l.w / 2 && u < l.w / 2 && v > 0f && v < l.d) return l
+        }
+        return null
+    }
+
+    /** Etapa 150: dentro do lote a malha do quarteirão fica logo abaixo do gramado nivelado do lote (sem aparecer por cima dele). */
+    fun sinkAt(x: Float, z: Float): Float { val l = reliefLot(x, z) ?: return Float.NaN; return min(Town.terrain(x, z), l.pad - 0.08f) }
+
+    /** Etapa 150: no relevo o platô começa já na beira da calçada (a faixa de grama de 60 cm entre a calçada e o lote vai junto). */
+    const val FO = 0f
+
+    /** Etapa 150: altura do platô: a calçada na entrada (garagem, ou o portão da casa) — a entrada fica no nível da rua. */
+    private fun level(l: Lot) {
+        var m = -1e9f; var any = false
+        for (a in 0..4) for (b in 0..4) { val t = Town.terrain(l.wx(-l.w / 2 + l.w * a / 4, l.d * b / 4), l.wz(-l.w / 2 + l.w * a / 4, l.d * b / 4)); if (abs(t) > 0.02f) any = true; m = max(m, t) }
+        if (!any) { l.pad = Float.NaN; return }
+        if (l.tier == 4) { l.pad = Town.terrain(l.wx(0f, FO - 0.3f), l.wz(0f, FO - 0.3f)); return }
+        val h = HP(l)
+        val uE = if (h.gw > 0f) (h.dx0 + h.dx1) / 2 else h.doorX
+        l.pad = Town.terrain(l.wx(uE, FO - 0.3f), l.wz(uE, FO - 0.3f))
+        // portão da casa: se a calçada ali estiver mais alta ou mais baixa, uma escadinha de degraus de 17 cm
+        val sw = Town.terrain(l.wx(h.doorX, FO - 0.3f), l.wz(h.doorX, FO - 0.3f))
+        val dl = sw - l.pad
+        if (abs(dl) > 0.1f) { val n = Math.ceil(abs(dl) / 0.17).toInt(); l.stU0 = h.doorX - 0.75f; l.stU1 = h.doorX + 0.75f; l.stLen = n * 0.32f; l.stS = sw }
     }
 
     fun corners(l: Lot): FloatArray = floatArrayOf(l.wx(-l.w / 2, 0f), l.wz(-l.w / 2, 0f), l.wx(l.w / 2, 0f), l.wz(l.w / 2, 0f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d))
@@ -178,11 +222,7 @@ object TownHouses {
         }
         // cada mansão num estilo, alternando (vizinhas nunca iguais)
         // Etapa 148: platô de cada lote = ponto mais alto do relevo dentro dele (nada fica enterrado; no lado baixo aparece o muro de arrimo)
-        for (l in lots) {
-            var m = -1e9f; var any = false
-            for (a in 0..4) for (b in 0..4) { val t = Town.terrain(l.wx(-l.w / 2 + l.w * a / 4, l.d * b / 4), l.wz(-l.w / 2 + l.w * a / 4, l.d * b / 4)); if (abs(t) > 0.02f) any = true; m = max(m, t) }
-            l.pad = if (any) m + 0.06f else Float.NaN
-        }
+        for (l in lots) level(l)
         // Etapa 146: em cada bairro nobre as mansões têm estilos todos diferentes (e o outro bairro começa por outro estilo)
         val groups = lots.filter { it.tier == 4 }.groupBy { val c = TownPlan.cellCenter(it.cx, it.cz); c[0] * 10000f + c[1] }
         var gi = 0
@@ -269,21 +309,21 @@ object TownHouses {
     private val MODC = arrayOf("#F4F4F2", "#E6E6E3", "#3B3F44", "#D9D6CF", "#ECECEA", "#55595F")
 
     /** Desenha o lote [l]: casa, garagem, entrada de carro, caixa de correio, muro/cerca, jardim. [far] = versão simples. */
-    fun draw(g: CityGeo.Gen, l: Lot, near: Boolean, far: Boolean) {
-        if (l.tier == 4) { mansion(g, l, near, far); return }
+    /** Etapa 150: planta da casa (sorteios na mesma ordem do desenho) — usada também para achar a entrada e nivelar o platô. */
+    private class HP(l: Lot) {
         val r = City.Rng(l.seed * 7919 + 13)
         val t = l.tier
         val W = l.w; val D = l.d; val y0 = CURB
         val style = when (t) { 1 -> intArrayOf(RANCH, CRAFTSMAN, CAPE, SPANISH, RANCH, MODERN)[r.i(6)]; 2 -> r.i(6); else -> intArrayOf(COLONIAL, MODERN, SPANISH, CRAFTSMAN, COLONIAL, MODERN)[r.i(6)] }
         // cores e materiais do estilo
         val wallC: Int; val wallM: Int; val roofC: Int; val trim: Int
-        when (style) {
+        init { when (style) {
             RANCH -> { wallC = C(BRICK[r.i(BRICK.size)]); wallM = Mt.STONE; roofC = C(ROOFC[r.i(ROOFC.size)]); trim = C("#F2EEE6") }
             SPANISH -> { wallC = C(STUCCO[r.i(STUCCO.size)]); wallM = Mt.PLASTER; roofC = C(arrayOf("#B5523B", "#A84A33", "#C0643F", "#9E4530")[r.i(4)]); trim = C("#8A5A3C") }
             MODERN -> { wallC = C(MODC[r.i(MODC.size)]); wallM = Mt.PLASTER; roofC = C("#5A5E63"); trim = C("#2B2E31") }
             CRAFTSMAN -> { wallC = C(arrayOf("#8FA28A", "#A9A08A", "#7F95A3", "#B9A88A", "#9AA49A", "#C2B49A")[r.i(6)]); wallM = Mt.SIDING; roofC = C(ROOFC[r.i(ROOFC.size)]); trim = C("#F4F1E8") }
             else -> { wallC = C(SIDING[r.i(SIDING.size)]); wallM = Mt.SIDING; roofC = C(ROOFC[r.i(ROOFC.size)]); trim = TRIM }
-        }
+        } }
         val door = C(DOORC[r.i(DOORC.size)])
         val floors = when (style) { RANCH, SPANISH -> if (t == 3 && r.chance(0.4f)) 2 else 1; CAPE -> 1; MODERN -> if (t == 1) 1 else 2; else -> if (t == 1) 1 else 2 }
         val wallH = if (style == MODERN) 3.1f else 2.9f
@@ -308,6 +348,62 @@ object TownHouses {
         val ex0 = if (gSide > 0) hx0 else hx0 + hw - ew
         val doorX = if (ell) (if (gSide > 0) hx0 + ew + (hw - ew) * 0.45f else hx0 + (hw - ew) * 0.55f) else hx0 + hw * (if (gSide > 0) 0.4f else 0.6f)
         val dx0 = gx0 + 0.2f; val dx1 = gx0 + gw - 0.2f
+    }
+
+    private val LAWN = C("#D6EEC4")
+    private val STEP = C("#C9C2B4")
+
+    /** Etapa 150: gramado próprio do lote no relevo (nivelado no platô), com o vão da escada quando ela sobe. */
+    private fun reliefGround(g: CityGeo.Gen, l: Lot, near: Boolean, far: Boolean) {
+        if (l.pad.isNaN()) return
+        val e = 0.14f; val u0 = -l.w / 2 - e; val u1 = l.w / 2 + e; val v1 = l.d + e; val s1 = FO + l.stLen
+        for (mb in listOfNotNull(if (near) g.b else null, if (far) g.f else null)) {
+            val p = Pen(mb, l); mb.m(Mt.GRASS, 0.3f)
+            if (l.stLen > 0f && l.stS < l.pad) {
+                p.flat(u0, s1, u1, v1, CURB, LAWN); p.flat(u0, FO, l.stU0, s1, CURB, LAWN); p.flat(l.stU1, FO, u1, s1, CURB, LAWN)
+            } else p.flat(u0, FO, u1, v1, CURB, LAWN)
+        }
+    }
+
+    /** Etapa 150: escadinha do portão até o jardim (desce quando a calçada é mais alta, sobe encaixada no barranco quando é mais baixa). */
+    private fun stairs(b: MB, l: Lot, cheek: Int) {
+        if (l.pad.isNaN() || l.stLen <= 0f) return
+        val p = Pen(b, l); val d = l.stS - l.pad
+        val n = max(1, Math.round(l.stLen / 0.32f)); val run = l.stLen / n
+        val w = l.stU1 - l.stU0; val cu = (l.stU0 + l.stU1) / 2; val v0 = FO
+        b.m(Mt.STONE, 0.8f)
+        for (k in 0 until n) {
+            if (d > 0f) { val top = d * (n - k) / n; p.box(cu, CURB, v0 + k * run + run / 2, w, top, run, STEP); p.box(cu, CURB + top - 0.03f, v0 + k * run + 0.03f, w, 0.04f, 0.06f, shade(STEP, -25)) }
+            else { val top = d - d * (k + 1) / n; val bot = d - 0.4f; p.box(cu, CURB + bot, v0 + k * run + run / 2, w, top - bot, run, STEP); p.box(cu, CURB + top - 0.03f, v0 + k * run + 0.03f, w, 0.04f, 0.06f, shade(STEP, -25)) }
+        }
+        if (d < 0f) { b.m(Mt.STONE, 0.6f); for (su in floatArrayOf(l.stU0 - 0.09f, l.stU1 + 0.09f)) p.box(su, CURB + d - 0.4f, v0 + l.stLen / 2, 0.18f, -d + 0.4f + 0.06f, l.stLen, cheek) }
+        else { b.m(Mt.METAL, 1f); for (su in floatArrayOf(l.stU0 + 0.05f, l.stU1 - 0.05f)) { p.box(su, CURB + d + 0.85f, v0 + l.stLen / 2, 0.05f, 0.05f, l.stLen, C("#3A3A3A")); p.box(su, CURB + d * 0.5f, v0 + l.stLen - 0.1f, 0.05f, d * 0.5f + 0.9f, 0.05f, C("#3A3A3A")); p.box(su, CURB + d, v0 + 0.1f, 0.05f, 0.9f, 0.05f, C("#3A3A3A")) } }
+    }
+
+    /** Etapa 150: o que fica na calçada (rebaixo da garagem, caixa de correio, placa) acompanha a calçada, não o platô. */
+    private inline fun street(g: CityGeo.Gen, l: Lot, f: () -> Unit) { if (!l.pad.isNaN()) { g.b.endFixed(); f(); g.b.beginFixed(l.pad) } else f() }
+
+    /** Etapa 150: muros de arrimo nas bordas do lote, do chão de fora até o platô (sobem onde o vizinho/rua é mais alto, descem onde é mais baixo). */
+    fun walls(g: CityGeo.Gen, l: Lot, far: Boolean) {
+        if (l.pad.isNaN()) return
+        val top0 = l.pad + CURB
+        val ed = arrayOf(floatArrayOf(-l.w / 2, FO, l.w / 2, FO, 0f, -1f), floatArrayOf(l.w / 2, FO, l.w / 2, l.d, 1f, 0f), floatArrayOf(l.w / 2, l.d, -l.w / 2, l.d, 0f, 1f), floatArrayOf(-l.w / 2, l.d, -l.w / 2, FO, -1f, 0f))
+        for (mb in listOfNotNull(g.b, if (far) g.f else null)) {
+            mb.beginFixed(0f); mb.m(Mt.STONE, 0.5f)
+            for ((k, e) in ed.withIndex()) {
+                val ox = l.tx * e[4] + l.nx * e[5]; val oz = l.tz * e[4] + l.nz * e[5]
+                TownGeo.retain(mb, l.wx(e[0], e[1]), l.wz(e[0], e[1]), l.wx(e[2], e[3]), l.wz(e[2], e[3]), ox, oz, top0) { t ->
+                    k == 0 && l.stLen > 0f && (e[0] + (e[2] - e[0]) * t).let { u -> u > l.stU0 - 0.1f && u < l.stU1 + 0.1f } }
+            }
+            mb.endFixed()
+        }
+    }
+
+    fun draw(g: CityGeo.Gen, l: Lot, near: Boolean, far: Boolean) {
+        reliefGround(g, l, near, far)
+        if (l.tier == 4) { mansion(g, l, near, far); return }
+        val hp = HP(l)
+        val r = hp.r; val t = hp.t; val W = hp.W; val D = hp.D; val y0 = hp.y0; val style = hp.style; val wallC = hp.wallC; val wallM = hp.wallM; val roofC = hp.roofC; val trim = hp.trim; val door = hp.door; val floors = hp.floors; val wallH = hp.wallH; val H = hp.H; val gw = hp.gw; val frontGarage = hp.frontGarage; val gSide = hp.gSide; val sideGap = hp.sideGap; val hw = hp.hw; val hd = hp.hd; val set = hp.set; val total = hp.total; val hx0 = hp.hx0; val gx0 = hp.gx0; val gz0 = hp.gz0; val gd = hp.gd; val ell = hp.ell; val ew = hp.ew; val ed = hp.ed; val ex0 = hp.ex0; val doorX = hp.doorX; val dx0 = hp.dx0; val dx1 = hp.dx1
         // ---------------- longe
         if (far) {
             val f = Pen(g.f, l); g.f.m(Mt.PLAIN)
@@ -328,6 +424,8 @@ object TownHouses {
         if (!near) { if (g.reg) enclosure(null, l, enc, encC, W, D, set, hd, hx0, hw, dx0, dx1, walkX0, walkX1, gw > 0f, g); return }
         val b = g.b; val p = Pen(b, l)
         enclosure(p, l, enc, encC, W, D, set, hd, hx0, hw, dx0, dx1, walkX0, walkX1, gw > 0f, g)
+        stairs(b, l, if (enc == WALL || enc == MURETA) encC else C("#B5AEA2"))
+        val relief = !l.pad.isNaN(); val wStart = if (relief) FO + l.stLen else -0.6f
         // ---------------- casa
         // fundação
         b.m(Mt.STONE, 1f); p.box(hx0 + hw / 2, y0, set + hd / 2, hw + 0.2f, 0.45f, hd + 0.2f, C(if (style == SPANISH) "#B9A58A" else "#9C9890"))
@@ -372,17 +470,17 @@ object TownHouses {
                 if (style != MODERN && t >= 2) p.box(cx, y0 + 1.9f, gz0 - 0.09f, dw - 0.9f, 0.22f, 0.03f, GLASSC)
             }
             // carro na entrada (às vezes)
-            if (r.chance(0.45f)) parkedCar(g, l, gx0 + gw / 2 + (if (gw > 6f) -1.5f else 0f), gz0 - 3.4f, r)
+            if (r.chance(0.45f) && (!relief || gz0 - 3.4f > 2.4f)) parkedCar(g, l, gx0 + gw / 2 + (if (gw > 6f) -1.5f else 0f), gz0 - 3.4f, r)
         } else {
             // sem garagem: carro na grama/entrada lateral
             if (r.chance(0.6f)) parkedCar(g, l, if (gSide > 0) hx0 + hw + sideGap * 0.5f else hx0 - sideGap * 0.5f, set + 1.5f, r)
         }
         // entrada de carro (concreto) da garagem até o meio-fio, passando pela calçada
-        if (gw > 0f) { b.m(Mt.PAVER, 0.5f); p.flat(dx0, -Town.SW - 0.6f, dx1, gz0, y0 + 0.018f, CONC) }
+        if (gw > 0f) { b.m(Mt.PAVER, 0.5f); street(g, l) { p.flat(dx0, -Town.SW - 0.6f, dx1, if (relief) FO else gz0, y0 + 0.018f, CONC) }; if (relief) p.flat(dx0, FO, dx1, gz0, y0 + 0.018f, CONC) }
         // calçadinha até a porta (em curva nas casas maiores = degraus de pedra)
         b.m(Mt.PAVER, 0.5f)
-        if (t >= 2 && r.chance(0.5f)) { var z = 0.8f; while (z < (if (ell) set else set) - 0.8f) { p.flat(doorX - 0.45f, z, doorX + 0.45f, z + 0.6f, y0 + 0.016f, C("#BDB6AA")); z += 0.95f } }
-        else p.flat(walkX0 + 0.1f, -0.6f, walkX1 - 0.1f, set - (if (t >= 2) 2.2f else 0.7f), y0 + 0.016f, C("#CFCAC0"))
+        if (t >= 2 && r.chance(0.5f)) { var z = max(0.8f, wStart + 0.15f); while (z < (if (ell) set else set) - 0.8f) { p.flat(doorX - 0.45f, z, doorX + 0.45f, z + 0.6f, y0 + 0.016f, C("#BDB6AA")); z += 0.95f } }
+        else p.flat(walkX0 + 0.1f, wStart, walkX1 - 0.1f, set - (if (t >= 2) 2.2f else 0.7f), y0 + 0.016f, C("#CFCAC0"))
         // porta e varanda
         b.m(Mt.PLAIN)
         p.box(doorX, y0 + 0.45f, set - 0.05f, if (style == MODERN) 1.3f else 1.05f, if (style == MODERN) 2.5f else 2.2f, 0.1f, door)
@@ -425,30 +523,116 @@ object TownHouses {
         if (style != MODERN && style != SPANISH && r.chance(0.5f)) { b.m(Mt.STONE, 0.5f); p.box(hx0 + hw * (if (gSide > 0) 0.12f else 0.88f), y0 + H - 0.5f, set + hd * 0.6f, 1.0f, hd * 0.34f + 1.9f, 1.0f, C(arrayOf("#8D6E63", "#9C5A3C", "#7A7A7A")[r.i(3)])) }
         // caixa de correio junto do meio-fio
         val mx = if (gw > 0f) (if (gSide > 0) dx0 - 0.8f else dx1 + 0.8f) else walkX1 + 0.9f
-        b.m(Mt.WOOD, 0.6f); p.box(mx, y0, -Town.SW - 0.25f, 0.1f, 1.05f, 0.1f, C("#5A4636"))
-        b.m(Mt.METAL, 1f); p.box(mx, y0 + 1.05f, -Town.SW - 0.25f, 0.24f, 0.24f, 0.48f, C(arrayOf("#222222", "#F2F2F2", "#1F3A5F", "#8E1B1B")[r.i(4)]))
+        val mbC = C(arrayOf("#222222", "#F2F2F2", "#1F3A5F", "#8E1B1B")[r.i(4)])
+        street(g, l) { b.m(Mt.WOOD, 0.6f); p.box(mx, y0, -Town.SW - 0.25f, 0.1f, 1.05f, 0.1f, C("#5A4636"))
+            b.m(Mt.METAL, 1f); p.box(mx, y0 + 1.05f, -Town.SW - 0.25f, 0.24f, 0.24f, 0.48f, mbC) }
         if (g.reg) solid(l, mx - 0.15f, -Town.SW - 0.5f, mx + 0.15f, -Town.SW)
         // jardim: canteiro na frente da casa, árvores, arbustos, flores
         b.m(Mt.GRASS, 0.4f); p.flat(hx0 + 0.3f, set - 1.4f, hx0 + hw - 0.3f, set - 0.2f, y0 + 0.012f, C("#6B4E36"))
         for (k in 0 until (3 + t)) { val bx = hx0 + 0.7f + (hw - 1.4f) * k / (2 + t); if (abs(bx - doorX) > 1.1f && !(ell && bx > ex0 - 0.5f && bx < ex0 + ew + 0.5f)) CityGeo.bush(g, l.wx(bx, set - 0.8f), l.wz(bx, set - 0.8f), r.r(0.45f, 0.65f)) }
         val treeX = if (gSide > 0) -W / 2 + 3f else W / 2 - 3f
         if (r.chance(0.85f)) { if (style == SPANISH && r.chance(0.6f)) CityGeo.palm(g, l.wx(treeX, set * 0.45f), l.wz(treeX, set * 0.45f), 0.9f) else CityGeo.tree(g, l.wx(treeX, set * 0.45f), l.wz(treeX, set * 0.45f), r.r(0.7f, 1.0f)); if (g.reg) solid(l, treeX - 0.25f, set * 0.45f - 0.25f, treeX + 0.25f, set * 0.45f + 0.25f) }
-        if (D - set - hd > 10f) for (k in 0 until 1 + r.i(2)) { val tx = r.r(-W / 2 + 2.5f, W / 2 - 2.5f); val tz = r.r(set + hd + 3f, D - 3f); CityGeo.tree(g, l.wx(tx, tz), l.wz(tx, tz), r.r(0.8f, 1.1f)) }
-        // quintal: deck/pátio e churrasqueira, piscina nas maiores
+        // quintal: deck junto da casa e o resto do quintal ocupado (Etapa 150: nada de gramado vazio)
         val back = set + hd
         b.m(Mt.WOOD, 0.6f); p.box(hx0 + hw / 2, y0, back + 1.6f, min(hw, 8f), 0.25f, 3.2f, C("#A07E5C"))
-        if (t >= 2 && D - back > 15f) {
-            val pz0 = back + 5f; val pz1 = min(D - 3.5f, pz0 + (if (t == 3) 9f else 6.5f)); val pxw = min(W - 7f, if (t == 3) 10f else 6.5f)
-            if (pz1 > pz0 + 4f && (t == 3 || r.chance(0.35f))) {
-                b.m(Mt.TILE, 0.5f); p.flat(-pxw / 2 - 1.2f, pz0 - 1.2f, pxw / 2 + 1.2f, pz1 + 1.2f, y0 + 0.02f, C("#E8E2D6"))
-                b.m(Mt.PLAIN); p.flat(-pxw / 2, pz0, pxw / 2, pz1, y0 + 0.035f, C("#3FA9D6"))
-            } else { b.m(Mt.PLAIN); p.box(r.r(-W / 4, W / 4), y0, back + 8f, 1.6f, 1.6f, 1.6f, C("#E7D9B8")); p.box(0f, y0, back + 11f, 2.2f, 0.75f, 0.9f, C("#7B5A3E")) }
-        }
+        backyard(g, l, p, r, W, D, back + 3.6f, t, wallC, roofC)
         // placa "à venda"
         if (l.forSale) {
             val sx = if (gSide > 0) -W / 2 + 1.5f else W / 2 - 1.5f
             b.m(Mt.WOOD, 0.6f); p.box(sx, y0, 1.6f, 0.08f, 1.3f, 0.08f, C("#F2F2F2"))
             b.m(Mt.PLAIN); p.box(sx, y0 + 0.75f, 1.6f, 0.9f, 0.55f, 0.04f, C("#C62828"))
+        }
+    }
+
+    /**
+     * Etapa 150: quintal cheio — o fundo é dividido em vagas de ~5 m e cada casa sorteia o que tem: piscina, horta, varal,
+     * edícula, churrasqueira com mesa, balanço, cama elástica, casinha de cachorro e árvores frutíferas.
+     */
+    private fun backyard(g: CityGeo.Gen, l: Lot, p: Pen, r: City.Rng, W: Float, D: Float, z0: Float, t: Int, wallC: Int, roofC: Int) {
+        val b = p.b; val y0 = CURB
+        val zEnd = D - 1.2f; if (zEnd - z0 < 3f) return
+        val half = W >= 14f
+        val cw = if (half) (W - 2.6f) / 2 else W - 2.6f
+        val cols = if (half) floatArrayOf(-W / 4 - 0.15f, W / 4 + 0.15f) else floatArrayOf(0f)
+        // piscina (casa média/grande): ocupa a largura toda nas primeiras vagas
+        var z = z0
+        if (t >= 2 && zEnd - z > 9f && r.chance(if (t == 3) 0.65f else 0.4f)) {
+            // piscina de tamanho e posição sorteados (nada de fileira de piscinas iguais)
+            val pd = min(r.r(4.5f, if (t == 3) 9f else 6.5f), zEnd - z - 3f); val pxw = min(W - 6f, r.r(3.5f, if (t == 3) 9f else 6f))
+            val pc = r.r(-(W - pxw) / 2 + 2.6f, (W - pxw) / 2 - 2.6f).let { if (it.isNaN()) 0f else it }
+            val pcol = C(arrayOf("#3FA9D6", "#38B6C8", "#4A9FE0", "#2FA3B8")[r.i(4)])
+            b.m(Mt.TILE, 0.5f); p.flat(pc - pxw / 2 - 1.2f, z, pc + pxw / 2 + 1.2f, z + pd + 2.4f, y0 + 0.02f, C(arrayOf("#E8E2D6", "#D9CFBC", "#C9C2B4", "#EDE6DA")[r.i(4)]))
+            b.m(Mt.STONE, 0.8f); p.box(pc, y0, z + 1.2f + pd / 2, pxw + 0.5f, 0.06f, pd + 0.5f, C("#F2EEE6"))
+            b.m(Mt.PLAIN); p.flat(pc - pxw / 2, z + 1.2f, pc + pxw / 2, z + 1.2f + pd, y0 + 0.065f, pcol)
+            b.m(Mt.FABRIC, 1f); val sx = if (pc > 0f) pc - pxw / 2 - 0.6f else pc + pxw / 2 + 0.6f
+            for (k in 0..1) p.box(sx, y0 + 0.3f, z + 2f + k * 1.6f, 0.7f, 0.12f, 1.4f, C(arrayOf("#FAFAFA", "#2E86C1", "#F4D03F")[r.i(3)]))
+            z += pd + 3.4f
+        }
+        val opts = arrayListOf(0, 1, 2, 3, 4, 5, 6, 7, 7)
+        // embaralha
+        for (i in opts.size - 1 downTo 1) { val j = r.i(i + 1); val q = opts[i]; opts[i] = opts[j]; opts[j] = q }
+        var oi = 0
+        while (z + 3.2f < zEnd) {
+            val rowD = min(4.8f, zEnd - z)
+            for (cx in cols) {
+                val kind = opts[oi % opts.size]; oi++
+                val cz = z + rowD / 2
+                when (kind) {
+                    0 -> { // horta: canteiros de madeira com fileiras de verduras
+                        val hw2 = min(cw - 0.6f, 4f); b.m(Mt.WOOD, 0.6f)
+                        for (q in 0..1) { val bz = cz - 1.0f + q * 2.0f; p.box(cx, y0, bz, hw2, 0.3f, 1.3f, C("#7A5A3C")); b.m(Mt.PLAIN); p.flat(cx - hw2 / 2 + 0.08f, bz - 0.57f, cx + hw2 / 2 - 0.08f, bz + 0.57f, y0 + 0.31f, C("#5A3E2B")); b.m(Mt.GRASS, 0.5f)
+                            var u = cx - hw2 / 2 + 0.35f; while (u < cx + hw2 / 2 - 0.2f) { for (w in floatArrayOf(-0.3f, 0.3f)) p.box(u, y0 + 0.3f, bz + w, 0.28f, 0.22f + (q * 0.1f), 0.28f, C(if (q == 0) "#4E8B3A" else "#6BA84F")); u += 0.5f }; b.m(Mt.WOOD, 0.6f) }
+                        if (g.reg) solid(l, cx - hw2 / 2, cz - 1.7f, cx + hw2 / 2, cz + 1.7f)
+                    }
+                    1 -> { // varal com roupa
+                        val vw = min(cw - 0.8f, 4.2f); b.m(Mt.METAL, 1f)
+                        for (sx in floatArrayOf(-vw / 2, vw / 2)) { p.box(cx + sx, y0, cz, 0.06f, 1.8f, 0.06f, C("#9E9E9E")); p.box(cx + sx, y0 + 1.75f, cz, 0.06f, 0.06f, 1.2f, C("#9E9E9E")) }
+                        for (w in floatArrayOf(-0.5f, 0f, 0.5f)) p.box(cx, y0 + 1.77f, cz + w, vw, 0.015f, 0.015f, C("#DDDDDD"))
+                        b.m(Mt.FABRIC, 1f); var u = cx - vw / 2 + 0.4f; var q = 0
+                        while (u < cx + vw / 2 - 0.3f) { p.box(u, y0 + 1.15f + (q % 2) * 0.12f, cz + floatArrayOf(-0.5f, 0f, 0.5f)[q % 3], 0.45f, 0.6f - (q % 2) * 0.12f, 0.02f, C(arrayOf("#E53935", "#1E88E5", "#FDD835", "#FFFFFF", "#43A047", "#8E24AA", "#FB8C00")[(q + l.seed) % 7])); u += 0.55f; q++ }
+                    }
+                    2 -> { // edícula / quartinho de ferramentas
+                        val sw = min(cw - 0.6f, 3.6f); val sd = min(rowD - 1f, 3.2f)
+                        b.m(Mt.PLASTER, 0.8f); p.box(cx, y0, cz, sw, 2.3f, sd, shade(wallC, 6)); b.m(Mt.ROOF, 0.6f); hip(p, cx - sw / 2, cx + sw / 2, cz - sd / 2, cz + sd / 2, y0 + 2.3f, 0.7f, roofC, 0.25f)
+                        b.m(Mt.WOOD, 0.6f); p.box(cx, y0, cz - sd / 2 - 0.03f, 0.9f, 1.95f, 0.05f, C("#6B4A32")); b.m(Mt.PLAIN); p.box(cx + sw * 0.3f, y0 + 1.1f, cz - sd / 2 - 0.03f, 0.6f, 0.5f, 0.04f, GLASSC)
+                        if (g.reg) solid(l, cx - sw / 2, cz - sd / 2, cx + sw / 2, cz + sd / 2)
+                    }
+                    3 -> { // churrasqueira de tijolo + mesa com cadeiras e guarda-sol
+                        b.m(Mt.STONE, 0.45f); p.box(cx - cw / 2 + 0.9f, y0, cz, 1.2f, 1.0f, 0.8f, C("#9C5A3C")); p.box(cx - cw / 2 + 0.9f, y0 + 1.0f, cz, 0.5f, 1.4f, 0.5f, C("#9C5A3C"))
+                        b.m(Mt.PLAIN); p.box(cx - cw / 2 + 0.9f, y0 + 0.75f, cz - 0.41f, 0.9f, 0.18f, 0.02f, C("#2B2B2B"))
+                        val tx = cx + 0.6f; b.m(Mt.WOOD, 0.6f); p.box(tx, y0 + 0.72f, cz, 1.6f, 0.06f, 0.9f, C("#8D6E63"))
+                        for (sx in floatArrayOf(-0.7f, 0.7f)) for (sz in floatArrayOf(-0.35f, 0.35f)) p.box(tx + sx, y0, cz + sz, 0.06f, 0.72f, 0.06f, C("#6D4C41"))
+                        for (sx in floatArrayOf(-0.4f, 0.4f)) for (sg in floatArrayOf(-1f, 1f)) { p.box(tx + sx, y0, cz + sg * 0.75f, 0.42f, 0.45f, 0.42f, C("#ECEFF1")); p.box(tx + sx, y0 + 0.45f, cz + sg * 0.95f, 0.42f, 0.45f, 0.04f, C("#ECEFF1")) }
+                        b.m(Mt.METAL, 1f); p.cyl(tx, y0, cz, 0.03f, 2.2f, C("#BDBDBD"), 6); b.m(Mt.FABRIC, 1f); b.cyl(l.wx(tx, cz), y0 + 2.0f, l.wz(tx, cz), 1.3f, 0.05f, 0.4f, C(arrayOf("#C62828", "#1565C0", "#2E7D32", "#F9A825")[r.i(4)]), true, 10)
+                        if (g.reg) { solid(l, cx - cw / 2 + 0.3f, cz - 0.4f, cx - cw / 2 + 1.5f, cz + 0.4f); solid(l, tx - 0.8f, cz - 0.45f, tx + 0.8f, cz + 0.45f) }
+                    }
+                    4 -> { // balanço infantil
+                        b.m(Mt.METAL, 1f); val sw = min(cw - 0.8f, 3f)
+                        for (sx in floatArrayOf(-sw / 2, sw / 2)) for (sz in floatArrayOf(-0.6f, 0.6f)) p.box(cx + sx, y0, cz + sz * 0.5f, 0.07f, 2.1f, 0.07f, C("#1E88E5"))
+                        p.box(cx, y0 + 2.05f, cz, sw + 0.1f, 0.08f, 0.08f, C("#1E88E5"))
+                        for (sx in floatArrayOf(-sw / 4, sw / 4)) { for (w in floatArrayOf(-0.2f, 0.2f)) p.box(cx + sx + w, y0 + 0.5f, cz, 0.015f, 1.55f, 0.015f, C("#555555")); p.box(cx + sx, y0 + 0.45f, cz, 0.5f, 0.05f, 0.2f, C("#E53935")) }
+                        b.m(Mt.PLAIN); p.flat(cx - sw / 2, cz - 1.0f, cx + sw / 2, cz + 1.0f, y0 + 0.012f, C("#D7C49E"))
+                        if (g.reg) solid(l, cx - sw / 2 - 0.1f, cz - 0.4f, cx + sw / 2 + 0.1f, cz + 0.4f)
+                    }
+                    5 -> { // cama elástica
+                        val rr = min(1.6f, cw / 2 - 0.4f); b.m(Mt.METAL, 1f)
+                        for (k in 0 until 6) { val a = k * 1.047f; p.box(cx + kotlin.math.cos(a) * rr * 0.92f, y0, cz + kotlin.math.sin(a) * rr * 0.92f, 0.06f, 0.75f, 0.06f, C("#424242")) }
+                        b.cyl(l.wx(cx, cz), y0 + 0.75f, l.wz(cx, cz), rr, rr, 0.08f, C("#1E88E5"), true, 18); b.m(Mt.PLAIN); b.cyl(l.wx(cx, cz), y0 + 0.76f, l.wz(cx, cz), rr * 0.85f, rr * 0.85f, 0.08f, C("#212121"), true, 18)
+                        if (g.reg) solid(l, cx - rr, cz - rr, cx + rr, cz + rr)
+                    }
+                    6 -> { // casinha de cachorro + vasos
+                        b.m(Mt.WOOD, 0.6f); p.box(cx, y0, cz, 1.0f, 0.8f, 1.2f, C("#A1887F")); b.m(Mt.ROOF, 0.6f); hip(p, cx - 0.5f, cx + 0.5f, cz - 0.6f, cz + 0.6f, y0 + 0.8f, 0.4f, C("#C62828"), 0.1f)
+                        b.m(Mt.PLAIN); p.box(cx, y0 + 0.05f, cz - 0.61f, 0.45f, 0.5f, 0.02f, C("#2B2B2B"))
+                        for (k in 0..2) { val vx = cx + (k - 1) * 1.1f; b.m(Mt.STONE, 0.8f); p.cyl(vx, y0, cz + 1.4f, 0.25f, 0.4f, C("#B5603A"), 8); CityGeo.bush(g, l.wx(vx, cz + 1.4f), l.wz(vx, cz + 1.4f), 0.35f) }
+                        if (g.reg) solid(l, cx - 0.5f, cz - 0.6f, cx + 0.5f, cz + 0.6f)
+                    }
+                    else -> { // árvore frutífera
+                        CityGeo.tree(g, l.wx(cx, cz), l.wz(cx, cz), r.r(0.8f, 1.05f), CURB, if (r.chance(0.5f)) 0 else 1)
+                        if (g.reg) solid(l, cx - 0.3f, cz - 0.3f, cx + 0.3f, cz + 0.3f)
+                    }
+                }
+            }
+            z += rowD + 0.4f
         }
     }
 
@@ -712,7 +896,10 @@ object TownHouses {
         if (g.reg) solid(l, ghx - 2f, 2.5f, ghx + 2f, 6.5f)
         // ---------------- alameda (palmeiras, ciprestes ou árvores redondas) e pátio com chafariz
         val alley = r.i(3)
-        b.m(Mt.PAVER, 0.45f); p.flat(-3.3f, -Town.SW - 0.6f, 3.3f, ccz - rc + 2f, y0 + 0.019f, C(arrayOf("#D9D2C2", "#CFC6B2", "#E2DCCF")[r.i(3)]))
+        val pvC = C(arrayOf("#D9D2C2", "#CFC6B2", "#E2DCCF")[r.i(3)])
+        b.m(Mt.PAVER, 0.45f)
+        if (l.pad.isNaN()) p.flat(-3.3f, -Town.SW - 0.6f, 3.3f, ccz - rc + 2f, y0 + 0.019f, pvC)
+        else { street(g, l) { p.flat(-3.3f, -Town.SW - 0.6f, 3.3f, FO, y0 + 0.019f, pvC) }; p.flat(-3.3f, FO, 3.3f, ccz - rc + 2f, y0 + 0.019f, pvC) }
         var az = 9f; while (az < ccz - rc - 3f) {
             for (sg in floatArrayOf(-1f, 1f)) {
                 when (alley) { 0 -> CityGeo.palm(g, l.wx(sg * 5.2f, az), l.wz(sg * 5.2f, az), r.r(1.05f, 1.25f)); 1 -> cypress(p, sg * 5.2f, az); else -> CityGeo.tree(g, l.wx(sg * 5.2f, az), l.wz(sg * 5.2f, az), 0.9f, CURB, 4) }
@@ -772,8 +959,17 @@ object TownHouses {
             }
         }
         // ---------------- árvores grandes junto dos muros (só onde está livre)
-        var t2 = 9f; while (t2 < D - 6f) { for (sg in floatArrayOf(-1f, 1f)) { val tx = sg * (W / 2 - 4f); if (yd.free(tx - 1.5f, t2 - 1.5f, tx + 1.5f, t2 + 1.5f, 0f)) { CityGeo.tree(g, l.wx(tx, t2), l.wz(tx, t2), r.r(1.0f, 1.3f), CURB, if (r.chance(0.5f)) 4 else 0); if (g.reg) solid(l, tx - 0.3f, t2 - 0.3f, tx + 0.3f, t2 + 0.3f) } }; t2 += r.r(9f, 13f) }
-        if (l.forSale) { b.m(Mt.PLAIN); p.box(gateW / 2 + 3f, y0, -0.6f, 1.6f, 0.9f, 0.05f, C("#C62828")); p.box(gateW / 2 + 3f, y0 + 0.9f, -0.6f, 0.08f, 0.7f, 0.08f, C("#F2F2F2")) }
+        var t2 = 9f; while (t2 < D - 6f) { for (sg in floatArrayOf(-1f, 1f)) { val tx = sg * (W / 2 - 4f); if (yd.free(tx - 1.5f, t2 - 1.5f, tx + 1.5f, t2 + 1.5f, 0f)) { CityGeo.tree(g, l.wx(tx, t2), l.wz(tx, t2), r.r(1.0f, 1.3f), CURB, if (r.chance(0.5f)) 4 else 0); yd.take(tx - 1f, t2 - 1f, tx + 1f, t2 + 1f); if (g.reg) solid(l, tx - 0.3f, t2 - 0.3f, tx + 0.3f, t2 + 0.3f) } }; t2 += r.r(9f, 13f) }
+        // Etapa 150: bosque e pomar nos gramados que sobraram (jardim de mansão cheio, não um campo vazio)
+        run { var gz = 12f; var row = 0
+            while (gz < D - 6f) { var gx = -W / 2 + 7f + (row % 2) * 4.5f
+                while (gx < W / 2 - 6f) { val jx = gx + r.r(-1.5f, 1.5f); val jz = gz + r.r(-1.5f, 1.5f)
+                    if (abs(jx) > 6.5f && yd.free(jx - 2.4f, jz - 2.4f, jx + 2.4f, jz + 2.4f, 0.5f)) {
+                        if (r.chance(0.25f)) CityGeo.bush(g, l.wx(jx, jz), l.wz(jx, jz), r.r(0.7f, 1.0f)) else CityGeo.tree(g, l.wx(jx, jz), l.wz(jx, jz), r.r(0.85f, 1.25f), CURB, intArrayOf(0, 1, 4, 0)[r.i(4)])
+                        yd.take(jx - 1.2f, jz - 1.2f, jx + 1.2f, jz + 1.2f); if (g.reg) solid(l, jx - 0.3f, jz - 0.3f, jx + 0.3f, jz + 0.3f) }
+                    gx += 9f }
+                gz += 8f; row++ } }
+        if (l.forSale) street(g, l) { b.m(Mt.PLAIN); p.box(gateW / 2 + 3f, y0 + 0.7f, -0.6f, 1.6f, 0.9f, 0.05f, C("#C62828")); p.box(gateW / 2 + 3f, y0, -0.6f, 0.08f, 0.7f, 0.08f, C("#F2F2F2")) }
     }
 
     private fun cypress(p: Pen, x: Float, z: Float) {

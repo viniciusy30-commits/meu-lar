@@ -36,8 +36,10 @@ object TownJobs {
         val x0 = cx - bw / 2; val x1 = cx + bw / 2
         val z0 = min(zf, zb); val z1 = max(zf, zb)
         // terreno: calçado na frente, gramado com árvores em volta, vagas nos lados
-        CityGeo.groundBox(g.b, u.x0, u.z0, u.x1, u.z1, Mt.GRASS, 0.3f, C("#CFE8BC"))
-        CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, Mt.GRASS, 0.3f, C("#CFE8BC"))
+        // Etapa 150: no centro e no comércio o terreno é calçado (praça seca com árvores em canteiros), não gramado
+        val dist = TownPlan.districtAt(cx, (u.z0 + u.z1) / 2); val paved = dist == TownPlan.DOWN || dist == TownPlan.COM || dist == TownPlan.URB
+        if (paved) { CityGeo.groundBox(g.b, u.x0, u.z0, u.x1, u.z1, Mt.PAVER, 0.8f, C("#E3E0DA")); CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, Mt.PAVER, 0.8f, C("#E3E0DA")) }
+        else { CityGeo.groundBox(g.b, u.x0, u.z0, u.x1, u.z1, Mt.GRASS, 0.3f, C("#CFE8BC")); CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, Mt.GRASS, 0.3f, C("#CFE8BC")) }
         g.b.m(Mt.PAVER, 0.6f); g.b.plane(x0 - 3f, min(zf, front), x1 + 3f, max(zf, front), CURB + 0.012f, C("#E2DCCF"))
         g.b.m(Mt.ASPHALT, 0.3f)
         val pz0 = min(zf, zb) + 1f; val pz1 = max(zf, zb) - 1f
@@ -49,7 +51,9 @@ object TownJobs {
                 g.b.m(Mt.ASPHALT, 0.3f)
             }
         }
-        for (k in 0 until 6) { val tx = r.r(u.x0 + 3f, u.x1 - 3f); val tz = if (fz > 0) r.r(u.z0 + 2f, z0 - 3f) else r.r(z1 + 3f, u.z1 - 2f); if (abs(tx - cx) > bw / 2 + 2f || (tz > z1 + 2f || tz < z0 - 2f)) { CityGeo.tree(g, tx, tz, r.r(0.8f, 1.1f)); g.solid(tx - 0.3f, tz - 0.3f, tx + 0.3f, tz + 0.3f) } }
+        for (k in 0 until (if (paved) 10 else 6)) { val tx = r.r(u.x0 + 3f, u.x1 - 3f); val tz = if (fz > 0) r.r(u.z0 + 2f, z0 - 3f) else r.r(z1 + 3f, u.z1 - 2f); if (abs(tx - cx) > bw / 2 + 2f || (tz > z1 + 2f || tz < z0 - 2f)) {
+            if (paved) { g.b.m(Mt.STONE, 1f); g.b.box(tx, CURB + 0.02f, tz, 1.5f, 0.12f, 1.5f, C("#9E9890")); g.b.m(Mt.PLAIN); g.b.box(tx, CURB + 0.03f, tz, 1.25f, 0.12f, 1.25f, C("#5A4632")) }
+            CityGeo.tree(g, tx, tz, r.r(0.8f, 1.1f), CURB, if (r.chance(0.5f)) 0 else 4); g.solid(tx - 0.3f, tz - 0.3f, tx + 0.3f, tz + 0.3f) } }
         // mastro com bandeira e placa no gramado
         run { val mx = x1 + 2f; val mz = front - fz * 3f; g.b.m(Mt.METAL, 1f); g.b.cyl(mx, CURB, mz, 0.06f, 0.05f, 8f, C("#DDDDDD"), true, 6); g.b.m(Mt.FABRIC, 1f); g.b.box(mx + 0.7f, CURB + 7.3f, mz, 1.3f, 0.85f, 0.03f, C(arrayOf("#1B5E20", "#0D47A1", "#B71C1C", "#F9A825")[job.level - 1])); g.solid(mx - 0.1f, mz - 0.1f, mx + 0.1f, mz + 0.1f) }
         // casca do prédio
