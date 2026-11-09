@@ -54,14 +54,25 @@ object TownPark {
         return m
     }
 
-    fun isPark(bi: Int): Boolean {
-        if (bi == Town.homeBlock) return false
-        val bl = Town.blocks[bi]
-        var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }; cx /= n; cz /= n
-        if (Town.urban.any { it.block == bi }) return false
-        val d = TownPlan.districtAt(cx, cz)
-        return d == TownPlan.PARK
+    /** Etapa 146: um parque só — a quadra do bairro PARQUE mais perto do centro da superquadra. */
+    private var cacheKey: Any? = null; private var parkIdx = -1
+    private fun parkBlock(): Int {
+        val key = Town.blocks.firstOrNull()
+        if (key !== cacheKey) {
+            cacheKey = key; parkIdx = -1; var best = Float.MAX_VALUE
+            for ((bi, bl) in Town.blocks.withIndex()) {
+                if (bi == Town.homeBlock) continue
+                var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }; cx /= n; cz /= n
+                if (TownPlan.districtAt(cx, cz) != TownPlan.PARK || abs(Town.polyArea(bl)) < 3000f) continue
+                val cc = TownPlan.cellCenter(cx, cz); val d = kotlin.math.hypot(cx - cc[0], cz - cc[1])
+                if (d < best) { best = d; parkIdx = bi }
+            }
+        }
+        return parkIdx
     }
+    fun isPark(bi: Int): Boolean = bi == parkBlock()
+    /** O ponto cai dentro do parque? (as casas não entram nele) */
+    fun inPark(x: Float, z: Float): Boolean { val p = parkBlock(); return p >= 0 && Town.inside(Town.blocks[p], x, z) }
 
     fun plan(bi: Int): Plan {
         plans[bi]?.let { return it }

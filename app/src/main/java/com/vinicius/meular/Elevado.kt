@@ -34,10 +34,11 @@ object Elevado {
     fun plan() {
         list.clear(); edgeSet.clear()
         if (!City.TOWN) return
-        // Elevado 1: sobre a Av. Paulista (linha z = -500), cruzando o centro de ponta a ponta
-        fit(0, TownPlan.ZS[1], TownPlan.XS[0] + 60f, TownPlan.XS[5] - 60f, "Elevado Paulista")
-        // Elevado 2: sobre a Av. Brasil (coluna x = 170), do centro até perto da praia
-        fit(1, TownPlan.XS[3], TownPlan.ZS[1] + 70f, TownPlan.ZS[4] + 40f, "Elevado Brasil")
+        // Etapa 146: tenta as quatro avenidas largas e fica com as que cabem sem cruzar outro elevado no mesmo nível
+        fit(0, TownPlan.ZS[1], TownPlan.XS[0] + 30f, TownPlan.XS[TownPlan.N] - 30f, "Elevado Paulista")
+        fit(0, TownPlan.ZS[3], TownPlan.XS[0] + 30f, TownPlan.XS[TownPlan.N] - 30f, "Elevado Atlântica")
+        fit(1, TownPlan.XS[2], TownPlan.ZS[0] + 30f, TownPlan.ZS[TownPlan.N] - 40f, "Elevado Brasil")
+        fit(1, TownPlan.XS[1], TownPlan.ZS[0] + 30f, TownPlan.ZS[TownPlan.N] - 40f, "Elevado Santos Dumont")
     }
 
     /** Ajusta as pontas para as alças não caírem em cruzamento e põe pilares longe das ruas transversais. */
@@ -49,6 +50,8 @@ object Elevado {
         var a0 = s0; var k = 0; while (k < 120 && !clearRamp(a0 - 12f, a0 + 70f)) { a0 += 4f; k++ }
         var a1 = s1; k = 0; while (k < 120 && !clearRamp(a1 - 70f, a1 + 12f)) { a1 -= 4f; k++ }
         if (a1 - a0 < RAMP * 2.5f) return
+        // não pode cruzar um elevado já aceito (os dois estariam na mesma altura)
+        for (o in list) if (o.axis != axis) { val so = c; val sm = o.c; if (sm > a0 - 10f && sm < a1 + 10f && so > o.a0 - 10f && so < o.a1 + 10f) return }
         val e = E(axis, c, a0, a1, name)
         var s = a0 + RAMP * 0.75f
         while (s < a1 - RAMP * 0.75f) {

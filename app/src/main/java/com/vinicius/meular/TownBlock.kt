@@ -34,6 +34,9 @@ object TownBlock {
         var top = 0f
         for (st in strips) {
             val side = st[4].toInt()
+            // Etapa 146: lado que não dá para rua (vizinho de outro lote) fica sem fachada
+            val mx = when (side) { 1 -> u.x1 + 2.5f; 3 -> u.x0 - 2.5f; else -> (u.x0 + u.x1) / 2 }; val mz = when (side) { 0 -> u.z0 - 2.5f; 2 -> u.z1 + 2.5f; else -> (u.z0 + u.z1) / 2 }
+            if (Town.clearance(mx, mz) > 1f) continue
             val sf = TownSmall.F(st[0], st[1], st[2], st[3], side)
             val L = sf.W
             if (L < 6f) continue

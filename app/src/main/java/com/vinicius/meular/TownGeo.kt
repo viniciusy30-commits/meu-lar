@@ -343,13 +343,37 @@ object TownGeo {
         val g = CityGeo.Gen(idx, City.Rng(32), Town.minX - 600f, Town.minZ - 600f, Town.maxX + 600f, Town.maxZ + 600f)
         val b = g.b
         // ao sul da Av. Beira-Mar fica a praia (areia e mar): o campo só vai até a orla
-        val zb = TownPlan.ZS[5] + 10f + SW
-        b.m(Mt.GRASS, 0.3f); b.plane(g.x0, g.z0, g.x1, zb, -0.06f, C("#CFE6B8"))
+        val zb = TownPlan.ZS[TownPlan.N] + 10f + SW
+        // Etapa 146: morros em volta (malha de 24 m), com mata mais escura nas encostas altas e árvores espalhadas
+        val cs = 24f
+        val nx = ((g.x1 - g.x0) / cs).toInt(); val nz = ((zb - g.z0) / cs).toInt()
+        fun hy(x: Float, z: Float): Float { val h = Town.hill(x, z); return if (h <= 0f) -0.06f else h }
+        fun col(h: Float, x: Float, z: Float): Int { val k = (h / 70f).coerceIn(0f, 1f); val v = kotlin.math.sin(x * 0.05f) * kotlin.math.cos(z * 0.043f) * 0.08f
+            val r = (0xCF * (1 - k) + 0x5E * k) * (1 + v); val gg = (0xE6 * (1 - k) + 0x8A * k) * (1 + v); val bb = (0xB8 * (1 - k) + 0x4E * k) * (1 + v)
+            return android.graphics.Color.rgb(r.toInt().coerceIn(0, 255), gg.toInt().coerceIn(0, 255), bb.toInt().coerceIn(0, 255)) }
+        b.m(Mt.GRASS, 0.3f)
+        for (i in 0 until nx) for (j in 0 until nz) {
+            val xa = g.x0 + i * cs; val xb = xa + cs; val za = g.z0 + j * cs; val zc = min(zb, za + cs)
+            val ya = hy(xa, za); val yb = hy(xb, za); val yc = hy(xb, zc); val yd = hy(xa, zc)
+            val ux = xb - xa; val nxv = -(yb - ya) / ux; val nzv = -(yd - ya) / (zc - za); val nl = kotlin.math.sqrt(nxv * nxv + 1f + nzv * nzv)
+            val c1 = col(ya, xa, za); val c2 = col(yb, xb, za); val c3 = col(yc, xb, zc); val c4 = col(yd, xa, zc)
+            b.v(xa, ya, za, nxv / nl, 1f / nl, nzv / nl, c1, xa, za); b.v(xb, yb, za, nxv / nl, 1f / nl, nzv / nl, c2, xb, za); b.v(xb, yc, zc, nxv / nl, 1f / nl, nzv / nl, c3, xb, zc)
+            b.v(xa, ya, za, nxv / nl, 1f / nl, nzv / nl, c1, xa, za); b.v(xb, yc, zc, nxv / nl, 1f / nl, nzv / nl, c3, xb, zc); b.v(xa, yd, zc, nxv / nl, 1f / nl, nzv / nl, c4, xa, zc)
+        }
+        // mata: copas cônicas espalhadas nos morros
+        val tr = City.Rng(77)
+        repeat(1400) {
+            val x = tr.r(g.x0, g.x1); val z = tr.r(g.z0, zb); val h = Town.hill(x, z)
+            if (h < 4f) return@repeat
+            val s = tr.r(0.8f, 1.5f)
+            b.m(Mt.BARK, 1f); b.cyl(x, h - 0.5f, z, 0.35f * s, 0.25f * s, 3.5f * s, C("#5D4037"), true, 5)
+            b.m(Mt.PLAIN); b.cyl(x, h + 2.2f * s, z, 2.6f * s, 0.2f, 6.5f * s, C(if (tr.chance(0.5f)) "#2E5E32" else "#3B6E3A"), true, 7)
+        }
         val ol = Town.outline
         if (ol.isNotEmpty()) {
             val ring = FloatArray(ol.size + 2); System.arraycopy(ol, 0, ring, 0, ol.size); ring[ol.size] = ol[0]; ring[ol.size + 1] = ol[1]
             b.m(Mt.STONE, 1f); curbWall(b, ring, -0.06f, CURB, Town.polyArea(ol) < 0, CURBC)
         }
-        return g.finish(1f)
+        return g.finish(100f)
     }
 }

@@ -13,20 +13,22 @@ object TownJobs {
     private val FL = City.FLOOR
 
 
+    /** Largura, fundo e pé-direito do prédio de cada profissão. */
+    fun size(id: String): Triple<Float, Float, Float> = when (id) {
+        "medico" -> Triple(34f, 26f, 4.2f); "juiz" -> Triple(28f, 24f, 5f); "prefeito" -> Triple(30f, 22f, 5f); "empresario" -> Triple(26f, 20f, 4.2f)
+            "professor" -> Triple(30f, 22f, 3.8f); "policial" -> Triple(26f, 22f, 4.0f); "bombeiro" -> Triple(26f, 22f, 4.6f); "repositor" -> Triple(34f, 26f, 4.6f); "lixeiro" -> Triple(26f, 20f, 5.2f)
+            "frentista" -> Triple(14f, 10f, 3.6f); "mecanico" -> Triple(22f, 16f, 5.0f); "entregador" -> Triple(22f, 16f, 4.6f); "programador" -> Triple(24f, 18f, 3.8f)
+            "diarista" -> Triple(16f, 13f, 3.4f); "atendente" -> Triple(18f, 14f, 3.6f); "advogado" -> Triple(18f, 15f, 3.6f)
+            else -> Triple(20f, 15f, 3.6f)
+        }
+
     fun build(g: CityGeo.Gen, u: Town.Urban, ui: Int): Float {
         val job = Jobs.byId(u.type.removePrefix("job:")) ?: return 1f
         val r = City.Rng(ui * 4513 + 7)
         // frente para a rua mais perto (só frente em z, que é o que a porta aceita)
         val fz = if (Town.clearance((u.x0 + u.x1) / 2, u.z1 + 3f) < Town.clearance((u.x0 + u.x1) / 2, u.z0 - 3f)) 1f else -1f
         val front = if (fz > 0) u.z1 else u.z0
-        // tamanho do prédio por profissão
-        val (bw0, bd0, hh) = when (job.id) {
-            "medico" -> Triple(34f, 26f, 4.2f); "juiz" -> Triple(28f, 24f, 5f); "prefeito" -> Triple(30f, 22f, 5f); "empresario" -> Triple(26f, 20f, 4.2f)
-            "professor" -> Triple(30f, 22f, 3.8f); "policial" -> Triple(26f, 22f, 4.0f); "bombeiro" -> Triple(26f, 22f, 4.6f); "repositor" -> Triple(34f, 26f, 4.6f); "lixeiro" -> Triple(26f, 20f, 5.2f)
-            "frentista" -> Triple(14f, 10f, 3.6f); "mecanico" -> Triple(22f, 16f, 5.0f); "entregador" -> Triple(22f, 16f, 4.6f); "programador" -> Triple(24f, 18f, 3.8f)
-            "diarista" -> Triple(16f, 13f, 3.4f); "atendente" -> Triple(18f, 14f, 3.6f); "advogado" -> Triple(18f, 15f, 3.6f)
-            else -> Triple(20f, 15f, 3.6f)
-        }
+        val (bw0, bd0, hh) = size(job.id)
         val bw = min(bw0, u.x1 - u.x0 - 10f); val bd = min(bd0, u.z1 - u.z0 - 16f)
         val set = 7f
         val zf = front - fz * set; val zb = zf - fz * bd

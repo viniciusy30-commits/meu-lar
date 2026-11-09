@@ -345,7 +345,7 @@ object City {
         Town.build(out)
         X0 = Town.minX - 200f; X1 = Town.maxX + 200f; Z0 = Town.minZ - 200f; Z1 = Town.maxZ + 200f
         // praia ao sul da Av. Beira-Mar (reta): calçadão, areia, mar e píer
-        Z1 = TownPlan.ZS[5] + 10f + Town.SW
+        Z1 = TownPlan.ZS[TownPlan.N] + 10f + Town.SW
         BEACH_Z = Z1 + 10f; SEA_Z = Z1 + 62f; PIER_X = 120f
         out.add(CityFun.beach(out.size))
         progress = 0.6f

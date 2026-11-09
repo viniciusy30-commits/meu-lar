@@ -376,10 +376,9 @@ object Town {
                 free[i][j] = !hit
             }
             val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
-            if (d == TownPlan.PARK) continue
             var guard = 0
             // bairros de casas e o nobre: só coisas pequenas e no estilo do bairro (sem prédios grandes no meio das casas)
-            var small = d == TownPlan.SUB || d == TownPlan.MAN || d == TownPlan.HOME
+            var small = d == TownPlan.SUB || d == TownPlan.MAN || d == TownPlan.HOME || d == TownPlan.PARK
             while (guard++ < 80) {
                 // maior retângulo livre (histograma): primeiro conjuntos grandes (40 a 92 m), depois construções pequenas (12 a 36 m)
                 val hgt = IntArray(nz); var best = 0; var bi0 = 0; var bj0 = 0; var bw = 0; var bh = 0
@@ -397,7 +396,9 @@ object Town {
                 }
                 if (best == 0) { if (!small) { small = true; continue } else break }
                 val rx0 = x0 + bi0 * C + 1f; val rz0 = z0 + bj0 * C + 1f; val rx1 = x0 + (bi0 + bw) * C - 1f; val rz1 = z0 + (bj0 + bh) * C - 1f
-                val t = if (small) "small" else when (d) { TownPlan.DOWN -> downT[(nDown++) % downT.size]; TownPlan.COM -> comT[(nCom++) % comT.size]; else -> resT[(nRes++) % resT.size] }
+                // Etapa 146: nada de conjunto repetido (prédio de apartamento igual, igreja...): sobra grande vira quarteirão de prédios variados
+                val t = if (small) "small" else "perim"
+                if (false) { nDown++; nCom++; nRes++; downT.size; comT.size; resT.size }
                 urban.add(Urban(bi, rx0, rz0, rx1, rz1, t, (bi + guard) % 7, 1 + (bi * 3 + guard) % 5, true))
                 for (i in max(0, bi0 - 1) until min(nx, bi0 + bw + 1)) for (j in max(0, bj0 - 1) until min(nz, bj0 + bh + 1)) free[i][j] = false
             }
@@ -415,7 +416,7 @@ object Town {
         // marcos sem profissão (os lugares de trabalho são únicos e entram depois)
         val landD = arrayOf("mall", "hotel")
         val landC = arrayOf("church")
-        val landU = arrayOf("church")
+        val landU = arrayOf<String>()   // Etapa 146: uma igreja só (no comércio)
         for ((bi, bl) in blocks.withIndex()) {
             var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
             var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
@@ -445,13 +446,32 @@ object Town {
             urban.add(Urban(bi, x0 + m0, z0 + m2, x1 - m1, z1 - m3, t, bi % 7, 1 + bi % 5))
         }
         // Etapa 141: um lugar de trabalho único por profissão (níveis 3 e 4 no centro, os outros no comércio e nos bairros urbanos)
-        val cxC = (TownPlan.XS[2] + TownPlan.XS[3]) / 2; val czC = (TownPlan.ZS[1] + TownPlan.ZS[2]) / 2
+        val cxC = TownPlan.XS[2]; val czC = (TownPlan.ZS[1] + TownPlan.ZS[2]) / 2
         for (job in Jobs.ALL) {
             val want = if (job.level >= 3) intArrayOf(TownPlan.DOWN) else intArrayOf(TownPlan.COM, TownPlan.URB)
             val need = when (job.id) { "medico" -> 56f; "prefeito" -> 50f; "professor", "repositor" -> 50f; "juiz" -> 44f; else -> 34f }
-            val cand = urban.filter { it.type == "perim" && TownPlan.districtAt((it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2) in want && it.x1 - it.x0 >= need && it.z1 - it.z0 >= 34f && urban.none { o -> o.type.startsWith("job:") && kotlin.math.hypot((o.x0 + o.x1) / 2 - (it.x0 + it.x1) / 2, (o.z0 + o.z1) / 2 - (it.z0 + it.z1) / 2) < 160f } }
+            // Etapa 146: só quadras com a frente (lado z) colada numa calçada — a porta tem que dar para a rua
+            fun frontOk(u: Urban) = min(clearance((u.x0 + u.x1) / 2, u.z1 + 2.5f), clearance((u.x0 + u.x1) / 2, u.z0 - 2.5f)) < 0.2f
+            val cand = urban.filter { it.type == "perim" && TownPlan.districtAt((it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2) in want && it.x1 - it.x0 >= need && it.z1 - it.z0 >= 34f && frontOk(it) && urban.none { o -> o.type.startsWith("job:") && kotlin.math.hypot((o.x0 + o.x1) / 2 - (it.x0 + it.x1) / 2, (o.z0 + o.z1) / 2 - (it.z0 + it.z1) / 2) < 70f } }
                 .sortedBy { kotlin.math.hypot((it.x0 + it.x1) / 2 - cxC, (it.z0 + it.z1) / 2 - czC) * (if (job.level >= 3) 1f else -0.3f) + (it.block * 37 % 100) }
-            (cand.firstOrNull() ?: urban.firstOrNull { it.type == "perim" && it.x1 - it.x0 >= need })?.type = "job:" + job.id
+            val pick = cand.firstOrNull() ?: urban.firstOrNull { it.type == "perim" && it.x1 - it.x0 >= need && frontOk(it) } ?: urban.firstOrNull { it.type == "perim" && it.x1 - it.x0 >= need } ?: continue
+            // Etapa 146: o emprego fica só com o pedaço que precisa; o resto do quarteirão continua com prédios colados
+            val jw = max(need, TownJobs.size(job.id).first + 14f)
+            if (pick.x1 - pick.x0 - jw >= 36f) {
+                val west = (pick.block * 7 + job.level) % 2 == 0
+                urban.remove(pick)
+                if (west) { urban.add(Urban(pick.block, pick.x0, pick.z0, pick.x0 + jw, pick.z1, "job:" + job.id, pick.i, pick.j)); urban.add(Urban(pick.block, pick.x0 + jw + 1f, pick.z0, pick.x1, pick.z1, "perim", pick.i, pick.j)) }
+                else { urban.add(Urban(pick.block, pick.x1 - jw, pick.z0, pick.x1, pick.z1, "job:" + job.id, pick.i, pick.j)); urban.add(Urban(pick.block, pick.x0, pick.z0, pick.x1 - jw - 1f, pick.z1, "perim", pick.i, pick.j)) }
+            } else pick.type = "job:" + job.id
+            // e no fundo: se o quarteirão for fundo, o emprego fica com a frente e o fundo volta a ter prédios
+            val ju = urban.last { it.type == "job:" + job.id }
+            val jd = TownJobs.size(job.id).second + 20f
+            if (ju.z1 - ju.z0 - jd >= 32f) {
+                val frontZ1 = clearance((ju.x0 + ju.x1) / 2, ju.z1 + 2.5f) < clearance((ju.x0 + ju.x1) / 2, ju.z0 - 2.5f)
+                urban.remove(ju)
+                if (frontZ1) { urban.add(Urban(ju.block, ju.x0, ju.z1 - jd, ju.x1, ju.z1, ju.type, ju.i, ju.j)); urban.add(Urban(ju.block, ju.x0, ju.z0, ju.x1, ju.z1 - jd - 1f, "perim", ju.i, ju.j)) }
+                else { urban.add(Urban(ju.block, ju.x0, ju.z0, ju.x1, ju.z0 + jd, ju.type, ju.i, ju.j)); urban.add(Urban(ju.block, ju.x0, ju.z0 + jd + 1f, ju.x1, ju.z1, "perim", ju.i, ju.j)) }
+            }
         }
     }
     var outline = FloatArray(0)
@@ -694,7 +714,23 @@ object Town {
 
     fun inAnyBlock(x: Float, z: Float): Boolean { for (b in blocks) if (inside(b, x, z)) return true; return false }
 
-    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) 0f else when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
+    /**
+     * Etapa 146: morros em volta da cidade (a cidade fica num vale aberto para o mar). Zero dentro do retângulo da cidade
+     * e na praia; sobe aos poucos até 30-90 m a uns 300 m da borda.
+     */
+    fun hill(x: Float, z: Float): Float {
+        if (outline.isEmpty()) return 0f
+        val dx = max(0f, max(minX - x, x - maxX)); val dz = max(0f, minZ - z)
+        val d = hypot(dx, dz) - 35f
+        if (d <= 0f) return 0f
+        val t = min(1f, d / 300f); val s = t * t * (3 - 2 * t)
+        val n = 0.62f + 0.22f * kotlin.math.sin(x * 0.011f + 1.3f) * kotlin.math.cos(z * 0.009f - 0.4f) + 0.16f * kotlin.math.sin((x + z) * 0.023f) + 0.08f * kotlin.math.sin(x * 0.047f - z * 0.031f)
+        val beachZ = TownPlan.ZS[TownPlan.N]
+        val fade = ((beachZ - 20f - z) / 160f).coerceIn(0f, 1f)
+        return s * 95f * n * fade
+    }
+
+    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
 
     /** Fora do mapa (além do contorno da cidade + calçada externa). */
     fun outside(x: Float, z: Float) = outline.isNotEmpty() && x > minX - 60f && x < maxX + 60f && z > minZ - 60f && z < maxZ + 60f && false

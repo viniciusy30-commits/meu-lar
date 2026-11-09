@@ -32,14 +32,16 @@ object TownHouses {
     val lots = ArrayList<Lot>()
 
     // tamanho do lote por nível: frente, fundo
-    private val LW = floatArrayOf(0f, 15f, 18f, 24f, 110f)
-    private val LD = floatArrayOf(0f, 25f, 30f, 40f, 150f)
+    // Etapa 146: lotes mais justos (casas mais perto umas das outras, sem quintal sobrando)
+    private val LW = floatArrayOf(0f, 13.5f, 16.5f, 21f, 80f)
+    private val LD = floatArrayOf(0f, 22f, 26f, 34f, 100f)
 
     fun tierOf(x: Float, z: Float): Int {
         val d = TownPlan.districtAt(x, z)
         return when (d) {
             TownPlan.MAN -> 4
             TownPlan.HOME -> 2
+            TownPlan.PARK -> 2
             TownPlan.SUB -> TownPlan.tierAt(x, z)
             else -> 0
         }
@@ -78,6 +80,7 @@ object TownHouses {
             }
         }
         if (!Town.inAnyBlock(l.cx, l.cz)) return false
+        if (TownPark.inPark(l.cx, l.cz)) return false   // Etapa 146: o parque fica livre
         // terreno da casa do jogador (com folga)
         val home = floatArrayOf(City.lotX0 - 3f, City.lotZ0 - 3f, City.lotX1 + 3f, City.lotZ0 - 3f, City.lotX1 + 3f, City.lotZ1 + 3f, City.lotX0 - 3f, City.lotZ1 + 3f)
         if (overlap(c, home)) return false
@@ -154,7 +157,10 @@ object TownHouses {
             }
         }
         // cada mansão num estilo, alternando (vizinhas nunca iguais)
-        var mi = 0; for (l in lots) if (l.tier == 4) { l.style = mi; mi++ }
+        // Etapa 146: em cada bairro nobre as mansões têm estilos todos diferentes (e o outro bairro começa por outro estilo)
+        val groups = lots.filter { it.tier == 4 }.groupBy { val c = TownPlan.cellCenter(it.cx, it.cz); c[0] * 10000f + c[1] }
+        var gi = 0
+        for ((_, gl) in groups.entries.sortedBy { it.key }) { for ((k, l) in gl.sortedBy { it.cx * 3f + it.cz }.withIndex()) l.style = k + gi * 2 + (k / 4) * 4; gi++ }
         // à venda: alguns de cada nível
         val r = City.Rng(77)
         for (l in lots) if (r.chance(if (l.tier == 4) 0.35f else 0.12f)) { l.forSale = true; l.price = PRICE[l.tier] + r.i(5) * PRICE[l.tier] / 10 }
@@ -263,7 +269,7 @@ object TownHouses {
         // largura e fundo da casa (o resto do lote é jardim)
         val sideGap = when (t) { 1 -> 1.6f; 2 -> 1.9f; else -> 2.5f }
         val hw = (W - 2 * sideGap - gw).coerceIn(6f, if (style == RANCH) 20f else 17f)
-        val hd = when (style) { RANCH -> 9f; MODERN -> 10.5f; else -> 9f + t * 0.8f }.coerceAtMost(D * 0.38f)
+        val hd = when (style) { RANCH -> 9f; MODERN -> 10.5f; else -> 9f + t * 0.8f }.coerceAtMost(D * 0.44f)
         val set = when (t) { 1 -> 5f; 2 -> 5.8f; else -> 7f }
         val total = hw + gw
         val hx0 = -total / 2 + (if (gSide < 0) gw else 0f)
