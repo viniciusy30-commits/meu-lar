@@ -165,6 +165,7 @@ object TownGeo {
                 g.b.m(Mt.STONE, 1f); curbWall(g.b, ring, 0f, CURB, true, CURBC)
             }
         }
+        for (bi in t.blocks) if (TownPark.isPark(bi)) TownPark.draw(g, bi, !far, far)
         for (li in t.lots) TownHouses.draw(g, TownHouses.lots[li], !far, far)
         if (!far) return
         val f = g.f

@@ -1,0 +1,327 @@
+package com.vinicius.meular
+
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+/**
+ * Etapa 135: parques e praças nos quarteirões de parque e nos que sobram vazios.
+ * Lago com margem de pedra, ilha e deck; caminho em volta do lago e caminhos ligando às calçadas;
+ * playground, quadras (basquete e futebol), academia ao ar livre, quiosque, bancos e postes ao longo dos caminhos,
+ * bosques e canteiros. Tudo posicionado por folga até a borda do quarteirão, aos caminhos e uns aos outros.
+ */
+object TownPark {
+    private const val CURB = Town.CURB
+    private val PATH = C("#D9CFBC")
+    private val STONE = C("#A39C8E")
+    private val WATER = C("#3E93B8")
+
+    /** Parque planejado (calculado uma vez): lago, caminhos, áreas. */
+    class Plan(val block: Int) {
+        var cx = 0f; var cz = 0f; var lakeR = 0f
+        val paths = ArrayList<FloatArray>()      // polilinhas (x, z)
+        val spots = ArrayList<FloatArray>()      // (x, z, raio, tipo)
+        val trees = ArrayList<FloatArray>()
+    }
+    val plans = HashMap<Int, Plan>()
+
+    /** Distância de (x, z) até a borda do polígono (positiva dentro). */
+    private fun inset(bl: FloatArray, x: Float, z: Float): Float {
+        var m = Float.MAX_VALUE; val n = bl.size / 2
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            val ax = bl[i * 2]; val az = bl[i * 2 + 1]; val dx = bl[j * 2] - ax; val dz = bl[j * 2 + 1] - az; val l2 = max(1e-6f, dx * dx + dz * dz)
+            val t = (((x - ax) * dx + (z - az) * dz) / l2).coerceIn(0f, 1f)
+            m = min(m, hypot(x - ax - dx * t, z - az - dz * t))
+        }
+        return if (Town.inside(bl, x, z)) m else -m
+    }
+
+    private fun distSeg(px: Float, pz: Float, p: FloatArray): Float {
+        var m = Float.MAX_VALUE
+        for (i in 0 until p.size / 2 - 1) {
+            val ax = p[i * 2]; val az = p[i * 2 + 1]; val dx = p[i * 2 + 2] - ax; val dz = p[i * 2 + 3] - az; val l2 = max(1e-6f, dx * dx + dz * dz)
+            val t = (((px - ax) * dx + (pz - az) * dz) / l2).coerceIn(0f, 1f)
+            m = min(m, hypot(px - ax - dx * t, pz - az - dz * t))
+        }
+        return m
+    }
+
+    fun isPark(bi: Int): Boolean {
+        if (bi == Town.homeBlock) return false
+        val bl = Town.blocks[bi]
+        var cx = 0f; var cz = 0f; val n = bl.size / 2; for (k in 0 until n) { cx += bl[k * 2]; cz += bl[k * 2 + 1] }; cx /= n; cz /= n
+        if (Town.urban.any { it.block == bi }) return false
+        val d = TownPlan.districtAt(cx, cz)
+        if (d == TownPlan.PARK) return true
+        // quarteirões grandes de centro/comércio que não viraram quadra de prédios: praça
+        return (d == TownPlan.DOWN || d == TownPlan.COM) && abs(Town.polyArea(bl)) > 1500f
+    }
+
+    fun plan(bi: Int): Plan {
+        plans[bi]?.let { return it }
+        val bl = Town.blocks[bi]
+        val pl = Plan(bi)
+        val r = City.Rng(bi * 977 + 5)
+        // centro: o ponto mais "fundo" do polígono (máximo da distância à borda), numa grade
+        var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+        var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
+        var best = -1f
+        val st = max(4f, min(x1 - x0, z1 - z0) / 24f)
+        var x = x0; while (x <= x1) { var z = z0; while (z <= z1) { val d = inset(bl, x, z); if (d > best) { best = d; pl.cx = x; pl.cz = z }; z += st }; x += st }
+        val big = best > 45f
+        pl.lakeR = if (big) min(best * 0.42f, 48f) else if (best > 18f) best * 0.28f else 0f
+        // caminho em volta do lago (ou praça central)
+        val ringR = if (pl.lakeR > 0f) pl.lakeR + 7f else min(best * 0.45f, 14f)
+        val ring = FloatArray(49 * 2); for (q in 0..48) { val a = 6.2832f * q / 48; ring[q * 2] = pl.cx + cos(a) * ringR; ring[q * 2 + 1] = pl.cz + sin(a) * ringR }
+        pl.paths.add(ring)
+        // caminhos do anel até a borda (4 a 6 direções), curvados
+        val nRad = if (big) 6 else 4
+        val a0 = r.r(0f, 1f)
+        for (q in 0 until nRad) {
+            val a = a0 + 6.2832f * q / nRad
+            val sx = pl.cx + cos(a) * ringR; val sz = pl.cz + sin(a) * ringR
+            // anda para fora até chegar a 1 m da borda
+            var t = ringR; var ex = sx; var ez = sz
+            while (t < 600f) { val px = pl.cx + cos(a) * t; val pz = pl.cz + sin(a) * t; if (inset(bl, px, pz) < 0.6f) break; ex = px; ez = pz; t += 1f }
+            if (hypot(ex - sx, ez - sz) < 4f) continue
+            val bend = r.r(-0.18f, 0.18f) * hypot(ex - sx, ez - sz)
+            val mx = (sx + ex) / 2 - sin(a) * bend; val mz = (sz + ez) / 2 + cos(a) * bend
+            val pts = FloatArray(17 * 2)
+            for (i in 0..16) { val u = i / 16f; val w = 1 - u; pts[i * 2] = w * w * sx + 2 * w * u * mx + u * u * ex; pts[i * 2 + 1] = w * w * sz + 2 * w * u * mz + u * u * ez }
+            // o caminho só vale se ficar todo dentro do quarteirão e fora do lago
+            var ok = true; for (i in 0..16) if (inset(bl, pts[i * 2], pts[i * 2 + 1]) < 0.5f || (pl.lakeR > 0f && hypot(pts[i * 2] - pl.cx, pts[i * 2 + 1] - pl.cz) < pl.lakeR + 3f)) { ok = false; break }
+            if (ok) pl.paths.add(pts)
+        }
+        // áreas: playground (0), quadra de basquete (1), campo de futebol (2), academia (3), quiosque (4), coreto/pérgola (5)
+        val want = if (big) intArrayOf(2, 1, 0, 3, 4, 1, 0, 5) else intArrayOf(0, 3, 4, 5)
+        val size = floatArrayOf(9f, 16f, 30f, 8f, 6f, 6f)
+        for (tp in want) {
+            val rad = size[tp]
+            for (tries in 0 until 80) {
+                val px = r.r(x0, x1); val pz = r.r(z0, z1)
+                if (inset(bl, px, pz) < rad + 4f) continue
+                if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR + rad + 9f) continue
+                if (pl.paths.any { distSeg(px, pz, it) < rad + 2f }) continue
+                if (pl.spots.any { hypot(px - it[0], pz - it[1]) < rad + it[2] + 4f }) continue
+                pl.spots.add(floatArrayOf(px, pz, rad, tp.toFloat())); break
+            }
+        }
+        // árvores: bosques espalhados (folga dos caminhos, do lago e das áreas)
+        val area = abs(Town.polyArea(bl))
+        val nt = (area / 260f).toInt().coerceIn(8, 160)
+        var tries = 0
+        while (pl.trees.size < nt && tries++ < nt * 25) {
+            val px = r.r(x0, x1); val pz = r.r(z0, z1)
+            if (inset(bl, px, pz) < 3f) continue
+            if (pl.lakeR > 0f && hypot(px - pl.cx, pz - pl.cz) < pl.lakeR + 4f) continue
+            if (pl.paths.any { distSeg(px, pz, it) < 3.2f }) continue
+            if (pl.spots.any { hypot(px - it[0], pz - it[1]) < it[2] + 3f }) continue
+            if (pl.trees.any { hypot(px - it[0], pz - it[1]) < 6f }) continue
+            pl.trees.add(floatArrayOf(px, pz, r.r(0.85f, 1.3f)))
+        }
+        plans[bi] = pl
+        return pl
+    }
+
+    fun draw(g: CityGeo.Gen, bi: Int, near: Boolean, far: Boolean) {
+        val pl = plan(bi)
+        val b = g.b
+        // lago (fundo um pouco abaixo da grama, margem de pedra)
+        if (pl.lakeR > 0f) {
+            val R = pl.lakeR
+            if (far) { g.f.m(Mt.PLAIN); g.f.cyl(pl.cx, CURB - 0.02f, pl.cz, R, R, 0.3f, WATER, true, 36) }
+            if (g.reg) { val s = R * 0.68f; g.solid(pl.cx - s, pl.cz - s, pl.cx + s, pl.cz + s) }
+            if (near) {
+                b.m(Mt.STONE, 0.6f); b.cyl(pl.cx, CURB - 0.02f, pl.cz, R + 1.2f, R + 1.2f, 0.27f, STONE, true, 48)
+                b.m(Mt.PLAIN); b.cyl(pl.cx, CURB - 0.02f, pl.cz, R, R, 0.35f, WATER, true, 48)
+                // ilha com árvore
+                if (R > 20f) { val ix = pl.cx + R * 0.3f; val iz = pl.cz - R * 0.2f; b.m(Mt.GRASS, 0.3f); b.cyl(ix, CURB - 0.02f, iz, R * 0.18f, R * 0.18f, 0.5f, C("#D6EEC4"), true, 24); CityGeo.tree(g, ix, iz, 1.2f, CURB + 0.48f) }
+                // deck de madeira entrando no lago
+                val a = 2.4f; val dx = cos(a); val dz = sin(a)
+                val ox = pl.cx + dx * (R + 3f); val oz = pl.cz + dz * (R + 3f)
+                b.m(Mt.WOOD, 0.5f); TownGeo.obox(b, ox - dx * 5f, CURB + 0.45f, oz - dz * 5f, 10f, 0.15f, 3f, dx, dz, C("#9A7350"))
+                for (q in 0..3) b.cyl(ox - dx * (q * 3f), CURB - 0.1f, oz - dz * (q * 3f), 0.12f, 0.12f, 0.35f, C("#6B4E36"), true, 6)
+                // patos/pedalinhos
+                for (q in 0 until 3) { val aa = q * 2.1f + 0.5f; val px = pl.cx + cos(aa) * R * 0.6f; val pz = pl.cz + sin(aa) * R * 0.6f; b.m(Mt.PLAIN); b.box(px, CURB + 0.4f, pz, 1.6f, 0.5f, 2.4f, C(arrayOf("#FFFFFF", "#F2C230", "#E05A47")[q])); CityGeo.ball(b, px, CURB + 1.05f, pz + 0.6f, 0.35f, C(arrayOf("#FFFFFF", "#F2C230", "#E05A47")[q]), 0.35f, 8) }
+            }
+        }
+        // caminhos (pedrisco) com bancos e postes
+        for (p in pl.paths) {
+            val l = Town.offset(p, -1.4f); val rr = Town.offset(p, 1.4f)
+            if (near) { b.m(Mt.PAVER, 0.6f); TownGeo.ribbon(b, l, rr, CURB + 0.014f, PATH) }
+            if (far) { g.f.m(Mt.PAVER, 0.6f); TownGeo.ribbon(g.f, l, rr, CURB + 0.014f, PATH) }
+            if (!near) continue
+            var acc = 0f; var side = 1f
+            for (i in 1 until p.size / 2) {
+                acc += hypot(p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1])
+                if (acc > 14f) {
+                    acc = 0f
+                    val t = Town.tangent(p, i); val nx = -t[1] * side; val nz = t[0] * side
+                    val lx = p[i * 2] + nx * 2.2f; val lz = p[i * 2 + 1] + nz * 2.2f
+                    if (side > 0) { CityGeo.streetLamp(b, lx, lz, 0f, 0f); g.solid(lx - 0.15f, lz - 0.15f, lx + 0.15f, lz + 0.15f) }
+                    else { bench(b, lx, lz, -nx, -nz); g.solid(lx - 0.4f, lz - 0.4f, lx + 0.4f, lz + 0.4f) }
+                    side = -side
+                }
+            }
+        }
+        // áreas
+        for (s in pl.spots) {
+            val x = s[0]; val z = s[1]; val tp = s[3].toInt()
+            when (tp) {
+                0 -> if (near) playground(g, x, z) else if (g.reg) playground(g, x, z)
+                1 -> court(g, x, z, near)
+                2 -> soccer(g, x, z, near)
+                3 -> if (near) gym(g, x, z) else if (g.reg) gym(g, x, z)
+                4 -> kiosk(g, x, z, near)
+                else -> gazebo(g, x, z, near)
+            }
+            // caminho curto até o caminho mais perto
+            if (near) {
+                var bd = Float.MAX_VALUE; var bx = 0f; var bz = 0f
+                for (p in pl.paths) for (i in 0 until p.size / 2) { val d = hypot(p[i * 2] - x, p[i * 2 + 1] - z); if (d < bd) { bd = d; bx = p[i * 2]; bz = p[i * 2 + 1] } }
+                if (bd < 60f) {
+                    val dx = bx - x; val dz = bz - z; val l = max(1e-3f, hypot(dx, dz))
+                    val sx = x + dx / l * s[2]; val sz = z + dz / l * s[2]
+                    val L = hypot(bx - sx, bz - sz)
+                    if (L > 1f) { b.m(Mt.PAVER, 0.6f); TownGeo.obox(b, (sx + bx) / 2, CURB + 0.01f, (sz + bz) / 2, L, 0.012f, 2f, (bx - sx) / L, (bz - sz) / L, PATH) }
+                }
+            }
+        }
+        // árvores e canteiros
+        if (near) {
+            val r = City.Rng(bi * 31 + 1)
+            for (t in pl.trees) {
+                if (r.chance(0.12f)) CityGeo.palm(g, t[0], t[1], t[2]) else CityGeo.tree(g, t[0], t[1], t[2])
+                if (r.chance(0.3f)) CityGeo.bush(g, t[0] + 1.8f, t[1] + 1.2f, 0.7f)
+            }
+        }
+        if (g.reg) for (t in pl.trees) g.solid(t[0] - 0.3f, t[1] - 0.3f, t[0] + 0.3f, t[1] + 0.3f)
+    }
+
+    private fun bench(b: MB, x: Float, z: Float, fx: Float, fz: Float) {
+        b.m(Mt.WOOD, 0.5f)
+        TownGeo.obox(b, x, CURB + 0.45f, z, 1.8f, 0.08f, 0.45f, -fz, fx, C("#8A5E3C"))
+        TownGeo.obox(b, x - fx * 0.22f, CURB + 0.75f, z - fz * 0.22f, 1.8f, 0.4f, 0.06f, -fz, fx, C("#8A5E3C"))
+        b.m(Mt.METAL, 1f)
+        for (s in floatArrayOf(-0.75f, 0.75f)) TownGeo.obox(b, x - fz * s, CURB + 0.22f, z + fx * s, 0.08f, 0.45f, 0.5f, -fz, fx, C("#2E3236"))
+    }
+
+    private fun playground(g: CityGeo.Gen, x: Float, z: Float) {
+        val b = g.b
+        if (g.reg) { g.solid(x - 5f, z - 1.2f, x - 1f, z + 1.2f); g.solid(x + 1.5f, z - 2f, x + 5f, z + 2f) }
+        // piso emborrachado
+        b.m(Mt.PLAIN); b.cyl(x, CURB, z, 8.5f, 8.5f, 0.03f, C("#C9603E"), true, 32)
+        b.m(Mt.PLAIN); b.cyl(x, CURB, z, 8.8f, 8.8f, 0.02f, C("#D9D3C7"), true, 32)
+        // balanço
+        b.m(Mt.METAL, 1f)
+        for (s in floatArrayOf(-5f, -1f)) { b.box(x + s, CURB + 1.25f, z - 1.1f, 0.1f, 2.5f, 0.1f, C("#E0452E")); b.box(x + s, CURB + 1.25f, z + 1.1f, 0.1f, 2.5f, 0.1f, C("#E0452E")) }
+        b.box(x - 3f, CURB + 2.5f, z, 4.2f, 0.12f, 0.12f, C("#E0452E"))
+        for (s in floatArrayOf(-4f, -2f)) { b.box(x + s, CURB + 1.5f, z, 0.03f, 2f, 0.03f, C("#777777")); b.m(Mt.PLAIN); b.box(x + s, CURB + 0.5f, z, 0.5f, 0.06f, 0.2f, C("#222222")); b.m(Mt.METAL, 1f) }
+        // escorregador com torre
+        b.m(Mt.WOOD, 0.5f); b.box(x + 3.2f, CURB + 0.9f, z, 2f, 0.12f, 2f, C("#9A7350"))
+        for (sx in floatArrayOf(2.3f, 4.1f)) for (sz in floatArrayOf(-0.9f, 0.9f)) b.box(x + sx, CURB + 1.3f, z + sz, 0.14f, 2.6f, 0.14f, C("#2E7DC5"))
+        b.m(Mt.PLAIN); b.box(x + 3.2f, CURB + 2.65f, z, 2.3f, 0.12f, 2.3f, C("#F2C230"))
+        CityGeo.q(b, floatArrayOf(x + 3.6f, CURB + 0.95f, z + 1f, x + 3.6f, CURB + 0.95f, z - 1f, x + 3.6f + 0f, CURB + 0.95f, z - 1f, x + 3.6f, CURB + 0.95f, z + 1f), C("#2E7DC5"))
+        b.box(x + 3.2f, CURB + 0.5f, z + 3.2f, 0.8f, 0.06f, 3f, C("#2EA35A"))
+        // gangorra e gira-gira
+        b.box(x, CURB + 0.45f, z + 5.5f, 3.4f, 0.08f, 0.3f, C("#F2C230")); b.box(x, CURB + 0.22f, z + 5.5f, 0.2f, 0.45f, 0.2f, C("#555555"))
+        b.cyl(x - 3f, CURB, z - 5f, 1.4f, 1.4f, 0.25f, C("#E0452E"), true, 16)
+        CityGeo.publicBench(b, x + 6.8f, z - 5f, -1f, 0f)
+    }
+
+    private fun court(g: CityGeo.Gen, x: Float, z: Float, near: Boolean) {
+        val b = g.b; val w = 15f; val d = 28f
+        if (g.reg) { g.solid(x - w / 2 - 0.1f, z - d / 2, x - w / 2 + 0.1f, z + d / 2); g.solid(x + w / 2 - 0.1f, z - d / 2, x + w / 2 + 0.1f, z + d / 2); g.solid(x - w / 2, z + d / 2 - 0.1f, x + w / 2, z + d / 2 + 0.1f) }
+        if (!near) { g.f.m(Mt.PLAIN); g.f.plane(x - w / 2, z - d / 2, x + w / 2, z + d / 2, CURB + 0.02f, C("#3E6FA8")); return }
+        b.m(Mt.PLAIN)
+        b.plane(x - w / 2 - 1f, z - d / 2 - 1f, x + w / 2 + 1f, z + d / 2 + 1f, CURB + 0.02f, C("#C25B3C"))
+        b.plane(x - w / 2, z - d / 2, x + w / 2, z + d / 2, CURB + 0.045f, C("#3E6FA8"))
+        val wt = C("#F4F4F4")
+        for (zz in floatArrayOf(z - d / 2, z + d / 2, z)) b.plane(x - w / 2, zz - 0.05f, x + w / 2, zz + 0.05f, CURB + 0.07f, wt)
+        for (xx in floatArrayOf(x - w / 2, x + w / 2)) b.plane(xx - 0.05f, z - d / 2, xx + 0.05f, z + d / 2, CURB + 0.07f, wt)
+        b.cyl(x, CURB + 0.06f, z, 1.8f, 1.8f, 0.006f, wt, true, 24)
+        for (s in floatArrayOf(-1f, 1f)) {
+            b.plane(x - 2.4f, if (s < 0) z - d / 2 else z + d / 2 - 5.8f, x + 2.4f, if (s < 0) z - d / 2 + 5.8f else z + d / 2, CURB + 0.055f, C("#C25B3C"))
+            b.m(Mt.METAL, 1f)
+            b.box(x, CURB + 1.5f, z + s * (d / 2 + 0.6f), 0.15f, 3f, 0.15f, C("#555555"))
+            b.box(x, CURB + 3.0f, z + s * (d / 2 - 0.1f), 0.12f, 0.12f, 1.4f, C("#555555"))
+            b.box(x, CURB + 3.3f, z + s * (d / 2 - 0.75f), 1.8f, 1.1f, 0.06f, C("#FFFFFF"))
+            b.m(Mt.PLAIN); b.cyl(x, CURB + 3.05f, z + s * (d / 2 - 1.2f), 0.23f, 0.23f, 0.03f, C("#E0452E"), true, 12)
+        }
+        b.m(Mt.METAL, 1f)
+        b.box(x - w / 2, CURB + 1.5f, z, 0.03f, 3f, d, C("#5A6B5F")); b.box(x + w / 2, CURB + 1.5f, z, 0.03f, 3f, d, C("#5A6B5F")); b.box(x, CURB + 1.5f, z + d / 2, w, 3f, 0.03f, C("#5A6B5F"))
+    }
+
+    private fun soccer(g: CityGeo.Gen, x: Float, z: Float, near: Boolean) {
+        val b = g.b; val w = 30f; val d = 50f
+        if (!near) { g.f.m(Mt.GRASS, 0.3f); g.f.plane(x - w / 2, z - d / 2, x + w / 2, z + d / 2, CURB + 0.02f, C("#7FBF5A")); return }
+        b.m(Mt.GRASS, 0.25f); b.plane(x - w / 2, z - d / 2, x + w / 2, z + d / 2, CURB + 0.012f, C("#8FCF6A"))
+        for (k in 0 until 10) if (k % 2 == 0) b.plane(x - w / 2, z - d / 2 + k * d / 10, x + w / 2, z - d / 2 + (k + 1) * d / 10, CURB + 0.016f, C("#7FBF5A"))
+        b.m(Mt.PLAIN)
+        val wt = C("#F4F4F4"); val y = CURB + 0.02f
+        for (zz in floatArrayOf(z - d / 2, z + d / 2, z)) b.plane(x - w / 2, zz - 0.06f, x + w / 2, zz + 0.06f, y, wt)
+        for (xx in floatArrayOf(x - w / 2, x + w / 2)) b.plane(xx - 0.06f, z - d / 2, xx + 0.06f, z + d / 2, y, wt)
+        for (s in floatArrayOf(-1f, 1f)) {
+            val ze = z + s * d / 2
+            b.plane(x - 6f, if (s < 0) ze else ze - 8f, x - 5.88f, if (s < 0) ze + 8f else ze, y, wt); b.plane(x + 5.88f, if (s < 0) ze else ze - 8f, x + 6f, if (s < 0) ze + 8f else ze, y, wt)
+            b.plane(x - 6f, ze + s * -8f - 0.06f, x + 6f, ze + s * -8f + 0.06f, y, wt)
+            b.m(Mt.METAL, 1f)
+            for (sx in floatArrayOf(-2.5f, 2.5f)) b.box(x + sx, CURB + 1.1f, ze, 0.12f, 2.2f, 0.12f, wt)
+            b.box(x, CURB + 2.2f, ze, 5.1f, 0.12f, 0.12f, wt)
+            b.box(x, CURB + 1.1f, ze + s * 1f, 5f, 2.2f, 0.02f, C("#DDDDDD"))
+            b.m(Mt.PLAIN)
+            if (g.reg) g.solid(x - 2.6f, min(ze, ze + s * 1f) - 0.1f, x + 2.6f, max(ze, ze + s * 1f) + 0.1f)
+        }
+        b.cyl(x, y, z, 6f, 6f, 0.004f, wt, true, 32); b.cyl(x, y + 0.002f, z, 5.88f, 5.88f, 0.004f, C("#8FCF6A"), true, 32)
+        // arquibancada pequena de um lado
+        b.m(Mt.STONE, 0.6f); for (k in 0..2) b.box(x + w / 2 + 2f + k * 0.8f, CURB + 0.2f + k * 0.4f, z, 0.8f, 0.4f, 16f, C("#B9B3A8"))
+        if (g.reg) g.solid(x + w / 2 + 1.5f, z - 8f, x + w / 2 + 4.5f, z + 8f)
+    }
+
+    private fun gym(g: CityGeo.Gen, x: Float, z: Float) {
+        val b = g.b
+        b.m(Mt.PLAIN); b.cyl(x, CURB, z, 7f, 7f, 0.03f, C("#5E8C4A"), true, 28)
+        for (k in 0 until 5) {
+            val a = k * 1.2566f; val px = x + cos(a) * 4.5f; val pz = z + sin(a) * 4.5f
+            b.m(Mt.METAL, 1f)
+            b.box(px, CURB + 0.9f, pz, 0.12f, 1.8f, 0.12f, C("#F2C230")); b.box(px, CURB + 1.8f, pz, 1.4f, 0.1f, 0.1f, C("#2E7DC5"))
+            b.box(px + 0.5f, CURB + 0.6f, pz, 0.5f, 0.08f, 0.3f, C("#2E7DC5"))
+            if (g.reg) g.solid(px - 0.4f, pz - 0.4f, px + 0.4f, pz + 0.4f)
+        }
+    }
+
+    private fun kiosk(g: CityGeo.Gen, x: Float, z: Float, near: Boolean) {
+        val b = g.b
+        if (g.reg) g.solid(x - 2f, z - 2f, x + 2f, z + 2f)
+        if (!near) { g.f.m(Mt.PLAIN); g.f.box(x, CURB + 1.5f, z, 4f, 3f, 4f, C("#E8D5B0")); return }
+        b.m(Mt.WOOD, 0.5f); b.box(x, CURB + 1.4f, z, 4f, 2.8f, 4f, C("#C9A27A"))
+        b.m(Mt.PLAIN); for (s in 0..3) { val a = s * 1.5708f; b.box(x + cos(a) * 2.02f, CURB + 1.5f, z + sin(a) * 2.02f, if (s % 2 == 0) 0.04f else 2.6f, 1.0f, if (s % 2 == 0) 2.6f else 0.04f, C("#3B2A1E")) }
+        b.m(Mt.ROOF, 0.6f); b.cyl(x, CURB + 2.8f, z, 3.4f, 0.1f, 1.4f, C("#B5523B"), true, 4)
+        // mesas com guarda-sol em volta
+        for (k in 0 until 4) {
+            val a = k * 1.5708f + 0.785f; val tx = x + cos(a) * 5f; val tz = z + sin(a) * 5f
+            b.m(Mt.WOOD, 0.5f); b.cyl(tx, CURB, tz, 0.5f, 0.5f, 0.75f, C("#8A5E3C"), true, 10)
+            b.m(Mt.FABRIC, 1f); b.cyl(tx, CURB + 2.2f, tz, 1.4f, 0.05f, 0.45f, C(arrayOf("#E05A47", "#F2C230", "#2E7DC5", "#2EA35A")[k]), true, 10)
+            b.m(Mt.METAL, 1f); b.cyl(tx, CURB + 0.75f, tz, 0.03f, 0.03f, 1.5f, C("#DDDDDD"), true, 5)
+            if (g.reg) g.solid(tx - 0.5f, tz - 0.5f, tx + 0.5f, tz + 0.5f)
+        }
+    }
+
+    private fun gazebo(g: CityGeo.Gen, x: Float, z: Float, near: Boolean) {
+        val b = g.b
+        if (g.reg) for (k in 0 until 8) { val a = k * 0.785f; g.solid(x + cos(a) * 4f - 0.15f, z + sin(a) * 4f - 0.15f, x + cos(a) * 4f + 0.15f, z + sin(a) * 4f + 0.15f) }
+        if (!near) return
+        b.m(Mt.STONE, 0.6f); b.cyl(x, CURB, z, 4.6f, 4.6f, 0.45f, C("#D9D3C7"), true, 8)
+        b.m(Mt.PLAIN); for (k in 0 until 8) { val a = k * 0.785f; b.cyl(x + cos(a) * 4f, CURB + 0.45f, z + sin(a) * 4f, 0.12f, 0.12f, 2.8f, C("#FBFBF8"), true, 8) }
+        b.m(Mt.ROOF, 0.6f); b.cyl(x, CURB + 3.25f, z, 5f, 0.1f, 2.2f, C("#3E5A48"), true, 8)
+        b.m(Mt.PLAIN); b.cyl(x, CURB + 3.2f, z, 4.4f, 4.4f, 0.12f, C("#FBFBF8"), true, 8)
+    }
+
+    @Suppress("unused") private fun unused() = atan2(0f, 1f) + sqrt(1f)
+}

@@ -24,7 +24,7 @@ object TownPlan {
 
     /** Bairro de cada superquadra [linha z][coluna x]. */
     val D = arrayOf(
-        intArrayOf(SUB, SUB, MAN, PARK, MAN),
+        intArrayOf(MAN, SUB, MAN, PARK, MAN),
         intArrayOf(SUB, COM, DOWN, DOWN, SUB),
         intArrayOf(PARK, SUB, HOME, DOWN, COM),
         intArrayOf(SUB, COM, SUB, COM, SUB),
@@ -39,7 +39,7 @@ object TownPlan {
 
     /** Nível das casas de cada superquadra de subúrbio (1 pequena, 2 média, 3 grande). */
     val TIER = arrayOf(
-        intArrayOf(2, 3, 4, 0, 4),
+        intArrayOf(4, 3, 4, 0, 4),
         intArrayOf(1, 0, 0, 0, 3),
         intArrayOf(0, 2, 2, 0, 0),
         intArrayOf(1, 0, 1, 0, 3),

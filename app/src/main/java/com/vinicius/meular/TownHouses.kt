@@ -22,6 +22,8 @@ object TownHouses {
     class Lot(val fx: Float, val fz: Float, val tx: Float, val tz: Float, val nx: Float, val nz: Float, val w: Float, val d: Float, val tier: Int, val seed: Int) {
         var forSale = false
         var price = 0
+        /** estilo da mansão (0 clássica, 1 moderna, 2 mediterrânea, 3 castelo) */
+        var style = 0
         fun wx(lx: Float, lz: Float) = fx + tx * lx + nx * lz
         fun wz(lx: Float, lz: Float) = fz + tz * lx + nz * lz
         val cx get() = wx(0f, d / 2)
@@ -129,6 +131,8 @@ object TownHouses {
                 }
             }
         }
+        // cada mansão num estilo, alternando (vizinhas nunca iguais)
+        var mi = 0; for (l in lots) if (l.tier == 4) { l.style = mi % 4; mi++ }
         // à venda: alguns de cada nível
         val r = City.Rng(77)
         for (l in lots) if (r.chance(if (l.tier == 4) 0.35f else 0.12f)) { l.forSale = true; l.price = PRICE[l.tier] + r.i(5) * PRICE[l.tier] / 10 }
@@ -487,7 +491,8 @@ object TownHouses {
 
     /** Carro estacionado (no espaço do lote, de frente para a rua). */
     private fun parkedCar(g: CityGeo.Gen, l: Lot, x: Float, z: Float, r: City.Rng) {
-        val m = Vehicles.pick(r)
+        var m = Vehicles.pick(r); var k = 0
+        while (Vehicles.halfL(m) > 2.6f && k++ < 10) m = Vehicles.pick(r)   // nada de ônibus/caminhão na garagem
         // modelo com o comprimento em z (frente para +z); gira para a frente apontar para a rua (−n)
         val tmp = MB(); Vehicles.geom(Vehicles.XF(tmp, 0f, 0f, 0f, 1), m, r.i(12))
         val fx = -l.nx; val fz = -l.nz   // (0,0,1) -> (fx, fz): x' = z·s, z' = z·c  => s = fx, c = fz
@@ -517,14 +522,17 @@ object TownHouses {
      */
     private fun mansion(g: CityGeo.Gen, l: Lot, near: Boolean, far: Boolean) {
         val r = City.Rng(l.seed * 104729 + 7)
-        val wall = C(arrayOf("#F3EEE4", "#EDE6D8", "#E9E4DA", "#F5F0E6", "#DCD3C3", "#E8DCC8")[r.i(6)])
-        val roof = C(arrayOf("#3E4348", "#4A4F55", "#5B4A42", "#2F3337", "#6B3F2E")[r.i(5)])
+        val ms = l.style
+        val wall = when (ms) { 2 -> C(arrayOf("#F1E2C6", "#EED8B6", "#F4E6CF")[r.i(3)]); 3 -> C(arrayOf("#D8D2C4", "#CFC7B6", "#E0DACD")[r.i(3)]); 1 -> C("#F5F5F3"); else -> C(arrayOf("#F3EEE4", "#EDE6D8", "#E9E4DA", "#F5F0E6", "#DCD3C3", "#E8DCC8")[r.i(6)]) }
+        val roof = when (ms) { 2 -> C(arrayOf("#B5523B", "#A84A33", "#C0643F")[r.i(3)]); 3 -> C(arrayOf("#4A5560", "#3E4752", "#55606B")[r.i(3)]); 1 -> C("#2E3135"); else -> C(arrayOf("#3E4348", "#4A4F55", "#5B4A42", "#2F3337", "#6B3F2E")[r.i(5)]) }
+        val rk = when (ms) { 2 -> 0.6f; 3 -> 2.3f; else -> 1f }   // altura dos telhados
         val W = l.w; val D = l.d; val y0 = CURB
         val set = 52f
         val cw = 32f; val cd = 22f; val fh = 3.9f; val ch = fh * 3
         val ww = 20f; val wd = 16f; val wh = fh * 2
         val wzs = set + 3f
         val tr = 4.2f   // raio das torres
+        val gs = if (l.seed % 2 == 0) 1f else -1f   // lado da garagem (o lago fica do outro lado)
         fun towerX(sg: Float) = sg * (cw / 2 + ww + tr - 1f)
         if (far) {
             val f = Pen(g.f, l); g.f.m(Mt.PLAIN)
@@ -582,10 +590,12 @@ object TownHouses {
         // jardim da frente: gramados com canteiros de flores e topiarias
         for (sg in floatArrayOf(-1f, 1f)) for (k in 0 until 4) {
             val bx = sg * (14f + k * 9f); val bz = ccz
+            if (hypot(bx - (-gs * (W / 2 - 18f)), bz - 26f) < 16f || abs(bx - gs * (W / 2 - 16f)) < 15f) continue   // longe do lago e da garagem
             b.m(Mt.GRASS, 0.5f); p.box(bx, y0, bz, 6f, 0.5f, 6f, C("#4E7A3A"))
             CityGeo.bush(g, l.wx(bx, bz), l.wz(bx, bz), 0.9f)
         }
         // ---- palacete
+        if (ms == 1) modernVilla(g, l, p, b, set, wall, r) else {
         b.m(Mt.STONE, 0.7f); p.box(0f, y0, set + cd / 2, cw + 0.6f, 0.9f, cd + 0.6f, C("#A8A196"))
         b.m(Mt.PLASTER, 0.8f); p.box(0f, y0 + 0.9f, set + cd / 2, cw, ch - 0.9f, cd, wall)
         for (sg in floatArrayOf(-1f, 1f)) {
@@ -593,18 +603,33 @@ object TownHouses {
             b.m(Mt.STONE, 0.7f); p.box(cx, y0, wzs + wd / 2, ww + 0.4f, 0.8f, wd + 0.4f, C("#A8A196"))
             b.m(Mt.PLASTER, 0.8f); p.box(cx, y0 + 0.8f, wzs + wd / 2, ww, wh - 0.8f, wd, wall)
             b.m(Mt.PLAIN); p.box(cx, y0 + wh - 0.3f, wzs + wd / 2, ww + 0.3f, 0.3f, wd + 0.3f, TRIM)
-            b.m(Mt.ROOF, 0.6f); hip(p, cx - ww / 2, cx + ww / 2, wzs, wzs + wd, y0 + wh, 3.4f, roof, 0.55f)
-            // torre redonda
+            b.m(Mt.ROOF, 0.6f); hip(p, cx - ww / 2, cx + ww / 2, wzs, wzs + wd, y0 + wh, 3.4f * rk, roof, 0.55f)
+            // torre: redonda (clássica), quadrada com telhado baixo (mediterrânea) ou alta com cone pontudo (castelo)
             val tx = towerX(sg); val tz = wzs + wd / 2
-            b.m(Mt.PLASTER, 0.8f); p.cyl(tx, y0, tz, tr, ch + 2f, wall, 24)
-            b.m(Mt.PLAIN); p.cyl(tx, y0 + ch + 1.8f, tz, tr + 0.25f, 0.3f, TRIM, 24)
-            b.m(Mt.ROOF, 0.6f); p.b.cyl(l.wx(tx, tz), y0 + ch + 2.1f, l.wz(tx, tz), tr + 0.4f, 0.05f, 6f, roof, true, 24)
+            val th = ch + (if (ms == 3) 7f else 2f)
+            if (ms == 2) {
+                b.m(Mt.PLASTER, 0.8f); p.box(tx, y0, tz, tr * 1.8f, th, tr * 1.8f, wall)
+                b.m(Mt.ROOF, 0.6f); hip(p, tx - tr * 0.9f, tx + tr * 0.9f, tz - tr * 0.9f, tz + tr * 0.9f, y0 + th, 2.2f, roof, 0.6f)
+                b.m(Mt.PLAIN); for (k in 0..2) { p.box(tx - tr * 0.3f, y0 + th - 2.4f, tz - tr * 0.9f - 0.05f, 0.9f, 1.6f, 0.06f, C("#3B2A1E")); p.box(tx + tr * 0.3f, y0 + th - 2.4f, tz - tr * 0.9f - 0.05f, 0.9f, 1.6f, 0.06f, C("#3B2A1E")) }
+            } else {
+                b.m(Mt.PLASTER, 0.8f); p.cyl(tx, y0, tz, tr, th, wall, 24)
+                b.m(Mt.PLAIN); p.cyl(tx, y0 + th - 0.2f, tz, tr + 0.25f, 0.3f, TRIM, 24)
+                b.m(Mt.ROOF, 0.6f); p.b.cyl(l.wx(tx, tz), y0 + th + 0.1f, l.wz(tx, tz), tr + 0.4f, 0.05f, if (ms == 3) 11f else 6f, roof, true, 24)
+                if (ms == 3) { b.m(Mt.METAL, 1f); p.cyl(tx, y0 + th + 11f, tz, 0.06f, 2.2f, C("#C9A227"), 6) }
+            }
             b.m(Mt.PLAIN)
             for (fl in 0..2) for (k in 0 until 6) { val a = 6.2832f * k / 6; val wx = tx + cos(a) * (tr + 0.05f); val wz = tz + sin(a) * (tr + 0.05f); if (sin(a) > 0.6f) continue; p.box(wx, y0 + 1.4f + fl * fh, wz, 0.9f, 1.9f, 0.9f, GLASSC) }
             // janelas das alas (frente e fundo)
             for (fl in 0..1) for (k in 0 until 5) { val wx = cx - ww / 2 + ww * (k + 0.5f) / 5; tallWindow(p, wx, y0 + 1.4f + fl * fh, wzs, C("#2F3E4E")); tallWindowBack(p, wx, y0 + 1.4f + fl * fh, wzs + wd) }
         }
-        b.m(Mt.ROOF, 0.6f); hip(p, -cw / 2, cw / 2, set, set + cd, y0 + ch, 5.2f, roof, 0.7f)
+        b.m(Mt.ROOF, 0.6f); hip(p, -cw / 2, cw / 2, set, set + cd, y0 + ch, 5.2f * rk, roof, 0.7f)
+        if (ms == 3) for (k in 0 until 5) { val dx = -cw / 2 + 3f + k * (cw - 6f) / 4; dormer(p, dx, y0 + ch + 0.6f, set + 2.6f, wall, roof) }   // lucarnas do castelo
+        if (ms == 2) { // pérgola com trepadeira ao lado da casa e arcos na varanda
+            b.m(Mt.WOOD, 0.6f); val px0 = cw / 2 + 2f
+            for (k in 0..4) for (q in 0..1) p.box(px0 + k * 3f, y0, set - 6f + q * 5f, 0.3f, 3f, 0.3f, C("#7A5A3C"))
+            for (k in 0..6) p.box(px0 + 6f, y0 + 3f, set - 6f + k * 0.85f, 13f, 0.18f, 0.12f, C("#7A5A3C"))
+            b.m(Mt.GRASS, 0.5f); p.box(px0 + 6f, y0 + 3.2f, set - 3.5f, 12f, 0.25f, 4.5f, C("#4E7A3A"))
+        }
         b.m(Mt.PLAIN)
         p.box(0f, y0 + ch - 0.35f, set + cd / 2, cw + 0.4f, 0.35f, cd + 0.4f, TRIM)
         for (k in 1..2) p.box(0f, y0 + fh * k, set + cd / 2, cw + 0.14f, 0.18f, cd + 0.14f, TRIM)
@@ -626,8 +651,8 @@ object TownHouses {
         b.m(Mt.PLAIN); p.box(0f, y0 + fh + 0.6f, set - 1.4f, 7f, 0.25f, 2.8f, TRIM)
         for (k in 0..14) p.box(-3.4f + k * 6.8f / 14, y0 + fh + 0.85f, set - 2.75f, 0.12f, 0.9f, 0.12f, TRIM)
         p.box(0f, y0 + fh + 1.75f, set - 2.75f, 7f, 0.12f, 0.2f, TRIM)
+        }
         // ---- garagem para 6 carros (de um lado, com pátio de manobra)
-        val gs = if (r.chance(0.5f)) 1f else -1f
         val gx = gs * (W / 2 - 16f); val gz = set - 14f
         b.m(Mt.PLASTER, 0.8f); p.box(gx, y0, gz + 5f, 24f, 3.6f, 10f, wall)
         b.m(Mt.ROOF, 0.6f); hip(p, gx - 12f, gx + 12f, gz, gz + 10f, y0 + 3.6f, 2.2f, roof, 0.45f)
@@ -689,6 +714,40 @@ object TownHouses {
         // árvores grandes ao longo dos muros
         var tz = 8f; while (tz < D - 6f) { for (sg in floatArrayOf(-1f, 1f)) { val tx = sg * (W / 2 - 4f); if (abs(tx - gx) < 14f && tz > gz - 13f && tz < gz + 11f) continue; CityGeo.tree(g, l.wx(tx, tz), l.wz(tx, tz), r.r(1.0f, 1.3f), CURB, if (r.chance(0.5f)) 4 else 0) }; tz += 11f }
         if (l.forSale) { b.m(Mt.PLAIN); p.box(gateW / 2 + 3f, y0, -0.6f, 1.6f, 0.9f, 0.05f, C("#C62828")); p.box(gateW / 2 + 3f, y0 + 0.9f, -0.6f, 0.08f, 0.7f, 0.08f, C("#F2F2F2")) }
+    }
+
+    /** Mansão moderna: volumes brancos empilhados e em balanço, panos de vidro, lajes finas com beiral, painel de madeira, terraço na cobertura. */
+    private fun modernVilla(g: CityGeo.Gen, l: Lot, p: Pen, b: MB, set: Float, wall: Int, r: City.Rng) {
+        val y0 = CURB; val fh = 3.6f
+        val dark = C("#2B2E31"); val glass = C("#5C7A8E"); val wood = C("#8A5E3C"); val slab = C("#E9E9E6")
+        // térreo largo, 1º andar deslocado em balanço, 2º andar menor recuado
+        val vols = arrayOf(floatArrayOf(-30f, set, 30f, set + 22f, 0f), floatArrayOf(-18f, set - 6f, 30f, set + 16f, 1f), floatArrayOf(-26f, set + 2f, 6f, set + 20f, 2f))
+        for (v in vols) {
+            val x0 = v[0]; val z0 = v[1]; val x1 = v[2]; val z1 = v[3]; val lv = v[4]
+            val yb = y0 + lv * fh
+            b.m(Mt.PLASTER, 0.8f); p.box((x0 + x1) / 2, yb + 0.35f, (z0 + z1) / 2, x1 - x0, fh - 0.35f, z1 - z0, wall)
+            b.m(Mt.PLAIN); p.box((x0 + x1) / 2, yb + fh, (z0 + z1) / 2, x1 - x0 + 1.4f, 0.35f, z1 - z0 + 1.4f, slab)
+            // panos de vidro na frente e no fundo
+            val n = ((x1 - x0) / 4f).toInt()
+            for (k in 0 until n) {
+                val cx = x0 + (x1 - x0) * (k + 0.5f) / n
+                p.box(cx, yb + 0.45f, z0 - 0.04f, (x1 - x0) / n - 0.25f, fh - 0.6f, 0.06f, dark); p.box(cx, yb + 0.5f, z0 - 0.08f, (x1 - x0) / n - 0.4f, fh - 0.7f, 0.02f, glass)
+                p.box(cx, yb + 0.45f, z1 + 0.04f, (x1 - x0) / n - 0.25f, fh - 0.6f, 0.06f, dark); p.box(cx, yb + 0.5f, z1 + 0.08f, (x1 - x0) / n - 0.4f, fh - 0.7f, 0.02f, glass)
+            }
+            if (g.reg) solid(l, x0, z0, x1, z1)
+        }
+        b.m(Mt.STONE, 0.7f); p.box(0f, y0, set + 11f, 60.6f, 0.35f, 22.6f, C("#9C9890"))
+        // painéis de madeira e brise
+        b.m(Mt.WOOD, 0.5f); p.box(-24f, y0 + 0.35f, set - 0.08f, 10f, fh - 0.35f, 0.14f, wood); p.box(23f, y0 + fh + 0.35f, set - 6.08f, 12f, fh - 0.35f, 0.14f, wood)
+        for (k in 0 until 18) p.box(-26f + k * 1.7f, y0 + 2 * fh + 0.2f, set + 1.85f, 0.12f, fh - 0.4f, 0.3f, wood)
+        // terraço na cobertura do 1º andar com guarda-corpo de vidro
+        b.m(Mt.WOOD, 0.6f); p.flat(8f, set - 5.5f, 29f, set + 15f, y0 + 2 * fh + 0.36f, C("#A07E5C"))
+        b.m(Mt.PLAIN); p.box(18.5f, y0 + 2 * fh + 0.36f, set - 5.9f, 21f, 1.05f, 0.04f, C("#9FC4D6")); p.box(29.4f, y0 + 2 * fh + 0.36f, set + 4.7f, 0.04f, 1.05f, 21f, C("#9FC4D6"))
+        // porta pivotante gigante e marquise
+        p.box(-4f, y0 + 0.35f, set - 0.1f, 2.4f, fh - 0.5f, 0.12f, wood)
+        p.box(-4f, y0 + fh - 0.3f, set - 3f, 9f, 0.25f, 6f, slab)
+        b.m(Mt.STONE, 0.6f); for (k in 0 until 6) p.flat(-5.5f, set - 3f - k * 1.5f, -2.5f, set - 2f - k * 1.5f, y0 + 0.03f, C("#BDB6AA"))
+        if (r.chance(2f)) Unit
     }
 
     private fun tallWindowBack(p: Pen, x: Float, y: Float, z: Float) {
