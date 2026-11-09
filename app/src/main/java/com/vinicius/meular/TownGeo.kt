@@ -126,7 +126,24 @@ object TownGeo {
             c.lazyI = ti; c.lazyJ = -1
             out.add(c)
         }
+        // quadras do centro e do comércio: prédios e lojas (com interior) do gerador de quarteirões
+        for ((ui, u) in Town.urban.withIndex()) {
+            val g = CityGeo.Gen(out.size, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, true)
+            val h = CityGeo.block(g, u.type, u.i, u.j)
+            val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
+            val c = City.Chunk(null, far, u.x0, u.z0, u.x1, u.z1, h)
+            c.lazyI = ui; c.lazyJ = -2
+            out.add(c)
+        }
         out.add(outside(out.size))
+    }
+
+    /** Detalhe de uma quadra do centro/comércio (gerada de novo igual, sem registrar colisões). */
+    fun urbanNear(ci: Int, ui: Int): Pair<Mesh, Flora.Batch> {
+        val u = Town.urban[ui]
+        val g = CityGeo.Gen(ci, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, false)
+        CityGeo.block(g, u.type, u.i, u.j)
+        return Pair(g.b.toMesh(true), g.fl)
     }
 
     /** Gera o pedaço [ti] (perto em g.b, longe em g.f se [far]). */
@@ -137,10 +154,12 @@ object TownGeo {
         val lot = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1)
         for (bi in t.blocks) {
             val bl = Town.blocks[bi]
-            val holes = if (bi == Town.homeBlock) listOf(lot) else emptyList()
+            val u = Town.urban.firstOrNull { it.block == bi }
+            val holes = if (bi == Town.homeBlock) listOf(lot) else if (u != null) listOf(floatArrayOf(u.x0, u.z0, u.x1, u.z0, u.x1, u.z1, u.x0, u.z1)) else emptyList()
             val tr = Town.triangulate(bl, holes)
-            g.b.m(Mt.GRASS, 0.3f); tris(g.b, tr, CURB, GRASS)
-            if (far) { g.f.m(Mt.GRASS, 0.3f); tris(g.f, tr, CURB, GRASS) }
+            val mat = if (u != null) Mt.PAVER else Mt.GRASS; val col = if (u != null) WALK else GRASS; val sc = if (u != null) 0.9f else 0.3f
+            g.b.m(mat, sc); tris(g.b, tr, CURB, col)
+            if (far) { g.f.m(mat, sc); tris(g.f, tr, CURB, col) }
             if (bi == Town.homeBlock) {
                 val ring = floatArrayOf(City.lotX0, City.lotZ0, City.lotX1, City.lotZ0, City.lotX1, City.lotZ1, City.lotX0, City.lotZ1, City.lotX0, City.lotZ0)
                 g.b.m(Mt.STONE, 1f); curbWall(g.b, ring, 0f, CURB, true, CURBC)

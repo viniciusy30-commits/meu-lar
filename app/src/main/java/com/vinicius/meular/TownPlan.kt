@@ -68,13 +68,17 @@ object TownPlan {
     }
     private fun curveOf(ei: Int): Curve { val e = Town.edges[ei]; val a = Town.nodes[e.a]; val b = Town.nodes[e.b]; return Curve(a.x, a.z, e.c1x, e.c1z, e.c2x, e.c2z, b.x, b.z) }
 
+    /** Centro e comércio ficam em malha reta (alinhada aos eixos): prédios e lojas com interior são montados em quadras retangulares. */
+    private fun urbanSide(r: Int, c: Int) = r in 0..4 && c in 0..4 && (D[r][c] == DOWN || D[r][c] == COM)
+    private fun urbanCorner(r: Int, c: Int) = urbanSide(r - 1, c - 1) || urbanSide(r - 1, c) || urbanSide(r, c - 1) || urbanSide(r, c)
+
     fun generate() {
         si = 0; ci = 0
         val rng = City.Rng(2026)
         val G = Array(6) { IntArray(6) }
         for (r in 0..5) for (c in 0..5) {
             val homeCorner = (r == 2 || r == 3) && (c == 2 || c == 3)
-            val j = if (homeCorner) 8f else 45f
+            val j = if (urbanCorner(r, c)) 0f else if (homeCorner) 8f else 45f
             val edge = r == 0 || r == 5 || c == 0 || c == 5
             G[r][c] = Town.n(XS[c] + rng.r(-j, j), ZS[r] + rng.r(-j, j), if (r == 3 && c == 3) 27f else if (r == 1 && c == 3) 24f else if (r == 3 && c == 1) 22f else 0f)
             if (edge) { /* borda: sem rotatória */ }
@@ -86,12 +90,14 @@ object TownPlan {
         for (r in 0..5) for (c in 0..4) {
             val home = (r == 2 || r == 3) && c == 2
             val w = if (r == 3 || r == 1) 24f else 16f
-            H[r][c] = Town.e(G[r][c], G[r][c + 1], w, if (home) rng.r(-6f, 6f) else rng.r(-24f, 24f), hName[r])
+            val bend = if (home) rng.r(-6f, 6f) else rng.r(-24f, 24f)
+            H[r][c] = Town.e(G[r][c], G[r][c + 1], w, if (urbanSide(r - 1, c) || urbanSide(r, c)) 0f else bend, hName[r])
         }
         for (r in 0..4) for (c in 0..5) {
             val home = r == 2 && (c == 2 || c == 3)
             val w = if (c == 3 || c == 1) 24f else 16f
-            V[r][c] = Town.e(G[r][c], G[r + 1][c], w, if (home) rng.r(-6f, 6f) else rng.r(-24f, 24f), vName[c])
+            val bend = if (home) rng.r(-6f, 6f) else rng.r(-24f, 24f)
+            V[r][c] = Town.e(G[r][c], G[r + 1][c], w, if (urbanSide(r, c - 1) || urbanSide(r, c)) 0f else bend, vName[c])
         }
         // bairros (as curvas de cada lado guardadas antes de qualquer divisão)
         val HC = Array(6) { r -> Array(5) { c -> curveOf(H[r][c]) } }; val VC = Array(5) { r -> Array(6) { c -> curveOf(V[r][c]) } }
@@ -105,8 +111,8 @@ object TownPlan {
             }
             val cr = City.Rng(r * 31 + c * 7 + 3)
             when (D[r][c]) {
-                DOWN -> grid(N, S, W, E, 3, 16f, DOWN)
-                COM -> grid(N, S, W, E, 2, 16f, COM)
+                DOWN -> grid(N, S, W, E, 4, 16f, DOWN)
+                COM -> grid(N, S, W, E, 3, 16f, COM)
                 MAN -> {
                     // bairro nobre: poucas ruas, longas e curvas
                     val rot = cr.i(4)

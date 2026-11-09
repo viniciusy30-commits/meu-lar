@@ -315,9 +315,20 @@ object Town {
                 // esquina: próxima rua no sentido anti-horário a partir desta, no nó de chegada
                 val nd = nodes[to]
                 val k = nd.sorted.indexOf(e)
-                val corner = offsetOut(nd.corners[e]!!, SW)
-                for (i in 1 until corner.size / 2 - 1) { pts.add(corner[i * 2]); pts.add(corner[i * 2 + 1]) }
                 val ne = nd.sorted[(k + 1) % nd.sorted.size]
+                // esquina do quarteirão em ângulo (como a quina de um prédio): encontro das duas linhas de fora das calçadas;
+                // a guia continua arredondada e o canto entre a calçada curva e a quina fica calçado/gramado
+                val sharp = run {
+                    if (nd.round > 0f || nd.edges.size < 3) return@run null
+                    val enA = endOf(e, to); val enB = endOf(ne, to)
+                    run { val gg = gapE(enA, enB); if (gg > PI.toFloat() * 0.65f || gg < PI.toFloat() * 0.35f) return@run null }
+                    val pa = side(enA, ed.w / 2 + SW); val pb = side(enB, -(edges[ne].w / 2 + SW))
+                    val c = cross(pa, floatArrayOf(-enA[2], -enA[3]), pb, floatArrayOf(-enB[2], -enB[3])) ?: return@run null
+                    if (c[2] < -1f || c[3] < -1f || c[2] > 25f || c[3] > 25f) return@run null
+                    floatArrayOf(c[0], c[1])
+                }
+                if (sharp != null) { pts.add(sharp[0]); pts.add(sharp[1]) }
+                else { val corner = offsetOut(nd.corners[e]!!, SW); for (i in 1 until corner.size / 2 - 1) { pts.add(corner[i * 2]); pts.add(corner[i * 2 + 1]) } }
                 e = ne; fwd = edges[ne].a == to
                 if (e == e0 && fwd == f0) break
             }
@@ -329,6 +340,40 @@ object Town {
         for ((i, f) in faces.withIndex()) if (i != outer && abs(area(f)) > 40f) blocks.add(clean(f))
         outline = if (outer >= 0) clean(faces[outer]) else FloatArray(0)
         homeBlock = blocks.indexOfFirst { inside(it, 13f, 8f) }
+    }
+
+    /** Quadra retangular do centro/comércio: retângulo útil (x0, z0, x1, z1) e o tipo do que é construído nela. */
+    class Urban(val block: Int, val x0: Float, val z0: Float, val x1: Float, val z1: Float, val type: String, val i: Int, val j: Int)
+    val urban = ArrayList<Urban>()
+
+    private fun classify() {
+        urban.clear()
+        val down = arrayOf("down", "hotel", "down", "mall", "down", "apt", "hotel", "down", "hospital", "down", "police", "down", "hotel", "praca", "down", "apt")
+        val com = arrayOf("shops", "super", "shops", "gas", "school", "shops", "church", "apt", "shops", "super", "gas", "shops", "apt", "shops", "church", "school")
+        var nd = 0; var nc = 0
+        for ((bi, bl) in blocks.withIndex()) {
+            var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+            var k = 0; while (k < bl.size) { x0 = min(x0, bl[k]); x1 = max(x1, bl[k]); z0 = min(z0, bl[k + 1]); z1 = max(z1, bl[k + 1]); k += 2 }
+            val d = TownPlan.districtAt((x0 + x1) / 2, (z0 + z1) / 2)
+            if (d != TownPlan.DOWN && d != TownPlan.COM) continue
+            val fill = abs(area(bl)) / ((x1 - x0) * (z1 - z0))
+            if (fill < 0.94f || x1 - x0 < 30f || z1 - z0 < 30f) continue
+            // encolhe cada lado até o retângulo inteiro ficar longe das calçadas
+            var m0 = 1.3f; var m1 = 1.3f; var m2 = 1.3f; var m3 = 1.3f
+            repeat(30) {
+                fun ok(x: Float, z: Float) = clearance(x, z) >= 0.15f
+                var moved = false
+                val ax = x0 + m0; val bx = x1 - m1; val az = z0 + m2; val bz = z1 - m3
+                var q = 0; while (q <= 10) { val x = ax + (bx - ax) * q / 10; if (!ok(x, az)) { m2 += 0.5f; moved = true; break }; q++ }
+                q = 0; while (q <= 10) { val x = ax + (bx - ax) * q / 10; if (!ok(x, bz)) { m3 += 0.5f; moved = true; break }; q++ }
+                q = 0; while (q <= 10) { val z = az + (bz - az) * q / 10; if (!ok(ax, z)) { m0 += 0.5f; moved = true; break }; q++ }
+                q = 0; while (q <= 10) { val z = az + (bz - az) * q / 10; if (!ok(bx, z)) { m1 += 0.5f; moved = true; break }; q++ }
+                if (!moved) return@repeat
+            }
+            val t = if (d == TownPlan.DOWN) down[(nd++) % down.size] else com[(nc++) % com.size]
+            if (x1 - m1 - x0 - m0 < 30f || z1 - m3 - z0 - m2 < 30f) continue
+            urban.add(Urban(bi, x0 + m0, z0 + m2, x1 - m1, z1 - m3, t, bi % 7, 1 + bi % 5))
+        }
     }
     var outline = FloatArray(0)
     /** quantas esquinas ficaram apertadas demais (ruas chegando quase juntas) — deve ser 0 */
@@ -539,7 +584,7 @@ object Town {
             nodeBy[c]?.let { l -> for (ni in l) {
                 val nd = nodes[ni]
                 if (inside(nd.poly, x, z)) return -1f
-                val d = hypot(x - nd.x, z - nd.z) - polyRadius(nd) - SW
+                val d = if (hypot(x - nd.x, z - nd.z) > polyRadius(nd) + SW + 2f) 99f else distPoly(nd.poly, x, z) - SW
                 if (d < best) best = d
             } }
             segBy[c]?.let { l -> for (k in l) {
@@ -557,6 +602,17 @@ object Town {
     /** raio até o ponto mais longe do contorno do cruzamento (as esquinas com calçada ficam dentro de raio + SW) */
     private fun polyRadius(nd: Node): Float { var m = 0f; var k = 0; while (k < nd.poly.size) { m = max(m, hypot(nd.poly[k] - nd.x, nd.poly[k + 1] - nd.z)); k += 2 }; return m }
 
+    private fun distPoly(p: FloatArray, x: Float, z: Float): Float {
+        var m = Float.MAX_VALUE; val n = p.size / 2
+        for (i in 0 until n) {
+            val j = (i + 1) % n
+            val ax = p[i * 2]; val az = p[i * 2 + 1]; val dx = p[j * 2] - ax; val dz = p[j * 2 + 1] - az; val l2 = max(1e-6f, dx * dx + dz * dz)
+            val t = (((x - ax) * dx + (z - az) * dz) / l2).coerceIn(0f, 1f)
+            m = min(m, hypot(x - ax - dx * t, z - az - dz * t))
+        }
+        return m
+    }
+
     fun inAnyBlock(x: Float, z: Float): Boolean { for (b in blocks) if (inside(b, x, z)) return true; return false }
 
     fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) 0f else when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
@@ -572,6 +628,7 @@ object Town {
         buildNodes()
         buildBlocks()
         index()
+        classify()
         TownHouses.plan()
         minX = nodes.minOf { it.x } - 30f; maxX = nodes.maxOf { it.x } + 30f
         minZ = nodes.minOf { it.z } - 30f; maxZ = nodes.maxOf { it.z } + 30f
