@@ -67,6 +67,8 @@ object TownGeo {
         // Etapa 150: no relevo, pedaços de ~2 m (a malha acompanha os platôs sem rampa de grama por cima do gramado)
         // Etapa 150: triângulo inteiro dentro de um lote do relevo some (o lote tem o próprio gramado); na borda de lote, pedaços de ~1 m
         var lim = 7f
+        // Etapa 155: chão plano (sem relevo em nenhum ponto do triângulo) não precisa ser picado — o gramado do parque sozinho tinha 600 mil vértices
+        if (m > 7f && m < 400f && Town.terrain(ax, az) == 0f && Town.terrain(bx, bz) == 0f && Town.terrain(cx, cz) == 0f && Town.terrain((ax + bx) / 2, (az + bz) / 2) == 0f && Town.terrain((bx + cx) / 2, (bz + cz) / 2) == 0f && Town.terrain((cx + ax) / 2, (cz + az) / 2) == 0f && Town.terrain((ax + bx + cx) / 3, (az + bz + cz) / 3) == 0f) lim = 1e9f
         if (b.warp && m <= 7f && Town.terrain((ax + bx + cx) / 3, (az + bz + cz) / 3) != 0f) {
             val la = TownHouses.reliefLot(ax, az); val lb = TownHouses.reliefLot(bx, bz); val lc = TownHouses.reliefLot(cx, cz)
             val l1 = TownHouses.reliefLot((ax + bx) / 2, (az + bz) / 2); val l2 = TownHouses.reliefLot((bx + cx) / 2, (bz + cz) / 2); val l3 = TownHouses.reliefLot((cx + ax) / 2, (cz + az) / 2)

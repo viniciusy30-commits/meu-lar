@@ -43,10 +43,10 @@ object CityFun {
         CityGeo.groundBox(g.f, X0 - 60f, Z1, X1 + 60f, BZ, Mt.STONE, 1.2f, C("#F4F1EA"))
         b.m(Mt.PLAIN)
         val black = C("#2B2B2B")
-        for (band in 0 until 5) {
+        for (band in 1 until 5) {
             val zc = Z1 + 1.0f + band * 2.0f
             var x = X0 - 60f
-            val st = 0.5f
+            val st = 1.0f
             while (x < X1 + 60f) {
                 val z0 = zc + 0.55f * sin(x * 0.9f); val z1 = zc + 0.55f * sin((x + st) * 0.9f)
                 CityGeo.q(b, CityGeo.P(x, CURB + 0.006f, z0 - 0.5f) + CityGeo.P(x, CURB + 0.006f, z0 + 0.5f) + CityGeo.P(x + st, CURB + 0.006f, z1 + 0.5f) + CityGeo.P(x + st, CURB + 0.006f, z1 - 0.5f), black)
@@ -73,7 +73,7 @@ object CityFun {
         var x = X0 - 50f; var k = 0
         while (x < X1 + 50f) {
             if (abs(x - City.PIER_X) > 6f) {
-                if (k % 2 == 0) CityGeo.palm(g, x, Z1 + 8.5f, rng.r(0.85f, 1.1f)) else CityGeo.streetLamp(b, x, Z1 + 8.6f, 0f, 0f)
+                if (k % 3 == 0) CityGeo.palm(g, x, Z1 + 8.5f, rng.r(0.85f, 1.1f)) else if (k % 3 == 2) CityGeo.streetLamp(b, x, Z1 + 8.6f, 0f, 0f)
                 if (k % 3 == 1) CityGeo.publicBench(b, x + 3f, Z1 + 7.8f, 0f, 1f)
             }
             x += 9f; k++
@@ -82,7 +82,7 @@ object CityFun {
         while (x < X1 - 10f) { if (abs(x - City.PIER_X) > 14f) kiosk(g, x, BZ + 5f); x += rng.r(55f, 75f) }
         // guarda-sóis, cadeiras, toalhas
         val pal = arrayOf(C("#E53935"), C("#1E88E5"), C("#FDD835"), C("#43A047"), C("#FB8C00"), C("#8E24AA"), C("#FFFFFF"), C("#00ACC1"))
-        val nUmb = ((X1 - X0) / 8f).toInt().coerceIn(70, 320)
+        val nUmb = ((X1 - X0) / 8f).toInt().coerceIn(70, 85)
         for (i in 0 until nUmb) {
             val ux = rng.r(X0 - 40f, X1 + 40f); val uz = rng.r(BZ + 9f, SZ - 8f)
             if (abs(ux - City.PIER_X) < 6f) continue
@@ -92,6 +92,68 @@ object CityFun {
         run { var lx = X0 + 60f; while (lx < X1 - 40f) { if (abs(lx - City.PIER_X) > 20f) lifeguard(g, lx, SZ - 10f); lx += 220f } }
         run { var vx = X0 + 120f; while (vx < X1 - 60f) { if (abs(vx - City.PIER_X) > 25f) volleyNet(g, vx, BZ + 18f + rng.r(0f, 6f)); vx += rng.r(140f, 260f) } }
         for (i in 0 until ((X1 - X0) / 100f).toInt().coerceAtLeast(6)) { val sx = rng.r(X0, X1); b.m(Mt.PLAIN); b.box(sx, sandH(SZ - 14f) + 1.0f, SZ - 14f, 0.55f, 2.0f, 0.08f, rng.pick(pal)) }
+        // ------------------------------------------------------------ Etapa 155: praia viva
+        val P = CityGeo::P
+        // ciclovia vermelha no calçadão, com faixa tracejada e bicicletinhas pintadas
+        b.m(Mt.PLAIN)
+        CityGeo.q(b, P(X0 - 60f, CURB + 0.007f, Z1 + 0.25f) + P(X0 - 60f, CURB + 0.007f, Z1 + 2.45f) + P(X1 + 60f, CURB + 0.007f, Z1 + 2.45f) + P(X1 + 60f, CURB + 0.007f, Z1 + 0.25f), C("#B5483A"))
+        run { var dx = X0 - 58f; while (dx < X1 + 58f) { b.box(dx, CURB + 0.012f, Z1 + 1.35f, 1.6f, 0.006f, 0.1f, C("#F4F4F4")); dx += 5f } }
+        for (zz in floatArrayOf(Z1 + 0.28f, Z1 + 2.42f)) b.box((X0 + X1) / 2, CURB + 0.012f, zz, X1 - X0 + 120f, 0.006f, 0.08f, C("#F4F4F4"))
+        // espuma na beira do mar
+        run { var fx = X0 - 60f; while (fx < X1 + 60f) { val z0 = SZ - 1.6f + 1.1f * sin(fx * 0.11f) + 0.5f * sin(fx * 0.37f); val z1 = SZ - 1.6f + 1.1f * sin((fx + 4f) * 0.11f) + 0.5f * sin((fx + 4f) * 0.37f)
+            CityGeo.q(b, P(fx, sandH(z0) + 0.03f, z0) + P(fx, sandH(z0 + 2.6f) + 0.05f, z0 + 2.6f) + P(fx + 4f, sandH(z1 + 2.6f) + 0.05f, z1 + 2.6f) + P(fx + 4f, sandH(z1) + 0.03f, z1), C("#FFFFFF"))
+            CityGeo.q(b, P(fx, sandH(z0 - 2.2f) + 0.02f, z0 - 2.2f) + P(fx, sandH(z0) + 0.02f, z0) + P(fx + 4f, sandH(z1) + 0.02f, z1) + P(fx + 4f, sandH(z1 - 2.2f) + 0.02f, z1 - 2.2f), C("#B89F6E"))   // areia molhada
+            fx += 4f } }
+        val br = City.Rng(4242)
+        // dunas baixas com restinga junto da mureta
+        run { var dx = X0 - 40f; while (dx < X1 + 40f) { if (abs(dx - City.PIER_X) > 10f) { val dz = BZ + br.r(2.5f, 5.5f); val rr = br.r(2.5f, 4.5f)
+                b.m(Mt.PLASTER, 0.7f); CityGeo.ball(b, dx, sandH(dz) - 0.25f, dz, rr, C("#E8D29E"), br.r(0.7f, 1.0f), 6)
+                CityGeo.bush(g, dx + br.r(-1f, 1f), dz, br.r(0.5f, 0.8f), sandH(dz) + 0.35f); if (br.chance(0.5f)) CityGeo.bush(g, dx + 1.6f, dz + 0.8f, 0.45f, sandH(dz) + 0.2f) }
+            dx += br.r(14f, 26f) } }
+        // castelos de areia, bolas, pranchas fincadas, cangas
+        repeat(((X1 - X0) / 30f).toInt()) {
+            val sx = br.r(X0 - 30f, X1 + 30f); val sz = br.r(BZ + 10f, SZ - 6f); val sy = sandH(sz)
+            when (br.i(4)) {
+                0 -> { b.m(Mt.PLASTER, 0.7f); val sc = C("#D9BF8A"); b.box(sx, sy + 0.2f, sz, 0.9f, 0.4f, 0.9f, sc); b.box(sx, sy + 0.55f, sz, 0.5f, 0.3f, 0.5f, sc)
+                    for (cx in floatArrayOf(-0.45f, 0.45f)) for (cz in floatArrayOf(-0.45f, 0.45f)) b.cyl(sx + cx, sy, sz + cz, 0.16f, 0.12f, 0.6f, sc, true, 6)
+                    b.m(Mt.PLAIN); b.box(sx, sy + 0.95f, sz, 0.02f, 0.5f, 0.02f, C("#8D6E63")); b.box(sx + 0.12f, sy + 1.1f, sz, 0.22f, 0.14f, 0.01f, C("#E53935")) }
+                1 -> { b.m(Mt.PLAIN); CityGeo.ball(b, sx, sy + 0.2f, sz, 0.2f, br.pick(pal), 0.2f, 6) }
+                2 -> { b.m(Mt.PLAIN); b.box(sx, sy + 0.012f, sz, 1.0f, 0.02f, 1.9f, br.pick(pal)); b.box(sx, sy + 0.02f, sz, 0.6f, 0.02f, 1.9f, C("#FFFFFF")); b.box(sx + 0.9f, sy + 0.18f, sz + 0.5f, 0.5f, 0.36f, 0.35f, C("#1E88E5")); b.box(sx + 0.9f, sy + 0.38f, sz + 0.5f, 0.52f, 0.05f, 0.37f, C("#FFFFFF")) }
+                else -> { b.m(Mt.PLAIN); val c = br.pick(pal); b.box(sx, sy + 1.0f, sz, 0.5f, 2.0f, 0.07f, c); b.box(sx, sy + 1.0f, sz - 0.04f, 0.08f, 1.8f, 0.01f, C("#FFFFFF")) }
+            }
+        }
+        // carrinhos de coco/sorvete e chuveirões no calçadão
+        run { var cx = X0 - 30f; var q = 0; while (cx < X1 + 40f) { if (abs(cx - City.PIER_X) > 12f) { val cz = Z1 + 6.6f
+                if (q % 2 == 0) { val cc = C(if (q % 4 == 0) "#2E7D32" else "#F06292")
+                    b.m(Mt.METAL, 1f); b.box(cx, CURB + 0.75f, cz, 1.6f, 0.8f, 0.9f, cc); b.box(cx, CURB + 1.18f, cz, 1.7f, 0.06f, 1.0f, C("#F2F2F2"))
+                    for (w in floatArrayOf(-0.6f, 0.6f)) { b.cyl(cx + w, CURB + 0.04f, cz, 0.3f, 0.3f, 0.02f, C("#222222"), true, 10) ; b.box(cx + w, CURB + 0.3f, cz - 0.47f, 0.6f, 0.6f, 0.04f, C("#222222")) }
+                    b.box(cx - 0.7f, CURB + 1.75f, cz, 0.04f, 1.1f, 0.04f, C("#BDBDBD")); b.box(cx + 0.7f, CURB + 1.75f, cz, 0.04f, 1.1f, 0.04f, C("#BDBDBD"))
+                    b.m(Mt.FABRIC, 1f); b.box(cx, CURB + 2.33f, cz, 2.0f, 0.08f, 1.5f, if (q % 4 == 0) C("#FDD835") else C("#FFFFFF")); b.box(cx, CURB + 2.25f, cz - 0.75f, 2.0f, 0.2f, 0.02f, cc)
+                    b.m(Mt.PLAIN); if (q % 4 == 0) for (k in 0..3) CityGeo.ball(b, cx - 0.5f + k * 0.33f, CURB + 1.33f, cz, 0.14f, C("#3E8E41"), 0.14f, 5)
+                    g.solid(cx - 0.9f, cz - 0.6f, cx + 0.9f, cz + 0.6f)
+                } else { val sz2 = BZ + 1.6f; val sy = sandH(sz2)
+                    b.m(Mt.STONE, 0.8f); b.box(cx, sy + 0.04f, sz2, 1.6f, 0.08f, 1.6f, C("#CFCAC0")); b.m(Mt.METAL, 1f); b.cyl(cx, sy, sz2, 0.05f, 0.05f, 2.3f, C("#B0B6BC"), true, 6); b.box(cx, sy + 2.3f, sz2 + 0.25f, 0.05f, 0.05f, 0.5f, C("#B0B6BC")); b.cyl(cx, sy + 2.15f, sz2 + 0.5f, 0.12f, 0.12f, 0.08f, C("#9E9E9E"), true, 8) }
+            }; cx += 42f; q++ } }
+        // traves de futebol de areia
+        run { var fx = X0 + 40f; while (fx < X1 - 60f) { if (abs(fx - City.PIER_X) > 45f) { val fz = BZ + 30f; val fy = sandH(fz); b.m(Mt.METAL, 1f)
+                for (sg in floatArrayOf(-14f, 14f)) { for (pz in floatArrayOf(-2.5f, 2.5f)) b.box(fx + sg, fy + 1.0f, fz + pz, 0.09f, 2.0f, 0.09f, C("#FAFAFA")); b.box(fx + sg, fy + 2.0f, fz, 0.09f, 0.09f, 5.1f, C("#FAFAFA"))
+                    g.solid(fx + sg - 0.1f, fz - 2.6f, fx + sg + 0.1f, fz + 2.6f) }
+                b.m(Mt.PLAIN); for (zz in floatArrayOf(-9f, 9f)) b.box(fx, fy + 0.03f, fz + zz, 28f, 0.02f, 0.08f, C("#1E88E5")); for (xx in floatArrayOf(-14f, 14f)) b.box(fx + xx, fy + 0.03f, fz, 0.08f, 0.02f, 18f, C("#1E88E5")) }
+            fx += br.r(260f, 380f) } }
+        // no mar: veleiros, barcos de pesca, boias e pedras
+        val seaY = -0.25f
+        repeat(9) { val bx = br.r(X0, X1); val bz = SZ + br.r(45f, 150f); val hc = br.pick(pal)
+            b.m(Mt.PLAIN); b.box(bx, seaY + 0.35f, bz, 5.5f, 0.9f, 1.8f, C("#FAFAFA")); b.box(bx, seaY + 0.15f, bz, 5.6f, 0.25f, 1.85f, hc); b.box(bx - 0.5f, seaY + 1.0f, bz, 2.0f, 0.5f, 1.2f, C("#E0E0E0"))
+            b.m(Mt.METAL, 1f); b.box(bx + 0.3f, seaY + 4.3f, bz, 0.1f, 7.0f, 0.1f, C("#BDBDBD"))
+            b.m(Mt.FABRIC, 1f); for (sg in floatArrayOf(1f, -1f)) { CityGeo.tri(b, P(bx + 0.4f, seaY + 7.6f, bz) + P(bx + 0.4f, seaY + 1.4f, bz) + P(bx + 0.4f + sg * 0f + 3.0f, seaY + 1.4f, bz + sg * 0.02f), C("#FFFFFF")); CityGeo.tri(b, P(bx + 0.2f, seaY + 7.0f, bz) + P(bx - 2.4f, seaY + 1.3f, bz + sg * 0.02f) + P(bx + 0.2f, seaY + 1.3f, bz), hc) } }
+        repeat(6) { val bx = br.r(X0, X1); val bz = SZ + br.r(28f, 70f); val hc = C(arrayOf("#1565C0", "#C62828", "#2E7D32", "#F9A825")[br.i(4)])
+            b.m(Mt.WOOD, 0.8f); b.box(bx, seaY + 0.3f, bz, 4.2f, 0.8f, 1.5f, hc); b.box(bx, seaY + 0.72f, bz, 4.3f, 0.08f, 1.6f, C("#FAFAFA")); b.box(bx + 0.8f, seaY + 1.3f, bz, 1.3f, 1.1f, 1.1f, C("#FAFAFA")); b.box(bx + 0.8f, seaY + 1.9f, bz, 1.5f, 0.08f, 1.3f, hc) }
+        run { var ux = X0; while (ux < X1) { b.m(Mt.PLAIN); CityGeo.ball(b, ux, seaY + 0.1f, SZ + 24f, 0.35f, C("#FB8C00"), 0.35f, 6); ux += 28f } }
+        for (rx in floatArrayOf(City.PIER_X - 330f, City.PIER_X + 360f)) { b.m(Mt.STONE, 0.4f)   // quebra-mar de pedras
+            var rz = BZ + 20f; while (rz < SZ + 34f) { val s = br.r(1.6f, 2.8f); val rc = C(arrayOf("#7C7872", "#8E8A84", "#6E6A64")[br.i(3)])
+                CityGeo.ball(b, rx + br.r(-1.5f, 1.5f), max(sandH(rz), seaY) - 0.3f + s * 0.3f, rz, s, rc, s * 0.7f, 6); CityGeo.ball(b, rx + br.r(-3f, 3f), max(sandH(rz), seaY) - 0.5f, rz + 1.2f, s * 0.8f, shade(rc, -10), s * 0.55f, 5)
+                rz += 2.6f }
+            g.solid(rx - 2.5f, BZ + 20f, rx + 2.5f, SZ + 34f) }
         // píer
         pier(g)
         g.place(City.Place("Quiosques", City.PIER_X + 40f, BZ + 5f, 0xFF00838F.toInt(), 'Q'))

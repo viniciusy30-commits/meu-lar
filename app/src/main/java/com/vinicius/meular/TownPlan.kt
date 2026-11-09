@@ -138,7 +138,7 @@ object TownPlan {
                 DOWN -> grid(N, S, W, E, 4, 16f, DOWN)
                 COM -> grid(N, S, W, E, 3, 16f, COM)
                 URB -> grid(N, S, W, E, 3, 14f, URB)
-                PARK -> grid(N, S, W, E, 3, 12f, PARK, 4, gapU = 0.22f, gapV = 0.18f)   // só a quadra do meio vira parque; as outras têm casas
+                PARK -> { }   // Etapa 155: o bairro inteiro é o Parque Central (um parque grande de verdade, sem ruas por dentro)
                 MAN -> {
                     // bairro nobre: poucas ruas, longas e curvas
                     val rot = cr.i(4)
