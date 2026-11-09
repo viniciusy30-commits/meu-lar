@@ -3,11 +3,13 @@ package com.vinicius.meular
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+/** Etapa 151: hipotenusa rápida (Math.hypot é muito lenta e aqui é chamada milhões de vezes na montagem). */
+private fun hypot(a: Float, b: Float): Float = kotlin.math.sqrt(a * a + b * b)
 
 /**
  * Etapa 135: parques e praças nos quarteirões de parque e nos que sobram vazios.
@@ -30,7 +32,7 @@ object TownPark {
         val spots = ArrayList<FloatArray>()      // (x, z, raio, tipo)
         val trees = ArrayList<FloatArray>()
     }
-    val plans = HashMap<Int, Plan>()
+    val plans = java.util.concurrent.ConcurrentHashMap<Int, Plan>()   // Etapa 151: lido por várias threads de detalhe
 
     /** Distância de (x, z) até a borda do polígono (positiva dentro). */
     private fun inset(bl: FloatArray, x: Float, z: Float): Float {

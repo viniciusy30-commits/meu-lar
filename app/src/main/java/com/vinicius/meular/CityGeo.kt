@@ -33,7 +33,7 @@ object CityGeo {
         private var cur: City.Bld? = null
 
         fun begin(ax: Float, az: Float, bx: Float, bz: Float, name: String): City.Bld {
-            A = MB(); H = MB()
+            A = MB().also { it.countOnly = b.countOnly }; H = MB().also { it.countOnly = b.countOnly }
             val bd = City.Bld(min(ax, bx), min(az, bz), max(ax, bx), max(az, bz), idx, name)
             cur = bd
             return bd

@@ -338,6 +338,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var bf = -1
     private var bwl = -1
     private var bTest = false
+    private var cityW = -1; private var cityH = -1; private var cityTest = false
 
     private val VS = """
         attribute vec3 aPos; attribute vec3 aNor; attribute vec4 aCol; attribute vec2 aUV;
@@ -581,8 +582,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         yardM?.release(); floorM?.release(); ceilM?.release(); doorM?.release(); for (w in walls) w?.release()   // devolve os buffers da placa de vídeo
         yardM = Models.yard(gw, gh, st.testRoom)
         inBld = null
-        City.clear()
-        if (!st.testRoom) City.buildAsync(gw, gh)   // Etapa 122: a cidade é montada em segundo plano
+        // Etapa 151: a cidade só é montada de novo se o tamanho da casa mudou (trocar piso/parede ou voltar do fundo não refaz tudo)
+        if (gw != cityW || gh != cityH || st.testRoom != cityTest) {
+            cityW = gw; cityH = gh; cityTest = st.testRoom
+            City.clear()
+            if (!st.testRoom) City.buildAsync(gw, gh)   // Etapa 122: a cidade é montada em segundo plano
+        }
         floorM = Models.interior(gw, gh, fl, wl.cor)
         ceilM = Models.ceiling(gw, gh)
         doorM = Models.doorLeaf()

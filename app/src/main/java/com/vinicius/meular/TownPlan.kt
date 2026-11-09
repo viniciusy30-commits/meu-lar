@@ -1,9 +1,11 @@
 package com.vinicius.meular
 
 import kotlin.math.abs
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+
+/** Etapa 151: hipotenusa rápida (Math.hypot é muito lenta e aqui é chamada milhões de vezes na montagem). */
+private fun hypot(a: Float, b: Float): Float = kotlin.math.sqrt(a * a + b * b)
 
 /**
  * Etapa 131b: planta da cidade grande.

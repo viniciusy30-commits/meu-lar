@@ -105,15 +105,15 @@ object City {
     private val bldBy = HashMap<Int, ArrayList<Bld>>()
     private fun cell(x: Float, z: Float) = (Math.floor(x / 32.0).toInt() + 1000) * 4096 + (Math.floor(z / 32.0).toInt() + 1000)
 
-    fun addPlace(p: Place) { places.add(p) }
+    @Synchronized fun addPlace(p: Place) { places.add(p) }   // Etapa 151: a montagem gera os pedaços em várias threads
 
-    fun addSolid(r: FloatArray) {
+    @Synchronized fun addSolid(r: FloatArray) {
         val a = Math.floor(r[0] / 32.0).toInt(); val b = Math.floor(r[2] / 32.0).toInt()
         val c = Math.floor(r[1] / 32.0).toInt(); val d = Math.floor(r[3] / 32.0).toInt()
         for (i in a..b) for (j in c..d) solidsBy.getOrPut((i + 1000) * 4096 + (j + 1000)) { ArrayList() }.add(r)
     }
 
-    fun addBld(bd: Bld) {
+    @Synchronized fun addBld(bd: Bld) {
         blds.add(bd)
         val a = Math.floor(bd.x0 / 32.0).toInt(); val b = Math.floor(bd.x1 / 32.0).toInt()
         val c = Math.floor(bd.z0 / 32.0).toInt(); val d = Math.floor(bd.z1 / 32.0).toInt()
@@ -244,19 +244,45 @@ object City {
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
         solidsBy.clear(); bldBy.clear(); blds.clear(); places.clear(); cars.clear(); peds.clear()
         Gps.clear()
-        Town.clear()
+        Town.on = false   // Etapa 151: as listas da planta são limpas pela própria montagem (na thread dela)
     }
+
+    /**
+     * Etapa 151: montagem cancelável — uma montagem nova (casa mudou de tamanho, contexto GL caiu) interrompe a anterior
+     * no próximo passo, em vez de as duas rodarem juntas mexendo nas mesmas listas (o que travava a cidade de vez).
+     */
+    class Cancelled : RuntimeException()
+    @Volatile private var buildTk = -1
+    /** Passo da montagem: atualiza a barra de carregamento e para se esta montagem foi substituída. */
+    fun step(p: Float) { if (buildTk != token) throw Cancelled(); progress = p }
+    /** Só confere se a montagem continua valendo (threads auxiliares). */
+    fun alive() { if (buildTk != token) throw Cancelled() }
+    /** Etapa 151: threads auxiliares da montagem (um pedaço da cidade em cada). */
+    val workers: java.util.concurrent.ExecutorService by lazy {
+        val n = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        java.util.concurrent.Executors.newFixedThreadPool(n) { r -> Thread(r, "cidade-montagem").apply { priority = Thread.NORM_PRIORITY; isDaemon = true } }
+    }
+
+    /** Uma montagem por vez, numa thread só (em prioridade normal: é o que o jogador está esperando). */
+    private val builder = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "cidade").apply { priority = Thread.NORM_PRIORITY } }
 
     /** Monta a cidade numa thread separada (o jogo continua rodando dentro de casa enquanto isso). */
     fun buildAsync(gw: Int, gh: Int) {
         val tk = token
         startGen = GlGen.gen
-        Thread {
-            try { error = null; build(gw, gh, tk) } catch (e: Throwable) { error = e.toString(); android.util.Log.e("City", "falha ao montar a cidade", e) }
-        }.apply { priority = Thread.NORM_PRIORITY - 1 }.start()
+        error = null
+        builder.execute {
+            if (tk != token) return@execute
+            try { buildTk = tk; build(gw, gh, tk) }
+            catch (e: Cancelled) { }
+            catch (e: Throwable) { if (tk == token) { error = e.toString(); android.util.Log.e("City", "falha ao montar a cidade", e) } }
+        }
     }
 
     private fun build(gw: Int, gh: Int, tk: Int) {
+        // Etapa 151: começa limpo (uma montagem cancelada pode ter deixado restos depois do clear())
+        lakes.clear(); bridges.clear(); doors.clear(); solidsBy.clear(); bldBy.clear(); blds.clear(); places.clear(); cars.clear(); peds.clear()
+        step(0.01f)
         val W = gw.toFloat(); val H = gh.toFloat()
         lotX0 = -10f; lotX1 = W + 10f; lotZ0 = -22f; lotZ1 = H + 9f
         // larguras dos quarteirões (a casa é a coluna/linha 3)
@@ -343,12 +369,13 @@ object City {
         types = emptyArray()
         Vehicles.build()   // os carros estacionados dos lotes usam os modelos
         Town.build(out)
+        step(0.9f)
         X0 = Town.minX - 200f; X1 = Town.maxX + 200f; Z0 = Town.minZ - 200f; Z1 = Town.maxZ + 200f
         // praia ao sul da Av. Beira-Mar (reta): calçadão, areia, mar e píer
         Z1 = TownPlan.ZS[TownPlan.N] + 10f + Town.SW
         BEACH_Z = Z1 + 10f; SEA_Z = Z1 + 62f; PIER_X = 120f
         out.add(CityFun.beach(out.size))
-        progress = 0.6f
+        step(0.93f)
         chunks = out
         spawnTownTraffic()
         buildPeds()
@@ -364,7 +391,9 @@ object City {
         on = true
     }
 
-    private val loader = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "cidade-detalhe").apply { priority = Thread.NORM_PRIORITY - 1 } }
+    /** Etapa 151: detalhe dos quarteirões gerado em várias threads (o mais perto primeiro). */
+    private val loaderN = Runtime.getRuntime().availableProcessors().let { (it - 1).coerceIn(1, 3) }
+    private val loader = java.util.concurrent.Executors.newFixedThreadPool(loaderN) { r -> Thread(r, "cidade-detalhe").apply { priority = Thread.NORM_PRIORITY - 1 } }
 
     /** Pede a malha detalhada de um quarteirão (gerada de novo, igual à primeira vez, sem registrar colisões de novo). */
     fun requestNear(ci: Int) {
@@ -392,6 +421,8 @@ object City {
         }
     }
 
+    private val want = ArrayList<Int>()
+
     /** Thread do GL: instala malhas prontas, monta flora pendente e descarta detalhe de quarteirões longe. */
     fun service(ex: Float, ez: Float) {
         if (!on) return
@@ -409,8 +440,14 @@ object City {
             if (c.lazyI < 0) continue
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
-            if (d2 < NEAR * NEAR) { requestNear(ci); c.lastNear = now }
+            if (d2 < NEAR * NEAR) { if (c.near == null && !c.loading && c.result == null && !c.failed) want.add(ci); c.lastNear = now }
             else if (c.near != null && d2 > (NEAR + 45f) * (NEAR + 45f) && now - c.lastNear > 3000L) { c.near?.release(); c.near = null }
+        }
+        // Etapa 151: pede primeiro os mais perto (o que está em volta do jogador aparece antes)
+        if (want.isNotEmpty()) {
+            want.sortBy { val c = chunks[it]; val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1)); dx * dx + dz * dz }
+            for (ci in want) requestNear(ci)
+            want.clear()
         }
     }
 

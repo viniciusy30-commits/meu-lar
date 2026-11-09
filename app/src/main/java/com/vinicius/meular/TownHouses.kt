@@ -2,11 +2,13 @@ package com.vinicius.meular
 
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+/** Etapa 151: hipotenusa rápida (Math.hypot é muito lenta e aqui é chamada milhões de vezes na montagem). */
+private fun hypot(a: Float, b: Float): Float = kotlin.math.sqrt(a * a + b * b)
 
 /**
  * Etapa 132: lotes e casas no padrão americano.
@@ -61,11 +63,36 @@ object TownHouses {
     private val lotBy = HashMap<Int, ArrayList<Lot>>()
     private fun cell(x: Float, z: Float) = (Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)
 
+    // Etapa 151: grade (array, sem HashMap nem caixa de Int) só com os lotes do relevo — consulta rápida a cada vértice
+    private const val RG = 20f
+    private var rg: Array<Array<Lot>?>? = null; private var rgX = 0f; private var rgZ = 0f; private var rgW = 0; private var rgH = 0
+    private fun buildReliefGrid() {
+        val rl = lots.filter { !it.pad.isNaN() }
+        if (rl.isEmpty()) { rg = null; return }
+        var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+        val cs = rl.map { corners(it) }
+        for (c in cs) { var k = 0; while (k < 8) { x0 = min(x0, c[k]); x1 = max(x1, c[k]); z0 = min(z0, c[k + 1]); z1 = max(z1, c[k + 1]); k += 2 } }
+        rgX = x0 - 1f; rgZ = z0 - 1f; rgW = ((x1 - x0 + 2f) / RG).toInt() + 1; rgH = ((z1 - z0 + 2f) / RG).toInt() + 1
+        val tmp = arrayOfNulls<ArrayList<Lot>>(rgW * rgH)
+        for ((i, l) in rl.withIndex()) { val c = cs[i]
+            val ax = ((minOf(c[0], c[2], c[4], c[6]) - 0.3f - rgX) / RG).toInt().coerceIn(0, rgW - 1); val bx = ((maxOf(c[0], c[2], c[4], c[6]) + 0.3f - rgX) / RG).toInt().coerceIn(0, rgW - 1)
+            val az = ((minOf(c[1], c[3], c[5], c[7]) - 0.3f - rgZ) / RG).toInt().coerceIn(0, rgH - 1); val bz = ((maxOf(c[1], c[3], c[5], c[7]) + 0.3f - rgZ) / RG).toInt().coerceIn(0, rgH - 1)
+            for (gx in ax..bx) for (gz in az..bz) (tmp[gz * rgW + gx] ?: ArrayList<Lot>().also { tmp[gz * rgW + gx] = it }).add(l) }
+        rg = Array(rgW * rgH) { tmp[it]?.toTypedArray() }
+    }
+    private fun rcell(x: Float, z: Float): Array<Lot>? {
+        val g = rg ?: return null
+        val fx = (x - rgX) / RG; val fz = (z - rgZ) / RG
+        if (fx < 0f || fz < 0f) return null
+        val ix = fx.toInt(); val iz = fz.toInt()
+        if (ix >= rgW || iz >= rgH) return null
+        return g[iz * rgW + ix]
+    }
+
     /** Etapa 148: platô do lote que contém (x, z), ou NaN. */
     fun padAt(x: Float, z: Float): Float {
-        val lst = lotBy[(Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)] ?: return Float.NaN
+        val lst = rcell(x, z) ?: return Float.NaN
         for (l in lst) {
-            if (l.pad.isNaN()) continue
             val u = l.lu(x, z); val v = l.lv(x, z)
             if (u < -l.w / 2 - 0.05f || u > l.w / 2 + 0.05f || v < FO + 0.05f || v > l.d + 0.05f) continue
             // Etapa 150: na escada da entrada o chão vai da calçada até o platô (rampa para quem anda)
@@ -77,9 +104,8 @@ object TownHouses {
 
     /** Etapa 150: lote do relevo (com platô) que contém o ponto (lista de lotes), ou null. */
     fun reliefLot(x: Float, z: Float): Lot? {
-        val lst = lotBy[(Math.floor(x / 40.0).toInt() + 3000) * 8192 + (Math.floor(z / 40.0).toInt() + 3000)] ?: return null
+        val lst = rcell(x, z) ?: return null
         for (l in lst) {
-            if (l.pad.isNaN()) continue
             val u = l.lu(x, z); val v = l.lv(x, z)
             if (u > -l.w / 2 && u < l.w / 2 && v > 0f && v < l.d) return l
         }
@@ -159,7 +185,7 @@ object TownHouses {
     var dbgNoDep = 0; var dbgNoIv = 0
     fun plan() {
         dbgNoDep = 0; dbgNoIv = 0
-        lots.clear(); lotBy.clear(); solids.clear(); solidBy.clear()
+        lots.clear(); lotBy.clear(); solids.clear(); solidBy.clear(); rg = null
         var seed = 1
         // Etapa 147: ruas compridas primeiro (as casas ficam de frente para o lado comprido da quadra, como nos EUA)
         for ((ei, ed) in Town.edges.withIndex().sortedByDescending { it.value.len }) {
@@ -223,6 +249,7 @@ object TownHouses {
         // cada mansão num estilo, alternando (vizinhas nunca iguais)
         // Etapa 148: platô de cada lote = ponto mais alto do relevo dentro dele (nada fica enterrado; no lado baixo aparece o muro de arrimo)
         for (l in lots) level(l)
+        buildReliefGrid()
         // Etapa 146: em cada bairro nobre as mansões têm estilos todos diferentes (e o outro bairro começa por outro estilo)
         val groups = lots.filter { it.tier == 4 }.groupBy { val c = TownPlan.cellCenter(it.cx, it.cz); c[0] * 10000f + c[1] }
         var gi = 0
@@ -239,7 +266,7 @@ object TownHouses {
     private val solids = ArrayList<Obb>()
     private val solidBy = HashMap<Int, ArrayList<Obb>>()
 
-    fun solid(l: Lot, x0: Float, z0: Float, x1: Float, z1: Float) {
+    @Synchronized fun solid(l: Lot, x0: Float, z0: Float, x1: Float, z1: Float) {
         val cx = l.wx((x0 + x1) / 2, (z0 + z1) / 2); val cz = l.wz((x0 + x1) / 2, (z0 + z1) / 2)
         val o = Obb(cx, cz, abs(x1 - x0) / 2, abs(z1 - z0) / 2, l.tx, l.tz)
         solids.add(o)

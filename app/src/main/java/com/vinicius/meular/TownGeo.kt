@@ -4,10 +4,12 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+
+/** Etapa 151: hipotenusa rápida (Math.hypot é muito lenta e aqui é chamada milhões de vezes na montagem). */
+private fun hypot(a: Float, b: Float): Float = kotlin.math.sqrt(a * a + b * b)
 
 /** Etapa 131: desenho das ruas curvas, cruzamentos, rotatória, calçadas e chão dos quarteirões. */
 object TownGeo {
@@ -49,6 +51,7 @@ object TownGeo {
 
     /** Triângulos (x, z) planos, virados para cima. */
     fun tris(b: MB, t: FloatArray, y: Float, c: Int) {
+        if (b.countOnly) return   // Etapa 151: malha de perto na montagem não é usada
         var i = 0
         while (i + 5 < t.size) {
             if (b.warp) split(b, t[i], t[i + 1], t[i + 2], t[i + 3], t[i + 4], t[i + 5], y, c, 0)
@@ -64,10 +67,16 @@ object TownGeo {
         // Etapa 150: no relevo, pedaços de ~2 m (a malha acompanha os platôs sem rampa de grama por cima do gramado)
         // Etapa 150: triângulo inteiro dentro de um lote do relevo some (o lote tem o próprio gramado); na borda de lote, pedaços de ~1 m
         var lim = 7f
-        if (b.warp && m <= 7f) {
+        if (b.warp && m <= 7f && Town.terrain((ax + bx + cx) / 3, (az + bz + cz) / 3) != 0f) {
             val la = TownHouses.reliefLot(ax, az); val lb = TownHouses.reliefLot(bx, bz); val lc = TownHouses.reliefLot(cx, cz)
-            if (la != null && la === lb && la === lc) return
-            if (la != null || lb != null || lc != null || TownHouses.reliefLot((ax + bx) / 2, (az + bz) / 2) != null || TownHouses.reliefLot((bx + cx) / 2, (bz + cz) / 2) != null || TownHouses.reliefLot((cx + ax) / 2, (cz + az) / 2) != null || TownHouses.reliefLot((ax + bx + cx) / 3, (az + bz + cz) / 3) != null) lim = 2.0f
+            val l1 = TownHouses.reliefLot((ax + bx) / 2, (az + bz) / 2); val l2 = TownHouses.reliefLot((bx + cx) / 2, (bz + cz) / 2); val l3 = TownHouses.reliefLot((cx + ax) / 2, (cz + az) / 2)
+            val l4 = TownHouses.reliefLot((ax + bx + cx) / 3, (az + bz + cz) / 3)
+            // inteiro dentro de lotes (cada lote tem o próprio gramado nivelado): some
+            if (la != null && lb != null && lc != null && l1 != null && l2 != null && l3 != null && l4 != null) return
+            // Etapa 151: na borda de um lote só refina onde o chão de fora fica acima do gramado do lote (senão ele já fica escondido embaixo)
+            var pmin = Float.MAX_VALUE
+            for (q in arrayOf(la, lb, lc, l1, l2, l3, l4)) if (q != null && q.pad < pmin) pmin = q.pad
+            if (pmin != Float.MAX_VALUE && max(Town.meshElev(ax, az), max(Town.meshElev(bx, bz), Town.meshElev(cx, cz))) > pmin - 0.04f) lim = 2.0f
         }
         if (m <= lim || d > 20) { b.v(ax, y, az, 0f, 1f, 0f, c, ax, az); b.v(bx, y, bz, 0f, 1f, 0f, c, bx, bz); b.v(cx, y, cz, 0f, 1f, 0f, c, cx, cz); return }
         when (m) {
@@ -111,7 +120,8 @@ object TownGeo {
 
     // ------------------------------------------------------------ pedaços (carregados perto do jogador)
 
-    const val TILE = 360f
+    // Etapa 151: pedaços menores (180 m): o detalhe em volta do jogador fica pronto bem mais rápido e gasta menos memória
+    const val TILE = 180f
     class Tile(val i: Int, val j: Int) {
         val edges = ArrayList<Int>(); val nodes = ArrayList<Int>(); val blocks = ArrayList<Int>(); val lots = ArrayList<Int>()
         var x0 = Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
@@ -140,23 +150,35 @@ object TownGeo {
             t.grow(floatArrayOf(l.wx(-l.w / 2, -SW - 1f), l.wz(-l.w / 2, -SW - 1f), l.wx(l.w / 2, l.d), l.wz(l.w / 2, l.d), l.wx(-l.w / 2, l.d), l.wz(-l.w / 2, l.d), l.wx(l.w / 2, -SW - 1f), l.wz(l.w / 2, -SW - 1f)), 4f)
         }
         tiles.addAll(map.values)
-        for ((ti, t) in tiles.withIndex()) {
-            val g = CityGeo.Gen(out.size, City.Rng(ti * 13 + 1), t.x0, t.z0, t.x1, t.z1, true)
+        // Etapa 151: o que é preguiçoso e compartilhado é calculado antes (as threads só leem)
+        for (u in Town.urban) u.padY()
+        TownPark.isPark(0)
+        // Etapa 151: cada pedaço (e cada quadra do centro) é gerado numa thread auxiliar; o índice do pedaço é fixo
+        val base = out.size; val nT = tiles.size; val nU = Town.urban.size
+        val jobs = ArrayList<java.util.concurrent.Future<City.Chunk>>(nT + nU)
+        for ((ti, t) in tiles.withIndex()) jobs.add(City.workers.submit(java.util.concurrent.Callable {
+            City.alive()
+            val g = CityGeo.Gen(base + ti, City.Rng(ti * 13 + 1), t.x0, t.z0, t.x1, t.z1, true)
+            g.b.countOnly = true   // aqui só interessa a versão de longe (a de perto é gerada quando o jogador chega)
             tile(g, ti, true)
             val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
-            val c = City.Chunk(null, far, t.x0, t.z0, t.x1, t.z1, 30f)
-            c.lazyI = ti; c.lazyJ = -1
-            out.add(c)
-        }
+            City.Chunk(null, far, t.x0, t.z0, t.x1, t.z1, 30f).also { it.lazyI = ti; it.lazyJ = -1 }
+        }))
         // quadras do centro e do comércio: prédios e lojas (com interior) do gerador de quarteirões
-        for ((ui, u) in Town.urban.withIndex()) {
-            val g = CityGeo.Gen(out.size, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, true)
+        for ((ui, u) in Town.urban.withIndex()) jobs.add(City.workers.submit(java.util.concurrent.Callable {
+            City.alive()
+            val g = CityGeo.Gen(base + nT + ui, City.Rng(u.i * 131 + u.j * 17 + 7 + ui * 3), u.x0, u.z0, u.x1, u.z1, true)
+            g.b.countOnly = true   // conta os vértices (faixas dos prédios), sem gravar a malha de perto
             val h = buildUrban(g, u, ui)
             val far = if (g.f.isEmpty()) null else g.f.toMesh(true)
-            val c = City.Chunk(null, far, u.x0, u.z0, u.x1, u.z1, h)
-            c.lazyI = ui; c.lazyJ = -2
-            out.add(c)
-        }
+            City.Chunk(null, far, u.x0, u.z0, u.x1, u.z1, h).also { it.lazyI = ui; it.lazyJ = -2 }
+        }))
+        try {
+            for ((k, f) in jobs.withIndex()) {
+                City.step(0.34f + 0.52f * k / jobs.size)
+                try { out.add(f.get()) } catch (e: java.util.concurrent.ExecutionException) { throw e.cause ?: e }
+            }
+        } catch (e: Throwable) { for (f in jobs) f.cancel(false); throw e }
         Elevado.chunks(out)   // Etapa 145: elevados e alças
         out.add(outside(out.size))
     }

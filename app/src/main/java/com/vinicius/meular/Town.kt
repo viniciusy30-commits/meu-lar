@@ -4,11 +4,13 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+/** Etapa 151: hipotenusa rápida (Math.hypot é muito lenta e aqui é chamada milhões de vezes na montagem). */
+private fun hypot(a: Float, b: Float): Float = kotlin.math.sqrt(a * a + b * b)
 
 /**
  * Etapa 131: motor novo da cidade — ruas como um grafo de curvas (não mais uma grade).
@@ -31,6 +33,8 @@ object Town {
         var poly = FloatArray(0)                    // contorno do asfalto do cruzamento (x, z), anti-horário
         var sorted = IntArray(0)                    // ruas em volta, por ângulo
         val corners = HashMap<Int, FloatArray>()    // rua -> curva da guia até a próxima rua (x, z)
+        /** Etapa 151: raio do contorno guardado (era recalculado a cada consulta de folga) */
+        var radPoly: FloatArray? = null; var rad = 0f
     }
 
     class Edge(var a: Int, var b: Int, val w: Float, val bend: Float, val name: String) {
@@ -352,6 +356,9 @@ object Town {
     private fun infill() {
         val C = 4f
         val lotPolys = TownHouses.lots.map { TownHouses.corners(it) }
+        // Etapa 151: caixa de cada lote (corta o teste de sobreposição de quase todos)
+        val lotBB = FloatArray(lotPolys.size * 4)
+        for ((li, c) in lotPolys.withIndex()) { lotBB[li * 4] = minOf(c[0], c[2], c[4], c[6]); lotBB[li * 4 + 1] = minOf(c[1], c[3], c[5], c[7]); lotBB[li * 4 + 2] = maxOf(c[0], c[2], c[4], c[6]); lotBB[li * 4 + 3] = maxOf(c[1], c[3], c[5], c[7]) }
         var nRes = 0; var nCom = 0; var nDown = 0
         val resT = arrayOf("res", "apt", "res", "lots", "res", "apt", "res", "res", "apt")
         val comT = arrayOf("shops", "apt", "shops", "shops", "apt", "shops")
@@ -371,7 +378,7 @@ object Town {
                 if (cx > home[0] && cx < home[2] && cz > home[1] && cz < home[3]) continue
                 val cell = floatArrayOf(cx - C / 2, cz - C / 2, cx + C / 2, cz - C / 2, cx + C / 2, cz + C / 2, cx - C / 2, cz + C / 2)
                 var hit = false
-                for (lp in lotPolys) { if (abs(lp[0] - cx) > 200f) continue; if (TownHouses.overlap(cell, lp)) { hit = true; break } }
+                for ((li, lp) in lotPolys.withIndex()) { val q = li * 4; if (cx + C / 2 < lotBB[q] || cx - C / 2 > lotBB[q + 2] || cz + C / 2 < lotBB[q + 1] || cz - C / 2 > lotBB[q + 3]) continue; if (TownHouses.overlap(cell, lp)) { hit = true; break } }
                 if (!hit) for (u in urban) if (u.block == bi && cx > u.x0 - 2f && cx < u.x1 + 2f && cz > u.z0 - 2f && cz < u.z1 + 2f) { hit = true; break }
                 free[i][j] = !hit
             }
@@ -659,6 +666,8 @@ object Town {
                     segBy.getOrPut((cx + 2000) * 8192 + (cz + 2000)) { ArrayList() }.add(ei shl 12 or i)
             }
         }
+        // Etapa 151: caches calculados aqui, antes das threads de montagem
+        blockBoxes(); for (nd in nodes) polyRadius(nd)
         for ((ni, nd) in nodes.withIndex()) {
             val r = nd.r + SW + 12f
             for (cx in Math.floor((nd.x - r) / 16.0).toInt()..Math.floor((nd.x + r) / 16.0).toInt()) for (cz in Math.floor((nd.z - r) / 16.0).toInt()..Math.floor((nd.z + r) / 16.0).toInt())
@@ -699,8 +708,10 @@ object Town {
             val c = (cx + 2000) * 8192 + (cz + 2000)
             nodeBy[c]?.let { l -> for (ni in l) {
                 val nd = nodes[ni]
-                if (inside(nd.poly, x, z)) return -1f
-                val d = if (hypot(x - nd.x, z - nd.z) > polyRadius(nd) + SW + 2f) 99f else distPoly(nd.poly, x, z) - SW
+                val h = hypot(x - nd.x, z - nd.z); val pr = polyRadius(nd)
+                if (h > pr + SW + 2f) continue
+                if (h <= pr && inside(nd.poly, x, z)) return -1f
+                val d = distPoly(nd.poly, x, z) - SW
                 if (d < best) best = d
             } }
             segBy[c]?.let { l -> for (k in l) {
@@ -708,7 +719,10 @@ object Town {
                 val ax = p[i * 2]; val az = p[i * 2 + 1]; val bx = p[i * 2 + 2]; val bz = p[i * 2 + 3]
                 val dx = bx - ax; val dz = bz - az; val l2 = max(1e-6f, dx * dx + dz * dz)
                 val t = (((x - ax) * dx + (z - az) * dz) / l2).coerceIn(0f, 1f)
-                val d = hypot(x - ax - dx * t, z - az - dz * t) - ed.w / 2 - SW
+                val ex = x - ax - dx * t; val ez = z - az - dz * t; val e2 = ex * ex + ez * ez
+                val lim = best + ed.w / 2 + SW   // só tira a raiz se puder ganhar do melhor
+                if (lim > 0f && e2 >= lim * lim) continue
+                val d = kotlin.math.sqrt(e2) - ed.w / 2 - SW
                 if (d < best) best = d
             } }
         }
@@ -716,7 +730,11 @@ object Town {
     }
 
     /** raio até o ponto mais longe do contorno do cruzamento (as esquinas com calçada ficam dentro de raio + SW) */
-    private fun polyRadius(nd: Node): Float { var m = 0f; var k = 0; while (k < nd.poly.size) { m = max(m, hypot(nd.poly[k] - nd.x, nd.poly[k + 1] - nd.z)); k += 2 }; return m }
+    private fun polyRadius(nd: Node): Float {
+        if (nd.radPoly === nd.poly) return nd.rad
+        var m = 0f; var k = 0; while (k < nd.poly.size) { m = max(m, hypot(nd.poly[k] - nd.x, nd.poly[k + 1] - nd.z)); k += 2 }
+        nd.rad = m; nd.radPoly = nd.poly; return m
+    }
 
     private fun distPoly(p: FloatArray, x: Float, z: Float): Float {
         var m = Float.MAX_VALUE; val n = p.size / 2
@@ -729,7 +747,24 @@ object Town {
         return m
     }
 
-    fun inAnyBlock(x: Float, z: Float): Boolean { for (b in blocks) if (inside(b, x, z)) return true; return false }
+    /** Etapa 151: caixa de cada quarteirão (teste rápido antes do ponto-no-polígono). */
+    private var bbFor: FloatArray? = null; private var bbN = -1; private var bb = FloatArray(0)
+    private fun blockBoxes(): FloatArray {
+        val f = blocks.firstOrNull()
+        if (f !== bbFor || bbN != blocks.size) {
+            bb = FloatArray(blocks.size * 4)
+            for ((i, b) in blocks.withIndex()) { var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var z0 = Float.MAX_VALUE; var z1 = -Float.MAX_VALUE
+                var k = 0; while (k < b.size) { x0 = min(x0, b[k]); x1 = max(x1, b[k]); z0 = min(z0, b[k + 1]); z1 = max(z1, b[k + 1]); k += 2 }
+                bb[i * 4] = x0; bb[i * 4 + 1] = z0; bb[i * 4 + 2] = x1; bb[i * 4 + 3] = z1 }
+            bbFor = f; bbN = blocks.size
+        }
+        return bb
+    }
+    fun inAnyBlock(x: Float, z: Float): Boolean {
+        val q = blockBoxes()
+        for ((i, b) in blocks.withIndex()) if (x >= q[i * 4] && x <= q[i * 4 + 2] && z >= q[i * 4 + 1] && z <= q[i * 4 + 3] && inside(b, x, z)) return true
+        return false
+    }
 
     /**
      * Etapa 146: morros em volta da cidade (a cidade fica num vale aberto para o mar). Zero dentro do retângulo da cidade
@@ -777,7 +812,9 @@ object Town {
         return t
     }
 
-    fun groundH(x: Float, z: Float): Float = if (outline.isNotEmpty() && !inside(outline, x, z)) hill(x, z) else elev(x, z) + when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
+    /** Etapa 151: o contorno da cidade tem centenas de pontos — longe da borda nem precisa testar. */
+    private fun outsideCity(x: Float, z: Float): Boolean = outline.isNotEmpty() && !(x > minX + 90f && x < maxX - 90f && z > minZ + 90f && z < maxZ - 90f) && !inside(outline, x, z)
+    fun groundH(x: Float, z: Float): Float = if (outsideCity(x, z)) hill(x, z) else elev(x, z) + when (surface(x, z)) { 0 -> 0f; 2 -> CURB + 0.04f; 3 -> CURB + 0.05f; else -> CURB }
 
     /** Fora do mapa (além do contorno da cidade + calçada externa). */
     fun outside(x: Float, z: Float) = outline.isNotEmpty() && x > minX - 60f && x < maxX + 60f && z > minZ - 60f && z < maxZ + 60f && false
@@ -786,13 +823,14 @@ object Town {
 
     fun build(out: ArrayList<City.Chunk>) {
         warn = 0
-        TownPlan.generate()
-        buildNodes()
-        buildBlocks()
-        index()
-        classify()
-        TownHouses.plan()
-        infill()
+        // Etapa 151: cada passo atualiza a barra de carregamento (e para se a montagem foi substituída)
+        TownPlan.generate(); City.step(0.04f)
+        buildNodes(); City.step(0.06f)
+        buildBlocks(); City.step(0.08f)
+        index(); City.step(0.09f)
+        classify(); City.step(0.13f)
+        TownHouses.plan(); City.step(0.30f)
+        infill(); City.step(0.34f)
         minX = nodes.minOf { it.x } - 30f; maxX = nodes.maxOf { it.x } + 30f
         minZ = nodes.minOf { it.z } - 30f; maxZ = nodes.maxOf { it.z } + 30f
         TownGeo.build(out)

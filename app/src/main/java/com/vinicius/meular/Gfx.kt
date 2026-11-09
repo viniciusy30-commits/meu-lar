@@ -530,6 +530,13 @@ class MB {
     /** Opacidade aplicada aos próximos vértices (usado no vidro). */
     var al = 1f
 
+    /**
+     * Etapa 151: só conta os vértices (por material) e a altura máxima, sem gravar nada — usado na montagem da cidade
+     * para a malha de perto, que é jogada fora (ela é gerada de novo quando o jogador chega). Bem mais rápido e sem memória.
+     */
+    @JvmField var countOnly = false
+    private var maxYc = -1e9f
+
     init { bufs[0] = cur }
 
     /** Escolhe o material (textura) e a escala/deslocamento do UV para o que vier a seguir. */
@@ -541,6 +548,7 @@ class MB {
 
     fun v(x: Float, y: Float, z: Float, nx: Float, ny: Float, nz: Float, c: Int, u: Float, w: Float) {
         val f = cur
+        if (countOnly) { f.n += STRIDE; if (y > maxYc) maxYc = y; return }
         f.put(x); f.put(y); f.put(z); f.put(nx); f.put(ny); f.put(nz)
         f.put(Color.red(c) / 255f); f.put(Color.green(c) / 255f); f.put(Color.blue(c) / 255f); f.put(al)
         f.put(u * us + ux); f.put(w * us + uy)
@@ -829,6 +837,7 @@ class MB {
 
     /** Etapa 122: copia toda a geometria de [o] para o fim deste construtor (material por material). */
     fun append(o: MB) {
+        if (countOnly) { for ((k, f) in o.bufs) if (f.n > 0) bufs.getOrPut(k) { FA() }.n += f.n; maxYc = max(maxYc, o.maxY()); return }
         for ((k, f) in o.bufs) {
             if (f.n == 0) continue
             val d = bufs.getOrPut(k) { FA() }
@@ -840,6 +849,7 @@ class MB {
 
     /** Etapa 134: copia [o] girado em volta de y (cos c, sen s: x' = x·c + z·s, z' = −x·s + z·c) e deslocado. */
     fun appendRot(o: MB, c: Float, s: Float, tx: Float, ty: Float, tz: Float) {
+        if (countOnly) { for ((k, f) in o.bufs) if (f.n > 0) bufs.getOrPut(k) { FA() }.n += f.n; maxYc = max(maxYc, o.maxY() + ty); return }
         for ((k, f) in o.bufs) {
             if (f.n == 0) continue
             val d = bufs.getOrPut(k) { FA() }
@@ -860,7 +870,7 @@ class MB {
     fun isEmpty(): Boolean = bufs.values.all { it.n == 0 }
 
     /** Etapa 127: altura máxima (y) de toda a geometria (sombra dos prédios). */
-    fun maxY(): Float { var m = -1e9f; for (f in bufs.values) { var i = 1; while (i < f.n) { if (f.a[i] > m) m = f.a[i]; i += STRIDE } }; return m }
+    fun maxY(): Float { if (countOnly) return maxYc; var m = -1e9f; for (f in bufs.values) { var i = 1; while (i < f.n) { if (f.a[i] > m) m = f.a[i]; i += STRIDE } }; return m }
 
     fun clear() { for (f in bufs.values) f.n = 0 }
 

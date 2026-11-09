@@ -24,7 +24,7 @@ object Shade {
     /** Só a montagem principal da cidade grava sombras (o detalhe carregado depois não repete). */
     @Volatile var on = false
 
-    fun reset() { b = MB().also { it.warp = City.TOWN; it.warpElev = true }; on = true; probes.clear() }
+    @Synchronized fun reset() { b = MB().also { it.warp = City.TOWN; it.warpElev = true }; on = true; probes.clear() }
 
     // ---------------------------------------------------------------- geometria 2D
     private fun cross(o: FloatArray, a: FloatArray, c: FloatArray) = (a[0] - o[0]) * (c[1] - o[1]) - (a[1] - o[1]) * (c[0] - o[0])
@@ -102,7 +102,7 @@ object Shade {
     }
 
     /** Caixa (prédio, casa, muro) de altura [h]. */
-    fun box(x0: Float, z0: Float, x1: Float, z1: Float, h: Float, alpha: Float = 0.34f) {
+    @Synchronized fun box(x0: Float, z0: Float, x1: Float, z1: Float, h: Float, alpha: Float = 0.34f) {
         val dx = LX * h; val dz = LZ * h
         val p = ArrayList<FloatArray>(8)
         for (q in arrayOf(floatArrayOf(x0, z0), floatArrayOf(x1, z0), floatArrayOf(x1, z1), floatArrayOf(x0, z1))) { p.add(q); p.add(floatArrayOf(q[0] + dx, q[1] + dz)) }
@@ -113,7 +113,7 @@ object Shade {
     /** pontos de árvores/postes registrados (para conferir sobreposição no simulador) */
     val probes = ArrayList<FloatArray>()
 
-    fun tree(x: Float, z: Float, cx: Float, cz: Float, cy: Float, r: Float, ry: Float, y: Float, alpha: Float = 0.27f) {
+    @Synchronized fun tree(x: Float, z: Float, cx: Float, cz: Float, cy: Float, r: Float, ry: Float, y: Float, alpha: Float = 0.27f) {
         if (on && probes.size < 6000) probes.add(floatArrayOf(x, z, 0f))
         val hc = cy - y
         val ox = cx + LX * hc; val oz = cz + LZ * hc
@@ -135,7 +135,7 @@ object Shade {
     }
 
     /** Poste fino (luminária, semáforo, placa). */
-    fun pole(x: Float, z: Float, h: Float, w: Float = 0.12f, alpha: Float = 0.24f) {
+    @Synchronized fun pole(x: Float, z: Float, h: Float, w: Float = 0.12f, alpha: Float = 0.24f) {
         if (on && probes.size < 6000) probes.add(floatArrayOf(x, z, 1f))
         val ex = x + LX * h; val ez = z + LZ * h
         val nx = -LZ; val nz = LX
@@ -145,7 +145,7 @@ object Shade {
     }
 
     /** Sombra de algo sobre um chão de altura conhecida (praia, píer). */
-    fun boxAt(x0: Float, z0: Float, x1: Float, z1: Float, h: Float, y: Float, alpha: Float = 0.3f) {
+    @Synchronized fun boxAt(x0: Float, z0: Float, x1: Float, z1: Float, h: Float, y: Float, alpha: Float = 0.3f) {
         val dx = LX * h; val dz = LZ * h
         val p = ArrayList<FloatArray>(8)
         for (q in arrayOf(floatArrayOf(x0, z0), floatArrayOf(x1, z0), floatArrayOf(x1, z1), floatArrayOf(x0, z1))) { p.add(q); p.add(floatArrayOf(q[0] + dx, q[1] + dz)) }
@@ -154,7 +154,7 @@ object Shade {
 
     @Volatile var mesh: Mesh? = null
 
-    fun finish() {
+    @Synchronized fun finish() {
         on = false
         val m = b
         mesh = if (m.isEmpty()) null else m.toMesh(true)
