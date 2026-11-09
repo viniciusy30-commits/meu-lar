@@ -321,7 +321,7 @@ object Town {
                 val sharp = run {
                     if (nd.round > 0f || nd.edges.size < 3) return@run null
                     val enA = endOf(e, to); val enB = endOf(ne, to)
-                    run { val gg = gapE(enA, enB); if (gg > PI.toFloat() * 0.65f || gg < PI.toFloat() * 0.35f) return@run null }
+                    val gg = gapE(enA, enB); if (gg > PI.toFloat() * 0.65f || gg < PI.toFloat() * 0.35f) return@run null
                     val pa = side(enA, ed.w / 2 + SW); val pb = side(enB, -(edges[ne].w / 2 + SW))
                     val c = cross(pa, floatArrayOf(-enA[2], -enA[3]), pb, floatArrayOf(-enB[2], -enB[3])) ?: return@run null
                     if (c[2] < -1f || c[3] < -1f || c[2] > 25f || c[3] > 25f) return@run null
