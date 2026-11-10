@@ -41,6 +41,7 @@ object TownSmall {
         for (k in 0..3) { val c = Town.clearance(mids[k][0], mids[k][1]); if (c < bc) { bc = c; side = k } }
         val f = F(u.x0, u.z0, u.x1, u.z1, side)
         val W = f.W; val D = f.D
+        if (TownHero.onXZ((u.x0 + u.x1) / 2, (u.z0 + u.z1) / 2)) { CityGeo.groundBox(g.b, u.x0, u.z0, u.x1, u.z1, Mt.PAVER, 0.9f, C("#E3E0DA")); CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, Mt.GRASS, 0.3f, C("#D6EEC4")); return TownHero.infill(g, f, r, u.x0 < -250f) }
         val d = TownPlan.districtAt((u.x0 + u.x1) / 2, (u.z0 + u.z1) / 2)
         val b = g.b
         // chão do espaço (calçado no comércio/centro, grama nos bairros)

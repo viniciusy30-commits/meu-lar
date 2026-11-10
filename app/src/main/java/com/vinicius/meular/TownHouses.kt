@@ -430,7 +430,8 @@ object TownHouses {
         reliefGround(g, l, near, far)
         if (l.tier == 4) { mansion(g, l, near, far); return }
         val hp = HP(l)
-        val r = hp.r; val t = hp.t; val W = hp.W; val D = hp.D; val y0 = hp.y0; val style = hp.style; val wallC = hp.wallC; val wallM = hp.wallM; val roofC = hp.roofC; val trim = hp.trim; val door = hp.door; val floors = hp.floors; val wallH = hp.wallH; val H = hp.H; val gw = hp.gw; val frontGarage = hp.frontGarage; val gSide = hp.gSide; val sideGap = hp.sideGap; val hw = hp.hw; val hd = hp.hd; val set = hp.set; val total = hp.total; val hx0 = hp.hx0; val gx0 = hp.gx0; val gz0 = hp.gz0; val gd = hp.gd; val ell = hp.ell; val ew = hp.ew; val ed = hp.ed; val ex0 = hp.ex0; val doorX = hp.doorX; val dx0 = hp.dx0; val dx1 = hp.dx1
+        val hero = TownHero.on(l)
+        val r = hp.r; val t = hp.t; val W = hp.W; val D = hp.D; val y0 = hp.y0; val style = hp.style; val wallC = hp.wallC; val wallM = hp.wallM; val roofC = if (hero) TownHero.roof(l, hp.style, hp.roofC) else hp.roofC; val trim = hp.trim; val door = hp.door; val floors = hp.floors; val wallH = hp.wallH; val H = hp.H; val gw = hp.gw; val frontGarage = hp.frontGarage; val gSide = hp.gSide; val sideGap = hp.sideGap; val hw = hp.hw; val hd = hp.hd; val set = hp.set; val total = hp.total; val hx0 = hp.hx0; val gx0 = hp.gx0; val gz0 = hp.gz0; val gd = hp.gd; val ell = hp.ell; val ew = hp.ew; val ed = hp.ed; val ex0 = hp.ex0; val doorX = hp.doorX; val dx0 = hp.dx0; val dx1 = hp.dx1
         // ---------------- longe
         if (far) {
             val f = Pen(g.f, l); g.f.m(Mt.PLAIN)
@@ -445,7 +446,8 @@ object TownHouses {
             if (ell) solid(l, ex0, set - ed, ex0 + ew, set)
         }
         // ---------------- muro / cerca (antes do return: colisão sempre)
-        val enc = when (style) { SPANISH -> intArrayOf(WALL, WALL, IRON, MURETA)[r.i(4)]; MODERN -> intArrayOf(WALL, IRON, OPEN, HEDGE)[r.i(4)]; else -> intArrayOf(OPEN, OPEN, PICKET, PICKET, HEDGE, MURETA, IRON, WALL)[r.i(8)] }
+        val encRaw = when (style) { SPANISH -> intArrayOf(WALL, WALL, IRON, MURETA)[r.i(4)]; MODERN -> intArrayOf(WALL, IRON, OPEN, HEDGE)[r.i(4)]; else -> intArrayOf(OPEN, OPEN, PICKET, PICKET, HEDGE, MURETA, IRON, WALL)[r.i(8)] }
+        val enc = if (hero) TownHero.fence(l, encRaw) else encRaw
         val encC = when (enc) { WALL -> if (r.chance(0.5f)) wallC else C(arrayOf("#E9E4DA", "#D8D2C6", "#BDB6A8", "#F2EEE6")[r.i(4)]); PICKET -> C("#FAFAF7"); else -> C(arrayOf("#A88A6A", "#8C7058", "#E9E4DA", "#6E6E6E")[r.i(4)]) }
         val walkX0 = doorX - 0.75f; val walkX1 = doorX + 0.75f
         if (!near) { if (g.reg) enclosure(null, l, enc, encC, W, D, set, hd, hx0, hw, dx0, dx1, walkX0, walkX1, gw > 0f, g); return }
@@ -547,7 +549,9 @@ object TownHouses {
             }
         }
         // chaminé
-        if (style != MODERN && style != SPANISH && r.chance(0.5f)) { b.m(Mt.STONE, 0.5f); p.box(hx0 + hw * (if (gSide > 0) 0.12f else 0.88f), y0 + H - 0.5f, set + hd * 0.6f, 1.0f, hd * 0.34f + 1.9f, 1.0f, C(arrayOf("#8D6E63", "#9C5A3C", "#7A7A7A")[r.i(3)])) }
+        if (style != MODERN && style != SPANISH && r.chance(0.5f)) { b.m(Mt.STONE, 0.5f); val chx = hx0 + hw * (if (gSide > 0) 0.12f else 0.88f); val chz = set + hd * 0.6f; val chTop = y0 + H - 0.5f + hd * 0.34f + 1.9f
+            p.box(chx, y0 + H - 0.5f, chz, 1.0f, hd * 0.34f + 1.9f, 1.0f, C(arrayOf("#8D6E63", "#9C5A3C", "#7A7A7A")[r.i(3)]))
+            if (hero) { b.m(Mt.STONE, 1f); p.box(chx, chTop, chz, 1.24f, 0.1f, 1.24f, C("#B9B2A6")); p.box(chx, chTop + 0.1f, chz, 0.7f, 0.06f, 0.7f, C("#2E3236")) } }
         // caixa de correio junto do meio-fio
         val mx = if (gw > 0f) (if (gSide > 0) dx0 - 0.8f else dx1 + 0.8f) else walkX1 + 0.9f
         val mbC = C(arrayOf("#222222", "#F2F2F2", "#1F3A5F", "#8E1B1B")[r.i(4)])
@@ -563,6 +567,8 @@ object TownHouses {
         val back = set + hd
         b.m(Mt.WOOD, 0.6f); p.box(hx0 + hw / 2, y0, back + 1.6f, min(hw, 8f), 0.25f, 3.2f, C("#A07E5C"))
         backyard(g, l, p, r, W, D, back + 3.6f, t, wallC, roofC)
+        if (hero) TownHero.lot(g, l, p, TownHero.Ctx(style, hx0, hw, hd, set, H, wallH, floors, doorX, gSide, gw, gx0, gz0, dx0, dx1, wallC, roofC, trim,
+            style == CRAFTSMAN || (t >= 2 && style == COLONIAL), ell, ex0, ew, relief))
         // placa "à venda"
         if (l.forSale) {
             val sx = if (gSide > 0) -W / 2 + 1.5f else W / 2 - 1.5f
