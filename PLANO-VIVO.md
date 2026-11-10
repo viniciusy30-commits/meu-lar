@@ -254,3 +254,10 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [ ] Ruas com bordas diagonais / casas ainda piscando: o vídeo não veio no ZIP; conferir no APK.
 - [ ] Escadas e andar de cima: ainda sem altura de caminhada (groundH só tem o térreo).
 - [ ] Shaders iguais ao jogo original do Hds: não feito.
+
+## Etapa 166 — Cidade 2: andares, escadas, porão e caixa da Casa 5 (entregue, aguardando build e teste)
+- [x] BUG achado: a Casa 5 tinha caixa de 286x100 m (peças soltas a ~243 m de altura entravam no cálculo). Nessa área enorme o chão virava piso de casa (27 cm, "ruas com borda diagonal"), o telhado sumia e a câmera usava plano próximo curto. `city2.json` agora tem a caixa certa (532,6..550,2 x 132,7..148,3).
+- [x] Novo `hds/city2walk.bin` (gerado por `ferramentas/hds/walk_export.py`): por casa, grade de 25 cm com alturas reais de piso (térreo, 2º andar, escadas, porão) e máscara de paredes por faixa de 50 cm de altura.
+- [x] `Hds.surface` (chão sob os pés, degrau até 55 cm) usado em `Renderer3D.groundH`; `Hds.upper` faz `City.blocked` usar as paredes do andar onde o jogador está (acima de 1,2 m ou no porão); térreo continua com a colisão antiga.
+- [ ] Build e teste no celular: subir escadas, andar no 2º andar, paredes lá em cima, porão, casa 5 (rua normal em volta).
+- [ ] Ainda pendente: piscar (camadas coplanares), shaders do jogo original, móveis nas casas.

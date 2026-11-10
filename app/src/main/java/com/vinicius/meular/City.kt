@@ -551,8 +551,10 @@ object City {
             if (!onPier) return true
         }
         if (!HDS && TOWN && TownHouses.blocked(x, z)) return true
+        val up = if (HDS) Hds.upper(x, z) else -1   // Etapa 166: andar de cima/escada/porão usam as paredes daquele andar
+        if (up == 1) return true
         val l = solidsBy[cell(x, z)]
-        if (l != null) for (r in l) if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true
+        if (up < 0 && l != null) for (r in l) if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true
         for (c in cars) {
             val dx = x - c.x; val dz = z - c.z
             if (dx * dx + dz * dz > 16f) continue
