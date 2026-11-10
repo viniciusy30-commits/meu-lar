@@ -44,6 +44,18 @@ object Hds {
     /** jogador dentro da caixa de alguma casa? (câmera usa plano próximo menor) */
     fun inside(x: Float, z: Float): Boolean { for (r in roofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false }
 
+    /** Altura real de caminhada da Cidade 2: pisos internos, asfalto e calçadas. */
+    fun groundH(x: Float, z: Float): Float {
+        for (p in mplots) if (x > p[0] + 0.05f && x < p[2] - 0.05f && z > p[1] + 0.05f && z < p[3] - 0.05f) return City.FLOOR
+        var dx = Float.MAX_VALUE
+        for (v in mxr) dx = minOf(dx, kotlin.math.abs(x - v))
+        var dz = Float.MAX_VALUE
+        for (v in mzr) dz = minOf(dz, kotlin.math.abs(z - v))
+        if (dx <= 5.25f || dz <= 5.25f) return 0.04f
+        if (dx <= 8f || dz <= 8f) return 0.02f
+        return 0f
+    }
+
     fun clear() {
         jobs.clear()
         for (r in roofs) r.mesh?.release()
@@ -90,7 +102,14 @@ object Hds {
         var k = 0
         while (k + 2 < p.idx.size) {
             val i0 = p.idx[k].toInt() and 0xFFFF; val i1 = p.idx[k + 1].toInt() and 0xFFFF; val i2 = p.idx[k + 2].toInt() and 0xFFFF
-            val h = vh(a.v, (base + i0) * STRIDE) + vh(a.v, (base + i1) * STRIDE) + vh(a.v, (base + i2) * STRIDE)
+            val h0 = vh(a.v, (base + i0) * STRIDE)
+            val h1 = vh(a.v, (base + i1) * STRIDE)
+            val h2 = vh(a.v, (base + i2) * STRIDE)
+            val lo = minOf(h0, h1, h2); val hi = maxOf(h0, h1, h2); val mid = h0 + h1 + h2 - lo - hi
+            var h = lo xor java.lang.Long.rotateLeft(mid, 21) xor java.lang.Long.rotateLeft(hi, 42)
+            h = (h xor (h ushr 30)) * -4658895280553007687L
+            h = (h xor (h ushr 27)) * -7723592293110705685L
+            h = h xor (h ushr 31)
             if (seen.add(h)) {
                 a.idx[a.ni] = (i0 + base).toShort(); a.idx[a.ni + 1] = (i1 + base).toShort(); a.idx[a.ni + 2] = (i2 + base).toShort()
                 a.ni += 3
