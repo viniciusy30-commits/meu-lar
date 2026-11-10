@@ -162,50 +162,95 @@ object Hds {
         }
     }
 
-    /** Etapa 167: a grama é um quadrado enorme em y=0 que tapava a escada dos porões; recorta os buracos (quadrículas entre as linhas das bordas dos buracos). */
-    private fun addGrass(g: Group, p: GPrim, m: FloatArray, ox: Float, oz: Float, cg: CG?, holes: FloatArray): Boolean {
-        fun wx(i: Int) = m[0] * p.v[i * STRIDE] + m[1] * p.v[i * STRIDE + 1] + m[2] * p.v[i * STRIDE + 2] + m[3] + ox
-        fun wz(i: Int) = m[8] * p.v[i * STRIDE] + m[9] * p.v[i * STRIDE + 1] + m[10] * p.v[i * STRIDE + 2] + m[11] + oz
-        val ax = wx(0); val az = wz(0)
-        val e1x = wx(1) - ax; val e1z = wz(1) - az; val e2x = wx(3) - ax; val e2z = wz(3) - az
-        val l1 = e1x * e1x + e1z * e1z; val l2 = e2x * e2x + e2z * e2z
-        if (l1 < 1f || l2 < 1f) return false
-        val sb = java.util.TreeSet<Float>(); val tb = java.util.TreeSet<Float>(); sb.add(0f); sb.add(1f); tb.add(0f); tb.add(1f)
+    /**
+     * Etapas 167/168: peças baixas que não são de casa (grama, faixas de grama de beira de rua, cruzamentos) tapavam porões, escadas e piscinas.
+     * Recorta cada triângulo pelos buracos (retângulos): corta o polígono pelas 4 linhas do buraco e joga fora o miolo.
+     * Tudo em coordenadas de mundo; atributos (normal, cor, UV) interpolados. Devolve false se a peça não toca nenhum buraco.
+     */
+    private val IDM = floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f)
+
+    private fun clipPoly(poly: List<FloatArray>, axis: Int, v: Float, keepLess: Boolean): List<FloatArray> {
+        if (poly.isEmpty()) return poly
+        val out = ArrayList<FloatArray>()
+        for (i in poly.indices) {
+            val a = poly[i]; val b = poly[(i + 1) % poly.size]
+            val da = if (keepLess) v - a[axis] else a[axis] - v
+            val db = if (keepLess) v - b[axis] else b[axis] - v
+            if (da >= 0f) out.add(a)
+            if ((da >= 0f) != (db >= 0f)) {
+                val t = da / (da - db)
+                out.add(FloatArray(STRIDE) { a[it] + (b[it] - a[it]) * t })
+            }
+        }
+        return if (out.size >= 3) out else emptyList()
+    }
+
+    private fun addClipped(g: Group, p: GPrim, m: FloatArray, ox: Float, oz: Float, cg: CG?, holes: FloatArray): Boolean {
+        // vértices em mundo
+        val w = FloatArray(p.nv * STRIDE)
+        var y0 = 1e9f; var y1 = -1e9f; var x0 = 1e9f; var x1 = -1e9f; var z0 = 1e9f; var z1 = -1e9f
+        for (i in 0 until p.nv) {
+            val o = i * STRIDE
+            System.arraycopy(p.v, o, w, o, STRIDE)
+            val x = p.v[o]; val y = p.v[o + 1]; val z = p.v[o + 2]
+            val wx = m[0] * x + m[1] * y + m[2] * z + m[3] + ox
+            val wy = m[4] * x + m[5] * y + m[6] * z + m[7]
+            val wz = m[8] * x + m[9] * y + m[10] * z + m[11] + oz
+            w[o] = wx; w[o + 1] = wy; w[o + 2] = wz
+            val nx = p.v[o + 3]; val ny = p.v[o + 4]; val nz = p.v[o + 5]
+            var tx = m[0] * nx + m[1] * ny + m[2] * nz; var ty = m[4] * nx + m[5] * ny + m[6] * nz; var tz = m[8] * nx + m[9] * ny + m[10] * nz
+            val l = sqrt(tx * tx + ty * ty + tz * tz); if (l > 1e-6f) { tx /= l; ty /= l; tz /= l }
+            w[o + 3] = tx; w[o + 4] = ty; w[o + 5] = tz
+            if (wy < y0) y0 = wy; if (wy > y1) y1 = wy
+            if (wx < x0) x0 = wx; if (wx > x1) x1 = wx
+            if (wz < z0) z0 = wz; if (wz > z1) z1 = wz
+        }
+        if (y0 < -0.15f || y1 > 0.4f) return false   // só peças rente ao chão
         val mine = ArrayList<FloatArray>()
         var hi = 0
         while (hi + 3 < holes.size) {
             val h = floatArrayOf(holes[hi] + ox, holes[hi + 1] + oz, holes[hi + 2] + ox, holes[hi + 3] + oz); hi += 4
-            var any = false
-            for (c in 0 until 4) {
-                val px = if (c and 1 == 0) h[0] else h[2]; val pz = if (c and 2 == 0) h[1] else h[3]
-                val s0 = ((px - ax) * e1x + (pz - az) * e1z) / l1; val t0 = ((px - ax) * e2x + (pz - az) * e2z) / l2
-                if (s0 > 0f && s0 < 1f && t0 > 0f && t0 < 1f) { any = true }
-                if (s0 > 0f && s0 < 1f) sb.add(s0); if (t0 > 0f && t0 < 1f) tb.add(t0)
-            }
-            if (any) mine.add(h)
+            if (h[0] < x1 && h[2] > x0 && h[1] < z1 && h[3] > z0) mine.add(h)
         }
         if (mine.isEmpty()) return false
-        val sv = sb.toFloatArray(); val tv = tb.toFloatArray()
-        val ns = sv.size; val nt = tv.size
-        val v = FloatArray(ns * nt * STRIDE)
-        for (j in 0 until nt) for (i in 0 until ns) {
-            val s0 = sv[i]; val t0 = tv[j]; val o = (j * ns + i) * STRIDE
-            for (k in 0 until STRIDE) v[o + k] = (1 - s0) * (1 - t0) * p.v[k] + s0 * (1 - t0) * p.v[STRIDE + k] + s0 * t0 * p.v[2 * STRIDE + k] + (1 - s0) * t0 * p.v[3 * STRIDE + k]
+        val ov = ArrayList<FloatArray>(); val oi = ArrayList<Int>()
+        fun emit(poly: List<FloatArray>) {
+            val b = ov.size
+            for (q in poly) ov.add(q)
+            for (k in 1 until poly.size - 1) { oi.add(b); oi.add(b + k); oi.add(b + k + 1) }
         }
-        val idx = ShortArray((ns - 1) * (nt - 1) * 6); var n = 0
-        // sentido dos triângulos igual ao quadrado original
-        val flip = run { val ux = e1x; val uz = e1z; val vx = e2x; val vz = e2z; (ux * vz - uz * vx) < 0f } != (p.idx[1].toInt() == 1)
-        for (j in 0 until nt - 1) for (i in 0 until ns - 1) {
-            val cs = (sv[i] + sv[i + 1]) / 2f; val ct = (tv[j] + tv[j + 1]) / 2f
-            val cx = ax + cs * e1x + ct * e2x; val cz = az + cs * e1z + ct * e2z
-            var inHole = false
-            for (h in mine) if (cx > h[0] && cx < h[2] && cz > h[1] && cz < h[3]) { inHole = true; break }
-            if (inHole) continue
-            val a0 = (j * ns + i).toShort(); val a1 = (j * ns + i + 1).toShort(); val a2 = ((j + 1) * ns + i + 1).toShort(); val a3 = ((j + 1) * ns + i).toShort()
-            if (!flip) { idx[n++] = a0; idx[n++] = a2; idx[n++] = a1; idx[n++] = a0; idx[n++] = a3; idx[n++] = a2 }
-            else { idx[n++] = a0; idx[n++] = a1; idx[n++] = a2; idx[n++] = a0; idx[n++] = a2; idx[n++] = a3 }
+        var k = 0
+        while (k + 2 < p.idx.size) {
+            val ta = FloatArray(STRIDE); val tb = FloatArray(STRIDE); val tc = FloatArray(STRIDE)
+            System.arraycopy(w, (p.idx[k].toInt() and 0xFFFF) * STRIDE, ta, 0, STRIDE)
+            System.arraycopy(w, (p.idx[k + 1].toInt() and 0xFFFF) * STRIDE, tb, 0, STRIDE)
+            System.arraycopy(w, (p.idx[k + 2].toInt() and 0xFFFF) * STRIDE, tc, 0, STRIDE)
+            var polys: List<List<FloatArray>> = listOf(listOf(ta, tb, tc))
+            for (h in mine) {
+                val nxt = ArrayList<List<FloatArray>>()
+                for (pl in polys) {
+                    var bx0 = 1e9f; var bx1 = -1e9f; var bz0 = 1e9f; var bz1 = -1e9f
+                    for (q in pl) { if (q[0] < bx0) bx0 = q[0]; if (q[0] > bx1) bx1 = q[0]; if (q[2] < bz0) bz0 = q[2]; if (q[2] > bz1) bz1 = q[2] }
+                    if (!(h[0] < bx1 && h[2] > bx0 && h[1] < bz1 && h[3] > bz0)) { nxt.add(pl); continue }
+                    val a = clipPoly(pl, 0, h[0], true)
+                    val rest = clipPoly(pl, 0, h[0], false)
+                    val b = clipPoly(rest, 0, h[2], false)
+                    val mid = clipPoly(rest, 0, h[2], true)
+                    val c = clipPoly(mid, 2, h[1], true)
+                    val d = clipPoly(mid, 2, h[3], false)
+                    for (q in listOf(a, b, c, d)) if (q.size >= 3) nxt.add(q)
+                }
+                polys = nxt
+            }
+            for (pl in polys) emit(pl)
+            k += 3
         }
-        addPrim(g, GPrim(p.mat, p.cut, p.emit, p.img, v, ns * nt, idx.copyOf(n)), m, ox, oz, cg)
+        if (ov.isEmpty()) return true
+        if (ov.size > 60000) return false
+        val v = FloatArray(ov.size * STRIDE)
+        for (i in ov.indices) System.arraycopy(ov[i], 0, v, i * STRIDE, STRIDE)
+        val idx = ShortArray(oi.size) { oi[it].toShort() }
+        addPrim(g, GPrim(p.mat, p.cut, p.emit, p.img, v, ov.size, idx), IDM, 0f, 0f, cg)
         return true
     }
 
@@ -255,8 +300,8 @@ object Hds {
                 val key = (cx + 4096).toLong() * 65536L + (cz + 4096).toLong()
                 val cg = cells.getOrPut(key) { CG() }
                 for (p in node.prims) {
-                    // Etapa 167: grama (quadrado de y=0) ganha buracos sobre porões e piscina
-                    if (kind == 0 && plot < 0 && holes.isNotEmpty() && p.nv == 4 && p.idx.size == 6 && addGrass(cg.g, p, m, ox, oz, cg, holes)) continue
+                    // Etapas 167/168: grama e faixas rente ao chão ganham buracos sobre porões, escadas e piscinas
+                    if (kind == 0 && plot < 0 && holes.isNotEmpty() && addClipped(cg.g, p, m, ox, oz, cg, holes)) continue
                     addPrim(cg.g, p, m, ox, oz, cg)
                 }
             }

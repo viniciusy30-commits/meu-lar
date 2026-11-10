@@ -267,3 +267,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] `walk_export.py` grava `holes` em `city2.json` (células com piso abaixo de -0,5 m: porões, escadas, piscina); `Hds.addGrass` recorta a grama nesses buracos (quadriculado pelas bordas dos buracos, UV interpolada).
 - [x] Shader do jogo original: papéis de parede usam máscara de cor (fundo + _ColorOnR/G/B). `ferramentas/hds/bake.py` assa isso em textura: 13 materiais (flores, treliças, damasco) agora têm padrão e cor, antes saíam lisos. `city2.glb` regenerado (mesma ordem de peças/instâncias).
 - [ ] Ainda não feito: sombra de ambiente (RoomAmbientOcclusion, textura em R, cor preta alfa 0,1) precisa de pintura com transparência; sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV); azulejos (_LayerR/G/B); brilho (_Glossiness 0–0,5) e normal maps; detalhe de tecido (_DetailTex).
+
+## Etapa 168 — Grama em todas as peças baixas + azulejos (entregue, aguardando build e teste)
+- [x] Causa de a grama ainda aparecer sobre piscinas/escadas: além do quadrado grande, há faixas de grama de beira de rua (`road_20_m`, `road_turn_r`, `junction`, material grass_terrain_tile, y=0,2) por cima. `Hds.addClipped` recorta qualquer triângulo rente ao chão (y -0,15..0,4) de peça fora de casa pelos buracos (polígono cortado nas 4 linhas do buraco, UV/normal interpoladas).
+- [x] Buracos agora vêm de qualquer superfície abaixo de -0,06 m (antes: só piso ≤ -0,5 m): pega o topo das escadas e a borda rasa da piscina. 33 retângulos.
+- [x] Azulejos (ceramic_tile_wall_01/09): máscara escolhe a camada R/G/B, cada uma com sua cor; assado em textura (`bake.py`). `city2.glb` regenerado (mesmas instâncias).
+- [ ] Ainda não feito (precisa mexer no renderizador, sem como testar aqui): sombra de ambiente com transparência (RoomAmbientOcclusion), sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV), brilho (_Glossiness), normal maps, detalhe de tecido.

@@ -22,7 +22,7 @@ def Mof(r): return np.array(r[1:13],float).reshape(3,4)
 grids=[]
 for p in plots:
     x0=p['x0']-M0; z0=p['z0']-M0; nx=int(math.ceil((p['x1']+M0-x0)/CS)); nz=int(math.ceil((p['z1']+M0-z0)/CS))
-    grids.append(dict(x0=x0,z0=z0,nx=nx,nz=nz,wall=np.zeros(nx*nz,np.uint32),fl=[set() for _ in range(nx*nz)]))
+    grids.append(dict(low=np.zeros(nx*nz,bool),x0=x0,z0=z0,nx=nx,nz=nz,wall=np.zeros(nx*nz,np.uint32),fl=[set() for _ in range(nx*nz)]))
 BAD=re.compile(r'baseboard|ao_mesh|road|lamp|tree|hydrant|trash|bed|fence|gate|post|grama|junction')
 FENCE=re.compile(r'fence|post|gate')
 def tri_points(A,B,C,sp):
@@ -40,6 +40,12 @@ for r in inst:
             nrm=np.cross(b-a,c-a); ln=np.linalg.norm(nrm)
             if ln<1e-9: continue
             ny=nrm[1]/ln
+            if min(a[1],b[1],c[1])<-0.06 and not re.search(r'tree|fence|post|gate|lamp',nm):
+                lp=tri_points(a,b,c,0.1); lp=lp[(lp[:,1]<-0.06)&(lp[:,1]>-8)]
+                if len(lp):
+                    lx=np.floor((lp[:,0]-G['x0'])/CS).astype(int); lz=np.floor((lp[:,2]-G['z0'])/CS).astype(int)
+                    lk=(lx>=0)&(lx<G['nx'])&(lz>=0)&(lz<G['nz'])
+                    G['low'][lz[lk]*G['nx']+lx[lk]]=True
             if kind==1:
                 if FENCE.search(nm): continue
                 pts=tri_points(a,b,c,0.12)
@@ -77,7 +83,8 @@ print('bytes',len(out),'floor entries',tot)
 holes=[]
 for G in grids:
     nx,nz=G['nx'],G['nz']
-    m=np.array([bool(f) and min(f)*0.04<=-0.5 for f in G['fl']]).reshape(nz,nx)
+    m=G['low'].reshape(nz,nx).copy()
+    print('buraco células',int(m.sum()),'(antes por piso <= -0,5:',sum(1 for f in G['fl'] if f and min(f)*0.04<=-0.5),')')
     # junta em retângulos: faixas por linha, depois empilha faixas iguais
     runs={}
     for z in range(nz):
