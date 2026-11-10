@@ -6,7 +6,16 @@ orig=export.get_mat; BAKED={}
 def bake(d,mp,r):
     f,pid=mp; o=export.obj(f,pid)
     if not o: return r
-    m=um.material(f,o[0],o[1]); mk=m['tex'].get('_ColorMaskTexture')
+    m=um.material(f,o[0],o[1])
+    if m['name']=='RoomAmbientOcclusionMaterial':   # Etapa 169: sombra de ambiente = preto com alfa vindo do canal R da textura (antes saía preto opaco)
+        g=export.get_tex(f,m['tex']['_MainTex']) if m['tex'].get('_MainTex') else None
+        if g:
+            a=np.asarray(g[1].convert('RGB'))[...,0].astype(float)/255
+            al=np.clip(a*0.28,0,1)
+            rgba=np.zeros(a.shape+(4,),np.uint8); rgba[...,3]=(al*255+0.5).astype(np.uint8)
+            im=Image.fromarray(rgba,'RGBA'); BAKED[m['name']]=im
+            return dict(name=r['name'],col=(1.0,1.0,1.0,1.0),tex=(m['name']+'_baked',im),tp=None)
+    mk=m['tex'].get('_ColorMaskTexture')
     if not mk or not mk[1]: return r
     layers='_LayerRTexture' in m['tex']
     ff,_=export.ref(f,mk[0],mk[1]); oo=export.obj(ff,mk[1])

@@ -273,3 +273,8 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Buracos agora vêm de qualquer superfície abaixo de -0,06 m (antes: só piso ≤ -0,5 m): pega o topo das escadas e a borda rasa da piscina. 33 retângulos.
 - [x] Azulejos (ceramic_tile_wall_01/09): máscara escolhe a camada R/G/B, cada uma com sua cor; assado em textura (`bake.py`). `city2.glb` regenerado (mesmas instâncias).
 - [ ] Ainda não feito (precisa mexer no renderizador, sem como testar aqui): sombra de ambiente com transparência (RoomAmbientOcclusion), sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV), brilho (_Glossiness), normal maps, detalhe de tecido.
+
+## Etapa 169 — Sombra de ambiente com transparência (entregue, aguardando build e teste)
+- [x] Teste da 168 não relatado ainda; pedido do usuário: corrigir grama restante em piscinas/escadas (feito na 168) e "o que ficou faltando".
+- [x] RoomAmbientOcclusionMaterial: antes saía preto opaco (cor preta × textura). Agora `bake.py` assa RGBA: RGB preto, alfa = canal R da textura × 0,28. O renderizador já mistura por alfa da textura, então as chapas viram sombra suave nos cantos dos cômodos. `city2.glb` regenerado (mesmas instâncias/json).
+- [ ] Ainda não feito (exige mexer no shader do renderizador e dados extras, sem como testar aqui): sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV), brilho (_Glossiness), normal maps, detalhe de tecido (_DetailTex).
