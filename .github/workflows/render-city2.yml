@@ -1,0 +1,31 @@
+name: Render City 2 (offline 3D)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/render_city2.py'
+      - '.github/workflows/render-city2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+      - name: Render actual City 2 GLB
+        run: |
+          blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb city2-renders
+      - name: Upload rendered inspection images
+        uses: actions/upload-artifact@v4
+        with:
+          name: City2-Offline-3D-Render
+          path: city2-renders/
+          if-no-files-found: error
+          retention-days: 7
