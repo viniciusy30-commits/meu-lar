@@ -129,7 +129,7 @@ object TownPark {
         val r = City.Rng(4711)
         var gz = -hz + 12f; var row = 0
         while (gz < hz - 8f && pl.trees.size < 125) { var gx = -hx + 12f + (row % 2) * 7f
-            while (gx < hx - 8f) { val px = cx + gx + r.r(-2f, 2f); val pz = cz + gz + r.r(-2f, 2f); if (ok(px, pz, pl.pw + 4f)) pl.trees.add(floatArrayOf(px, pz, r.r(0.85f, 1.3f))); gx += 14f }
+            while (gx < hx - 8f) { val px = cx + gx + r.r(-2f, 2f); val pz = cz + gz + r.r(-2f, 2f); if (hypot(px - cx, pz - cz) > 58f && ok(px, pz, pl.pw + 4f)) pl.trees.add(floatArrayOf(px, pz, r.r(0.85f, 1.3f))); gx += 14f }
             gz += 13f; row++ }
     }
 
@@ -273,13 +273,15 @@ object TownPark {
             b.m(Mt.METAL, 1f); b.box(gt[0], CURB + 4.6f, gt[1], 9.6f * abs(px) + 0.25f, 0.3f, 9.6f * abs(pz) + 0.25f, C("#2E4A33"))
             b.box(gt[0], CURB + 5.1f, gt[1], 5.0f * abs(px) + 0.12f, 0.7f, 5.0f * abs(pz) + 0.12f, C("#2E4A33"))
         }
-        if (near && pl.gates.isNotEmpty()) { lakeLife(g, pl); axisFlowers(g, pl) }
+        if (near && pl.gates.isNotEmpty()) { lakeLife(g, pl); axisFlowers(g, pl); lawnLife(g, pl) }
         if (near && pl.gates.isNotEmpty()) {
             val fr = pl.lakeR + 8f + pl.pw + 2.6f; val cols = arrayOf("#E53935", "#FDD835", "#F06292", "#FFFFFF", "#FB8C00", "#8E24AA")
             for (q in 0 until 8) { val a = 0.3927f + q * 0.7854f; val x = pl.cx + cos(a) * fr; val z = pl.cz + sin(a) * fr
                 b.m(Mt.STONE, 0.8f); b.cyl(x, CURB, z, 2.3f, 2.3f, 0.3f, STONE, true, 14); b.m(Mt.PLAIN); b.cyl(x, CURB + 0.02f, z, 2.05f, 2.05f, 0.32f, C("#5A4632"), true, 14)
-                for (k in 0 until 10) { val fa = k * 0.628f; val rr2 = if (k % 2 == 0) 1.4f else 0.7f; CityGeo.ball(b, x + cos(fa) * rr2, CURB + 0.5f, z + sin(fa) * rr2, 0.42f, C(cols[(q + k) % 6]), 0.3f, 5) }
-                CityGeo.bush(g, x, z, 0.55f, CURB + 0.3f)
+                // Etapa 157: cerejeira florida no meio e dois anéis de flores em volta
+                g.fl.place("cherry_a", x.toDouble(), (CURB + 0.3f).toDouble(), z.toDouble(), 0.95, (q * 1.3f).toDouble())
+                for (k in 0 until 16) { val fa = k * 0.3927f; flower(g, FL[q % 5], x + cos(fa) * 1.75f, z + sin(fa) * 1.75f, CURB + 0.33f, 2.0f) }
+                for (k in 0 until 10) { val fa = k * 0.628f + 0.3f; flower(g, FL[(q + 2) % 5], x + cos(fa) * 1.1f, z + sin(fa) * 1.1f, CURB + 0.33f, 2.0f) }
                 g.solid(x - 2.3f, z - 2.3f, x + 2.3f, z + 2.3f) }
         }
         // áreas
@@ -352,6 +354,9 @@ object TownPark {
 
     private val FLOWERS = arrayOf("#E53935", "#FDD835", "#F06292", "#FFFFFF", "#FB8C00", "#8E24AA", "#EC407A", "#FFB300")
     private val HEDGE = C("#2F6B2F")
+    private val FL = arrayOf("fl_tulip", "fl_daisy", "fl_poppy", "fl_lav", "fl_yellow")
+    private val SOIL = C("#4A3626")
+    private fun flower(g: CityGeo.Gen, id: String, x: Float, z: Float, y: Float, s: Float) = g.fl.place(id, x.toDouble(), y.toDouble(), z.toDouble(), s.toDouble(), (x * 7.3f + z * 3.1f).toDouble())
 
     /** Etapa 156: o lago vivo — chafariz no centro, carpas, vitórias-régias com flor, taboas, pedras, patos e uma borda florida. */
     private fun lakeLife(g: CityGeo.Gen, pl: Plan) {
@@ -366,6 +371,9 @@ object TownPark {
         for (q in 0 until 8) { val a = q * 0.7854f; b.cyl(pl.cx + cos(a) * 1.3f, wy + 2.8f, pl.cz + sin(a) * 1.3f, 0.14f, 0.03f, 1.9f, C("#E6F7FF"), true, 6); b.cyl(pl.cx + cos(a) * 9f, wy, pl.cz + sin(a) * 9f, 0.2f, 0.03f, 2.6f, C("#E6F7FF"), true, 6) }
         b.al = 1f
         if (g.reg) g.solid(pl.cx - 2.6f, pl.cz - 2.6f, pl.cx + 2.6f, pl.cz + 2.6f)
+        for ((k, cc) in arrayOf("#57AFD0", "#4AA3C6").withIndex()) { val ra = R - 0.6f - k * 2.2f; val rb = ra - 2.2f; b.m(Mt.PLAIN)
+            for (q in 0 until 40) { val a0 = q * 0.15708f; val a1 = a0 + 0.15708f
+                CityGeo.q(b, CityGeo.P(pl.cx + cos(a0) * ra, wy + 0.004f, pl.cz + sin(a0) * ra) + CityGeo.P(pl.cx + cos(a0) * rb, wy + 0.004f, pl.cz + sin(a0) * rb) + CityGeo.P(pl.cx + cos(a1) * rb, wy + 0.004f, pl.cz + sin(a1) * rb) + CityGeo.P(pl.cx + cos(a1) * ra, wy + 0.004f, pl.cz + sin(a1) * ra), C(cc)) } }
         // carpas: cardumes coloridos logo abaixo da superfície
         val koi = arrayOf("#FF7A1A", "#FFFFFF", "#E53935", "#FFB300", "#F5F5F5", "#2B2B2B")
         b.m(Mt.PLAIN)
@@ -392,7 +400,32 @@ object TownPark {
         for (q in 0 until 40) { val a = q * 0.15708f; if (abs(((a - 2.4f + 9.42f) % 6.283f) - 3.1416f) < 0.2f) continue
             val x = pl.cx + cos(a) * (R + 2.7f); val z = pl.cz + sin(a) * (R + 2.7f)
             if (q % 5 == 0) { b.m(Mt.BARK, 1f); b.cyl(x, CURB, z, 0.12f, 0.1f, 0.5f, C("#5D4037"), true, 5); b.m(Mt.PLAIN); b.cyl(x, CURB + 0.4f, z, 0.75f, 0.05f, 4.2f, C("#2E5E32"), true, 7); if (g.reg) g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f) }
-            else { b.m(Mt.PLAIN); CityGeo.ball(b, x, CURB + 0.3f, z, 0.75f, C(FLOWERS[q % 8]), 0.45f, 6); CityGeo.ball(b, x, CURB + 0.15f, z, 0.95f, C("#3E8E41"), 0.3f, 6) } }
+            else if (q % 5 == 2) g.fl.place(if (q % 2 == 0) "bush_pink" else "bush_white", x.toDouble(), CURB.toDouble(), z.toDouble(), 1.0, a.toDouble())
+            else for (k in 0 until 9) { val fa = k * 0.698f; val fr2 = if (k == 0) 0f else 0.75f; flower(g, FL[q % 5], x + cos(fa) * fr2, z + sin(fa) * fr2, CURB, 2.0f) } }
+    }
+
+    /** Etapa 157: gramado vivo — tufos de capim por todo o parque e manchas de flores do campo entre as árvores. */
+    private fun lawnLife(g: CityGeo.Gen, pl: Plan) {
+        val r = City.Rng(5521)
+        val x0 = pl.gates[2][0] + 9f; val x1 = pl.gates[3][0] - 9f; val z0 = pl.gates[0][1] + 9f; val z1 = pl.gates[1][1] - 9f
+        fun free(x: Float, z: Float, m: Float) = hypot(x - pl.cx, z - pl.cz) > pl.lakeR + 7f && pl.paths.none { distSeg(x, z, it) < pl.pw + m } && pl.spots.none { hypot(x - it[0], z - it[1]) < it[2] + m }
+        repeat(1500) { val x = r.r(x0, x1); val z = r.r(z0, z1); if (free(x, z, 0.6f)) g.fl.place(if (it % 2 == 0) "grass_a" else "grass_b", x.toDouble(), CURB.toDouble(), z.toDouble(), r.r(1.6f, 2.6f).toDouble(), r.r(0f, 6f).toDouble()) }
+        repeat(90) { val x = r.r(x0, x1); val z = r.r(z0, z1); if (!free(x, z, 4f)) return@repeat
+            val sp = FL[r.i(5)]; val sp2 = FL[r.i(5)]
+            for (k in 0 until 26) { val a = r.r(0f, 6.283f); val d = r.r(0f, 3.2f); flower(g, if (k % 3 == 0) sp2 else sp, x + cos(a) * d, z + sin(a) * d, CURB, r.r(1.5f, 2.1f)) } }
+        // cerejeiras em flor espalhadas, cada uma com um tapete de flores brancas e um banco embaixo de algumas
+        var nc = 0; var tries = 0
+        while (nc < 16 && tries++ < 400) { val x = r.r(x0, x1); val z = r.r(z0, z1); if (abs(x - pl.cx) < 60f || !free(x, z, 5f) || pl.trees.any { hypot(x - it[0], z - it[1]) < 6f }) continue
+            g.fl.place("cherry_a", x.toDouble(), CURB.toDouble(), z.toDouble(), r.r(1.0f, 1.25f).toDouble(), r.r(0f, 6f).toDouble())
+            for (k in 0 until 14) { val a = r.r(0f, 6.283f); val d = r.r(0.8f, 2.6f); flower(g, "fl_daisy", x + cos(a) * d, z + sin(a) * d, CURB, 1.6f) }
+            if (nc % 2 == 0) bench(g.b, x + 2.2f, z, -1f, 0f)
+            if (g.reg) g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f); nc++ }
+        // toalhas de piquenique com cesta
+        repeat(10) { val x = r.r(x0, x1); val z = r.r(z0, z1); if (!free(x, z, 3f)) return@repeat; val b = g.b
+            b.m(Mt.FABRIC, 1f); b.box(x, CURB + 0.012f, z, 2.2f, 0.02f, 1.7f, C(arrayOf("#C62828", "#1565C0", "#F9A825")[it % 3]))
+            for (k in -2..2) b.box(x + k * 0.44f, CURB + 0.016f, z, 0.1f, 0.02f, 1.7f, C("#FFFFFF"))
+            b.m(Mt.WOOD, 0.6f); b.box(x + 0.5f, CURB + 0.17f, z + 0.3f, 0.5f, 0.3f, 0.35f, C("#B48A60")); b.box(x + 0.5f, CURB + 0.45f, z + 0.3f, 0.04f, 0.26f, 0.3f, C("#8D6E63"))
+            b.m(Mt.PLAIN); CityGeo.ball(b, x - 0.4f, CURB + 0.1f, z - 0.3f, 0.09f, C("#E53935"), 0.09f, 5); CityGeo.ball(b, x - 0.2f, CURB + 0.1f, z - 0.4f, 0.09f, C("#FB8C00"), 0.09f, 5) }
     }
 
     /** Etapa 156: faixas de flores coloridas com cerca viva dos dois lados dos quatro eixos. */
@@ -404,7 +437,11 @@ object TownPark {
                 val t = Town.tangent(p, i + 1); val mx = (p[i * 2] + p[i * 2 + 6]) / 2; val mz = (p[i * 2 + 1] + p[i * 2 + 7]) / 2
                 val L = hypot(p[i * 2 + 6] - p[i * 2], p[i * 2 + 7] - p[i * 2 + 1]) - 0.5f
                 for (sd in floatArrayOf(-1f, 1f)) { val ox = -t[1] * sd * (pl.pw + 1.95f); val oz = t[0] * sd * (pl.pw + 1.95f)
-                    b.m(Mt.GRASS, 0.7f); TownGeo.obox(b, mx + ox, CURB + 0.16f, mz + oz, L, 0.32f, 0.9f, t[0], t[1], C(FLOWERS[q % 8])); TownGeo.obox(b, mx + ox, CURB + 0.1f, mz + oz, L + 0.3f, 0.2f, 1.25f, t[0], t[1], C("#3E8E41"))
+                    b.m(Mt.STONE, 0.8f); TownGeo.obox(b, mx + ox, CURB + 0.09f, mz + oz, L + 0.3f, 0.18f, 1.3f, t[0], t[1], STONE)
+                    b.m(Mt.PLAIN); TownGeo.obox(b, mx + ox, CURB + 0.11f, mz + oz, L, 0.2f, 1.0f, t[0], t[1], SOIL)
+                    var tt = -L / 2 + 0.3f; var kk = 0
+                    while (tt < L / 2 - 0.2f) { val w = if (kk % 2 == 0) -0.24f else 0.24f
+                        flower(g, FL[q % 5], mx + ox + t[0] * tt - t[1] * w, mz + oz + t[1] * tt + t[0] * w, CURB + 0.2f, 1.9f); tt += 0.5f; kk++ }
                     b.m(Mt.GRASS, 0.5f); TownGeo.obox(b, mx + ox * 1.42f, CURB + 0.35f, mz + oz * 1.42f, L + 0.3f, 0.7f, 0.5f, t[0], t[1], HEDGE) }
                 i += 4; q++
             }
@@ -433,9 +470,14 @@ object TownPark {
         val c1 = C(FLOWERS[style % 8]); val c2 = C(FLOWERS[(style + 3) % 8]); val c3 = C(FLOWERS[(style + 5) % 8])
         for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) { val qx = x + sx * (hw / 2 + 1.0f); val qz = z + sz * (hd / 2 + 1.0f)
             b.m(Mt.STONE, 0.8f); b.box(qx, CURB + 0.1f, qz, hw - 4.2f, 0.2f, hd - 4.2f, STONE)
-            b.m(Mt.GRASS, 0.7f); b.box(qx, CURB + 0.2f, qz, hw - 4.8f, 0.3f, hd - 4.8f, C("#3E8E41")); b.box(qx, CURB + 0.27f, qz, hw - 6f, 0.36f, hd - 6f, c1); b.box(qx, CURB + 0.33f, qz, hw - 8f, 0.42f, hd - 8f, c2); b.box(qx, CURB + 0.4f, qz, hw - 10.2f, 0.5f, hd - 10.2f, c3)
-            b.m(Mt.PLAIN); CityGeo.ball(b, qx, CURB + 1.0f, qz, 0.8f, C("#2F6B2F"), 0.8f, 6)
-            for (k in 0 until 4) CityGeo.ball(b, qx + (if (k % 2 == 0) -1f else 1f) * (hw / 2 - 2.9f), CURB + 0.5f, qz + (if (k < 2) -1f else 1f) * (hd / 2 - 2.9f), 0.4f, c3, 0.3f, 5) }
+            // Etapa 157: canteiro de terra plantado com flores de verdade, em faixas (uma espécie por faixa) e um arbusto florido no meio
+            b.m(Mt.PLAIN); b.box(qx, CURB + 0.16f, qz, hw - 4.8f, 0.3f, hd - 4.8f, SOIL)
+            val bw = (hw - 5.4f) / 2; val bd = (hd - 5.4f) / 2
+            var fx = -bw; while (fx <= bw) { var fz = -bd; while (fz <= bd) {
+                val band = max(abs(fx) / bw, abs(fz) / bd)
+                if (band > 0.18f) flower(g, FL[(style + (if (band > 0.7f) 0 else if (band > 0.42f) 2 else 4)) % 5], qx + fx + r.r(-0.15f, 0.15f), qz + fz + r.r(-0.15f, 0.15f), CURB + 0.3f, r.r(1.7f, 2.3f))
+                fz += 0.95f }; fx += 0.95f }
+            g.fl.place(if ((style + (if (sx > 0) 1 else 0)) % 2 == 0) "bush_pink" else "bush_white", qx.toDouble(), (CURB + 0.3f).toDouble(), qz.toDouble(), 1.1, 0.0) }
         // centro
         when (style % 4) {
             0 -> { b.m(Mt.STONE, 0.6f); b.cyl(x, CURB, z, 2.6f, 2.6f, 0.6f, C("#CFC8BA"), true, 18); b.cyl(x, CURB + 0.6f, z, 0.35f, 0.3f, 1.5f, C("#CFC8BA"), true, 8); b.cyl(x, CURB + 2.1f, z, 0.3f, 1.2f, 0.3f, C("#CFC8BA"), true, 12)
@@ -446,7 +488,8 @@ object TownPark {
                 for (q in 0 until 8) { val a = q * 0.7854f; TownGeo.obox(b, x + cos(a) * 2.2f, CURB + 0.45f, z + sin(a) * 2.2f, 1.75f, 0.08f, 0.55f, -sin(a), cos(a), C("#8D6E63")); b.box(x + cos(a) * 2.2f, CURB + 0.22f, z + sin(a) * 2.2f, 0.1f, 0.44f, 0.1f, C("#4A4A4A")) } }
             else -> { b.m(Mt.WOOD, 0.6f); for (sx in floatArrayOf(-1.9f, 1.9f)) for (sz in floatArrayOf(-1.9f, 1.9f)) b.box(x + sx, CURB + 1.4f, z + sz, 0.22f, 2.8f, 0.22f, C("#F2EEE6"))
                 for (k in -3..3) b.box(x + k * 0.62f, CURB + 2.95f, z, 0.12f, 0.16f, 4.6f, C("#F2EEE6")); for (sz in floatArrayOf(-1.9f, 1.9f)) b.box(x, CURB + 2.84f, z + sz, 4.6f, 0.16f, 0.16f, C("#F2EEE6"))
-                b.m(Mt.PLAIN); for (k in 0 until 7) CityGeo.ball(b, x + r.r(-2f, 2f), CURB + 3.1f, z + r.r(-2f, 2f), 0.55f, C(if (k % 2 == 0) "#8E24AA" else "#3E8E41"), 0.3f, 5)
+                for (k in 0 until 5) g.fl.place(if (k % 2 == 0) "bush_pink" else "bush_white", (x + (k - 2) * 0.95f).toDouble(), (CURB + 2.95f).toDouble(), (z + (if (k % 2 == 0) -0.9f else 0.9f)).toDouble(), 0.75, k.toDouble())
+                for (sx in floatArrayOf(-1.9f, 1.9f)) for (sz in floatArrayOf(-1.9f, 1.9f)) for (k in 0 until 4) flower(g, "fl_lav", x + sx + (if (k % 2 == 0) 0.3f else -0.3f), z + sz + (if (k < 2) 0.3f else -0.3f), CURB, 2.2f)
                 bench(b, x, z + 1.2f, 0f, -1f) }
         }
     }
