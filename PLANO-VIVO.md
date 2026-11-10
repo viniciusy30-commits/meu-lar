@@ -247,3 +247,10 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] `Hds.addPrim`: hash de triângulo combina os três vértices em ordem canônica, reduzindo colisões falsas do hash por soma.
 - [x] `Renderer3D`: plano próximo dentro das casas aumentado de 0,10 m para 0,25 m para recuperar precisão do depth buffer.
 - [ ] Build Android e teste visual no aparelho: confirmar encaixe dos pés, portas/parede, ausência de piscar e emendas/desníveis das avenidas. Este ambiente não tem emulador Android para renderização real.
+
+## Etapa 165 (continuação em outra conta)
+- [x] Cunhas pretas nas paredes: eram a malha RoomAmbientOcclusion (cor preta opaca). Glb.kt agora ignora essas peças.
+- [x] Colisão: +57 retângulos de cerca (picket) que faltavam em city2.json.
+- [ ] Ruas com bordas diagonais / casas ainda piscando: o vídeo não veio no ZIP; conferir no APK.
+- [ ] Escadas e andar de cima: ainda sem altura de caminhada (groundH só tem o térreo).
+- [ ] Shaders iguais ao jogo original do Hds: não feito.

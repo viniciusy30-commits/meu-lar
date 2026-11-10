@@ -374,6 +374,8 @@ object Glb {
                 val pa = meshes.getJSONObject(o.getInt("mesh")).getJSONArray("primitives")
                 for (k in 0 until pa.length()) {
                     val pr = pa.getJSONObject(k)
+                    // Etapa 165: a sombra de ambiente da casa (RoomAmbientOcclusion) era preta e opaca: virava cunhas pretas nas paredes
+                    if (pr.has("material") && mats.getJSONObject(pr.getInt("material")).optString("name").contains("AmbientOcclusion")) continue
                     val at = pr.getJSONObject("attributes")
                     val pos = floats(at.getInt("POSITION"), 3)
                     val nv = pos.size / 3
