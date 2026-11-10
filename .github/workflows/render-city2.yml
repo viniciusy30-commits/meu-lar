@@ -15,12 +15,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Install Blender
+      - name: Install Blender and headless graphics libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender python3-pip
+          sudo apt-get install -y blender python3-pip libegl1 libgl1 libgl1-mesa-dri libgbm1 libxkbcommon0
           python3 -m pip install --target /tmp/blender-python --only-binary=:all: --python-version 3.14 --implementation cp --abi cp314 numpy
       - name: Render actual City 2 GLB
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          EGL_PLATFORM: "surfaceless"
         run: |
           PYTHONPATH=/tmp/blender-python blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb city2-renders
       - name: Upload rendered inspection images
