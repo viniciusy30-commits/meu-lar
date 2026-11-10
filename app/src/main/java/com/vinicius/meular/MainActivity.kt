@@ -254,6 +254,7 @@ class MainActivity : AppCompatActivity() {
         ModStore.init(this)
         Flora.assets = assets
         Glb.assets = assets
+        HdsMob.load(assets)   // Etapa 171: móveis do catálogo Hds entram na lista de tipos antes de ler o save
         City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", false)   // mapa escolhido em Configurações
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
@@ -755,7 +756,7 @@ class MainActivity : AppCompatActivity() {
     /** Etapa 83: miniaturas dos objetos da biblioteca 3D (assets/obj3d/thumb/<id>.png) */
     private val thumbs = HashMap<String, android.graphics.Bitmap?>()
     private fun thumb(id: String): android.graphics.Bitmap? = thumbs.getOrPut(id) {
-        try { assets.open("obj3d/thumb/$id.png").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+        try { assets.open(if (id.startsWith("hds:")) "hds/mobilia/th/${id.substring(4)}.png" else "obj3d/thumb/$id.png").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
     }
 
     private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val img: ImageView, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
@@ -823,6 +824,8 @@ class MainActivity : AppCompatActivity() {
     private var shopDialog: Dialog? = null
     private var shopAdapter: ShopAdapter? = null
     private var shopTab = 0
+    /** Etapa 171: categoria aberta no catálogo Hds (-1 = lista de categorias) */
+    private var hdsCat = -1
     private var shopMoney: TextView? = null
     private var tabViews = ArrayList<TextView>()
 
@@ -840,6 +843,16 @@ class MainActivity : AppCompatActivity() {
                 val own = (st.ownWalls shr i) and 1 == 1
                 val sub = if (st.wallIdx == i) "Em uso" else if (own) "Comprado" else "Grátis"
                 out.add(Entry("Parede\n${w.nome}", sub, 0, w.cor, own || st.money >= w.preco) { comprarParede(i) })
+            }
+        } else if (tab == 7) {
+            // Etapa 171: catálogo Hds — primeiro as categorias, depois os móveis da categoria
+            if (hdsCat < 0) {
+                HdsMob.cats.forEachIndexed { i, c ->
+                    out.add(Entry(c.nome + "\n" + HdsMob.count(i) + " itens", "Abrir", Ic.SHOP, 0, true) { hdsCat = i; refreshShop() })
+                }
+            } else {
+                out.add(Entry("Voltar", "Categorias", Ic.HOME, 0, true) { hdsCat = -1; refreshShop() })
+                for (t in HdsMob.items(hdsCat)) out.add(Entry(t.nome, "Grátis", Ic.HOME, 0, st.money >= t.preco, t.glb) { comprar(t) })
             }
         } else if (tab == 6) {
             // Etapa 123: garagem — escolher o veículo (fica na rua em frente de casa) e a cor
@@ -1016,12 +1029,12 @@ class MainActivity : AppCompatActivity() {
             sc.isHorizontalScrollBarEnabled = false
             val row = LinearLayout(this)
             row.orientation = LinearLayout.HORIZONTAL
-            val nomes = listOf("Sala", "Quarto", "Cozinha", "Decoração", "Piso e parede", "Casa", "Veículos")
+            val nomes = listOf("Sala", "Quarto", "Cozinha", "Decoração", "Piso e parede", "Casa", "Veículos", "Catálogo Hds")
             nomes.forEachIndexed { i, n ->
                 val t = tv(n, 14f, Pal.SUB, true)
                 t.setPadding(dp(16), dp(8), dp(16), dp(11))
                 t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
-                t.setOnClickListener { shopTab = i; refreshShop() }
+                t.setOnClickListener { shopTab = i; hdsCat = -1; refreshShop() }
                 tabViews.add(t)
                 row.addView(t)
             }

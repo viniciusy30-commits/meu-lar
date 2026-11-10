@@ -8,40 +8,63 @@ import kotlin.math.floor
 fun snapQ(v: Float): Float = Math.round(v * 4f) / 4f
 
 /** cat: 0 Sala, 1 Quarto, 2 Cozinha, 3 Decoração, 4 Externo (só aparece na sala de testes) */
-enum class Type(val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val rug: Boolean = false, val fl: String? = null,
-                /** Etapa 83: modelo da biblioteca 3D (assets/obj3d/<glb>.glb) */ val glb: String? = null,
+/**
+ * Etapa 171: era um enum; virou classe com lista dinâmica, para a loja ter os móveis do catálogo Hds (mais de mil, lidos de assets/hds/mobilia/mobilia.json)
+ * sem estourar o limite de tamanho do construtor de um enum. Mesmo uso de antes: Type.values(), Type.valueOf(nome), t.name, t.ordinal.
+ */
+class Type private constructor(val name: String, val ordinal: Int, val nome: String, val w: Int, val h: Int, val preco: Int, val alt: Float, val cat: Int, val rug: Boolean = false, val fl: String? = null,
+                /** Etapa 83: modelo da biblioteca 3D (assets/obj3d/<glb>.glb); "hds:<id>" = catálogo Hds (assets/hds/mobilia/m/<id>.glb) */ val glb: String? = null,
                 /** Etapa 83: objeto solto com física (caixa, bola...) */ val dyn: Boolean = false) {
-    X_OAK_A("Carvalho", 6, 6, 0, 5.6f, 4, fl = "oak_a"),
-    X_OAK_B("Bordo", 7, 7, 0, 5.6f, 4, fl = "oak_b"),
-    X_CHERRY("Cerejeira", 6, 6, 0, 4.8f, 4, fl = "cherry_a"),
-    X_PINE("Pinheiro", 4, 4, 0, 4.8f, 4, fl = "pine_a"),
-    X_BUSH_A("Arbusto folhudo", 2, 2, 0, 1.0f, 4, fl = "bush_a"),
-    X_BUSH_B("Arbusto de bordo", 2, 2, 0, 1.1f, 4, fl = "bush_b"),
-    X_BUSH_PINK("Arbusto rosa", 2, 2, 0, 1.1f, 4, fl = "bush_pink"),
-    X_BUSH_WHITE("Arbusto branco", 2, 2, 0, 0.9f, 4, fl = "bush_white"),
-    X_HEDGE("Cerca-viva", 3, 2, 0, 1.2f, 4, fl = "hedge"),
-    X_FL_DAISY("Margaridas", 1, 1, 0, 0.5f, 4, fl = "fl_daisy"),
-    X_FL_TULIP("Tulipas", 1, 1, 0, 0.5f, 4, fl = "fl_tulip"),
-    X_FL_LAV("Lavanda", 1, 1, 0, 0.5f, 4, fl = "fl_lav"),
-    X_FL_POPPY("Papoulas", 1, 1, 0, 0.45f, 4, fl = "fl_poppy"),
-    X_FL_YELLOW("Flores amarelas", 1, 1, 0, 0.5f, 4, fl = "fl_yellow"),
-    // Protótipos da biblioteca 3D (Etapa 0/83), revisados pelas regras v4: vaso, caixa e bola com física, poltrona e aparador
-    G_POLTRONA("Poltrona de linho", 1, 1, 0, 0.77f, 0, glb = "int_poltrona"),
-    G_APARADOR("Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador"),
-    G_VASO("Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela"),
-    G_CAIXA("Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true),
-    G_BOLA("Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true),
-    // Etapa 87: o jogo só tem o que vem do Plano Mestre (os móveis anteriores ao PDF foram retirados; saves antigos ignoram esses itens).
-    // ETAPA 1 do Plano Mestre: cadeira, mesa e armário com porta e gaveta
-    G_CADEIRA("Cadeira de jantar", 1, 1, 0, 0.78f, 2, glb = "int_cadeira_jantar"),
-    G_MESA("Mesa de jantar", 2, 1, 0, 0.60f, 2, glb = "int_mesa_jantar"),
-    G_GUARDA_ROUPA("Guarda-roupa", 2, 1, 0, 1.64f, 1, glb = "int_guarda_roupa"),
-    // ETAPA 2 do Plano Mestre: cama, sofá, geladeira, fogão e pia (refeitos pelas fichas e pelas regras v4)
-    G_SOFA3("Sofá de 3 lugares", 2, 1, 0, 0.76f, 0, glb = "int_sofa3"),
-    G_CAMA("Cama de casal", 2, 2, 0, 0.97f, 1, glb = "int_cama_casal"),
-    G_GELADEIRA("Geladeira duplex", 1, 1, 0, 1.51f, 2, glb = "int_geladeira"),
-    G_FOGAO("Fogão 4 bocas com forno", 1, 1, 0, 0.84f, 2, glb = "int_fogao"),
-    G_PIA("Pia com gabinete", 1, 1, 0, 1.05f, 2, glb = "int_pia")
+    override fun toString() = name
+
+    companion object {
+        private val list = ArrayList<Type>()
+        private val byName = HashMap<String, Type>()
+
+        private fun reg(name: String, nome: String, w: Int, h: Int, preco: Int, alt: Float, cat: Int, rug: Boolean = false, fl: String? = null, glb: String? = null, dyn: Boolean = false): Type =
+            synchronized(list) { Type(name, list.size, nome, w, h, preco, alt, cat, rug, fl, glb, dyn).also { list.add(it); byName[name] = it } }
+
+        @JvmField val X_OAK_A = reg("X_OAK_A", "Carvalho", 6, 6, 0, 5.6f, 4, fl = "oak_a")
+        @JvmField val X_OAK_B = reg("X_OAK_B", "Bordo", 7, 7, 0, 5.6f, 4, fl = "oak_b")
+        @JvmField val X_CHERRY = reg("X_CHERRY", "Cerejeira", 6, 6, 0, 4.8f, 4, fl = "cherry_a")
+        @JvmField val X_PINE = reg("X_PINE", "Pinheiro", 4, 4, 0, 4.8f, 4, fl = "pine_a")
+        @JvmField val X_BUSH_A = reg("X_BUSH_A", "Arbusto folhudo", 2, 2, 0, 1.0f, 4, fl = "bush_a")
+        @JvmField val X_BUSH_B = reg("X_BUSH_B", "Arbusto de bordo", 2, 2, 0, 1.1f, 4, fl = "bush_b")
+        @JvmField val X_BUSH_PINK = reg("X_BUSH_PINK", "Arbusto rosa", 2, 2, 0, 1.1f, 4, fl = "bush_pink")
+        @JvmField val X_BUSH_WHITE = reg("X_BUSH_WHITE", "Arbusto branco", 2, 2, 0, 0.9f, 4, fl = "bush_white")
+        @JvmField val X_HEDGE = reg("X_HEDGE", "Cerca-viva", 3, 2, 0, 1.2f, 4, fl = "hedge")
+        @JvmField val X_FL_DAISY = reg("X_FL_DAISY", "Margaridas", 1, 1, 0, 0.5f, 4, fl = "fl_daisy")
+        @JvmField val X_FL_TULIP = reg("X_FL_TULIP", "Tulipas", 1, 1, 0, 0.5f, 4, fl = "fl_tulip")
+        @JvmField val X_FL_LAV = reg("X_FL_LAV", "Lavanda", 1, 1, 0, 0.5f, 4, fl = "fl_lav")
+        @JvmField val X_FL_POPPY = reg("X_FL_POPPY", "Papoulas", 1, 1, 0, 0.45f, 4, fl = "fl_poppy")
+        @JvmField val X_FL_YELLOW = reg("X_FL_YELLOW", "Flores amarelas", 1, 1, 0, 0.5f, 4, fl = "fl_yellow")
+        // Protótipos da biblioteca 3D (Etapa 0/83), revisados pelas regras v4: vaso, caixa e bola com física, poltrona e aparador
+        @JvmField val G_POLTRONA = reg("G_POLTRONA", "Poltrona de linho", 1, 1, 0, 0.77f, 0, glb = "int_poltrona")
+        @JvmField val G_APARADOR = reg("G_APARADOR", "Aparador de carvalho", 2, 1, 0, 0.66f, 0, glb = "int_aparador")
+        @JvmField val G_VASO = reg("G_VASO", "Vaso com costela-de-adão", 1, 1, 0, 0.78f, 3, glb = "decor_vaso_costela")
+        @JvmField val G_CAIXA = reg("G_CAIXA", "Caixa de papelão", 1, 1, 0, 0.30f, 3, glb = "fis_caixa_papelao", dyn = true)
+        @JvmField val G_BOLA = reg("G_BOLA", "Bola de borracha", 1, 1, 0, 0.22f, 3, glb = "fis_bola", dyn = true)
+        // Etapa 87: o jogo só tem o que vem do Plano Mestre (os móveis anteriores ao PDF foram retirados; saves antigos ignoram esses itens).
+        // ETAPA 1 do Plano Mestre: cadeira, mesa e armário com porta e gaveta
+        @JvmField val G_CADEIRA = reg("G_CADEIRA", "Cadeira de jantar", 1, 1, 0, 0.78f, 2, glb = "int_cadeira_jantar")
+        @JvmField val G_MESA = reg("G_MESA", "Mesa de jantar", 2, 1, 0, 0.60f, 2, glb = "int_mesa_jantar")
+        @JvmField val G_GUARDA_ROUPA = reg("G_GUARDA_ROUPA", "Guarda-roupa", 2, 1, 0, 1.64f, 1, glb = "int_guarda_roupa")
+        // ETAPA 2 do Plano Mestre: cama, sofá, geladeira, fogão e pia (refeitos pelas fichas e pelas regras v4)
+        @JvmField val G_SOFA3 = reg("G_SOFA3", "Sofá de 3 lugares", 2, 1, 0, 0.76f, 0, glb = "int_sofa3")
+        @JvmField val G_CAMA = reg("G_CAMA", "Cama de casal", 2, 2, 0, 0.97f, 1, glb = "int_cama_casal")
+        @JvmField val G_GELADEIRA = reg("G_GELADEIRA", "Geladeira duplex", 1, 1, 0, 1.51f, 2, glb = "int_geladeira")
+        @JvmField val G_FOGAO = reg("G_FOGAO", "Fogão 4 bocas com forno", 1, 1, 0, 0.84f, 2, glb = "int_fogao")
+        @JvmField val G_PIA = reg("G_PIA", "Pia com gabinete", 1, 1, 0, 1.05f, 2, glb = "int_pia")
+
+        /** Etapa 171: registra um móvel do catálogo Hds (cat = 100 + categoria). Chamado uma vez ao abrir o app, antes de ler o save. */
+        fun addHds(id: String, nome: String, w: Int, h: Int, alt: Float, cat: Int) {
+            synchronized(list) { if (!byName.containsKey("H_$id")) reg("H_$id", nome, w, h, 0, alt, 100 + cat, glb = "hds:$id") }
+        }
+
+        fun values(): List<Type> = synchronized(list) { ArrayList(list) }
+
+        fun valueOf(n: String): Type = synchronized(list) { byName[n] } ?: throw IllegalArgumentException("Type $n")
+    }
 }
 
 class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
@@ -135,7 +158,7 @@ class GameState(ctx: Context) {
         items.clear()
         gw = 26; gh = 30
         // Etapa 87: plantas e árvores (cat 4) ficam do lado de fora da casa, no quintal (Models.yard com vitrine); dentro só os móveis do PDF
-        val list = Type.values().filter { it.cat != 4 }.sortedBy { it.cat }
+        val list = Type.values().filter { it.cat in 0..3 }.sortedBy { it.cat }   // Etapa 171: sem as plantas (4) nem o catálogo Hds (100+)
         var cx = 0.4f; var cz = 0.4f; var rowH = 0f
         var lastCat = -1
         for (t in list) {

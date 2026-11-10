@@ -289,7 +289,8 @@ object Glb {
         if (cache.containsKey(id)) return cache[id]
         val m = try {
             val am = assets ?: return null          // ainda sem assets: tenta de novo depois
-            parse(am.open("obj3d/$id.glb").use { it.readBytes() }, id)
+            val path = if (id.startsWith("hds:")) "hds/mobilia/m/${id.substring(4)}.glb" else "obj3d/$id.glb"   // Etapa 171: catálogo Hds
+            parse(am.open(path).use { it.readBytes() }, id)
         } catch (e: Throwable) {
             android.util.Log.e("Glb", "$id.glb falhou", e)
             null
@@ -353,7 +354,12 @@ object Glb {
         val imgs = js.optJSONArray("images") ?: JSONArray()
         val images = ArrayList<ByteArray>()
         for (i in 0 until imgs.length()) {
-            val v = views.getJSONObject(imgs.getJSONObject(i).getInt("bufferView"))
+            val io = imgs.getJSONObject(i)
+            if (io.has("uri")) {   // Etapa 171: textura compartilhada em assets/hds/mobilia/<uri>
+                images.add(try { assets?.open("hds/mobilia/" + io.getString("uri"))?.use { it.readBytes() } ?: ByteArray(0) } catch (e: Throwable) { ByteArray(0) })
+                continue
+            }
+            val v = views.getJSONObject(io.getInt("bufferView"))
             val o = bin + v.optInt("byteOffset", 0)
             images.add(b.copyOfRange(o, o + v.getInt("byteLength")))
         }

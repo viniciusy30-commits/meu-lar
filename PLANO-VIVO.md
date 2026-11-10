@@ -278,3 +278,10 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Teste da 168 não relatado ainda; pedido do usuário: corrigir grama restante em piscinas/escadas (feito na 168) e "o que ficou faltando".
 - [x] RoomAmbientOcclusionMaterial: antes saía preto opaco (cor preta × textura). Agora `bake.py` assa RGBA: RGB preto, alfa = canal R da textura × 0,28. O renderizador já mistura por alfa da textura, então as chapas viram sombra suave nos cantos dos cômodos. `city2.glb` regenerado (mesmas instâncias/json).
 - [ ] Ainda não feito (exige mexer no shader do renderizador e dados extras, sem como testar aqui): sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV), brilho (_Glossiness), normal maps, detalhe de tecido (_DetailTex).
+
+## Etapa 171 — Catálogo Hds na loja (mobília, portas e janelas)
+- [x] Extração de 1.129 modelos do Hds (sofás, camas, cozinha, banheiro, portas e janelas...) em `assets/hds/mobilia/` (GLB por móvel, texturas compartilhadas em `t/`, miniaturas em `th/`, índice `mobilia.json`, 13 categorias).
+- [x] `Type` virou classe com lista dinâmica (`GameState.kt`); `HdsMob.kt` lê o índice na abertura; `Glb.kt` lê os modelos `hds:<id>` e as texturas compartilhadas.
+- [x] Nova aba "Catálogo Hds" na loja: categorias → móveis → comprar e colocar na casa (grátis, como o resto).
+- [ ] Testar no celular: orientação/tamanho dos móveis, portas e janelas (hoje entram como móvel solto no chão, não encaixadas na parede), cores trocáveis (máscaras de cor ainda não extraídas), nomes em português dos itens com nome em inglês.
+- Para regenerar: `ferramentas/hds/furn_export.py` e depois `furn_pack.py` (precisam da pasta `Hds` do jogo original).
