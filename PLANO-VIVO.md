@@ -241,3 +241,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Colisão das paredes engordada em 15 cm (Hds.PAD); plano próximo da câmera 0,1 dentro das casas (Hds.inside).
 - [ ] Ainda falta: camadas coplanares de materiais diferentes (piso sobre piso), colisão de escadas/andares (colisão é 2D, só entre 0,25 e 1,8 m), shaders/iluminação iguais ao outro jogo.
 - Não compilado (sem Kotlin aqui). Se o build falhar, corrigir só o erro apontado.
+## Etapa 165 — Cidade 2: piso, colisão e profundidade (correções de código; validação visual pendente)
+- [x] `Hds.groundH`: pisos internos usam `City.FLOOR` (0,27 m); asfalto e calçadas recebem alturas de superfície próprias com base nas linhas de rua.
+- [x] `City.groundH`: encaminha a Cidade 2 ao cálculo de altura do Hds antes da regra do lote.
+- [x] `Hds.addPrim`: hash de triângulo combina os três vértices em ordem canônica, reduzindo colisões falsas do hash por soma.
+- [x] `Renderer3D`: plano próximo dentro das casas aumentado de 0,10 m para 0,25 m para recuperar precisão do depth buffer.
+- [ ] Build Android e teste visual no aparelho: confirmar encaixe dos pés, portas/parede, ausência de piscar e emendas/desníveis das avenidas. Este ambiente não tem emulador Android para renderização real.
