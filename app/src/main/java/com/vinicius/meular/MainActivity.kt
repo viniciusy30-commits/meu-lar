@@ -181,13 +181,13 @@ class MainActivity : AppCompatActivity() {
         // Prioriza nitidez: renderiza em resolução nativa (até 900 px no lado curto).
         // A escala dinâmica só reduz até 82% quando realmente necessário, evitando o antigo visual borrado.
         val maxS = minOf(1f, 900f / short)
-        val minS = maxS * 0.82f
+        val minS = maxS * 0.76f
         var ns = rScale
         if (w != rW || h != rH || rScale == 0f) { rW = w; rH = h; ns = maxS }
         else {
             val f = game.r.fpsAvg
-            if (f < 40f) ns = maxOf(minS, rScale * 0.90f)
-            else if (f > 56f) ns = minOf(maxS, rScale * 1.04f)
+            if (f < 52f) ns = maxOf(minS, rScale * 0.93f)      // Etapa 161: reage antes de cair dos 60 FPS
+            else if (f > 58f) ns = minOf(maxS, rScale * 1.03f)
         }
         if (Math.abs(ns - rScale) > 0.02f || rScale == 0f) {
             rScale = ns

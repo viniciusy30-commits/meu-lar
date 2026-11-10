@@ -794,3 +794,5 @@ Etapa 159 — Quarteirão de ouro (canto superior esquerdo do mapa)
 - Sobrados geminados com sacada, portão e caixa d'água; terreno vazio virou pracinha com balanços, caixa de areia e canteiros
 
 Etapa 160: terreno da casa limpo (sem árvores, mato, jardim), cerca nova de ferro e muro com portão iluminado, janelas internas desentupidas.
+
+Etapa 161: desempenho — sombreamento por pixel mais leve (luz pontual e brilho só quando contam), resolução dinâmica reage antes para manter 60 FPS.

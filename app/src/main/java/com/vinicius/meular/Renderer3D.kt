@@ -372,9 +372,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             vec3 amb = mix(vec3(0.40, 0.37, 0.36), vec3(0.60, 0.67, 0.78), 0.5 + 0.5 * n.y);
             vec3 pl = uLight - vW;
             float d2 = dot(pl, pl);
-            vec3 pL = pl * inversesqrt(max(d2, 0.001));
-            float att = 1.0 / (1.0 + 0.10 * d2);
-            float pd = max(dot(n, pL), 0.0) * att;
+            vec3 pL = vec3(0.0); float att = 0.0; float pd = 0.0;
+            if (d2 < 1600.0) {   // Etapa 161: luz pontual some além de 40 m (contribuição < 1,5%): economiza conta por pixel
+                pL = pl * inversesqrt(max(d2, 0.001));
+                att = 1.0 / (1.0 + 0.10 * d2);
+                pd = max(dot(n, pL), 0.0) * att;
+            }
             float ao = 1.0;
             float side = 1.0 - abs(n.y);
             ao *= mix(1.0, 0.72 + 0.28 * clamp(vW.y * 1.6, 0.0, 1.0), side);
@@ -388,11 +391,14 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (m > 1.05) light *= (1.05 + (m - 1.05) * 0.25) / m;
             }
             vec3 col = base * light * ao;
-            vec3 V = normalize(uEye - vW);
-            vec3 H = normalize(L + V);
-            float s = pow(max(dot(n, H), 0.0), 42.0) * uSpec;
-            float sp2 = pow(max(dot(n, normalize(pL + V)), 0.0), 30.0) * uSpec * 0.5 * att * 3.0;
-            col += (s + sp2) * vec3(1.0, 0.97, 0.9);
+            if (uSpec > 0.045) {   // Etapa 161: material fosco (quase sem brilho) pula os dois pow() por pixel
+                vec3 V = normalize(uEye - vW);
+                vec3 H = normalize(L + V);
+                float s = pow(max(dot(n, H), 0.0), 42.0) * uSpec;
+                float sp2 = 0.0;
+                if (att > 0.002) sp2 = pow(max(dot(n, normalize(pL + V)), 0.0), 30.0) * uSpec * 0.5 * att * 3.0;
+                col += (s + sp2) * vec3(1.0, 0.97, 0.9);
+            }
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
@@ -1967,6 +1973,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     // ------------------------------------------------------------ quadro
 
+    private val shownB = BooleanArray(4)
     override fun onDrawFrame(gl: GL10?) {
         val now = System.nanoTime()
         var dt = if (lastT == 0L) 0.016f else (now - lastT) / 1e9f
@@ -2146,7 +2153,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         Matrix.setIdentityM(mdl, 0)
         floorM?.let { draw(it, mdl, 1f) }
 
-        val shown = BooleanArray(4)
+        val shown = shownB
         shown[0] = fp || ez >= cz
         shown[1] = fp || ez < cz
         shown[2] = fp || ex >= cx
