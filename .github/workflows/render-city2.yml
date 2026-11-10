@@ -18,10 +18,11 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-pip
+          python3 -m pip install --target /tmp/blender-python --only-binary=:all: --python-version 3.13 --implementation cp --abi cp313 numpy
       - name: Render actual City 2 GLB
         run: |
-          blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb city2-renders
+          PYTHONPATH=/tmp/blender-python blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb city2-renders
       - name: Upload rendered inspection images
         uses: actions/upload-artifact@v4
         with:
