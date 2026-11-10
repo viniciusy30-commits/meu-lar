@@ -18,7 +18,6 @@ for _r in inst:
 for _k,_p in enumerate(plots):
     _b=_pb[_k]; _p.update(x0=round(float(_b[0]),3),z0=round(float(_b[1]),3),x1=round(float(_b[2]),3),z1=round(float(_b[3]),3))
     print(_k,_p['name'],_p['x0'],_p['z0'],_p['x1'],_p['z1'])
-json.dump(js,open('/home/claude/out/c2/city2.json','w'),separators=(',',':'))
 def Mof(r): return np.array(r[1:13],float).reshape(3,4)
 grids=[]
 for p in plots:
@@ -73,3 +72,28 @@ for G in grids:
         out+=struct.pack('<B',len(hs))+b''.join(struct.pack('<h',int(h*4)) for h in hs)   # cm
 open('/home/claude/out/c2/city2walk.bin','wb').write(out)
 print('bytes',len(out),'floor entries',tot)
+
+# Etapa 167: buracos na grama (plano de y=0) sobre porões/escadas/piscina: células com piso abaixo de -0,5 m
+holes=[]
+for G in grids:
+    nx,nz=G['nx'],G['nz']
+    m=np.array([bool(f) and min(f)*0.04<=-0.5 for f in G['fl']]).reshape(nz,nx)
+    # junta em retângulos: faixas por linha, depois empilha faixas iguais
+    runs={}
+    for z in range(nz):
+        x=0
+        while x<nx:
+            if m[z,x]:
+                e=x
+                while e+1<nx and m[z,e+1]: e+=1
+                runs.setdefault((x,e),[]).append(z); x=e+1
+            else: x+=1
+    for (a,e),zs in runs.items():
+        zs.sort(); s0=p=zs[0]
+        for z in zs[1:]+[None]:
+            if z is not None and z==p+1: p=z; continue
+            holes+=[round(G['x0']+a*CS,3),round(G['z0']+s0*CS,3),round(G['x0']+(e+1)*CS,3),round(G['z0']+(p+1)*CS,3)]
+            if z is not None: s0=p=z
+js['holes']=holes
+json.dump(js,open('/home/claude/out/c2/city2.json','w'),separators=(',',':'))
+print('holes',len(holes)//4)

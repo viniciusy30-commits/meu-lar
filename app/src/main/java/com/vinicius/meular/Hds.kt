@@ -162,6 +162,53 @@ object Hds {
         }
     }
 
+    /** Etapa 167: a grama é um quadrado enorme em y=0 que tapava a escada dos porões; recorta os buracos (quadrículas entre as linhas das bordas dos buracos). */
+    private fun addGrass(g: Group, p: GPrim, m: FloatArray, ox: Float, oz: Float, cg: CG?, holes: FloatArray): Boolean {
+        fun wx(i: Int) = m[0] * p.v[i * STRIDE] + m[1] * p.v[i * STRIDE + 1] + m[2] * p.v[i * STRIDE + 2] + m[3] + ox
+        fun wz(i: Int) = m[8] * p.v[i * STRIDE] + m[9] * p.v[i * STRIDE + 1] + m[10] * p.v[i * STRIDE + 2] + m[11] + oz
+        val ax = wx(0); val az = wz(0)
+        val e1x = wx(1) - ax; val e1z = wz(1) - az; val e2x = wx(3) - ax; val e2z = wz(3) - az
+        val l1 = e1x * e1x + e1z * e1z; val l2 = e2x * e2x + e2z * e2z
+        if (l1 < 1f || l2 < 1f) return false
+        val sb = java.util.TreeSet<Float>(); val tb = java.util.TreeSet<Float>(); sb.add(0f); sb.add(1f); tb.add(0f); tb.add(1f)
+        val mine = ArrayList<FloatArray>()
+        var hi = 0
+        while (hi + 3 < holes.size) {
+            val h = floatArrayOf(holes[hi] + ox, holes[hi + 1] + oz, holes[hi + 2] + ox, holes[hi + 3] + oz); hi += 4
+            var any = false
+            for (c in 0 until 4) {
+                val px = if (c and 1 == 0) h[0] else h[2]; val pz = if (c and 2 == 0) h[1] else h[3]
+                val s0 = ((px - ax) * e1x + (pz - az) * e1z) / l1; val t0 = ((px - ax) * e2x + (pz - az) * e2z) / l2
+                if (s0 > 0f && s0 < 1f && t0 > 0f && t0 < 1f) { any = true }
+                if (s0 > 0f && s0 < 1f) sb.add(s0); if (t0 > 0f && t0 < 1f) tb.add(t0)
+            }
+            if (any) mine.add(h)
+        }
+        if (mine.isEmpty()) return false
+        val sv = sb.toFloatArray(); val tv = tb.toFloatArray()
+        val ns = sv.size; val nt = tv.size
+        val v = FloatArray(ns * nt * STRIDE)
+        for (j in 0 until nt) for (i in 0 until ns) {
+            val s0 = sv[i]; val t0 = tv[j]; val o = (j * ns + i) * STRIDE
+            for (k in 0 until STRIDE) v[o + k] = (1 - s0) * (1 - t0) * p.v[k] + s0 * (1 - t0) * p.v[STRIDE + k] + s0 * t0 * p.v[2 * STRIDE + k] + (1 - s0) * t0 * p.v[3 * STRIDE + k]
+        }
+        val idx = ShortArray((ns - 1) * (nt - 1) * 6); var n = 0
+        // sentido dos triângulos igual ao quadrado original
+        val flip = run { val ux = e1x; val uz = e1z; val vx = e2x; val vz = e2z; (ux * vz - uz * vx) < 0f } != (p.idx[1].toInt() == 1)
+        for (j in 0 until nt - 1) for (i in 0 until ns - 1) {
+            val cs = (sv[i] + sv[i + 1]) / 2f; val ct = (tv[j] + tv[j + 1]) / 2f
+            val cx = ax + cs * e1x + ct * e2x; val cz = az + cs * e1z + ct * e2z
+            var inHole = false
+            for (h in mine) if (cx > h[0] && cx < h[2] && cz > h[1] && cz < h[3]) { inHole = true; break }
+            if (inHole) continue
+            val a0 = (j * ns + i).toShort(); val a1 = (j * ns + i + 1).toShort(); val a2 = ((j + 1) * ns + i + 1).toShort(); val a3 = ((j + 1) * ns + i).toShort()
+            if (!flip) { idx[n++] = a0; idx[n++] = a2; idx[n++] = a1; idx[n++] = a0; idx[n++] = a3; idx[n++] = a2 }
+            else { idx[n++] = a0; idx[n++] = a1; idx[n++] = a2; idx[n++] = a0; idx[n++] = a2; idx[n++] = a3 }
+        }
+        addPrim(g, GPrim(p.mat, p.cut, p.emit, p.img, v, ns * nt, idx.copyOf(n)), m, ox, oz, cg)
+        return true
+    }
+
     private val seen = HashSet<Long>()
     private var dropped = 0
     /** hash de um vértice (posição em passos de 2 cm); a soma dos 3 não depende da ordem */
@@ -185,6 +232,7 @@ object Hds {
         val ox = (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
         val oz = (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
         val plots = js.getJSONArray("plots"); val np = plots.length()
+        val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
 
         val clamp = BooleanArray(gm.images.size)
         for (n in gm.nodes) for (p in n.prims) if (p.cut && p.img in clamp.indices) clamp[p.img] = true
@@ -206,7 +254,11 @@ object Hds {
                 val cx = Math.floor(((m[3] + ox) / CELL).toDouble()).toInt(); val cz = Math.floor(((m[11] + oz) / CELL).toDouble()).toInt()
                 val key = (cx + 4096).toLong() * 65536L + (cz + 4096).toLong()
                 val cg = cells.getOrPut(key) { CG() }
-                for (p in node.prims) addPrim(cg.g, p, m, ox, oz, cg)
+                for (p in node.prims) {
+                    // Etapa 167: grama (quadrado de y=0) ganha buracos sobre porões e piscina
+                    if (kind == 0 && plot < 0 && holes.isNotEmpty() && p.nv == 4 && p.idx.size == 6 && addGrass(cg.g, p, m, ox, oz, cg, holes)) continue
+                    addPrim(cg.g, p, m, ox, oz, cg)
+                }
             }
             if (j % 256 == 0) City.step(0.5f + 0.4f * j / inst.length())
         }

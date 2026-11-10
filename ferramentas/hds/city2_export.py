@@ -1,3 +1,4 @@
+import sys; sys.path.insert(0,'/home/claude/tools'); import bake  # Etapa 167: papéis de parede com cor assada
 import sys,json,io,struct,math,re
 sys.path.insert(0,'/home/claude/tools')
 import numpy as np, citygen

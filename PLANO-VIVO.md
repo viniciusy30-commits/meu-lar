@@ -261,3 +261,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] `Hds.surface` (chão sob os pés, degrau até 55 cm) usado em `Renderer3D.groundH`; `Hds.upper` faz `City.blocked` usar as paredes do andar onde o jogador está (acima de 1,2 m ou no porão); térreo continua com a colisão antiga.
 - [ ] Build e teste no celular: subir escadas, andar no 2º andar, paredes lá em cima, porão, casa 5 (rua normal em volta).
 - [ ] Ainda pendente: piscar (camadas coplanares), shaders do jogo original, móveis nas casas.
+
+## Etapa 167 — Buraco do porão na grama + papéis de parede (entregue, aguardando build e teste)
+- [x] Teste da 166 (relato do usuário): casas não piscam mais; escadas sobem e descem. Problema: nos porões a grama (quadrado de 120 m em y=0) ficava por cima da escada.
+- [x] `walk_export.py` grava `holes` em `city2.json` (células com piso abaixo de -0,5 m: porões, escadas, piscina); `Hds.addGrass` recorta a grama nesses buracos (quadriculado pelas bordas dos buracos, UV interpolada).
+- [x] Shader do jogo original: papéis de parede usam máscara de cor (fundo + _ColorOnR/G/B). `ferramentas/hds/bake.py` assa isso em textura: 13 materiais (flores, treliças, damasco) agora têm padrão e cor, antes saíam lisos. `city2.glb` regenerado (mesma ordem de peças/instâncias).
+- [ ] Ainda não feito: sombra de ambiente (RoomAmbientOcclusion, textura em R, cor preta alfa 0,1) precisa de pintura com transparência; sombras assadas da fachada da casa 17 (_ShadowTex, 2ª UV); azulejos (_LayerR/G/B); brilho (_Glossiness 0–0,5) e normal maps; detalhe de tecido (_DetailTex).
