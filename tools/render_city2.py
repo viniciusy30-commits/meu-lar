@@ -32,7 +32,7 @@ scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = 'PNG'
 scene.render.film_transparent = False
 scene.view_settings.view_transform = 'Standard'
-scene.view_settings.look = 'AgX - Medium High Contrast'
+scene.view_settings.look = 'Medium High Contrast'
 scene.view_settings.exposure = 0
 scene.view_settings.gamma = 1
 world = bpy.data.worlds.new("City2World") if not bpy.data.worlds else bpy.data.worlds[0]
@@ -66,19 +66,16 @@ def render(name, target, location, scale, res=(1400,900)):
     bpy.ops.render.render(write_still=True)
 
 span = max(size.x, size.z)
-# Orthographic overview from above and a low angled overview
 render("01_top_overview", (center.x, center.y, center.z),
        (center.x, center.y+span*1.25+size.y, center.z+0.001), span*1.08)
 render("02_oblique_overview", center,
        (center.x+span*0.85, center.y+span*0.75, center.z+span*0.95), span*1.18)
 
-# Four quadrant views, useful for checking roads, lots and repeated house geometry.
 for idx, (sx,sz) in enumerate([(-1,-1),(1,-1),(-1,1),(1,1)], start=1):
     target = Vector((center.x+sx*size.x*0.23, center.y, center.z+sz*size.z*0.23))
     loc = Vector((target.x+span*0.25, target.y+span*0.48, target.z+span*0.30))
     render("0%d_quadrant"% (idx+2), target, loc, span*0.55)
 
-# Camera-height street inspection at the center and four cardinal points.
 for idx, (dx,dz) in enumerate([(0,0),(0.22,0),(-0.22,0),(0,0.22),(0,-0.22)], start=1):
     tx = center.x + size.x*dx
     tz = center.z + size.z*dz
