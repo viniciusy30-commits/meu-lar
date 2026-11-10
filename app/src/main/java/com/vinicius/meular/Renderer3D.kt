@@ -650,6 +650,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         }
         // portas e gavetas abertas (Etapa 83); se já está dentro, deixa sair
         for (b in partBoxes) if (nx > b[0] && nx < b[2] && nz > b[1] && nz < b[3] && !(ox > b[0] && ox < b[2] && oz > b[1] && oz < b[3])) return false
+        // Na Cidade 2, não permite atravessar degraus altos nem descer de um piso para o vazio.
+        if (City.on && City.HDS && !City.inLot(nx, nz)) {
+            val nextFloor = Hds.groundH(nx, nz, baseY)
+            if (nextFloor > baseY + 0.38f || nextFloor < baseY - 0.58f) return false
+        }
         return true
     }
 
@@ -1798,7 +1803,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun groundH(x: Float, z: Float): Float {
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
         if (City.on && !City.inLot(x, z)) {   // Etapa 121: calçada 15 cm acima do asfalto
-            val g = City.groundH(x, z)
+            val g = if (City.HDS) Hds.groundH(x, z, baseY) else City.groundH(x, z)
             val e = Elevado.surface(x, z, if (driving) carY else baseY)   // Etapa 145: pista do elevado/alça
             return if (!e.isNaN() && e > g) e else g
         }
@@ -1818,7 +1823,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
-        baseY += (groundH(px, pz) - baseY) * 0.3f
+        val floorY = groundH(px, pz)
+        // No chão, acompanha o piso real sem atraso; a interpolação antiga fazia o corpo afundar em pisos e degraus.
+        if (!jumping && !flying && !landing && swimPh == 0 && py <= 0.02f) baseY = floorY
+        else baseY += (floorY - baseY) * 0.3f
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
