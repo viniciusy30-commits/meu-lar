@@ -235,3 +235,9 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [ ] Build e teste no celular: carregamento (12 MB + texturas), memória, FPS, entrar nas casas pelas portas, telhado sumindo, marcadores no mapa, trocar de mapa nas Configurações.
 - [ ] Futuro: compra das casas (o jogador disse que será diferente), apartamentos e escritório do Hds (cenas Apt1-3 já no kit), trânsito e pedestres na cidade 2, móveis nas casas.
 - Reconstruir os dados: precisa do `Hdssemarqs.zip` (Hds/assets/bin/Data) em `/home/claude/hds`; ver `ferramentas/hds/LEIA-ME.txt`.
+
+## Etapa 164 — Cidade 2: piscar (parcial)
+- [x] `Hds.addPrim` descarta triângulos repetidos no mesmo lugar (hash de posição a 2 cm): ~4.470 duplicatas exatas no city2.glb.
+- [x] Colisão das paredes engordada em 15 cm (Hds.PAD); plano próximo da câmera 0,1 dentro das casas (Hds.inside).
+- [ ] Ainda falta: camadas coplanares de materiais diferentes (piso sobre piso), colisão de escadas/andares (colisão é 2D, só entre 0,25 e 1,8 m), shaders/iluminação iguais ao outro jogo.
+- Não compilado (sem Kotlin aqui). Se o build falhar, corrigir só o erro apontado.

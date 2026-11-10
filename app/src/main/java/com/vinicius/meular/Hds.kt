@@ -39,6 +39,10 @@ object Hds {
     @Volatile private var mplots: List<FloatArray> = emptyList()
 
     private const val CELL = 64f
+    private const val PAD = 0.15f
+
+    /** jogador dentro da caixa de alguma casa? (câmera usa plano próximo menor) */
+    fun inside(x: Float, z: Float): Boolean { for (r in roofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false }
 
     fun clear() {
         jobs.clear()
@@ -82,13 +86,32 @@ object Hds {
             }
         }
         a.nv += p.nv
-        for (k in p.idx.indices) a.idx[a.ni + k] = (((p.idx[k].toInt() and 0xFFFF) + base)).toShort()
-        a.ni += p.idx.size
+        // Etapa 164: descarta triângulos repetidos no mesmo lugar do mundo (causavam o piscar por disputa de profundidade)
+        var k = 0
+        while (k + 2 < p.idx.size) {
+            val i0 = p.idx[k].toInt() and 0xFFFF; val i1 = p.idx[k + 1].toInt() and 0xFFFF; val i2 = p.idx[k + 2].toInt() and 0xFFFF
+            val h = vh(a.v, (base + i0) * STRIDE) + vh(a.v, (base + i1) * STRIDE) + vh(a.v, (base + i2) * STRIDE)
+            if (seen.add(h)) {
+                a.idx[a.ni] = (i0 + base).toShort(); a.idx[a.ni + 1] = (i1 + base).toShort(); a.idx[a.ni + 2] = (i2 + base).toShort()
+                a.ni += 3
+            } else dropped++
+            k += 3
+        }
+    }
+
+    private val seen = HashSet<Long>()
+    private var dropped = 0
+    /** hash de um vértice (posição em passos de 2 cm); a soma dos 3 não depende da ordem */
+    private fun vh(v: FloatArray, o: Int): Long {
+        var h = Math.round(v[o] * 50f).toLong() * 73856093L xor Math.round(v[o + 1] * 50f).toLong() * 19349663L xor Math.round(v[o + 2] * 50f).toLong() * 83492791L
+        h = (h xor (h ushr 31)) * -0x61c8864680b583ebL
+        return h xor (h ushr 29)
     }
 
     /** Thread da cidade. Preenche [out] com os pedaços (malhas chegam depois, pelo GL) e registra colisões e marcadores. */
     fun build(out: ArrayList<City.Chunk>, W: Float, H: Float, tk: Int) {
         clear()
+        seen.clear(); dropped = 0
         val am = Glb.assets ?: throw IllegalStateException("assets ainda não prontos")
         City.step(0.05f)
         val gm = Glb.parse(am.open("hds/city2.glb").use { it.readBytes() }, "city2")
@@ -148,7 +171,7 @@ object Hds {
         val so = js.getJSONArray("solids")
         var i = 0
         while (i + 3 < so.length()) {
-            City.addSolid(floatArrayOf(so.getDouble(i).toFloat() + ox, so.getDouble(i + 1).toFloat() + oz, so.getDouble(i + 2).toFloat() + ox, so.getDouble(i + 3).toFloat() + oz))
+            City.addSolid(floatArrayOf(so.getDouble(i).toFloat() + ox - PAD, so.getDouble(i + 1).toFloat() + oz - PAD, so.getDouble(i + 2).toFloat() + ox + PAD, so.getDouble(i + 3).toFloat() + oz + PAD))   // Etapa 164: folga = raio do corpo
             i += 4
         }
 
@@ -158,6 +181,8 @@ object Hds {
         val xa = js.getJSONArray("xr"); val za = js.getJSONArray("zr")
         mxr = FloatArray(xa.length()) { xa.getDouble(it).toFloat() + ox }
         mzr = FloatArray(za.length()) { za.getDouble(it).toFloat() + oz }
+        android.util.Log.i("Hds", "triângulos repetidos descartados: $dropped")
+        seen.clear()
         mplots = pl
         clampImg = clamp
         roofs = rl
