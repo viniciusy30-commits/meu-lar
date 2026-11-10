@@ -1,4 +1,5 @@
 import bpy, math, os, sys
+sys.path.insert(0, '/tmp/blender-python')
 from mathutils import Vector
 
 # Usage: blender -b --python tools/render_city2.py -- <glb> <output_dir>
