@@ -2116,7 +2116,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (t < 0.12f) t = 0.12f
                 ex = ox; ey = maxOf(oy, 0.25f); ez = oz
                 // Etapa 126: plano próximo maior fora de casa = profundidade bem mais precisa ao longe (janelas, guias e lajes paravam de piscar)
-                val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else if (Hds.inside(px, pz)) 0.1f else if (fly && py > 6f) 0.5f else 0.3f
+                val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else if (Hds.inside(px, pz)) 0.25f else if (fly && py > 6f) 0.5f else 0.3f
                 Matrix.perspectiveM(proj, 0, 60f + (if (fly) min(14f, flySpeed / 3.5f) else 0f), aspect, nearP, if (fly) 520f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
