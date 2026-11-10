@@ -1,10 +1,10 @@
 #id 2026-11-10-a
-#titulo Tesla Model S branco na garagem
-- Novo veículo na loja (aba Garagem): Tesla Model S, só na cor branca
-- As rodas giram com a velocidade e as da frente viram junto com o volante
-- Ao chegar perto, a porta mais próxima abre sozinha; ao dirigir, fecha. Ao descer, a porta do motorista abre
-- Dentro do carro agora tem bancos, painel, volante e tela, para as portas abertas não mostrarem o vazio
-- A frente sobe ao acelerar, mergulha ao frear e a carroceria inclina de leve nas curvas
+#titulo Cidade 2: ruas e casas do Hds
+- Novo mapa: Cidade 2, com ruas, quarteirões, postes, hidrantes e árvores, e 17 casas com interior (paredes, pisos e forros)
+- Para trocar: Configurações > Mapa. Cidade 1 continua igual
+- As paredes têm colisão com os vãos de porta abertos, então dá para entrar nas casas; na vista de cima o teto some quando você está dentro
+- As casas ainda não têm compra: aparecem marcadas nos mapas como Casa 1 a Casa 17
+- Seu lote fica num quarteirão livre no meio da cidade
 
 #id 2026-10-30-a
 #titulo Personagem fofinho de verdade

@@ -254,6 +254,7 @@ class MainActivity : AppCompatActivity() {
         ModStore.init(this)
         Flora.assets = assets
         Glb.assets = assets
+        City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", false)   // mapa escolhido em Configurações
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -1214,6 +1215,13 @@ class MainActivity : AppCompatActivity() {
                 game.r.showFps = !game.r.showFps
                 getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("fps", game.r.showFps).apply()
                 fpsT?.text = if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado"
+            }
+            var cidT: TextView? = null
+            fun cidTxt() = if (City.HDS) "Mapa: Cidade 2 (casas do Hds)" else "Mapa: Cidade 1"
+            cidT = linha(panel, Ic.HOME, cidTxt(), Tn.SKY) {
+                City.HDS = !City.HDS
+                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).apply()
+                cidT?.text = cidTxt()
             }
             var sens: TextView? = null
             sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}", Tn.SUN) {

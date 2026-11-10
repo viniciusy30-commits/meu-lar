@@ -77,7 +77,7 @@ class GNode(
 /** Colisor (caixa, cilindro ou esfera) na pose inicial, em espaço do objeto (origem = centro do piso, frente +Z). */
 class GCol(val name: String, val shape: String, val cx: Float, val cy: Float, val cz: Float, val sx: Float, val sy: Float, val sz: Float, val blocks: Boolean)
 
-class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, private val images: List<ByteArray>) {
+class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, val images: List<ByteArray>) {
     /** matriz de mundo (do objeto) de cada nó na pose inicial */
     val rest: Array<FloatArray>
     val cols = ArrayList<GCol>()

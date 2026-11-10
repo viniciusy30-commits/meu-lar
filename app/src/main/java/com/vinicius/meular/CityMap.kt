@@ -212,10 +212,12 @@ object MapPaint {
         c.scale(s, s)
         c.translate(-cx, -cz)
         c.drawRect(City.X0 - 400f, City.Z0 - 400f, City.X1 + 400f, City.BEACH_Z + 400f, bg)
+        if (!City.HDS) {
         c.drawRect(City.X0 - 400f, City.Z1, City.X1 + 400f, City.SEA_Z, sand)
         c.drawRect(City.X0 - 400f, City.SEA_Z - 4f, City.X1 + 400f, City.SEA_Z + 600f, sea)
         fill.color = 0xFFF4F1EA.toInt(); c.drawRect(City.X0 - 400f, City.Z1, City.X1 + 400f, City.BEACH_Z, fill)
         fill.color = 0xFF8D6E63.toInt(); c.drawRect(City.PIER_X - 2.5f, City.BEACH_Z + 4f, City.PIER_X + 2.5f, City.SEA_Z + 62f, fill); c.drawRect(City.PIER_X - 6f, City.SEA_Z + 62f, City.PIER_X + 6f, City.SEA_Z + 70f, fill)
+        }
         val ph = photo
         if (ph != null) {
             val r = photoRect
@@ -225,6 +227,7 @@ object MapPaint {
             fill.color = if (t == "home") 0xFFC8E6C9.toInt() else blockColor(t)
             c.drawRect(City.blkX[i * 2], City.blkZ[j * 2], City.blkX[i * 2 + 1], City.blkZ[j * 2 + 1], fill)
         }
+        if (City.HDS && ph == null) Hds.drawMap(c, fill, road)
         if (Town.on) {
             // Etapa 131: cidade nova — quarteirões e ruas curvas
             fill.color = 0xFFE8E3D3.toInt()

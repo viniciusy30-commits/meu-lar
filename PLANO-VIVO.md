@@ -226,3 +226,12 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Quintal maior, piscina, clipes Mixamo (mergulho, nado, nadar até a borda, boiar) nos corpos am5/af5, `Pool.kt`, lógica em `Renderer3D.kt`. Detalhes em `ETAPA118-PISCINA-NOTAS.md`.
 - [x] Andando até a água: senta na borda (pernas na água) e entra; pular perto da borda mergulha.
 - [ ] Build e teste no celular: altura do assento na borda, pernas dentro d'água, entrada na água, câmera, mergulho vindo de perto.
+
+## Etapa 163 — Cidade 2: ruas e casas do Hds (entregue, aguardando build e teste)
+- [x] Dados: `app/src/main/assets/hds/city2.glb` (1.837 peças, 95 materiais, 49 texturas, 12 MB) + `city2.json` (2.837 instâncias, 17 casas com caixa, 922 retângulos de colisão feitos da geometria real das paredes — vãos de porta abertos —, ruas e limites). Gerados por `ferramentas/hds/city2_export.py` (leitores do Hds em `ferramentas/hds/`).
+- [x] `Hds.kt` (novo): monta pedaços de 64 m, telhado/forro de cada casa em malha separada, colisões e marcadores "Casa 1..17"; GL sobe texturas/malhas em fatias de ~10 ms (`Hds.gl()` chamado por `City.service`).
+- [x] `City.kt`: flag `HDS` (+ `hdsBuilt`), desvio em `build()`, chão plano, sem trânsito/pedestres/TownHouses nessa cidade; `Renderer3D.kt`: desenha os telhados (somem com o jogador dentro, vista de cima), sem mar, remonta ao trocar de mapa; `CityMap.kt`: mapa vetorial da cidade 2; `MainActivity.kt`: Configurações > "Mapa: Cidade 1 / Cidade 2" (pref `cidade2`).
+- [x] Quarteirão (1,0) reservado e vazio: o lote do jogador fica no centro dele.
+- [ ] Build e teste no celular: carregamento (12 MB + texturas), memória, FPS, entrar nas casas pelas portas, telhado sumindo, marcadores no mapa, trocar de mapa nas Configurações.
+- [ ] Futuro: compra das casas (o jogador disse que será diferente), apartamentos e escritório do Hds (cenas Apt1-3 já no kit), trânsito e pedestres na cidade 2, móveis nas casas.
+- Reconstruir os dados: precisa do `Hdssemarqs.zip` (Hds/assets/bin/Data) em `/home/claude/hds`; ver `ferramentas/hds/LEIA-ME.txt`.

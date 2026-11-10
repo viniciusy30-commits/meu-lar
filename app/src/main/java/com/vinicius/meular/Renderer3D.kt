@@ -1118,6 +1118,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 c.farRanges?.let { farHide.add(it) }   // a versão de longe dele sai da malha única
             } else if (c.farRanges == null) { val fm = c.far ?: nm ?: continue; draw(fm, mdl, 1f) }
         }
+        // Cidade 2: telhado/forro de cada casa (some quando o jogador está dentro dela na vista de cima)
+        if (City.HDS) for (rf in Hds.roofs) {
+            val rm = rf.mesh ?: continue
+            val dx = max(0f, max(rf.x0 - ex, ex - rf.x1)); val dz = max(0f, max(rf.z0 - ez, ez - rf.z1))
+            if (dx * dx + dz * dz > 245f * 245f) continue
+            if (mode == 1 && !driving && px > rf.x0 && px < rf.x1 && pz > rf.z0 && pz < rf.z1) continue
+            if (!boxVisible(rf.x0, -0.6f, rf.z0, rf.x1, 12f, rf.z1)) continue
+            draw(rm, mdl, 1f)
+        }
         // quarteirões vistos de longe: uma malha só, pulando os que já foram desenhados em detalhe
         City.farAll?.let { fa ->
             for ((pi, p) in fa.parts.withIndex()) {
@@ -1202,7 +1211,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Passe transparente da cidade: mar, vidros das construções perto, faixa do GPS e farol do destino. */
     private fun drawCityGlass(ex: Float, ey: Float, ez: Float) {
         if (!City.on) return
-        if (boxVisible(City.X0 - 500f, -1f, City.SEA_Z - 6f, City.X1 + 500f, 0.5f, City.SEA_Z + 450f)) {
+        if (!City.HDS && boxVisible(City.X0 - 500f, -1f, City.SEA_Z - 6f, City.X1 + 500f, 0.5f, City.SEA_Z + 450f)) {
             Water.drawSea(vp, ex, ey, ez, City.X0 - 500f, City.SEA_Z - 6f, City.X1 + 500f, City.SEA_Z + 450f, st.gw)
             useProg(curProg)
         }
@@ -2027,7 +2036,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()
         // Etapa 124: o contexto GL caiu (app foi para o fundo): a cidade não tem cópia na memória, então é montada de novo
-        else if (City.on && City.builtGen != GlGen.gen && !st.testRoom) { City.clear(); City.buildAsync(st.gw, st.gh) }
+        else if (City.on && (City.builtGen != GlGen.gen || City.hdsBuilt != City.HDS) && !st.testRoom) { City.clear(); City.buildAsync(st.gw, st.gh) }
         updateFP(dt)
 
         val gw = st.gw

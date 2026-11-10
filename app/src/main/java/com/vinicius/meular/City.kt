@@ -244,6 +244,7 @@ object City {
         pedBody.forEach { it?.release() }; pedLeg.forEach { it?.release() }; pedArm.forEach { it?.release() }
         solidsBy.clear(); bldBy.clear(); blds.clear(); places.clear(); cars.clear(); peds.clear()
         Gps.clear()
+        Hds.clear()
         Town.on = false   // Etapa 151: as listas da planta são limpas pela própria montagem (na thread dela)
     }
 
@@ -271,6 +272,7 @@ object City {
         val tk = token
         startGen = GlGen.gen
         error = null
+        hdsBuilt = HDS
         builder.execute {
             if (tk != token) return@execute
             try { buildTk = tk; build(gw, gh, tk) }
@@ -285,6 +287,7 @@ object City {
         step(0.01f)
         val W = gw.toFloat(); val H = gh.toFloat()
         lotX0 = -10f; lotX1 = W + 10f; lotZ0 = -22f; lotZ1 = H + 9f
+        if (HDS) { buildHds(W, H, tk); return }
         // larguras dos quarteirões (a casa é a coluna/linha 3)
         val wx = floatArrayOf(48f, 52f, 48f, lotX1 - lotX0, 48f, 52f, 84f)
         val wz = floatArrayOf(48f, 50f, 48f, lotZ1 - lotZ0, 48f, 50f, 64f)
@@ -364,6 +367,31 @@ object City {
     /** Etapa 131: cidade nova (ruas curvas). A antiga (grade) fica no código só até a nova ficar completa. */
     const val TOWN = true
 
+    /** Mapa "Cidade 2" (ruas e casas do Hds). Escolhido em Configurações; vale na próxima montagem. */
+    @Volatile @JvmField var HDS = false
+    /** Qual mapa a cidade montada atualmente é (para remontar quando o jogador troca). */
+    @Volatile @JvmField var hdsBuilt = false
+
+    private fun buildHds(W: Float, H: Float, tk: Int) {
+        Town.clear()
+        bandX = FloatArray(0); bandZ = FloatArray(0); blkX = FloatArray(0); blkZ = FloatArray(0)
+        types = emptyArray()
+        Shade.reset()
+        val out = ArrayList<Chunk>()
+        Hds.build(out, W, H, tk)
+        step(0.95f)
+        X0 = Hds.minX; X1 = Hds.maxX; Z0 = Hds.minZ; Z1 = Hds.maxZ
+        BEACH_Z = Z1 + 10f; SEA_Z = Z1 + 52f; PIER_X = (X0 + X1) / 2f
+        chunks = out
+        places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
+        if (tk != token) return
+        Shade.finish(); Shade.mesh?.gpuOnly()
+        builtGen = startGen
+        builds++
+        progress = 1f
+        on = true
+    }
+
     private fun buildTown(out: ArrayList<Chunk>, W: Float, H: Float, tk: Int) {
         Town.clear()
         bandX = FloatArray(0); bandZ = FloatArray(0); blkX = FloatArray(0); blkZ = FloatArray(0)
@@ -428,6 +456,7 @@ object City {
     /** Thread do GL: instala malhas prontas, monta flora pendente e descarta detalhe de quarteirões longe. */
     fun service(ex: Float, ez: Float) {
         if (!on) return
+        if (HDS) Hds.gl()
         val now = System.currentTimeMillis()
         for ((ci, c) in chunks.withIndex()) {
             c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()).gpuOnly() }; c.pend = null }
@@ -491,6 +520,7 @@ object City {
 
     fun groundH(x: Float, z: Float): Float {
         if (!on || inLot(x, z)) return 0f
+        if (HDS) return 0f
         for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
         bldAt(x, z)?.let { return FLOOR }
         if (TOWN && z <= Z1) return Town.groundH(x, z)
@@ -519,7 +549,7 @@ object City {
             val onPier = (abs(x - PIER_X) < 2.3f && z < SEA_Z + 62f) || (abs(x - PIER_X) < 5.8f && z >= SEA_Z + 62f && z < SEA_Z + 67.8f)
             if (!onPier) return true
         }
-        if (TOWN && TownHouses.blocked(x, z)) return true
+        if (!HDS && TOWN && TownHouses.blocked(x, z)) return true
         val l = solidsBy[cell(x, z)]
         if (l != null) for (r in l) if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true
         for (c in cars) {
@@ -745,6 +775,7 @@ object City {
         if (!on) return
         val dt = dt0.coerceIn(0f, 0.1f)
         tLight += dt; time += dt
+        if (HDS) return
         if (TOWN) { updateTown(dt, px, pz); return }
         val ph = lightPhase
         for (c in cars) {

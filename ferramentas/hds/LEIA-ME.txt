@@ -1,0 +1,6 @@
+Ferramentas do Hds (Unity 6000.4.6f1, sem typetrees). Rodam com Python 3 + numpy + Pillow, sem rede.
+Esperam o jogo extraido em /home/claude/hds/Hds/assets/bin/Data e as ferramentas em /home/claude/tools.
+sf.py/scene.py: leitor de SerializedFile (v22), GameObjects e Transforms.
+um.py: malhas, texturas (Texture2D) e materiais. etc.py: decodificador ETC1/ETC2/EAC.
+export.py/roots.py/kit.py: exportam cenas/casas e o kit.glb. citygen.py: monta a cidade (3x2 -> 4x2 quarteiroes, RES=(1,0) reservado).
+city2_export.py: gera city2.glb + city2.json (colisoes, caixas das casas) em /home/claude/out/c2.
