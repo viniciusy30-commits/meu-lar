@@ -39,21 +39,12 @@ for i, n in enumerate(gltf.get("nodes", [])):
         missing.append((i, name))
 
 res = city["res"]
-ox = (city["bounds"][0] + city["bounds"][2]) * 0.5 - float(res[0])
-oz = (city["bounds"][1] + city["bounds"][3]) * 0.5 - float(res[1])
-# O cálculo acima é substituído pelo lote real definido pelo jogo: lotX0/lotX1
-# Hds.kt posiciona a origem no centro do lote construído pela cidade.
-# O JSON bounds é a referência do lote; o mapa usa o mesmo centro geométrico.
-plots = city.get("plots", [])
-if plots:
-    minpx = min(p["x0"] for p in plots); maxpx = max(p["x1"] for p in plots)
-    minpz = min(p["z0"] for p in plots); maxpz = max(p["z1"] for p in plots)
-    # Mantém o deslocamento do Hds calculado com o centro do lote no jogo.
-    # Os limites do lote da cidade são simétricos em torno do centro do mapa.
-    lot_cx = (city["bounds"][0] + city["bounds"][2]) * 0.5
-    lot_cz = (city["bounds"][1] + city["bounds"][3]) * 0.5
-    ox = lot_cx - float(res[0])
-    oz = lot_cz - float(res[1])
+# Hds.kt: lotX0=-10, lotX1=W+10, lotZ0=-22, lotZ1=H+9.
+# W/H vêm dos limites do mapa; o centro do lote em Z é (H-13)/2.
+world_w = float(city["bounds"][2] - city["bounds"][0])
+world_h = float(city["bounds"][3] - city["bounds"][1])
+ox = world_w * 0.5 - float(res[0])
+oz = (world_h - 13.0) * 0.5 - float(res[1])
 
 collection = bpy.context.scene.collection
 created = 0
