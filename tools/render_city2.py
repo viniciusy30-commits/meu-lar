@@ -1,27 +1,103 @@
-import bpy, math, os, sys
-sys.path.insert(0, '/tmp/blender-python')
-from mathutils import Vector
+import bpy, math, os, sys, json, struct
+from mathutils import Vector, Matrix
 
-# Usage: blender -b --python tools/render_city2.py -- <glb> <output_dir>
+# Renderiza a Cidade 2 exatamente como Hds.kt: GLB fornece as malhas-base;
+# city2.json fornece as 2.837 instâncias, transformações e deslocamento do lote.
 args = sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
 glb = args[0] if args else "app/src/main/assets/hds/city2.glb"
-out = args[1] if len(args)>1 else "city2-renders"
+js_path = args[1] if len(args)>1 else "app/src/main/assets/hds/city2.json"
+out = args[2] if len(args)>2 else "city2-renders"
 os.makedirs(out, exist_ok=True)
+
+with open(glb, "rb") as f:
+    raw = f.read()
+if raw[:4] != b"glTF":
+    raise RuntimeError("Arquivo não é GLB 2.0")
+json_len = struct.unpack_from("<I", raw, 12)[0]
+gltf = json.loads(raw[20:20+json_len].decode("utf-8"))
+with open(js_path, "r", encoding="utf-8") as f:
+    city = json.load(f)
 
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 bpy.ops.import_scene.gltf(filepath=glb)
-
-meshes = [o for o in bpy.context.scene.objects if o.type == 'MESH']
-if not meshes:
+source_objects = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+if not source_objects:
     raise RuntimeError("GLB não contém malhas")
+
+# O importador preserva o nome do nó glTF no objeto Blender.
+by_name = {}
+for o in source_objects:
+    by_name.setdefault(o.name, o)
+node_names = [n.get("name", "n%d" % i) for i,n in enumerate(gltf.get("nodes", []))]
+missing = []
+for i, n in enumerate(gltf.get("nodes", [])):
+    if "mesh" not in n:
+        continue
+    name = node_names[i]
+    if name not in by_name and name + ".001" not in by_name:
+        missing.append((i, name))
+
+res = city["res"]
+ox = (city["bounds"][0] + city["bounds"][2]) * 0.5 - float(res[0])
+oz = (city["bounds"][1] + city["bounds"][3]) * 0.5 - float(res[1])
+# O cálculo acima é substituído pelo lote real definido pelo jogo: lotX0/lotX1
+# Hds.kt posiciona a origem no centro do lote construído pela cidade.
+# O JSON bounds é a referência do lote; o mapa usa o mesmo centro geométrico.
+plots = city.get("plots", [])
+if plots:
+    minpx = min(p["x0"] for p in plots); maxpx = max(p["x1"] for p in plots)
+    minpz = min(p["z0"] for p in plots); maxpz = max(p["z1"] for p in plots)
+    # Mantém o deslocamento do Hds calculado com o centro do lote no jogo.
+    # Os limites do lote da cidade são simétricos em torno do centro do mapa.
+    lot_cx = (city["bounds"][0] + city["bounds"][2]) * 0.5
+    lot_cz = (city["bounds"][1] + city["bounds"][3]) * 0.5
+    ox = lot_cx - float(res[0])
+    oz = lot_cz - float(res[1])
+
+collection = bpy.context.scene.collection
+created = 0
+unmapped = {}
+# matriz row-major igual à usada em Hds.addPrim()
+for row in city.get("inst", []):
+    node_i = int(row[0])
+    if node_i < 0 or node_i >= len(node_names):
+        unmapped[node_i] = unmapped.get(node_i, 0) + 1
+        continue
+    name = node_names[node_i]
+    src = by_name.get(name)
+    if src is None:
+        # Blender acrescenta sufixos quando há nomes repetidos.
+        src = next((o for o in source_objects if o.name == name or o.name.startswith(name + ".")), None)
+    if src is None:
+        unmapped[node_i] = unmapped.get(node_i, 0) + 1
+        continue
+    m = [float(v) for v in row[1:13]]
+    mat = Matrix(((m[0],m[1],m[2],m[3]+ox),
+                  (m[4],m[5],m[6],m[7]),
+                  (m[8],m[9],m[10],m[11]+oz),
+                  (0,0,0,1)))
+    ob = src.copy()
+    ob.data = src.data
+    ob.name = "CITY2_INST_%04d_NODE_%d" % (created, node_i)
+    collection.objects.link(ob)
+    ob.parent = None
+    ob.matrix_world = mat
+    created += 1
+
+# Remove as malhas-base fora de suas posições reais; mantém somente as instâncias.
+for o in source_objects:
+    bpy.data.objects.remove(o, do_unlink=True)
+meshes = [o for o in bpy.context.scene.objects if o.type == 'MESH']
 bpy.context.view_layer.update()
 pts = [o.matrix_world @ Vector(c) for o in meshes for c in o.bound_box]
+if not pts:
+    raise RuntimeError("Nenhuma instância foi reconstruída; nós sem correspondência: %s" % missing[:20])
 mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
 mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
 center = (mn+mx)*0.5
 size = mx-mn
-print("CITY2_BOUNDS", tuple(mn), tuple(mx), "SIZE", tuple(size), "MESHES", len(meshes))
+print("CITY2_INSTANCE_RENDER", "instances", created, "meshes", len(meshes), "missing", len(unmapped), "bounds", tuple(mn), tuple(mx))
 
 scene = bpy.context.scene
 scene.render.engine = 'BLENDER_EEVEE'
@@ -40,56 +116,49 @@ scene.world = world
 world.use_nodes = True
 world.node_tree.nodes["Background"].inputs[0].default_value = (0.24,0.27,0.31,1)
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.8
-
 sun_data = bpy.data.lights.new("City2Sun", 'SUN')
 sun_data.energy = 2.0
 sun = bpy.data.objects.new("City2Sun", sun_data)
 scene.collection.objects.link(sun)
 sun.rotation_euler = (math.radians(28), math.radians(-22), math.radians(-28))
-
 cam_data = bpy.data.cameras.new("City2Camera")
 cam = bpy.data.objects.new("City2Camera", cam_data)
 scene.collection.objects.link(cam)
 scene.camera = cam
 cam_data.type = 'ORTHO'
-cam_data.lens = 50
 cam_data.clip_start = 0.1
 cam_data.clip_end = 10000
 
 def aim(obj, target):
     obj.rotation_euler = (Vector(target)-obj.location).to_track_quat('-Z','Y').to_euler()
-
-def render(name, target, location, scale, res=(1400,900)):
+def render(name, target, location, scale, reso=(1400,900)):
     cam.location = location
     aim(cam, target)
     cam_data.ortho_scale = scale
-    scene.render.resolution_x, scene.render.resolution_y = res
+    scene.render.resolution_x, scene.render.resolution_y = reso
     scene.render.filepath = os.path.join(out, name+".png")
     bpy.ops.render.render(write_still=True)
 
-span = max(size.x, size.y)
-# O GLB está em Z-up: X/Y são o chão e Z é a altura.
-render("01_top_overview", center,
-       (center.x, center.y, mx.z + span*1.15), span*1.08)
-render("02_oblique_overview", center,
-       (center.x+span*0.82, center.y-span*0.82, center.z+span*0.92), span*1.18)
-
-for idx, (sx,sy) in enumerate([(-1,-1),(1,-1),(-1,1),(1,1)], start=1):
-    target = Vector((center.x+sx*size.x*0.23, center.y+sy*size.y*0.23, center.z))
-    loc = Vector((target.x+span*0.25, target.y-span*0.48, mx.z+span*0.38))
+# No jogo, Y é vertical e X/Z são os eixos do chão.
+span = max(size.x, size.z)
+render("01_top_overview", center, (center.x, mx.y + span*1.15, center.z), span*1.08)
+render("02_oblique_overview", center, (center.x+span*0.82, center.y+span*0.92, center.z-span*0.82), span*1.18)
+for idx, (sx,sz) in enumerate([(-1,-1),(1,-1),(-1,1),(1,1)], start=1):
+    target = Vector((center.x+sx*size.x*0.23, center.y, center.z+sz*size.z*0.23))
+    loc = Vector((target.x+span*0.25, mx.y+span*0.38, target.z-span*0.48))
     render("0%d_quadrant"% (idx+2), target, loc, span*0.55)
-
-for idx, (dx,dy) in enumerate([(0,0),(0.22,0),(-0.22,0),(0,0.22),(0,-0.22)], start=1):
+for idx, (dx,dz) in enumerate([(0,0),(0.22,0),(-0.22,0),(0,0.22),(0,-0.22)], start=1):
     tx = center.x + size.x*dx
-    ty = center.y + size.y*dy
-    target = Vector((tx, ty, mn.z+size.z*0.45))
-    loc = Vector((tx+span*0.12, ty-span*0.22, mn.z+span*0.42))
+    tz = center.z + size.z*dz
+    target = Vector((tx, center.y, tz))
+    loc = Vector((tx+span*0.12, center.y+span*0.42, tz-span*0.22))
     render("street_%02d"%idx, target, loc, span*0.28, (1280,800))
 
 with open(os.path.join(out,"render_report.txt"),"w") as f:
-    f.write("GLB: "+glb+"\n")
-    f.write("Meshes: "+str(len(meshes))+"\n")
-    f.write("Bounds min: "+str(tuple(mn))+"\n")
-    f.write("Bounds max: "+str(tuple(mx))+"\n")
-    f.write("Size: "+str(tuple(size))+"\n")
+    f.write("GLB: "+glb+"\nJSON: "+js_path+"\n")
+    f.write("Instâncias reconstruídas: "+str(created)+"\n")
+    f.write("Malhas renderizadas: "+str(len(meshes))+"\n")
+    f.write("Nós sem correspondência: "+str(len(unmapped))+" "+str(unmapped)+"\n")
+    f.write("Bounds min: "+str(tuple(mn))+"\nBounds max: "+str(tuple(mx))+"\nSize: "+str(tuple(size))+"\n")
+    f.write("Node names sample: "+str(node_names[:30])+"\n")
 print("RENDER_COMPLETE", out)
