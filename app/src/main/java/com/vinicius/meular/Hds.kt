@@ -23,6 +23,9 @@ object Hds {
     private class Pend(val img: Int, val cut: Boolean, val mat: Int, val a: Acc)
     private class Group { val cur = HashMap<Int, Acc>(); val all = ArrayList<Pend>() }
     private class CG { val g = Group(); var x0 = 1e9f; var z0 = 1e9f; var x1 = -1e9f; var z1 = -1e9f; var h = 0f }
+    /** Triângulo de piso/degrau real das casas da Cidade 2, em coordenadas do mundo. */
+    private data class WalkTri(val x1: Float, val y1: Float, val z1: Float, val x2: Float, val y2: Float, val z2: Float, val x3: Float, val y3: Float, val z3: Float)
+    @Volatile private var walkSurfaces: Array<List<WalkTri>> = emptyArray()
     private class Job(val chunk: City.Chunk?, val roof: Roof?, val pends: List<Pend>)
 
     @Volatile var roofs: List<Roof> = emptyList()
@@ -45,8 +48,26 @@ object Hds {
     fun inside(x: Float, z: Float): Boolean { for (r in roofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false }
 
     /** Altura real de caminhada da Cidade 2: pisos internos, asfalto e calçadas. */
-    fun groundH(x: Float, z: Float): Float {
-        for (p in mplots) if (x > p[0] + 0.05f && x < p[2] - 0.05f && z > p[1] + 0.05f && z < p[3] - 0.05f) return City.FLOOR
+    fun groundH(x: Float, z: Float, referenceY: Float = Float.NaN): Float {
+        for (i in mplots.indices) {
+            val p = mplots[i]
+            if (x <= p[0] + 0.05f || x >= p[2] - 0.05f || z <= p[1] + 0.05f || z >= p[3] - 0.05f) continue
+            val refValid = !referenceY.isNaN() && !referenceY.isInfinite()
+            val low = if (refValid) referenceY - 0.58f else City.FLOOR - 0.58f
+            val high = if (refValid) referenceY + 0.38f else City.FLOOR + 0.38f
+            var best = Float.NEGATIVE_INFINITY
+            for (t in walkSurfaces.getOrNull(i) ?: emptyList()) {
+                val den = (t.z2 - t.z3) * (t.x1 - t.x3) + (t.x3 - t.x2) * (t.z1 - t.z3)
+                if (kotlin.math.abs(den) < 1e-6f) continue
+                val a = ((t.z2 - t.z3) * (x - t.x3) + (t.x3 - t.x2) * (z - t.z3)) / den
+                val b = ((t.z3 - t.z1) * (x - t.x3) + (t.x1 - t.x3) * (z - t.z3)) / den
+                val c = 1f - a - b
+                if (a < -0.015f || b < -0.015f || c < -0.015f) continue
+                val y = a * t.y1 + b * t.y2 + c * t.y3
+                if (y >= low && y <= high && y > best) best = y
+            }
+            return if (best.isFinite()) best else City.FLOOR
+        }
         var dx = Float.MAX_VALUE
         for (v in mxr) dx = minOf(dx, kotlin.math.abs(x - v))
         var dz = Float.MAX_VALUE
@@ -63,7 +84,7 @@ object Hds {
         model = null
         if (texIds.any { it != 0 }) { try { GLES20.glDeleteTextures(texIds.size, texIds, 0) } catch (e: Throwable) { } }
         texIds = IntArray(0)
-        mxr = FloatArray(0); mzr = FloatArray(0); mplots = emptyList()
+        mxr = FloatArray(0); mzr = FloatArray(0); mplots = emptyList(); walkSurfaces = emptyArray()
     }
 
     private fun addPrim(g: Group, p: GPrim, m: FloatArray, ox: Float, oz: Float, cg: CG?) {
@@ -146,6 +167,7 @@ object Hds {
         for (n in gm.nodes) for (p in n.prims) if (p.cut && p.img in clamp.indices) clamp[p.img] = true
 
         val roofG = Array(np) { Group() }
+        val walk = Array(np) { ArrayList<WalkTri>() }
         val cells = HashMap<Long, CG>()
         val inst = js.getJSONArray("inst")
         val m = FloatArray(12)
@@ -156,6 +178,43 @@ object Hds {
             val kind = a.getInt(13); val plot = a.getInt(14)
             val node = gm.nodes.getOrNull(pi) ?: continue
             if (node.prims.isEmpty()) continue
+            // Captura superfícies superiores dos componentes da casa (kind 1), nunca telhados.
+            // Isso fornece altura real para cada degrau e para o piso do andar superior.
+            if (kind == 1 && plot in 0 until np) {
+                val pb = plots.getJSONObject(plot)
+                val px0 = pb.getDouble("x0").toFloat() + ox - 0.2f
+                val pz0 = pb.getDouble("z0").toFloat() + oz - 0.2f
+                val px1 = pb.getDouble("x1").toFloat() + ox + 0.2f
+                val pz1 = pb.getDouble("z1").toFloat() + oz + 0.2f
+                for (pr in node.prims) {
+                    var q = 0
+                    while (q + 2 < pr.idx.size) {
+                        val ia = (pr.idx[q].toInt() and 0xFFFF) * STRIDE
+                        val ib = (pr.idx[q + 1].toInt() and 0xFFFF) * STRIDE
+                        val ic = (pr.idx[q + 2].toInt() and 0xFFFF) * STRIDE
+                        val ax = m[0]*pr.v[ia] + m[1]*pr.v[ia+1] + m[2]*pr.v[ia+2] + m[3] + ox
+                        val ay = m[4]*pr.v[ia] + m[5]*pr.v[ia+1] + m[6]*pr.v[ia+2] + m[7]
+                        val az = m[8]*pr.v[ia] + m[9]*pr.v[ia+1] + m[10]*pr.v[ia+2] + m[11] + oz
+                        val bx = m[0]*pr.v[ib] + m[1]*pr.v[ib+1] + m[2]*pr.v[ib+2] + m[3] + ox
+                        val by = m[4]*pr.v[ib] + m[5]*pr.v[ib+1] + m[6]*pr.v[ib+2] + m[7]
+                        val bz = m[8]*pr.v[ib] + m[9]*pr.v[ib+1] + m[10]*pr.v[ib+2] + m[11] + oz
+                        val cx = m[0]*pr.v[ic] + m[1]*pr.v[ic+1] + m[2]*pr.v[ic+2] + m[3] + ox
+                        val cy = m[4]*pr.v[ic] + m[5]*pr.v[ic+1] + m[6]*pr.v[ic+2] + m[7]
+                        val cz = m[8]*pr.v[ic] + m[9]*pr.v[ic+1] + m[10]*pr.v[ic+2] + m[11] + oz
+                        val nx = (by-ay)*(cz-az) - (bz-az)*(cy-ay)
+                        val ny = (bz-az)*(cx-ax) - (bx-ax)*(cz-az)
+                        val nz = (bx-ax)*(cy-ay) - (by-ay)*(cx-ax)
+                        val area2 = kotlin.math.sqrt(nx*nx + ny*ny + nz*nz)
+                        if (area2 > 1e-5f && ny / area2 > 0.72f &&
+                            minOf(ax,bx,cx) >= px0 && maxOf(ax,bx,cx) <= px1 &&
+                            minOf(az,bz,cz) >= pz0 && maxOf(az,bz,cz) <= pz1 &&
+                            minOf(ay,by,cy) >= -0.15f && maxOf(ay,by,cy) <= 4.5f) {
+                            walk[plot].add(WalkTri(ax,ay,az,bx,by,bz,cx,cy,cz))
+                        }
+                        q += 3
+                    }
+                }
+            }
             if (kind == 2 && plot in 0 until np) {
                 for (p in node.prims) addPrim(roofG[plot], p, m, ox, oz, null)
             } else {
@@ -203,6 +262,7 @@ object Hds {
         android.util.Log.i("Hds", "triângulos repetidos descartados: $dropped")
         seen.clear()
         mplots = pl
+        walkSurfaces = Array(np) { walk[it].toList() }
         clampImg = clamp
         roofs = rl
         model = gm
