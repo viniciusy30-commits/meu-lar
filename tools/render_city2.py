@@ -24,7 +24,7 @@ size = mx-mn
 print("CITY2_BOUNDS", tuple(mn), tuple(mx), "SIZE", tuple(size), "MESHES", len(meshes))
 
 scene = bpy.context.scene
-scene.render.engine = 'BLENDER_EEVEE_NEXT'
+scene.render.engine = 'BLENDER_EEVEE'
 scene.eevee.taa_render_samples = 48
 scene.render.resolution_x = 1400
 scene.render.resolution_y = 900
