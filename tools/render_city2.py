@@ -53,6 +53,8 @@ scene.collection.objects.link(cam)
 scene.camera = cam
 cam_data.type = 'ORTHO'
 cam_data.lens = 50
+cam_data.clip_start = 0.1
+cam_data.clip_end = 10000
 
 def aim(obj, target):
     obj.rotation_euler = (Vector(target)-obj.location).to_track_quat('-Z','Y').to_euler()
@@ -65,21 +67,21 @@ def render(name, target, location, scale, res=(1400,900)):
     scene.render.filepath = os.path.join(out, name+".png")
     bpy.ops.render.render(write_still=True)
 
-span = max(size.x, size.z)
+span = max(size.x, size.y)
 # O GLB está em Z-up: X/Y são o chão e Z é a altura.
 render("01_top_overview", center,
        (center.x, center.y, mx.z + span*1.15), span*1.08)
 render("02_oblique_overview", center,
        (center.x+span*0.82, center.y-span*0.82, center.z+span*0.92), span*1.18)
 
-for idx, (sx,sz) in enumerate([(-1,-1),(1,-1),(-1,1),(1,1)], start=1):
-    target = Vector((center.x+sx*size.x*0.23, center.y+sz*size.y*0.23, center.z))
+for idx, (sx,sy) in enumerate([(-1,-1),(1,-1),(-1,1),(1,1)], start=1):
+    target = Vector((center.x+sx*size.x*0.23, center.y+sy*size.y*0.23, center.z))
     loc = Vector((target.x+span*0.25, target.y-span*0.48, mx.z+span*0.38))
     render("0%d_quadrant"% (idx+2), target, loc, span*0.55)
 
-for idx, (dx,dz) in enumerate([(0,0),(0.22,0),(-0.22,0),(0,0.22),(0,-0.22)], start=1):
+for idx, (dx,dy) in enumerate([(0,0),(0.22,0),(-0.22,0),(0,0.22),(0,-0.22)], start=1):
     tx = center.x + size.x*dx
-    ty = center.y + size.y*dz
+    ty = center.y + size.y*dy
     target = Vector((tx, ty, mn.z+size.z*0.45))
     loc = Vector((tx+span*0.12, ty-span*0.22, mn.z+span*0.42))
     render("street_%02d"%idx, target, loc, span*0.28, (1280,800))
