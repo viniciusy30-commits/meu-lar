@@ -594,16 +594,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val W = gw.toDouble()
         val H = gh.toDouble()
         val plan = HouseLayout.active(gw, gh)   // Etapa 144: casa com cômodos — uma janela por cômodo
-        walls[0] = Models.wall(W, if (plan) listOf(Opening(2.2, 1.4, false), Opening(7.7, 0.8, false), Opening(11.5, 1.4, false), Opening(15.6, 1.0, false)) else listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
+        walls[0] = Models.wall(W, if (plan) listOf(Opening(2.2, 1.6, false), Opening(8.0, 1.25, false), Opening(11.5, 1.6, false), Opening(15.6, 1.25, false)) else listOf(Opening(W / 2, 1.9, false)), wl.cor, true, false)
         walls[1] = Models.wall(W, listOf(Opening(W / 2, 1.1, true), Opening(W * 0.22, 1.25, false), Opening(W * 0.78, 1.25, false)), wl.cor, true, false)
-        walls[2] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
-        walls[3] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.2, false), Opening(H * 0.75, 1.2, false)) else emptyList(), wl.cor, false, true)
+        walls[2] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.25, false), Opening(H * 0.75, 1.25, false)) else listOf(Opening(H / 2, 1.6, false)), wl.cor, false, false)
+        walls[3] = Models.wall(H, if (plan) listOf(Opening(H * 0.25, 1.25, false), Opening(H * 0.75, 1.25, false)) else emptyList(), wl.cor, false, true)
         bw = gw; bh = gh; bf = st.floorIdx; bwl = st.wallIdx; bTest = st.testRoom
         // cortinas simuladas (uma por janela; a cor segue a regra antiga: rosada na metade esquerda, dourada na direita)
         cloth.clear()
         fun cur(wall: Int, c: Double, w: Double, len: Double) =
             cloth.addWindow(wall, c, w, if (c < len / 2) C("#D9786B") else C("#E4B25F"))
-        if (plan) { cur(0, 2.2, 1.4, W); cur(0, 11.5, 1.4, W); cur(2, H * 0.25, 1.2, H); cur(2, H * 0.75, 1.2, H); cur(3, H * 0.25, 1.2, H); cur(3, H * 0.75, 1.2, H) }
+        if (plan) { cur(0, 2.2, 1.6, W); cur(0, 11.5, 1.6, W); cur(2, H * 0.25, 1.25, H); cur(2, H * 0.75, 1.25, H); cur(3, H * 0.25, 1.25, H); cur(3, H * 0.75, 1.25, H) }
         else { cur(0, W / 2, 1.9, W); cur(2, H / 2, 1.6, H) }
         cur(1, W * 0.22, 1.25, W); cur(1, W * 0.78, 1.25, W)
     }

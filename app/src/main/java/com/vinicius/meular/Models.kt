@@ -439,31 +439,6 @@ object Models {
 
         // Etapa 87: vasos da varanda e postes de luz (anteriores ao Plano Mestre) foram retirados
 
-        // canteiros com flores na frente da casa (flores e folhas de verdade, Etapa 67)
-        val fnames = listOf("fl_tulip", "fl_daisy", "fl_lav", "fl_yellow", "fl_poppy")
-        for (side in 0..1) {
-            val xa = if (side == 0) 0.45 else W / 2 + 1.75
-            val xb = if (side == 0) W / 2 - 1.75 else W - 0.45
-            b.m(Mt.PLAIN)
-            b.rbox((xa + xb) / 2, 0.08, H + 0.65, xb - xa, 0.16, 0.7, 0.05, C("#4B3427"), true, 2)
-            var x = xa + 0.25
-            var i = 0
-            while (x < xb - 0.1) {
-                val zz = H + 0.5 + (i % 3) * 0.14
-                fl.place(fnames[(i + side * 2) % fnames.size], x, 0.14, zz, 0.9 + 0.2 * ((i * 7) % 5) / 4.0, i * 1.9)
-                if (i % 3 == 1) fl.place("bush_a", x + 0.2, 0.13, H + 0.82, 0.32, i * 2.3, 1f, 1f, 1f)
-                x += 0.42
-                i++
-            }
-        }
-
-        // cerca-viva atrás da casa
-        run {
-            val n = Math.ceil((W + 1.4) / 2.0).toInt()
-            val step = (W + 1.4) / n
-            for (i in 0 until n) fl.place("hedge", -0.7 + step * (i + 0.5), 0.0, -0.85, step / 2.0, 0.0, 1f, 1f, 1f)
-        }
-
         // árvores e arbustos
         if (vitrine) {
             // Etapa 87: sala de testes — todas as plantas e árvores do jogo do lado de fora da casa, em fila, com o nome no catálogo
@@ -481,18 +456,7 @@ object Models {
                 if (col == 0) zl += Math.max(1.2, t.h * 0.9)
             }
         } else {
-            fl.place("oak_a", -3.6, 0.0, -3.2, 1.0, 0.4)
-            fl.place("oak_b", W + 3.8, 0.0, H * 0.25, 1.1, 2.0, 0.97f, 1.0f, 0.97f)
-            fl.place("cherry_a", -3.4, 0.0, H + 3.6, 0.95, 1.1)
-            fl.place("pine_a", W + 3.2, 0.0, H + 4.8, 1.05, 0.7)
-            fl.place("oak_a", W / 2 + 4.5, 0.0, -4.8, 1.2, 3.6, 0.95f, 1.0f, 0.95f)
-            fl.place("pine_a", -5.2, 0.0, H * 0.5, 1.2, 2.6, 0.95f, 1.0f, 0.97f)
-            fl.place("bush_pink", -1.1, 0.0, H * 0.4, 1.0, 0.5)
-            fl.place("bush_a", W + 1.2, 0.0, H * 0.7, 1.15, 1.7)
-            fl.place("bush_white", -1.0, 0.0, H + 1.5, 0.95, 2.9)
-            fl.place("bush_pink", W + 1.1, 0.0, H + 1.2, 1.0, 4.1)
-            fl.place("bush_b", W / 2 - 3.2, 0.0, H + 5.0, 1.25, 0.9)
-            fl.place("bush_white", W / 2 + 3.4, 0.0, H + 6.2, 1.1, 3.3)
+            // Etapa 160: terreno limpo — sem árvores, arbustos, cerca-viva ou canteiros (o jogador monta o jardim que quiser)
         }
 
         // tufos de grama espalhados pelo quintal (fora da casa e do caminho)
@@ -511,33 +475,8 @@ object Models {
             }
         }
 
-        // cerca com portão (painéis e postes modelados)
-        run {
-            fun line(len: Double, cb: (Double, Double, Double) -> Unit) {
-                val n = Math.max(1, (len / 2.0).toInt())
-                val step = len / n
-                for (i in 0 until n) cb(i * step, step, step / 2.0)
-            }
-            line(x1 - x0) { o, st, sc ->
-                val cx = x0 + o + st / 2
-                fl.place("fence_post", x0 + o, 0.0, z0, 1.0, 0.0)
-                fl.place("fence_panel", x0 + o + st, 0.0, z0, sc, Math.PI)
-                fl.place("fence_post", x0 + o, 0.0, z1, 1.0, 0.0)
-                if (Math.abs(cx - W / 2) > 1.4) fl.place("fence_panel", x0 + o, 0.0, z1, sc, 0.0)
-            }
-            fl.place("fence_post", x1, 0.0, z0, 1.0, 0.0); fl.place("fence_post", x1, 0.0, z1, 1.0, 0.0)
-            line(z1 - z0) { o, st, sc ->
-                fl.place("fence_post", x0, 0.0, z0 + o, 1.0, 0.0)
-                fl.place("fence_panel", x0, 0.0, z0 + o, sc, -Math.PI / 2)
-                fl.place("fence_post", x1, 0.0, z0 + o, 1.0, 0.0)
-                fl.place("fence_panel", x1, 0.0, z0 + o + st, sc, Math.PI / 2)
-            }
-            fl.place("fence_post", x0, 0.0, z1, 1.0, 0.0)
-            for (sx in intArrayOf(-1, 1)) {
-                val px = W / 2 + sx * 1.0
-                fl.place("fence_post", px, 0.0, z1, 1.25, 0.0)
-            }
-        }
+        // Etapa 160: cerca nova (mureta, pilares com luminária e grade de ferro; portão aberto)
+        HomeFence.build(b, W, x0, x1, z0, z1)
 
         // Etapa 118: piscina com deck de pedra, borda branca, bacia azul e água translúcida (a água vai no passe de vidro)
         run {
@@ -595,13 +534,6 @@ object Models {
             b.al = 0.58f
             b.plane(px0, pz0, px1, pz1, wy, C("#4CC4EA"), true)
             b.al = 1f
-            // plantas em volta do deck
-            fl.place("oak_b", ox0 - 2.2, 0.0, oz0 + 1.2, 1.15, 1.3)
-            fl.place("pine_a", ox1 + 2.0, 0.0, oz0 + 2.0, 1.1, 2.1)
-            fl.place("bush_pink", ox0 - 0.6, 0.0, oz0 + 0.4, 1.0, 0.8)
-            fl.place("bush_white", ox1 + 0.6, 0.0, oz1 - 0.5, 1.0, 2.2)
-            fl.place("bush_a", ox1 + 0.5, 0.0, oz0 + 0.6, 1.1, 0.3)
-            fl.place("bush_b", ox0 - 0.6, 0.0, oz1 - 0.3, 1.0, 1.9)
         }
 
         val yardMesh = b.toMesh(true)
