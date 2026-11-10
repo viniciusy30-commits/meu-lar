@@ -1103,6 +1103,21 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(d.mesh, d.m, 1f)
         }
         drawOwnCar()
+        // Etapa 158: carpas e patos nadando no lago do parque
+        run { val sm = TownPark.swimMesh; val tt = (System.nanoTime() / 1_000_000L % 3_600_000L) / 1000f
+            for (sw in TownPark.swimmers) {
+                val dx = sw.cx - ex; val dz = sw.cz - ez
+                if (dx * dx + dz * dz > 90f * 90f) continue
+                val mesh = sm.getOrNull(sw.mesh) ?: continue
+                val a = sw.ph + tt * sw.spd / sw.rad
+                val x = sw.cx + cos(a) * sw.rad; val z = sw.cz + sin(a) * sw.rad
+                val sg = if (sw.spd >= 0f) 1f else -1f
+                val yaw = Math.toDegrees(atan2((-sin(a) * sg).toDouble(), (cos(a) * sg).toDouble())).toFloat() + (if (sw.mesh < 6) sin(tt * 5f + sw.ph * 7f) * 9f else 0f)
+                Matrix.setIdentityM(pmdl, 0)
+                Matrix.translateM(pmdl, 0, x, sw.y + (if (sw.mesh >= 6) sin(tt * 2f + sw.ph) * 0.015f else 0f), z)
+                Matrix.rotateM(pmdl, 0, yaw, 0f, 1f, 0f)
+                draw(mesh, pmdl, 1f)
+            } }
         val pb = City.pedBody; val pl = City.pedLeg; val pa = City.pedArm
         for (p in City.peds) {
             val dx = p.x - ex; val dz = p.z - ez

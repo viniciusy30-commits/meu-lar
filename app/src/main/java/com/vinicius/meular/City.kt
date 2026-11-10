@@ -345,6 +345,7 @@ object City {
         CityFun.buildRides()
         spawnTraffic()
         buildPeds()
+        if (TOWN) TownPark.buildLife()
         // pontos do mapa
         places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
@@ -379,6 +380,7 @@ object City {
         chunks = out
         spawnTownTraffic()
         buildPeds()
+        if (TOWN) TownPark.buildLife()
         places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
         if (tk != token) return
         Shade.finish(); Shade.mesh?.gpuOnly()
