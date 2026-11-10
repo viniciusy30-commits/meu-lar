@@ -25,7 +25,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
           EGL_PLATFORM: "surfaceless"
         run: |
-          PYTHONPATH=/tmp/blender-python blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb city2-renders
+          PYTHONPATH=/tmp/blender-python blender -b --python tools/render_city2.py -- app/src/main/assets/hds/city2.glb app/src/main/assets/hds/city2.json city2-renders
       - name: Upload rendered inspection images
         uses: actions/upload-artifact@v4
         with:
