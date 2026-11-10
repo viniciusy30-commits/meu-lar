@@ -84,7 +84,7 @@ object TownPark {
      */
     private fun formal(pl: Plan, bl: FloatArray, x0: Float, z0: Float, x1: Float, z1: Float) {
         val cx = (x0 + x1) / 2; val cz = (z0 + z1) / 2
-        pl.cx = cx; pl.cz = cz; pl.lakeR = 30f; pl.lakeA = 1f; pl.lakeB = 1f; pl.lakeRot = 0f; pl.plaza = false; pl.pw = 2.3f
+        pl.cx = cx; pl.cz = cz; pl.lakeR = 32f; pl.lakeA = 1f; pl.lakeB = 1f; pl.lakeRot = 0f; pl.plaza = false; pl.pw = 2.3f
         val hx = (x1 - x0) / 2 - 11f; val hz = (z1 - z0) / 2 - 11f; val rr = pl.lakeR + 8f
         fun line(ax: Float, az: Float, bx: Float, bz: Float): FloatArray { val n = max(2, (hypot(bx - ax, bz - az) / 2f).toInt()); val o = FloatArray((n + 1) * 2); for (i in 0..n) { o[i * 2] = ax + (bx - ax) * i / n; o[i * 2 + 1] = az + (bz - az) * i / n }; return o }
         val ring = FloatArray(65 * 2); for (q in 0..64) { val a = 6.2832f * q / 64; ring[q * 2] = cx + cos(a) * rr; ring[q * 2 + 1] = cz + sin(a) * rr }
@@ -106,6 +106,9 @@ object TownPark {
         spot(1f, -110f * zs, 0, 9f); spot(1f, -80f * zs, 12, 8f); spot(1f, -50f * zs, 3, 8f)   // nordeste: parquinho, piquenique, academia
         spot(-1f, 50f * zs, 5, 6f); spot(-1f, 80f * zs, 10, 9f); spot(-1f, 114f * zs, 8, 13f)   // sudoeste: coreto, roseiral, anfiteatro
         spot(1f, 50f * zs, 4, 6f); spot(1f, 80f * zs, 9, 10f); spot(1f, 113f * zs, 6, 12f)      // sudeste: quiosque, vôlei, skate
+        // Etapa 156: oito jardins formais (canteiros com cerca viva) entre o eixo central e as alamedas laterais, espelhados
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) { var k = 0
+            for (dz in floatArrayOf(rr + 27f, rr + 69f)) { if (dz + 19f < hz - 3f) pl.spots.add(floatArrayOf(cx + sx * 25.5f, cz + sz * dz, 19f, 13f)); k++ } }
         // árvores: fileiras dos dois lados dos eixos e da alameda de fora, e bosque em grade nos gramados
         fun ok(px: Float, pz: Float, gap: Float): Boolean {
             if (inset(bl, px, pz) < 2.5f) return false
@@ -270,6 +273,7 @@ object TownPark {
             b.m(Mt.METAL, 1f); b.box(gt[0], CURB + 4.6f, gt[1], 9.6f * abs(px) + 0.25f, 0.3f, 9.6f * abs(pz) + 0.25f, C("#2E4A33"))
             b.box(gt[0], CURB + 5.1f, gt[1], 5.0f * abs(px) + 0.12f, 0.7f, 5.0f * abs(pz) + 0.12f, C("#2E4A33"))
         }
+        if (near && pl.gates.isNotEmpty()) { lakeLife(g, pl); axisFlowers(g, pl) }
         if (near && pl.gates.isNotEmpty()) {
             val fr = pl.lakeR + 8f + pl.pw + 2.6f; val cols = arrayOf("#E53935", "#FDD835", "#F06292", "#FFFFFF", "#FB8C00", "#8E24AA")
             for (q in 0 until 8) { val a = 0.3927f + q * 0.7854f; val x = pl.cx + cos(a) * fr; val z = pl.cz + sin(a) * fr
@@ -288,6 +292,7 @@ object TownPark {
                 3 -> if (near) gym(g, x, z) else if (g.reg) gym(g, x, z)
                 4 -> kiosk(g, x, z, near)
                 5 -> gazebo(g, x, z, near)
+                13 -> if (near || g.reg) parterre(g, x, z, ((abs(x - pl.cx) + abs(z - pl.cz) * 3f) / 40f).toInt() + (if (x > pl.cx) 1 else 0) + (if (z > pl.cz) 2 else 0))
                 else -> if (near || g.reg) extra(g, tp, x, z, near)
             }
             // caminho curto até o caminho mais perto
@@ -342,6 +347,107 @@ object TownPark {
                     b.m(Mt.WOOD, 0.5f); b.box(px, CURB + 0.75f, pz, 2.2f, 0.08f, 1.0f, C("#8A5E3C")); for (s in floatArrayOf(-0.7f, 0.7f)) b.box(px, CURB + 0.45f, pz + s, 2.2f, 0.06f, 0.3f, C("#7A5A3C"))
                     b.box(px, CURB + 0.37f, pz, 0.12f, 0.75f, 0.12f, C("#6B4A32")) }
                 b.m(Mt.STONE, 1f); b.box(x + 4f, CURB + 0.4f, z, 1f, 0.8f, 0.8f, C("#6E6A64")) }
+        }
+    }
+
+    private val FLOWERS = arrayOf("#E53935", "#FDD835", "#F06292", "#FFFFFF", "#FB8C00", "#8E24AA", "#EC407A", "#FFB300")
+    private val HEDGE = C("#2F6B2F")
+
+    /** Etapa 156: o lago vivo — chafariz no centro, carpas, vitórias-régias com flor, taboas, pedras, patos e uma borda florida. */
+    private fun lakeLife(g: CityGeo.Gen, pl: Plan) {
+        val b = g.b; val R = pl.lakeR; val wy = CURB + 0.33f; val r = City.Rng(8123)
+        val ix = pl.cx + R * 0.3f; val iz = pl.cz - R * 0.2f; val ir = R * 0.18f + 1.5f
+        fun free(x: Float, z: Float, m: Float) = hypot(x - pl.cx, z - pl.cz) < R - m && hypot(x - ix, z - iz) > ir + m && hypot(x - pl.cx, z - pl.cz) > 4.5f
+        // chafariz: base de pedra, taça e jatos d'água
+        b.m(Mt.STONE, 0.6f); b.cyl(pl.cx, wy - 0.3f, pl.cz, 3.0f, 2.6f, 0.9f, C("#CFC8BA"), true, 20); b.cyl(pl.cx, wy + 0.6f, pl.cz, 0.5f, 0.4f, 1.8f, C("#CFC8BA"), true, 10); b.cyl(pl.cx, wy + 2.4f, pl.cz, 0.5f, 1.9f, 0.4f, C("#CFC8BA"), true, 16)
+        b.m(Mt.PLAIN); b.cyl(pl.cx, wy + 0.55f, pl.cz, 2.4f, 2.4f, 0.04f, C("#6FC3E6"), true, 20); b.cyl(pl.cx, wy + 2.76f, pl.cz, 1.7f, 1.7f, 0.04f, C("#6FC3E6"), true, 16)
+        b.al = 0.75f
+        b.cyl(pl.cx, wy + 2.8f, pl.cz, 0.28f, 0.05f, 4.6f, C("#E6F7FF"), true, 8)
+        for (q in 0 until 8) { val a = q * 0.7854f; b.cyl(pl.cx + cos(a) * 1.3f, wy + 2.8f, pl.cz + sin(a) * 1.3f, 0.14f, 0.03f, 1.9f, C("#E6F7FF"), true, 6); b.cyl(pl.cx + cos(a) * 9f, wy, pl.cz + sin(a) * 9f, 0.2f, 0.03f, 2.6f, C("#E6F7FF"), true, 6) }
+        b.al = 1f
+        if (g.reg) g.solid(pl.cx - 2.6f, pl.cz - 2.6f, pl.cx + 2.6f, pl.cz + 2.6f)
+        // carpas: cardumes coloridos logo abaixo da superfície
+        val koi = arrayOf("#FF7A1A", "#FFFFFF", "#E53935", "#FFB300", "#F5F5F5", "#2B2B2B")
+        b.m(Mt.PLAIN)
+        repeat(14) { val sa = r.r(0f, 6.283f); val sd = r.r(7f, R - 4f); val scx = pl.cx + cos(sa) * sd; val scz = pl.cz + sin(sa) * sd; val dir = r.r(0f, 6.283f)
+            for (k in 0 until 5) { val fx = scx + r.r(-2.2f, 2.2f); val fz = scz + r.r(-2.2f, 2.2f); if (!free(fx, fz, 1.2f)) continue
+                val d = dir + r.r(-0.5f, 0.5f); val dx = cos(d); val dz = sin(d); val c = C(koi[r.i(6)]); val L = r.r(0.55f, 0.95f)
+                TownGeo.obox(b, fx, wy + 0.012f, fz, L, 0.02f, L * 0.3f, dx, dz, c); TownGeo.obox(b, fx + dx * L * 0.3f, wy + 0.016f, fz + dz * L * 0.3f, L * 0.3f, 0.02f, L * 0.2f, dx, dz, C(koi[r.i(6)]))
+                TownGeo.obox(b, fx - dx * L * 0.62f, wy + 0.012f, fz - dz * L * 0.62f, L * 0.28f, 0.02f, L * 0.42f, dx, dz, c) } }
+        // vitórias-régias (algumas com flor) e taboas na margem
+        repeat(46) { val a = r.r(0f, 6.283f); val d = r.r(R * 0.45f, R - 1.6f); val x = pl.cx + cos(a) * d; val z = pl.cz + sin(a) * d; if (!free(x, z, 1.0f)) return@repeat
+            val rr = r.r(0.45f, 1.0f); b.cyl(x, wy + 0.005f, z, rr, rr, 0.025f, C(if (r.chance(0.5f)) "#3E8E41" else "#57A35A"), true, 9); b.cyl(x, wy + 0.01f, z, rr * 0.86f, rr * 0.86f, 0.026f, C("#6BBF6E"), true, 9)
+            if (r.chance(0.4f)) { CityGeo.ball(b, x, wy + 0.12f, z, 0.2f, C(if (r.chance(0.5f)) "#F8BBD0" else "#FFFFFF"), 0.13f, 6); CityGeo.ball(b, x, wy + 0.2f, z, 0.08f, C("#FDD835"), 0.06f, 5) } }
+        repeat(16) { val a = it * 0.3927f + r.r(-0.1f, 0.1f); if (abs(((a - 2.4f + 9.42f) % 6.283f) - 3.1416f) < 0.35f) return@repeat
+            val x0 = pl.cx + cos(a) * (R - 1.0f); val z0 = pl.cz + sin(a) * (R - 1.0f)
+            for (k in 0 until 6) { val x = x0 + r.r(-0.8f, 0.8f); val z = z0 + r.r(-0.8f, 0.8f); val h = r.r(1.0f, 1.9f); b.box(x, wy + h / 2, z, 0.05f, h, 0.05f, C("#4E8B3A")); if (k % 2 == 0) b.box(x, wy + h + 0.12f, z, 0.09f, 0.3f, 0.09f, C("#6B4E36")) } }
+        // pedras na borda e patos nadando
+        b.m(Mt.STONE, 0.4f)
+        repeat(18) { val a = r.r(0f, 6.283f); val s2 = r.r(0.5f, 1.1f); CityGeo.ball(b, pl.cx + cos(a) * (R - 0.4f), wy + 0.05f, pl.cz + sin(a) * (R - 0.4f), s2, C(arrayOf("#8E8A84", "#9C978E", "#7C7872")[r.i(3)]), s2 * 0.6f, 6) }
+        b.m(Mt.PLAIN)
+        repeat(9) { val a = r.r(0f, 6.283f); val d = r.r(6f, R - 4f); val x = pl.cx + cos(a) * d; val z = pl.cz + sin(a) * d; if (!free(x, z, 1.2f)) return@repeat
+            val dd = r.r(0f, 6.283f); val dx = cos(dd); val dz = sin(dd); val wc = C(if (it % 3 == 0) "#8D6E63" else "#FFFFFF")
+            CityGeo.ball(b, x, wy + 0.12f, z, 0.3f, wc, 0.2f, 6); CityGeo.ball(b, x + dx * 0.28f, wy + 0.38f, z + dz * 0.28f, 0.13f, if (it % 3 == 0) C("#1B5E20") else wc, 0.13f, 5); TownGeo.obox(b, x + dx * 0.45f, wy + 0.36f, z + dz * 0.45f, 0.14f, 0.04f, 0.07f, dx, dz, C("#FB8C00")) }
+        // borda florida entre o lago e o anel: flores, arbustos redondos e ciprestes
+        for (q in 0 until 40) { val a = q * 0.15708f; if (abs(((a - 2.4f + 9.42f) % 6.283f) - 3.1416f) < 0.2f) continue
+            val x = pl.cx + cos(a) * (R + 2.7f); val z = pl.cz + sin(a) * (R + 2.7f)
+            if (q % 5 == 0) { b.m(Mt.BARK, 1f); b.cyl(x, CURB, z, 0.12f, 0.1f, 0.5f, C("#5D4037"), true, 5); b.m(Mt.PLAIN); b.cyl(x, CURB + 0.4f, z, 0.75f, 0.05f, 4.2f, C("#2E5E32"), true, 7); if (g.reg) g.solid(x - 0.3f, z - 0.3f, x + 0.3f, z + 0.3f) }
+            else { b.m(Mt.PLAIN); CityGeo.ball(b, x, CURB + 0.3f, z, 0.75f, C(FLOWERS[q % 8]), 0.45f, 6); CityGeo.ball(b, x, CURB + 0.15f, z, 0.95f, C("#3E8E41"), 0.3f, 6) } }
+    }
+
+    /** Etapa 156: faixas de flores coloridas com cerca viva dos dois lados dos quatro eixos. */
+    private fun axisFlowers(g: CityGeo.Gen, pl: Plan) {
+        val b = g.b
+        for (pi in 1..4) { val p = pl.paths.getOrNull(pi) ?: continue; val n = p.size / 2
+            var i = 3; var q = pi
+            while (i + 3 < n - 4) {
+                val t = Town.tangent(p, i + 1); val mx = (p[i * 2] + p[i * 2 + 6]) / 2; val mz = (p[i * 2 + 1] + p[i * 2 + 7]) / 2
+                val L = hypot(p[i * 2 + 6] - p[i * 2], p[i * 2 + 7] - p[i * 2 + 1]) - 0.5f
+                for (sd in floatArrayOf(-1f, 1f)) { val ox = -t[1] * sd * (pl.pw + 1.95f); val oz = t[0] * sd * (pl.pw + 1.95f)
+                    b.m(Mt.GRASS, 0.7f); TownGeo.obox(b, mx + ox, CURB + 0.16f, mz + oz, L, 0.32f, 0.9f, t[0], t[1], C(FLOWERS[q % 8])); TownGeo.obox(b, mx + ox, CURB + 0.1f, mz + oz, L + 0.3f, 0.2f, 1.25f, t[0], t[1], C("#3E8E41"))
+                    b.m(Mt.GRASS, 0.5f); TownGeo.obox(b, mx + ox * 1.42f, CURB + 0.35f, mz + oz * 1.42f, L + 0.3f, 0.7f, 0.5f, t[0], t[1], HEDGE) }
+                i += 4; q++
+            }
+        }
+    }
+
+    /** Etapa 156: jardim formal — cerca viva em volta com quatro portões, caminhos em cruz, quatro canteiros de flores em degraus e um centro diferente em cada um. */
+    private fun parterre(g: CityGeo.Gen, x: Float, z: Float, style: Int) {
+        val b = g.b; val hw = 14f; val hd = 16f; val r = City.Rng(style * 131 + 7)
+        if (g.reg) { for (sx in floatArrayOf(-1f, 1f)) { g.solid(x + sx * hw - 0.3f, z - hd, x + sx * hw + 0.3f, z - 2f); g.solid(x + sx * hw - 0.3f, z + 2f, x + sx * hw + 0.3f, z + hd) }
+            for (sz in floatArrayOf(-1f, 1f)) { g.solid(x - hw, z + sz * hd - 0.3f, x - 2f, z + sz * hd + 0.3f); g.solid(x + 2f, z + sz * hd - 0.3f, x + hw, z + sz * hd + 0.3f) }
+            g.solid(x - 1.6f, z - 1.6f, x + 1.6f, z + 1.6f) }
+        if (b.countOnly && false) return
+        // cerca viva com portões
+        b.m(Mt.GRASS, 0.5f)
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) {
+            b.box(x + sx * hw, CURB + 0.45f, z + sz * (hd + 2f) / 2, 0.7f, 0.9f, hd - 2f, HEDGE); b.box(x + sx * (hw + 2f) / 2, CURB + 0.45f, z + sz * hd, hw - 2f, 0.9f, 0.7f, HEDGE)
+            // cipreste em cada canto e bola de buxo em cada portão
+            b.m(Mt.PLAIN); b.cyl(x + sx * hw, CURB + 0.3f, z + sz * hd, 0.9f, 0.05f, 4.8f, C("#2E5E32"), true, 7)
+            CityGeo.ball(b, x + sx * hw, CURB + 1.1f, z + sz * 2.4f, 0.7f, C("#3E8E41"), 0.7f, 6); CityGeo.ball(b, x + sx * 2.4f, CURB + 1.1f, z + sz * hd, 0.7f, C("#3E8E41"), 0.7f, 6)
+            b.m(Mt.GRASS, 0.5f)
+        }
+        // caminhos em cruz e rotatória central
+        b.m(Mt.PAVER, 0.6f); b.box(x, CURB + 0.012f, z, 2.6f, 0.02f, hd * 2, PATH); b.box(x, CURB + 0.012f, z, hw * 2, 0.02f, 2.6f, PATH); b.cyl(x, CURB, z, 5.2f, 5.2f, 0.024f, PATH, true, 20)
+        // quatro canteiros em degraus de cor
+        val c1 = C(FLOWERS[style % 8]); val c2 = C(FLOWERS[(style + 3) % 8]); val c3 = C(FLOWERS[(style + 5) % 8])
+        for (sx in floatArrayOf(-1f, 1f)) for (sz in floatArrayOf(-1f, 1f)) { val qx = x + sx * (hw / 2 + 1.0f); val qz = z + sz * (hd / 2 + 1.0f)
+            b.m(Mt.STONE, 0.8f); b.box(qx, CURB + 0.1f, qz, hw - 4.2f, 0.2f, hd - 4.2f, STONE)
+            b.m(Mt.GRASS, 0.7f); b.box(qx, CURB + 0.2f, qz, hw - 4.8f, 0.3f, hd - 4.8f, C("#3E8E41")); b.box(qx, CURB + 0.27f, qz, hw - 6f, 0.36f, hd - 6f, c1); b.box(qx, CURB + 0.33f, qz, hw - 8f, 0.42f, hd - 8f, c2); b.box(qx, CURB + 0.4f, qz, hw - 10.2f, 0.5f, hd - 10.2f, c3)
+            b.m(Mt.PLAIN); CityGeo.ball(b, qx, CURB + 1.0f, qz, 0.8f, C("#2F6B2F"), 0.8f, 6)
+            for (k in 0 until 4) CityGeo.ball(b, qx + (if (k % 2 == 0) -1f else 1f) * (hw / 2 - 2.9f), CURB + 0.5f, qz + (if (k < 2) -1f else 1f) * (hd / 2 - 2.9f), 0.4f, c3, 0.3f, 5) }
+        // centro
+        when (style % 4) {
+            0 -> { b.m(Mt.STONE, 0.6f); b.cyl(x, CURB, z, 2.6f, 2.6f, 0.6f, C("#CFC8BA"), true, 18); b.cyl(x, CURB + 0.6f, z, 0.35f, 0.3f, 1.5f, C("#CFC8BA"), true, 8); b.cyl(x, CURB + 2.1f, z, 0.3f, 1.2f, 0.3f, C("#CFC8BA"), true, 12)
+                b.m(Mt.PLAIN); b.cyl(x, CURB + 0.52f, z, 2.3f, 2.3f, 0.05f, C("#6FC3E6"), true, 18); b.al = 0.75f; b.cyl(x, CURB + 2.4f, z, 0.16f, 0.03f, 2.2f, C("#E6F7FF"), true, 6); b.al = 1f }
+            1 -> { b.m(Mt.STONE, 0.6f); b.box(x, CURB + 0.2f, z, 2.4f, 0.4f, 2.4f, C("#B8B2A6")); b.box(x, CURB + 1.0f, z, 1.3f, 1.2f, 1.3f, C("#CFC8BA"))
+                b.m(Mt.METAL, 1f); b.cyl(x, CURB + 1.6f, z, 0.32f, 0.22f, 1.5f, C("#7A6A45"), true, 8); CityGeo.ball(b, x, CURB + 3.35f, z, 0.26f, C("#7A6A45"), 0.3f, 7); b.box(x, CURB + 2.75f, z, 1.1f, 0.16f, 0.2f, C("#7A6A45")) }
+            2 -> { CityGeo.tree(g, x, z, 1.35f, CURB, 0); b.m(Mt.WOOD, 0.6f)
+                for (q in 0 until 8) { val a = q * 0.7854f; TownGeo.obox(b, x + cos(a) * 2.2f, CURB + 0.45f, z + sin(a) * 2.2f, 1.75f, 0.08f, 0.55f, -sin(a), cos(a), C("#8D6E63")); b.box(x + cos(a) * 2.2f, CURB + 0.22f, z + sin(a) * 2.2f, 0.1f, 0.44f, 0.1f, C("#4A4A4A")) } }
+            else -> { b.m(Mt.WOOD, 0.6f); for (sx in floatArrayOf(-1.9f, 1.9f)) for (sz in floatArrayOf(-1.9f, 1.9f)) b.box(x + sx, CURB + 1.4f, z + sz, 0.22f, 2.8f, 0.22f, C("#F2EEE6"))
+                for (k in -3..3) b.box(x + k * 0.62f, CURB + 2.95f, z, 0.12f, 0.16f, 4.6f, C("#F2EEE6")); for (sz in floatArrayOf(-1.9f, 1.9f)) b.box(x, CURB + 2.84f, z + sz, 4.6f, 0.16f, 0.16f, C("#F2EEE6"))
+                b.m(Mt.PLAIN); for (k in 0 until 7) CityGeo.ball(b, x + r.r(-2f, 2f), CURB + 3.1f, z + r.r(-2f, 2f), 0.55f, C(if (k % 2 == 0) "#8E24AA" else "#3E8E41"), 0.3f, 5)
+                bench(b, x, z + 1.2f, 0f, -1f) }
         }
     }
 
