@@ -1,4 +1,5 @@
 import bpy, math, os, sys, json, struct
+sys.path.insert(0, "/tmp/blender-python")
 from mathutils import Vector, Matrix
 
 # Renderiza a Cidade 2 exatamente como Hds.kt: GLB fornece as malhas-base;
