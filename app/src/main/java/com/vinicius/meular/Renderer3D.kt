@@ -679,17 +679,32 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Loja: "Trazer para casa" — o veículo volta para a vaga em frente de casa. */
     fun resetCar() { if (!driving) carX = Float.NaN }
     private fun isMoto() = st.vehKind == Vehicles.MOTO || st.vehKind == Vehicles.SCOOTER
-    private fun carHalfL() = if (isMoto()) 1.05f else if (st.vehKind == Vehicles.VAN || st.vehKind == Vehicles.PICKUP) 2.7f else 2.35f
-    private fun carHalfW() = if (isMoto()) 0.45f else 1.0f
+    private fun carHalfL() = if (isMoto()) 1.05f else if (st.vehKind == Vehicles.TESLA) TeslaCar.HALF_L else if (st.vehKind == Vehicles.VAN || st.vehKind == Vehicles.PICKUP) 2.7f else 2.35f
+    private fun carHalfW() = if (isMoto()) 0.45f else if (st.vehKind == Vehicles.TESLA) TeslaCar.HALF_W else 1.0f
+    /** Etapa 162: Tesla com rodas e portas animadas (null = outro veículo ou GLB indisponível) */
+    private var tesla: TeslaCar? = null
+    private var carT0 = 0L
 
     /** Garante a malha e a vaga do carro; põe na rua em frente de casa na primeira vez. */
     private fun ensureCar() {
-        if (st.vehKind < 0 || !City.on) { carMesh?.release(); carMesh = null; carKey = ""; City.ownCar = null; return }
+        if (st.vehKind < 0 || !City.on) { carMesh?.release(); carMesh = null; tesla = null; carKey = ""; City.ownCar = null; return }
         val key = "${st.vehKind}|${st.vehColor}|${GlGen.gen}"
         if (key != carKey) {
+            if (st.vehKind == Vehicles.TESLA && Glb.assets == null) return    // ainda sem assets: tenta de novo no próximo quadro
             carMesh?.release()
-            val b = MB(); Vehicles.geom(Vehicles.XF(b, 0f, 0f, 0f, 1), st.vehKind, st.vehColor)
-            carMesh = b.toMesh(true); carKey = key
+            val gm = if (st.vehKind == Vehicles.TESLA) Glb.get("veic_tesla") else null
+            if (gm != null) {
+                // Etapa 162: o desenho vem do GLB (drawTesla); a malha vazia só marca que existe um veículo
+                tesla = TeslaCar(gm); carMesh = Mesh(emptyList())
+            } else {
+                tesla = null
+                val b = MB()
+                // sem o GLB do Tesla: sedã branco no lugar
+                if (st.vehKind == Vehicles.TESLA) Vehicles.geom(Vehicles.XF(b, 0f, 0f, 0f, 1), Vehicles.SEDAN, 0xFFF5F5F5.toInt())
+                else Vehicles.geom(Vehicles.XF(b, 0f, 0f, 0f, 1), st.vehKind, st.vehColor)
+                carMesh = b.toMesh(true)
+            }
+            carKey = key
         }
         if (carX.isNaN()) {
             // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
@@ -749,10 +764,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun updateDrive(dt: Float) {
         val moto = isMoto()
         val k = st.vehKind
-        val vmax = when (k) { Vehicles.SPORT -> 52f; Vehicles.MOTO -> 44f; Vehicles.SCOOTER -> 20f; Vehicles.BUS -> 24f; Vehicles.VAN -> 30f; Vehicles.PICKUP -> 38f; else -> 42f }
-        val acc = when (k) { Vehicles.SPORT -> 11.5f; Vehicles.MOTO -> 11f; Vehicles.SCOOTER -> 4.5f; Vehicles.BUS -> 3.2f; Vehicles.VAN -> 4.8f; else -> 7.6f }
-        val grip = when (k) { Vehicles.SPORT -> 9.5f; Vehicles.MOTO -> 8.5f; Vehicles.BUS, Vehicles.VAN -> 6.5f; else -> 8f }
-        val wb = if (moto) 1.45f else if (k == Vehicles.BUS) 5.5f else 2.7f
+        val vmax = when (k) { Vehicles.TESLA -> 50f; Vehicles.SPORT -> 52f; Vehicles.MOTO -> 44f; Vehicles.SCOOTER -> 20f; Vehicles.BUS -> 24f; Vehicles.VAN -> 30f; Vehicles.PICKUP -> 38f; else -> 42f }
+        val acc = when (k) { Vehicles.TESLA -> 10.5f; Vehicles.SPORT -> 11.5f; Vehicles.MOTO -> 11f; Vehicles.SCOOTER -> 4.5f; Vehicles.BUS -> 3.2f; Vehicles.VAN -> 4.8f; else -> 7.6f }
+        val grip = when (k) { Vehicles.TESLA -> 9.2f; Vehicles.SPORT -> 9.5f; Vehicles.MOTO -> 8.5f; Vehicles.BUS, Vehicles.VAN -> 6.5f; else -> 8f }
+        val wb = if (moto) 1.45f else if (k == Vehicles.BUS) 5.5f else if (k == Vehicles.TESLA) 2.96f else 2.7f
         val joyT = moveY.coerceIn(-1f, 1f)
         val thr = if (gasIn) 1f else max(0f, joyT)
         val brk = if (brakeIn) 1f else max(0f, -joyT)
@@ -1014,10 +1029,39 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private fun carFree(x: Float, z: Float, h: Float): Boolean = carHits(x, z, h) == 0
 
+    private val teslaBase = FloatArray(16)
+
+    /** Etapa 162: Tesla — rodas giram com a velocidade, as da frente esterçam com o volante, a porta mais perto abre quando você chega. */
+    private fun drawTesla(t: TeslaCar) {
+        val tn = System.nanoTime()
+        val dt = if (carT0 == 0L) 0.016f else ((tn - carT0) / 1e9f).coerceIn(0f, 0.1f)
+        carT0 = tn
+        val a = Math.PI.toFloat() - carH
+        val dx = px - carX; val dz = pz - carZ
+        val lx = dx * cos(a) - dz * sin(a); val lz = dx * sin(a) + dz * cos(a)
+        t.update(dt, driving, lx, lz, if (driving) carSpeed else 0f, if (driving) yawRate else 0f)
+        t.g.ensureGl()
+        Matrix.setIdentityM(teslaBase, 0)
+        Matrix.translateM(teslaBase, 0, carX, if (driving || carY > 0.45f) carY else groundH(carX, carZ), carZ)
+        Matrix.rotateM(teslaBase, 0, 180f - Math.toDegrees(carH.toDouble()).toFloat(), 0f, 1f, 0f)
+        if (t.pitch != 0f) Matrix.rotateM(teslaBase, 0, t.pitch, 1f, 0f, 0f)     // acelera: frente sobe (pitch < 0); freia: frente mergulha
+        if (t.lean != 0f) Matrix.rotateM(teslaBase, 0, t.lean, 0f, 0f, 1f)
+        t.pose(teslaBase, if (driving) -Math.toDegrees(steerS.toDouble()).toFloat() else 0f)
+        val nodes = t.g.nodes
+        for (i in nodes.indices) {
+            val ms = nodes[i].mesh ?: continue
+            draw(ms, t.world(i), 1f)                                                   // opaco agora
+            if (ms.parts.any { it.mat == Mt.GLASS }) carGlassQ.add(Pair(ms, t.world(i).copyOf()))   // vidros no fim do quadro
+        }
+        Matrix.setIdentityM(mdl, 0)
+    }
+    private val carGlassQ = ArrayList<Pair<Mesh, FloatArray>>()
+
     private fun drawOwnCar() {
         val m = carMesh ?: return
         if (carX.isNaN()) return
         if (!boxVisible(carX - 6f, 0f, carZ - 6f, carX + 6f, 3.5f, carZ + 6f)) return
+        tesla?.let { drawTesla(it); return }
         Matrix.setIdentityM(mdl, 0)
         Matrix.translateM(mdl, 0, carX, if (driving || carY > 0.45f) carY else groundH(carX, carZ), carZ)
         Matrix.rotateM(mdl, 0, 180f - Math.toDegrees(carH.toDouble()).toFloat(), 0f, 1f, 0f)
@@ -2300,6 +2344,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             }
         }
         if (City.on) drawCityGlass(frameU[0], frameU[1], frameU[2])   // Etapa 122: mar, vidros da cidade, GPS
+        for ((m, mx) in carGlassQ) draw(m, mx, 1f, true)    // Etapa 162: vidros do Tesla
+        carGlassQ.clear()
         for ((m, mx) in glassQ) draw(m, mx, 1f, true)
         for ((m, mx) in lateQ) draw(m, mx, 1f)
         for (i in 0..3) if (shown[i]) {

@@ -16,6 +16,8 @@ import kotlin.math.sqrt
 object Vehicles {
     const val SEDAN = 0; const val HATCH = 1; const val SUV = 2; const val PICKUP = 3; const val SPORT = 4; const val TAXI = 5
     const val VAN = 6; const val BUS = 7; const val POLICE = 8; const val AMBULANCE = 9; const val FIRE = 10; const val MOTO = 11; const val SCOOTER = 12
+    /** Etapa 162: Tesla Model S branco (GLB com rodas e portas animadas) — só para o veículo do jogador */
+    const val TESLA = 13
 
     private val PAINT = arrayOf("#C62828", "#1565C0", "#F5F5F5", "#212121", "#9E9E9E", "#2E7D32", "#6D4C41", "#0D47A1", "#B0BEC5", "#E65100", "#4A148C", "#00695C", "#F9A825", "#37474F", "#AD1457")
 

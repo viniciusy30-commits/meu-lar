@@ -844,12 +844,13 @@ class MainActivity : AppCompatActivity() {
             // Etapa 123: garagem — escolher o veículo (fica na rua em frente de casa) e a cor
             for ((k, nome) in VEICULOS) {
                 val sel = st.vehKind == k
-                out.add(Entry(nome, if (sel) "Seu veículo" else "Grátis", if (k == Vehicles.MOTO || k == Vehicles.SCOOTER) Ic.MOTO else Ic.CAR, 0, true) {
+                out.add(Entry(nome, if (sel) "Seu veículo" else "Grátis", if (k == Vehicles.MOTO || k == Vehicles.SCOOTER) Ic.MOTO else Ic.CAR, 0, true, if (k == Vehicles.TESLA) "veic_tesla" else null) {
                     st.vehKind = k; st.save(); refreshShop()
                     msg("${nome.replace("\n", " ")} está na rua em frente de casa. Chegue perto e toque em Dirigir.")
                 })
             }
-            for ((nome, cor) in CORES_VEIC) {
+            if (st.vehKind == Vehicles.TESLA) out.add(Entry("Pintura\nBranco", "Única", 0, 0xFFF5F5F5.toInt(), true) { msg("O Tesla só existe na cor branca") })
+            else for ((nome, cor) in CORES_VEIC) {
                 out.add(Entry("Pintura\n$nome", if (st.vehColor == cor) "Em uso" else "Grátis", 0, cor, st.vehKind >= 0) {
                     if (st.vehKind < 0) msg("Escolha um veículo primeiro")
                     else { st.vehColor = cor; st.save(); refreshShop() }
@@ -868,7 +869,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val VEICULOS = listOf(Vehicles.SEDAN to "Sedã", Vehicles.HATCH to "Hatch", Vehicles.SUV to "SUV", Vehicles.PICKUP to "Picape", Vehicles.SPORT to "Esportivo",
-        Vehicles.TAXI to "Táxi", Vehicles.VAN to "Van", Vehicles.POLICE to "Viatura", Vehicles.MOTO to "Moto\nesportiva", Vehicles.SCOOTER to "Scooter")
+        Vehicles.TAXI to "Táxi", Vehicles.VAN to "Van", Vehicles.POLICE to "Viatura", Vehicles.MOTO to "Moto\nesportiva", Vehicles.SCOOTER to "Scooter", Vehicles.TESLA to "Tesla\nModel S")
     private val CORES_VEIC = listOf("Vermelho" to 0xFFC62828.toInt(), "Azul" to 0xFF1565C0.toInt(), "Branco" to 0xFFF5F5F5.toInt(), "Preto" to 0xFF212121.toInt(), "Prata" to 0xFFB0BEC5.toInt(),
         "Verde" to 0xFF2E7D32.toInt(), "Amarelo" to 0xFFF9A825.toInt(), "Laranja" to 0xFFE65100.toInt(), "Roxo" to 0xFF6A1B9A.toInt(), "Rosa" to 0xFFEC407A.toInt())
 
