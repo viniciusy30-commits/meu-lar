@@ -519,8 +519,9 @@ object City {
     }
 
     fun groundH(x: Float, z: Float): Float {
-        if (!on || inLot(x, z)) return 0f
-        if (HDS) return 0f
+        if (!on) return 0f
+        if (HDS) return Hds.groundH(x, z)
+        if (inLot(x, z)) return 0f
         for (br in bridges) if (x > br[0] && x < br[2] && z > br[1] && z < br[3]) return br[4] - 0.03f + br[5] * kotlin.math.sin(Math.PI.toFloat() * (z - br[1]) / (br[3] - br[1]))
         bldAt(x, z)?.let { return FLOOR }
         if (TOWN && z <= Z1) return Town.groundH(x, z)
