@@ -31,8 +31,11 @@ object Relevo {
     private const val CS = 8   // células de terreno por pedaço (8 x 8 m = 64 m)
 
     class House(val k: Int, val x: Float, val z: Float, val lvl: Float)
-    private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray, val keep: BooleanArray)
-    private class Hub(val x: Float, val z: Float, val r: Float, val y: Float)
+    /** Etapa 180b: [cs] = distância acumulada de cada ponto; [ta]/[tb] = quanto da faixa central some junto aos cruzamentos; [gl]/[gr] = "bocas" do meio-fio (pares início/fim) nos lados +n e -n */
+    private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray, val keep: BooleanArray,
+                       val cs: FloatArray, val ta: Float, val tb: Float, val gl: FloatArray, val gr: FloatArray)
+    /** [arms] = grupos de 5 (dx, dz, ux, uz, meia-largura): começo da pista (relativo ao centro), direção para fora e meia-largura */
+    private class Hub(val x: Float, val z: Float, val r: Float, val y: Float, val arms: FloatArray)
     /** Etapa 179: placa de cruzamento (kind 0) ou fim de rua em balão (kind 1) */
     private class Pad(val x: Float, val z: Float, val r: Float, val y: Float, val kind: Int)
 
@@ -80,6 +83,7 @@ object Relevo {
             for (q in 0 until r.x.size) {
                 if (r.br[q]) continue
                 if (!((q < r.keep.size && r.keep[q]) || (q > 0 && r.keep[q - 1]))) continue
+                if ((r.ta > 0f && r.cs[q] < r.ta + 8f) || (r.tb > 0f && r.cs[q] > r.cs[r.cs.size - 1] - r.tb - 8f)) continue   // Etapa 180b: fora do cruzamento
                 val d = hypot(r.x[q] - hx, r.z[q] - hz)
                 if (d >= bd) continue
                 var nearHub = false
@@ -132,19 +136,27 @@ object Relevo {
                     if (l < 1e-4f) { tx = 1f; tz = 0f } else { tx /= l; tz /= l }
                     ex[q] = -tz; ez[q] = tx
                 }
+                // Etapa 180b: onde duas pistas se emendam, as duas pontas usam a mesma normal (esquadro): sem cunha de grama na quina
+                val n0 = o.optJSONArray("n0"); val n1 = o.optJSONArray("n1")
+                if (n0 != null) { ex[0] = n0.getDouble(0).toFloat(); ez[0] = n0.getDouble(1).toFloat() }
+                if (n1 != null) { ex[n - 1] = n1.getDouble(0).toFloat(); ez[n - 1] = n1.getDouble(1).toFloat() }
                 val w = o.getDouble("w").toFloat()
-                // Etapa 179: cada trecho vai de cruzamento a cruzamento; as pontas dentro do cruzamento (a, b) não são desenhadas
+                // Etapa 180b: a pista vai INTEIRA até o centro do cruzamento (sem discos); só a faixa central some junto ao cruzamento (a, b)
                 val ta = o.optDouble("a", 0.0).toFloat(); val tb = o.optDouble("b", 0.0).toFloat()
                 val cs = FloatArray(n)
                 for (q in 1 until n) cs[q] = cs[q - 1] + hypot(x[q] - x[q - 1], z[q] - z[q - 1])
-                val tot = cs[n - 1]
-                val keep = BooleanArray(n - 1) { q -> cs[q] >= ta - 0.4f && cs[q + 1] <= tot - tb + 0.4f }
-                roads.add(Road(o.getInt("c"), w, x, z, y, br, ex, ez, keep))
+                val keep = BooleanArray(n - 1) { true }
+                val gl = o.optJSONArray("cl"); val gr = o.optJSONArray("cr")
+                val gla = FloatArray(gl?.length() ?: 0) { k -> gl!!.getDouble(k).toFloat() }
+                val gra = FloatArray(gr?.length() ?: 0) { k -> gr!!.getDouble(k).toFloat() }
+                roads.add(Road(o.getInt("c"), w, x, z, y, br, ex, ez, keep, cs, ta, tb, gla, gra))
             }
             val ro = js.getJSONArray("rounds")
             for (i in 0 until ro.length()) {
                 val o = ro.getJSONObject(i)
-                hubs.add(Hub(o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.getDouble("r").toFloat(), o.getDouble("y").toFloat()))
+                val aa = o.optJSONArray("arms")
+                val arms = FloatArray(aa?.length() ?: 0) { k -> aa!!.getDouble(k).toFloat() }
+                hubs.add(Hub(o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.getDouble("r").toFloat(), o.getDouble("y").toFloat(), arms))
             }
             val na = js.optJSONArray("nodes")
             if (na != null) for (i in 0 until na.length()) {
@@ -295,6 +307,24 @@ object Relevo {
         tri(b, ax, yTop, az, bx, yBot, bz, ax, yBot, az, nx, 0f, nz, c)
     }
 
+    /** pedaços de [s0, s1] que sobram depois de tirar os intervalos [gaps] (pares início/fim em ordem crescente) */
+    private fun spans(s0: Float, s1: Float, gaps: FloatArray): ArrayList<FloatArray> {
+        val out = ArrayList<FloatArray>()
+        var cur = s0
+        var i = 0
+        while (i + 1 < gaps.size) {
+            val g0 = gaps[i]; val g1 = gaps[i + 1]
+            i += 2
+            if (g1 <= cur) continue
+            if (g0 >= s1) break
+            if (g0 > cur) out.add(floatArrayOf(cur, g0))
+            cur = max(cur, g1)
+            if (cur >= s1) break
+        }
+        if (cur < s1 - 1e-3f) out.add(floatArrayOf(cur, s1))
+        return out
+    }
+
     private fun emitSeg(b: MB, r: Road, q: Int) {
         val hw = r.w / 2f
         val x0 = r.x[q]; val z0 = r.z[q]; val y0 = r.y[q] + ROADY
@@ -303,13 +333,35 @@ object Relevo {
         b.m(Mt.ASPHALT, 0.25f)
         strip(b, x0 + ax * hw, z0 + az * hw, x0 - ax * hw, z0 - az * hw, x1 + bx * hw, z1 + bz * hw, x1 - bx * hw, z1 - bz * hw, y0, y1, COL_ASPH)
         val cw = if (r.c == 3) 1.2f else 1.8f
+        val sA = r.cs[q]; val sB = r.cs[q + 1]
+        val sl = sB - sA
         b.m(Mt.PAVER, 0.9f)
-        strip(b, x0 + ax * hw, z0 + az * hw, x0 + ax * (hw + cw), z0 + az * (hw + cw), x1 + bx * hw, z1 + bz * hw, x1 + bx * (hw + cw), z1 + bz * (hw + cw), y0 + 0.05f, y1 + 0.05f, COL_CURB)
-        strip(b, x0 - ax * hw, z0 - az * hw, x0 - ax * (hw + cw), z0 - az * (hw + cw), x1 - bx * hw, z1 - bz * hw, x1 - bx * (hw + cw), z1 - bz * (hw + cw), y0 + 0.05f, y1 + 0.05f, COL_CURB)
+        // Etapa 180b: meio-fio dos dois lados, com "bocas" onde outra rua se abre (r.gl: lado +n, r.gr: lado -n)
+        for (side in 0 until 2) {
+            val sg = if (side == 0) 1f else -1f
+            for (sp in spans(sA, sB, if (side == 0) r.gl else r.gr)) {
+                val t0 = if (sl > 1e-4f) (sp[0] - sA) / sl else 0f
+                val t1 = if (sl > 1e-4f) (sp[1] - sA) / sl else 1f
+                val px0 = x0 + (x1 - x0) * t0; val pz0 = z0 + (z1 - z0) * t0; val py0 = y0 + (y1 - y0) * t0
+                val px1 = x0 + (x1 - x0) * t1; val pz1 = z0 + (z1 - z0) * t1; val py1 = y0 + (y1 - y0) * t1
+                val mx0 = (ax + (bx - ax) * t0) * sg; val mz0 = (az + (bz - az) * t0) * sg
+                val mx1 = (ax + (bx - ax) * t1) * sg; val mz1 = (az + (bz - az) * t1) * sg
+                strip(b, px0 + mx0 * hw, pz0 + mz0 * hw, px0 + mx0 * (hw + cw), pz0 + mz0 * (hw + cw), px1 + mx1 * hw, pz1 + mz1 * hw, px1 + mx1 * (hw + cw), pz1 + mz1 * (hw + cw), py0 + 0.05f, py1 + 0.05f, COL_CURB)
+            }
+        }
         b.m(Mt.PLAIN, 1f)
         if (r.c <= 2) {
-            val lc = if (r.c == 0) COL_LINE_Y else COL_LINE
-            strip(b, x0 + ax * 0.15f, z0 + az * 0.15f, x0 - ax * 0.15f, z0 - az * 0.15f, x1 + bx * 0.15f, z1 + bz * 0.15f, x1 - bx * 0.15f, z1 - bz * 0.15f, y0 + 0.02f, y1 + 0.02f, lc)
+            // faixa central: some dentro dos cruzamentos (da ponta até r.ta / r.tb)
+            val s0 = max(sA, r.ta); val s1 = min(sB, r.cs[r.cs.size - 1] - r.tb)
+            if (s1 > s0 + 1e-3f && sl > 1e-4f) {
+                val lc = if (r.c == 0) COL_LINE_Y else COL_LINE
+                val t0 = (s0 - sA) / sl; val t1 = (s1 - sA) / sl
+                val px0 = x0 + (x1 - x0) * t0; val pz0 = z0 + (z1 - z0) * t0; val py0 = y0 + (y1 - y0) * t0
+                val px1 = x0 + (x1 - x0) * t1; val pz1 = z0 + (z1 - z0) * t1; val py1 = y0 + (y1 - y0) * t1
+                val mx0 = ax + (bx - ax) * t0; val mz0 = az + (bz - az) * t0
+                val mx1 = ax + (bx - ax) * t1; val mz1 = az + (bz - az) * t1
+                strip(b, px0 + mx0 * 0.15f, pz0 + mz0 * 0.15f, px0 - mx0 * 0.15f, pz0 - mz0 * 0.15f, px1 + mx1 * 0.15f, pz1 + mz1 * 0.15f, px1 - mx1 * 0.15f, pz1 - mz1 * 0.15f, py0 + 0.02f, py1 + 0.02f, lc)
+            }
         }
         if (r.br[q] && r.br[q + 1]) {
             // ponte: parede lateral, parapeito e fundo
@@ -344,8 +396,22 @@ object Relevo {
         }
     }
 
+    /** true se o ponto (qx, qz), relativo ao centro da rotatória, cai dentro da faixa de uma pista que entra nela */
+    private fun armAt(qx: Float, qz: Float, h: Hub): Boolean {
+        var i = 0
+        while (i + 4 < h.arms.size) {
+            val dx = qx - h.arms[i]; val dz = qz - h.arms[i + 1]
+            val ux = h.arms[i + 2]; val uz = h.arms[i + 3]
+            val ax = dx * ux + dz * uz
+            val lat = abs(dz * ux - dx * uz)
+            if (ax >= -2f && lat <= h.arms[i + 4] + 0.15f) return true
+            i += 5
+        }
+        return false
+    }
+
     private fun emitHub(b: MB, h: Hub) {
-        val n = 28
+        val n = 48
         val y = h.y + ROADY
         b.m(Mt.ASPHALT, 0.25f)
         for (k in 0 until n) {
@@ -354,9 +420,15 @@ object Relevo {
         }
         b.m(Mt.PAVER, 0.9f)
         val r2 = h.r + 1.8f; val ri = h.r * 0.45f
+        val nc = 96   // meio-fio externo mais fino, para abrir a boca de cada pista sem sobrar pedaço
+        for (k in 0 until nc) {
+            val a0 = (k * 2 * Math.PI / nc).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / nc).toFloat()
+            val am = (a0 + a1) / 2f
+            if (armAt(cos(am) * (h.r + 0.9f), sin(am) * (h.r + 0.9f), h)) continue
+            strip(b, h.x + cos(a0) * h.r, h.z + sin(a0) * h.r, h.x + cos(a0) * r2, h.z + sin(a0) * r2, h.x + cos(a1) * h.r, h.z + sin(a1) * h.r, h.x + cos(a1) * r2, h.z + sin(a1) * r2, y + 0.05f, y + 0.05f, COL_CURB)
+        }
         for (k in 0 until n) {
             val a0 = (k * 2 * Math.PI / n).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / n).toFloat()
-            strip(b, h.x + cos(a0) * h.r, h.z + sin(a0) * h.r, h.x + cos(a0) * r2, h.z + sin(a0) * r2, h.x + cos(a1) * h.r, h.z + sin(a1) * h.r, h.x + cos(a1) * r2, h.z + sin(a1) * r2, y + 0.05f, y + 0.05f, COL_CURB)
             strip(b, h.x + cos(a0) * ri, h.z + sin(a0) * ri, h.x + cos(a0) * (ri + 1.0f), h.z + sin(a0) * (ri + 1.0f), h.x + cos(a1) * ri, h.z + sin(a1) * ri, h.x + cos(a1) * (ri + 1.0f), h.z + sin(a1) * (ri + 1.0f), y + 0.06f, y + 0.06f, COL_CURB)
         }
         b.m(Mt.GRASS, 0.3f)
