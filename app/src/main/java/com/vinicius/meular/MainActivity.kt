@@ -35,6 +35,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var moveIcon: IconView
     private lateinit var moveLbl: TextView
     private lateinit var moveBox: LinearLayout
+    /** Etapa 172: botão "Cor" da barra de edição (só aparece em móvel com partes coloríveis) */
+    private lateinit var corBox: LinearLayout
     private lateinit var msgTv: TextView
     private lateinit var viewIcon: IconView
     private lateinit var hud: LinearLayout
@@ -322,7 +324,11 @@ class MainActivity : AppCompatActivity() {
         val mv = editBtn(Ic.MOVE, "Pegar", Tn.CORAL) { pegarSoltar() }
         moveBox = mv.first; moveIcon = mv.second; moveLbl = mv.third
         editBar.addView(moveBox)
-        editBar.addView(editBtn(Ic.ROTATE, "Girar", Tn.LAV) { girar() }.first)
+        editBar.addView(editBtn(Ic.ROTATE, "Girar esq.", Tn.LAV) { girar(-1) }.first)
+        editBar.addView(editBtn(Ic.ROTATE, "Girar dir.", Tn.LAV) { girar(1) }.first)
+        corBox = editBtn(Ic.SPARK, "Cor", Tn.MINT) { corMovel() }.first
+        corBox.visibility = View.GONE
+        editBar.addView(corBox)
         editBar.addView(editBtn(Ic.TRASH, "Vender", Tn.ROSE) { vender() }.first)
         bottom.addView(editBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(6) })
 
@@ -627,6 +633,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun aoMudarFoco(item: Item?, grabbed: Boolean) {
         editBar.visibility = if (item == null) View.GONE else View.VISIBLE
+        corBox.visibility = if (item != null && temCor(item)) View.VISIBLE else View.GONE
         moveBox.visibility = if (game.mode == 0) View.VISIBLE else View.GONE
         if (grabbed) { moveIcon.set(Ic.CHECK); moveLbl.text = "Soltar" }
         else { moveIcon.set(Ic.MOVE); moveLbl.text = "Pegar" }
@@ -732,9 +739,53 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun girar() {
+    private fun girar(dir: Int = 1) {
         val s = game.r.focus ?: return
-        if (st.rotate(s)) st.save() else msg("Sem espaço para girar aqui.")
+        if (st.rotate(s, dir)) st.save() else msg("Sem espaço para girar aqui.")
+    }
+
+    /** Etapa 172: o móvel tem partes que dá para pintar? (catálogo Hds) */
+    private fun temCor(i: Item): Boolean = i.type.glb?.let { Glb.get(it) }?.cor?.isNotEmpty() == true
+
+    /** Etapa 172: janela de cores do móvel em foco: uma fileira de bolinhas por parte (colchão, travesseiro, corpo...) */
+    private fun corMovel() {
+        val s = game.r.focus ?: return
+        val g = s.type.glb?.let { Glb.get(it) } ?: return
+        if (g.cor.isEmpty()) return
+        var dlg: Dialog? = null
+        dlg = sheet("Cores", Ic.SPARK, Tn.MINT) { corpo ->
+            val atual = s.cores?.takeIf { it.size == g.cor.size } ?: IntArray(g.cor.size) { -1 }
+            for ((k, parte) in g.cor.withIndex()) {
+                corpo.addView(tv(parte.nome, 15f, Pal.TEXT, true), LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(8); it.bottomMargin = dp(8) })
+                val sc = HorizontalScrollView(this)
+                sc.isHorizontalScrollBarEnabled = false
+                val row = LinearLayout(this)
+                row.orientation = LinearLayout.HORIZONTAL
+                val bolinhas = ArrayList<View>()
+                fun marcar() {
+                    val escolhida = if (atual[k] >= 0) atual[k] else parte.def
+                    for ((j, b) in bolinhas.withIndex()) {
+                        val sel = j == escolhida
+                        b.background = Ui.oval(parte.sw.getOrElse(j) { 0xFF888888.toInt() }, if (sel) Color.WHITE else Color.parseColor("#66FFFFFF"), dpf(if (sel) 4f else 2f))
+                    }
+                }
+                for (j in parte.mats.indices) {
+                    val b = View(this)
+                    b.setOnClickListener { atual[k] = j; s.cores = atual.copyOf(); st.save(); marcar() }
+                    bolinhas.add(b)
+                    row.addView(b, LinearLayout.LayoutParams(dp(46), dp(46)).also { it.rightMargin = dp(10) })
+                }
+                marcar()
+                sc.addView(row)
+                corpo.addView(sc, LinearLayout.LayoutParams(-1, -2))
+            }
+            val reset = tv("Voltar às cores originais", 14f, Pal.SUB, true)
+            reset.setPadding(dp(16), dp(10), dp(16), dp(12))
+            reset.background = Ui.chunky(Tn.GHOST, dpf(20f), dpf(3f), false)
+            reset.setOnClickListener { s.cores = null; st.save(); dlg?.dismiss() }
+            corpo.addView(reset, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(16); it.bottomMargin = dp(4) })
+        }
+        dlg?.show()
     }
 
     private fun vender() {
@@ -756,7 +807,12 @@ class MainActivity : AppCompatActivity() {
     /** Etapa 83: miniaturas dos objetos da biblioteca 3D (assets/obj3d/thumb/<id>.png) */
     private val thumbs = HashMap<String, android.graphics.Bitmap?>()
     private fun thumb(id: String): android.graphics.Bitmap? = thumbs.getOrPut(id) {
-        try { assets.open(if (id.startsWith("hds:")) "hds/mobilia/th/${id.substring(4)}.png" else "obj3d/thumb/$id.png").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+        val path = when {
+            id.startsWith("hds:") -> "hds/mobilia/ic/${id.substring(4)}.webp"          // Etapa 172: ícone do próprio Hds
+            id.startsWith("hdscat:") -> "hds/mobilia/cat/${id.substring(7)}.png"       // ícone da categoria
+            else -> "obj3d/thumb/$id.png"
+        }
+        try { assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
     }
 
     private class VH(val root: LinearLayout, val icon: IconView, val sw: View, val img: ImageView, val name: TextView, val price: TextView) : RecyclerView.ViewHolder(root)
@@ -826,6 +882,11 @@ class MainActivity : AppCompatActivity() {
     private var shopTab = 0
     /** Etapa 171: categoria aberta no catálogo Hds (-1 = lista de categorias) */
     private var hdsCat = -1
+    /** Etapa 172: subcategoria aberta (-1 = todas) e a fileira de botões das subcategorias */
+    private var hdsSub = -1
+    private var subScroll: HorizontalScrollView? = null
+    private var subRow: LinearLayout? = null
+    private var shopRv: RecyclerView? = null
     private var shopMoney: TextView? = null
     private var tabViews = ArrayList<TextView>()
 
@@ -848,11 +909,11 @@ class MainActivity : AppCompatActivity() {
             // Etapa 171: catálogo Hds — primeiro as categorias, depois os móveis da categoria
             if (hdsCat < 0) {
                 HdsMob.cats.forEachIndexed { i, c ->
-                    out.add(Entry(c.nome + "\n" + HdsMob.count(i) + " itens", "Abrir", Ic.SHOP, 0, true) { hdsCat = i; refreshShop() })
+                    out.add(Entry(c.nome + "\n" + HdsMob.count(i) + " itens", "Abrir", Ic.SHOP, 0, true, "hdscat:" + c.icone) { hdsCat = i; hdsSub = -1; refreshShop(); shopRv?.scrollToPosition(0) })
                 }
             } else {
-                out.add(Entry("Voltar", "Categorias", Ic.HOME, 0, true) { hdsCat = -1; refreshShop() })
-                for (t in HdsMob.items(hdsCat)) out.add(Entry(t.nome, "Grátis", Ic.HOME, 0, st.money >= t.preco, t.glb) { comprar(t) })
+                out.add(Entry("Voltar", "Categorias", Ic.BACK, 0, true) { hdsCat = -1; hdsSub = -1; refreshShop(); shopRv?.scrollToPosition(0) })
+                for (t in HdsMob.items(hdsCat, hdsSub)) out.add(Entry(t.nome, if (HdsMob.temCor(t)) "Grátis · cores" else "Grátis", Ic.HOME, 0, st.money >= t.preco, t.glb) { comprar(t) })
             }
         } else if (tab == 6) {
             // Etapa 123: garagem — escolher o veículo (fica na rua em frente de casa) e a cor
@@ -952,6 +1013,24 @@ class MainActivity : AppCompatActivity() {
         shopAdapter?.data = entries(shopTab)
         shopAdapter?.notifyDataSetChanged()
         shopMoney?.text = "\u221E"
+        // Etapa 172: botões das subcategorias do Hds (Todos, Sofás e poltronas, Mesas...)
+        val sr = subRow; val ss = subScroll
+        if (sr != null && ss != null) {
+            sr.removeAllViews()
+            if (shopTab == 7 && hdsCat >= 0) {
+                ss.visibility = View.VISIBLE
+                val nomes = listOf("Todos") + (HdsMob.cats.getOrNull(hdsCat)?.subs ?: emptyList())
+                nomes.forEachIndexed { j, n ->
+                    val sel = (j - 1) == hdsSub
+                    val t = tv(n, 13f, if (sel) Color.WHITE else Pal.SUB, true)
+                    t.setPadding(dp(14), dp(6), dp(14), dp(9))
+                    t.background = Ui.chunky(if (sel) Tn.MINT else Tn.GHOST, dpf(18f), dpf(3f), sel)
+                    t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
+                    t.setOnClickListener { hdsSub = j - 1; refreshShop(); shopRv?.scrollToPosition(0) }
+                    sr.addView(t)
+                }
+            } else ss.visibility = View.GONE
+        }
         for ((i, t) in tabViews.withIndex()) {
             val sel = i == shopTab
             t.background = Ui.chunky(if (sel) Tn.CORAL else Tn.GHOST, dpf(20f), dpf(3f), sel)
@@ -1034,19 +1113,28 @@ class MainActivity : AppCompatActivity() {
                 val t = tv(n, 14f, Pal.SUB, true)
                 t.setPadding(dp(16), dp(8), dp(16), dp(11))
                 t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
-                t.setOnClickListener { shopTab = i; hdsCat = -1; refreshShop() }
+                t.setOnClickListener { shopTab = i; hdsCat = -1; hdsSub = -1; refreshShop() }
                 tabViews.add(t)
                 row.addView(t)
             }
             sc.addView(row)
             panel.addView(moneyChip, LinearLayout.LayoutParams(-2, -2).also { it.bottomMargin = dp(10) })
             panel.addView(sc, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
+            val ssc = HorizontalScrollView(this)
+            ssc.isHorizontalScrollBarEnabled = false
+            val srow = LinearLayout(this)
+            srow.orientation = LinearLayout.HORIZONTAL
+            ssc.addView(srow)
+            ssc.visibility = View.GONE
+            subScroll = ssc; subRow = srow
+            panel.addView(ssc, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(10) })
             // a grade cabe na tela (deitado, a altura é pequena: antes a 2ª linha ficava fora e não dava para rolar)
             val dm = resources.displayMetrics
             val deitado = dm.widthPixels > dm.heightPixels
             val rv = RecyclerView(this)
             rv.layoutManager = GridLayoutManager(this, if (deitado) 5 else 3)
             rv.adapter = adapter
+            shopRv = rv
             rv.isNestedScrollingEnabled = true
             rv.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             val alturaLivre = dm.heightPixels - dp(235) - bottomInset

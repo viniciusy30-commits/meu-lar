@@ -2773,6 +2773,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val nodes = g.nodes
         if (nodeW.size < nodes.size) nodeW = Array(nodes.size) { FloatArray(16) }
         val cur = item.animCur
+        val vm = g.meshes(item.cores)      // Etapa 172: malhas com as cores escolhidas (null = padrão)
         for (i in nodes.indices) {
             val n = nodes[i]
             val slot = g.animSlot[i]
@@ -2791,7 +2792,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 if (ef == 1) Matrix.scaleM(nodeW[i], 0, 1f, 0.82f + 0.18f * sin(tt * 23f) * sin(tt * 7.3f + item.x) + 0.12f * sin(tt * 41f), 1f)
                 if (ef == 2) Matrix.scaleM(nodeW[i], 0, 1f + 0.08f * sin(tt * 37f), 1f, 1f + 0.08f * cos(tt * 29f))
             }
-            val ms = n.mesh ?: continue
+            val ms = vm?.getOrNull(i) ?: n.mesh ?: continue
             // Etapa 87: água e vapor são translúcidos: vão para o fim do quadro (sem gravar profundidade), junto com os vidros
             if (ef == 2 || ef == 4) { lateQ.add(Pair(ms, nodeW[i].copyOf())); continue }
             draw(ms, nodeW[i], 1f)

@@ -57,9 +57,8 @@ class Type private constructor(val name: String, val ordinal: Int, val nome: Str
         @JvmField val G_PIA = reg("G_PIA", "Pia com gabinete", 1, 1, 0, 1.05f, 2, glb = "int_pia")
 
         /** Etapa 171: registra um móvel do catálogo Hds (cat = 100 + categoria). Chamado uma vez ao abrir o app, antes de ler o save. */
-        fun addHds(id: String, nome: String, w: Int, h: Int, alt: Float, cat: Int) {
-            synchronized(list) { if (!byName.containsKey("H_$id")) reg("H_$id", nome, w, h, 0, alt, 100 + cat, glb = "hds:$id") }
-        }
+        fun addHds(id: String, nome: String, w: Int, h: Int, alt: Float, cat: Int): Type? =
+            synchronized(list) { byName["H_$id"] ?: reg("H_$id", nome, w, h, 0, alt, 100 + cat, glb = "hds:$id") }
 
         fun values(): List<Type> = synchronized(list) { ArrayList(list) }
 
@@ -96,12 +95,15 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
     var sleep = ""
     /** Lote 2: aparelho ligado (fogão aceso, torneira aberta) */
     var on = false
+    /** Etapa 172: opção de cor escolhida em cada parte colorível do modelo Hds (-1 = a do jogo). null = tudo padrão. */
+    var cores: IntArray? = null
 
     fun encodeState(): String {
         val sb = StringBuilder(st)
         animTgt?.let { a -> if (a.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("a="); sb.append(a.joinToString(":") { if (it > 0.5f) "1" else "0" }) } }
         if (on) { if (sb.isNotEmpty()) sb.append('~'); sb.append("on=1") }
         if (sleep.isNotEmpty()) { if (sb.isNotEmpty()) sb.append('~'); sb.append("sono="); sb.append(sleep) }
+        cores?.let { c -> if (c.any { it >= 0 }) { if (sb.isNotEmpty()) sb.append('~'); sb.append("cor="); sb.append(c.joinToString(":")) } }
         return sb.toString()
     }
 
@@ -113,6 +115,7 @@ class Item(val type: Type, var x: Int, var y: Int, var rot: Int = 0) {
                 animTgt = v; animCur = v.copyOf()
             } else if (kv == "on=1") on = true
             else if (kv.startsWith("sono=")) sleep = kv.substring(5)
+            else if (kv.startsWith("cor=")) cores = kv.substring(4).split(':').map { it.toIntOrNull() ?: -1 }.toIntArray()
             else if (kv.isNotEmpty()) keep.add(kv)
         }
         st = keep.joinToString("~")
@@ -288,8 +291,9 @@ class GameState(ctx: Context) {
         return floatArrayOf(nx.toFloat(), nz.toFloat(), ox, oz)
     }
 
-    fun rotate(item: Item): Boolean {
-        val nr = (item.rot + 1) % 4
+    /** [dir] = 1 gira para a direita (sentido horário visto de cima), -1 para a esquerda (Etapa 172). */
+    fun rotate(item: Item, dir: Int = 1): Boolean {
+        val nr = ((item.rot + dir) % 4 + 4) % 4
         val nw = if (nr % 2 == 1) item.type.h else item.type.w
         val nh = if (nr % 2 == 1) item.type.w else item.type.h
         // gira em volta do centro, sem o móvel andar

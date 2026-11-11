@@ -285,3 +285,11 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Nova aba "Catálogo Hds" na loja: categorias → móveis → comprar e colocar na casa (grátis, como o resto).
 - [ ] Testar no celular: orientação/tamanho dos móveis, portas e janelas (hoje entram como móvel solto no chão, não encaixadas na parede), cores trocáveis (máscaras de cor ainda não extraídas), nomes em português dos itens com nome em inglês.
 - Para regenerar: `ferramentas/hds/furn_export.py` e depois `furn_pack.py` (precisam da pasta `Hds` do jogo original).
+
+## Etapa 172 — Catálogo Hds: nomes, ícones, cores e girar
+- [x] Nomes oficiais em português (Localization do Hds), categorias e subcategorias do Hds (Sala e quarto, Cozinha, Banheiro, Eletrodomésticos, Iluminação, Decoração, Portas, Janelas...), ícones do próprio Hds para cada móvel (`assets/hds/mobilia/ic/`) e para as categorias (`cat/`). 1.115 móveis.
+- [x] Cores: 398 móveis têm partes coloríveis do jogo original (colchão, travesseiro, corpo, bancada, puxadores...), cada uma com a lista de materiais/cores do Hds. Botão "Cor" na barra de edição abre a janela com uma fileira de bolinhas por parte; a escolha é salva no móvel (`cor=` no estado do item).
+- [x] Girar: botões "Girar esq." e "Girar dir." (90° para cada lado).
+- [x] Loja: categorias com ícones, botões de subcategoria (Todos, Sofás e poltronas...), cartões com o ícone do móvel e aviso "Grátis · cores".
+- [ ] Testar no celular: aparência das cores (texturas), nomes ainda em inglês (86 itens sem tradução oficial), 92 móveis sem ícone do Hds (ficam com miniatura gerada), portas/janelas ainda não encaixam na parede.
+- Para regenerar: `ferramentas/hds/icons_extract.py`, `loc1.py` + `loc2.py`, `furn_export2.py` e `furn_pack2.py` (precisam da pasta `Hds` do jogo original).

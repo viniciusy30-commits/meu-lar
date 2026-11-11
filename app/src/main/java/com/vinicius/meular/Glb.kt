@@ -17,7 +17,8 @@ import java.nio.ByteOrder
 // o objeto é desenhado (thread do GL).
 
 /** Primitiva: vértices já no formato do jogo (STRIDE floats) em espaço do nó. */
-class GPrim(val mat: Int, val cut: Boolean, val emit: Boolean, val img: Int, val v: FloatArray, val nv: Int, val idx: ShortArray)
+class GPrim(val mat: Int, val cut: Boolean, val emit: Boolean, val img: Int, val v: FloatArray, val nv: Int, val idx: ShortArray,
+            /** Etapa 172: material do GLB e posição da primitiva na malha (para trocar a cor de uma parte) */ val mi: Int = -1, val pk: Int = -1)
 
 class GNode(
     val name: String,
@@ -77,7 +78,24 @@ class GNode(
 /** Colisor (caixa, cilindro ou esfera) na pose inicial, em espaço do objeto (origem = centro do piso, frente +Z). */
 class GCol(val name: String, val shape: String, val cx: Float, val cy: Float, val cz: Float, val sx: Float, val sy: Float, val sz: Float, val blocks: Boolean)
 
-class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, val images: List<ByteArray>) {
+class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, val images: List<ByteArray>,
+             /** Etapa 172: cor base, imagem e recorte de cada material do GLB */
+             val matCol: List<FloatArray> = emptyList(), val matImg: IntArray = IntArray(0), val matCut: BooleanArray = BooleanArray(0)) {
+    /** Etapa 172: parte colorível: nome, primitivas que ela pinta, materiais que pode ter, opção padrão (-1 = misturada) e amostra ARGB de cada opção */
+    class Cor(val nome: String, val prims: IntArray, val mats: IntArray, val def: Int, val sw: IntArray)
+
+    val cor: List<Cor> = run {
+        val a = meta.optJSONArray("cor")
+        val l = ArrayList<Cor>()
+        if (a != null) for (k in 0 until a.length()) {
+            val o = a.getJSONObject(k)
+            val p = o.getJSONArray("p"); val m = o.getJSONArray("o"); val s = o.getJSONArray("s")
+            l.add(Cor(o.optString("n", "Cor"), IntArray(p.length()) { p.getInt(it) }, IntArray(m.length()) { m.getInt(it) },
+                o.optInt("d", -1), IntArray(s.length()) { s.getLong(it).toInt() }))
+        }
+        l
+    }
+
     /** matriz de mundo (do objeto) de cada nó na pose inicial */
     val rest: Array<FloatArray>
     val cols = ArrayList<GCol>()
@@ -247,6 +265,54 @@ class GModel(val id: String, val nodes: List<GNode>, val meta: JSONObject, val i
         }
     }
 
+    private val variantes = HashMap<String, Array<Mesh?>>()
+    private var varGen = -1
+
+    /** Etapa 172: malha de cada nó com as cores escolhidas em [sel] (uma opção por parte colorível; -1 = padrão).
+     *  null = sem troca (usa a malha normal do nó). Só na thread do GL; guarda as últimas combinações. */
+    fun meshes(sel: IntArray?): Array<Mesh?>? {
+        if (sel == null || cor.isEmpty() || sel.none { it >= 0 }) return null
+        ensureGl()
+        if (varGen != GlGen.gen) { variantes.clear(); varGen = GlGen.gen }
+        val key = sel.joinToString(",")
+        variantes[key]?.let { return it }
+        if (variantes.size > 10) variantes.clear()
+        val ids = tex ?: IntArray(0)
+        val troca = HashMap<Int, Int>()
+        for ((k, c) in cor.withIndex()) {
+            val s = sel.getOrNull(k) ?: -1
+            if (s < 0 || s >= c.mats.size) continue
+            for (p in c.prims) troca[p] = c.mats[s]
+        }
+        val out = arrayOfNulls<Mesh>(nodes.size)
+        for ((ni, n) in nodes.withIndex()) {
+            if (n.prims.isEmpty()) continue
+            val parts = ArrayList<Part>()
+            for (p in n.prims) {
+                val nm = troca[p.pk]
+                var v = p.v; var img = p.img; var cut = p.cut
+                if (nm != null && nm >= 0 && nm < matCol.size) {
+                    v = p.v.copyOf()
+                    val bc = matCol[nm]
+                    for (i in 0 until p.nv) for (c in 0..3) v[i * STRIDE + 6 + c] = bc[c]
+                    img = matImg.getOrElse(nm) { -1 }
+                    cut = matCut.getOrElse(nm) { false }
+                }
+                val fb = ByteBuffer.allocateDirect(p.nv * STRIDE * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+                fb.put(v, 0, p.nv * STRIDE); fb.position(0)
+                val ib = ByteBuffer.allocateDirect(p.idx.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+                ib.put(p.idx); ib.position(0)
+                val part = Part(p.mat, fb, p.nv, ib, p.idx.size, if (img in ids.indices) ids[img] else 0)
+                part.gpu = true
+                if (cut) part.cut = 0.5f
+                parts.add(part)
+            }
+            out[ni] = Mesh(parts)
+        }
+        variantes[key] = out
+        return out
+    }
+
     /** Malha única na pose inicial, deslocada de (dx, 0, dz) (canto da área do móvel -> centro). Só na thread do GL. */
     fun staticMesh(dx: Float, dz: Float): Mesh {
         ensureGl()
@@ -363,6 +429,18 @@ object Glb {
             val o = bin + v.optInt("byteOffset", 0)
             images.add(b.copyOfRange(o, o + v.getInt("byteLength")))
         }
+        // Etapa 172: cor/imagem/recorte de cada material (para trocar a cor de partes do móvel)
+        val mCol = ArrayList<FloatArray>(); val mImg = IntArray(mats.length()) { -1 }; val mCut = BooleanArray(mats.length())
+        for (i in 0 until mats.length()) {
+            val m = mats.getJSONObject(i)
+            val bc0 = floatArrayOf(1f, 1f, 1f, 1f)
+            m.optJSONObject("pbrMetallicRoughness")?.let { pbr ->
+                pbr.optJSONArray("baseColorFactor")?.let { a -> for (c in 0..3) bc0[c] = a.optDouble(c, 1.0).toFloat() }
+                pbr.optJSONObject("baseColorTexture")?.let { tx -> mImg[i] = texs.optJSONObject(tx.getInt("index"))?.optInt("source", -1) ?: -1 }
+            }
+            mCut[i] = m.optString("alphaMode") == "MASK"
+            mCol.add(bc0)
+        }
         val meshes = js.optJSONArray("meshes") ?: JSONArray()
         val jn = js.getJSONArray("nodes")
         val parent = IntArray(jn.length()) { -1 }
@@ -412,12 +490,12 @@ object Glb {
                         v[ob + 10] = uv[j * 2]; v[ob + 11] = uv[j * 2 + 1]
                     }
                     val idx = if (pr.has("indices")) indices(pr.getInt("indices")) else ShortArray(nv) { it.toShort() }
-                    prims.add(GPrim(mt, cut, emit, img, v, nv, idx))
+                    prims.add(GPrim(mt, cut, emit, img, v, nv, idx, if (pr.has("material")) pr.getInt("material") else -1, k))
                 }
             }
             nodes.add(GNode(o.optString("name", "n$i"), parent[i], t, q, prims, o.optJSONObject("extras")))
         }
         val meta = nodes.firstOrNull()?.ex ?: JSONObject()
-        return GModel(id, nodes, meta, images)
+        return GModel(id, nodes, meta, images, mCol, mImg, mCut)
     }
 }
