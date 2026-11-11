@@ -191,7 +191,8 @@ object Relevo {
         return (a * (1f - tx) + b * tx) * (1f - tz) + (c * (1f - tx) + d * tx) * tz
     }
 
-    private fun curbW(r: Road) = if (r.c == 3) 1.2f else 1.8f
+    // Calçadas mais largas e consistentes: ruas locais 2,0 m; avenidas/coletoras/rodovias 2,4 m.
+    private fun curbW(r: Road) = if (r.c == 3) 2.0f else 2.4f
 
     /** Sobe a rua onde o terreno chegaria acima do asfalto (nunca desce): o asfalto fica sempre à vista. Pontes não mudam. */
     private fun liftRoads() {
@@ -330,9 +331,22 @@ object Relevo {
         val x0 = r.x[q]; val z0 = r.z[q]; val y0 = r.y[q] + ROADY
         val x1 = r.x[q + 1]; val z1 = r.z[q + 1]; val y1 = r.y[q + 1] + ROADY
         val ax = r.nx[q]; val az = r.nz[q]; val bx = r.nx[q + 1]; val bz = r.nz[q + 1]
+        // Interpola a direção da borda sem estreitar a pista nas curvas. Preserva o fator
+        // de miter calculado pelo gerador nos encontros entre trechos.
+        val ml = hypot(ax, az).coerceAtLeast(1e-4f)
+        val mr = hypot(bx, bz).coerceAtLeast(1e-4f)
+        fun normalAt(t: Float): FloatArray {
+            val vx = ax + (bx - ax) * t
+            val vz = az + (bz - az) * t
+            val len = hypot(vx, vz).coerceAtLeast(1e-4f)
+            val target = ml + (mr - ml) * t
+            val scale = target / len
+            return floatArrayOf(vx * scale, vz * scale)
+        }
+        val n0 = normalAt(0f); val n1 = normalAt(1f)
         b.m(Mt.ASPHALT, 0.25f)
-        strip(b, x0 + ax * hw, z0 + az * hw, x0 - ax * hw, z0 - az * hw, x1 + bx * hw, z1 + bz * hw, x1 - bx * hw, z1 - bz * hw, y0, y1, COL_ASPH)
-        val cw = if (r.c == 3) 1.2f else 1.8f
+        strip(b, x0 + n0[0] * hw, z0 + n0[1] * hw, x0 - n0[0] * hw, z0 - n0[1] * hw, x1 + n1[0] * hw, z1 + n1[1] * hw, x1 - n1[0] * hw, z1 - n1[1] * hw, y0, y1, COL_ASPH)
+        val cw = curbW(r)
         val sA = r.cs[q]; val sB = r.cs[q + 1]
         val sl = sB - sA
         b.m(Mt.PAVER, 0.9f)
@@ -344,8 +358,9 @@ object Relevo {
                 val t1 = if (sl > 1e-4f) (sp[1] - sA) / sl else 1f
                 val px0 = x0 + (x1 - x0) * t0; val pz0 = z0 + (z1 - z0) * t0; val py0 = y0 + (y1 - y0) * t0
                 val px1 = x0 + (x1 - x0) * t1; val pz1 = z0 + (z1 - z0) * t1; val py1 = y0 + (y1 - y0) * t1
-                val mx0 = (ax + (bx - ax) * t0) * sg; val mz0 = (az + (bz - az) * t0) * sg
-                val mx1 = (ax + (bx - ax) * t1) * sg; val mz1 = (az + (bz - az) * t1) * sg
+                val nn0 = normalAt(t0); val nn1 = normalAt(t1)
+                val mx0 = nn0[0] * sg; val mz0 = nn0[1] * sg
+                val mx1 = nn1[0] * sg; val mz1 = nn1[1] * sg
                 strip(b, px0 + mx0 * hw, pz0 + mz0 * hw, px0 + mx0 * (hw + cw), pz0 + mz0 * (hw + cw), px1 + mx1 * hw, pz1 + mz1 * hw, px1 + mx1 * (hw + cw), pz1 + mz1 * (hw + cw), py0 + 0.05f, py1 + 0.05f, COL_CURB)
             }
         }
@@ -358,20 +373,21 @@ object Relevo {
                 val t0 = (s0 - sA) / sl; val t1 = (s1 - sA) / sl
                 val px0 = x0 + (x1 - x0) * t0; val pz0 = z0 + (z1 - z0) * t0; val py0 = y0 + (y1 - y0) * t0
                 val px1 = x0 + (x1 - x0) * t1; val pz1 = z0 + (z1 - z0) * t1; val py1 = y0 + (y1 - y0) * t1
-                val mx0 = ax + (bx - ax) * t0; val mz0 = az + (bz - az) * t0
-                val mx1 = ax + (bx - ax) * t1; val mz1 = az + (bz - az) * t1
+                val nn0 = normalAt(t0); val nn1 = normalAt(t1)
+                val mx0 = nn0[0]; val mz0 = nn0[1]
+                val mx1 = nn1[0]; val mz1 = nn1[1]
                 strip(b, px0 + mx0 * 0.15f, pz0 + mz0 * 0.15f, px0 - mx0 * 0.15f, pz0 - mz0 * 0.15f, px1 + mx1 * 0.15f, pz1 + mz1 * 0.15f, px1 - mx1 * 0.15f, pz1 - mz1 * 0.15f, py0 + 0.02f, py1 + 0.02f, lc)
             }
         }
         if (r.br[q] && r.br[q + 1]) {
             // ponte: parede lateral, parapeito e fundo
             val ow = hw + cw
-            wall(b, x0 + ax * ow, z0 + az * ow, x1 + bx * ow, z1 + bz * ow, y0 + 0.05f, y0 - 1.3f, ax, az, COL_BRIDGE)
-            wall(b, x0 - ax * ow, z0 - az * ow, x1 - bx * ow, z1 - bz * ow, y0 + 0.05f, y0 - 1.3f, -ax, -az, COL_BRIDGE)
-            wall(b, x0 + ax * ow, z0 + az * ow, x1 + bx * ow, z1 + bz * ow, y0 + 1.0f, y0 + 0.05f, ax, az, COL_BRIDGE)
-            wall(b, x0 - ax * ow, z0 - az * ow, x1 - bx * ow, z1 - bz * ow, y0 + 1.0f, y0 + 0.05f, -ax, -az, COL_BRIDGE)
-            tri(b, x0 + ax * ow, y0 - 1.3f, z0 + az * ow, x0 - ax * ow, y0 - 1.3f, z0 - az * ow, x1 - bx * ow, y1 - 1.3f, z1 - bz * ow, 0f, -1f, 0f, COL_UNDER)
-            tri(b, x0 + ax * ow, y0 - 1.3f, z0 + az * ow, x1 - bx * ow, y1 - 1.3f, z1 - bz * ow, x1 + bx * ow, y1 - 1.3f, z1 + bz * ow, 0f, -1f, 0f, COL_UNDER)
+            wall(b, x0 + n0[0] * ow, z0 + n0[1] * ow, x1 + n1[0] * ow, z1 + n1[1] * ow, y0 + 0.05f, y0 - 1.3f, n0[0], n0[1], COL_BRIDGE)
+            wall(b, x0 - n0[0] * ow, z0 - n0[1] * ow, x1 - n1[0] * ow, z1 - n1[1] * ow, y0 + 0.05f, y0 - 1.3f, -n0[0], -n0[1], COL_BRIDGE)
+            wall(b, x0 + n0[0] * ow, z0 + n0[1] * ow, x1 + n1[0] * ow, z1 + n1[1] * ow, y0 + 1.0f, y0 + 0.05f, n0[0], n0[1], COL_BRIDGE)
+            wall(b, x0 - n0[0] * ow, z0 - n0[1] * ow, x1 - n1[0] * ow, z1 - n1[1] * ow, y0 + 1.0f, y0 + 0.05f, -n0[0], -n0[1], COL_BRIDGE)
+            tri(b, x0 + n0[0] * ow, y0 - 1.3f, z0 + n0[1] * ow, x0 - n0[0] * ow, y0 - 1.3f, z0 - n0[1] * ow, x1 - n1[0] * ow, y1 - 1.3f, z1 - n1[1] * ow, 0f, -1f, 0f, COL_UNDER)
+            tri(b, x0 + n0[0] * ow, y0 - 1.3f, z0 + n0[1] * ow, x1 - n1[0] * ow, y1 - 1.3f, z1 - n1[1] * ow, x1 + n1[0] * ow, y1 - 1.3f, z1 + n1[1] * ow, 0f, -1f, 0f, COL_UNDER)
             if (q % 3 == 0) {   // Etapa 179: pilar sob o viaduto/ponte, do terreno até o fundo da pista
                 val top = y0 - 1.3f; val gh = height(x0, z0)
                 if (top - gh > 2.2f) { b.m(Mt.PLAIN, 1f); b.box(x0, (top + gh) / 2f, z0, 1.8f, top - gh, 1.8f, COL_UNDER) }
@@ -419,12 +435,12 @@ object Relevo {
             tri(b, h.x, y, h.z, h.x + cos(a0) * h.r, y, h.z + sin(a0) * h.r, h.x + cos(a1) * h.r, y, h.z + sin(a1) * h.r, 0f, 1f, 0f, COL_ASPH)
         }
         b.m(Mt.PAVER, 0.9f)
-        val r2 = h.r + 1.8f; val ri = h.r * 0.45f
+        val r2 = h.r + 2.4f; val ri = h.r * 0.45f
         val nc = 96   // meio-fio externo mais fino, para abrir a boca de cada pista sem sobrar pedaço
         for (k in 0 until nc) {
             val a0 = (k * 2 * Math.PI / nc).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / nc).toFloat()
             val am = (a0 + a1) / 2f
-            if (armAt(cos(am) * (h.r + 0.9f), sin(am) * (h.r + 0.9f), h)) continue
+            if (armAt(cos(am) * (h.r + 1.2f), sin(am) * (h.r + 1.2f), h)) continue
             strip(b, h.x + cos(a0) * h.r, h.z + sin(a0) * h.r, h.x + cos(a0) * r2, h.z + sin(a0) * r2, h.x + cos(a1) * h.r, h.z + sin(a1) * h.r, h.x + cos(a1) * r2, h.z + sin(a1) * r2, y + 0.05f, y + 0.05f, COL_CURB)
         }
         for (k in 0 until n) {
