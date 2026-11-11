@@ -191,8 +191,11 @@ object Relevo {
         return (a * (1f - tx) + b * tx) * (1f - tz) + (c * (1f - tx) + d * tx) * tz
     }
 
-    // Calçadas mais largas e consistentes: ruas locais 2,0 m; avenidas/coletoras/rodovias 2,4 m.
-    private fun curbW(r: Road) = if (r.c == 3) 2.0f else 2.4f
+    // Deve corresponder exatamente a CWF no gerador gen_city7.py.
+    // As bocas de cruzamento (cl/cr) são calculadas com essas larguras;
+    // usar valores maiores no runtime fazia as calçadas invadirem os cruzamentos
+    // e criarem sobras/recortes irregulares nas esquinas.
+    private fun curbW(r: Road) = if (r.c == 3) 1.2f else 1.8f
 
     /** Sobe a rua onde o terreno chegaria acima do asfalto (nunca desce): o asfalto fica sempre à vista. Pontes não mudam. */
     private fun liftRoads() {
