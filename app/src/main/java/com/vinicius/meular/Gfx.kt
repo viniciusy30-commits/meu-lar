@@ -290,12 +290,13 @@ object Tex {
                     px(k, k, k * 1.02f)
                 }
                 Mt.ASPHALT -> {
-                    // Asfalto uniforme: grão fino e discreto. O ruído 3x3 antigo criava grandes
-                    // manchas escuras ("remendos") visíveis como círculos pretos nas pistas.
-                    val n = Noise.fbm(u, v, 24, 24, 3, 131)
+                    // Asfalto quase uniforme. Elimina variações de baixa frequência que,
+                    // ampliadas nas grandes faixas de rua, aparecem como manchas circulares.
+                    // Mantém apenas um grão microscópico para não parecer uma cor chapada.
+                    val n = Noise.fbm(u, v, 64, 64, 2, 131)
                     val g = Noise.h(x, y, 137)
-                    val k = 0.31f + 0.035f * n + 0.012f * (g - 0.5f)
-                    px(k, k, k * 1.025f)
+                    val k = 0.315f + 0.006f * (n - 0.5f) + 0.002f * (g - 0.5f)
+                    px(k, k, k * 1.015f)
                 }
                 Mt.FACADE -> facade(x, y, u, v)
                 Mt.CURTAIN -> curtain(x, y, u, v)
