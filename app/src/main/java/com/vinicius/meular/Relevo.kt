@@ -31,8 +31,10 @@ object Relevo {
     private const val CS = 8   // células de terreno por pedaço (8 x 8 m = 64 m)
 
     class House(val k: Int, val x: Float, val z: Float, val lvl: Float)
-    private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray)
+    private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray, val keep: BooleanArray)
     private class Hub(val x: Float, val z: Float, val r: Float, val y: Float)
+    /** Etapa 179: placa de cruzamento (kind 0) ou fim de rua em balão (kind 1) */
+    private class Pad(val x: Float, val z: Float, val r: Float, val y: Float, val kind: Int)
 
     @Volatile var on = false
     @Volatile var worldW = 3200f
@@ -43,6 +45,9 @@ object Relevo {
     private var hs = ShortArray(0)
     private val roads = ArrayList<Road>()
     private val hubs = ArrayList<Hub>()
+    private val pads = ArrayList<Pad>()
+    private val padGrid = HashMap<Int, ArrayList<Pad>>()
+    private fun padR(p: Pad): Float = if (p.kind == 1) p.r else p.r * 1.25f + 1.2f
     private val segGrid = HashMap<Int, ArrayList<IntArray>>()   // células de 32 m -> (rua, trecho) que passam por ali (para o chão)
     private val houses = HashMap<Int, House>()
     @Volatile private var mapBmp: Bitmap? = null
@@ -74,10 +79,12 @@ object Relevo {
             if (r.c == 0) continue   // rodovia não
             for (q in 0 until r.x.size) {
                 if (r.br[q]) continue
+                if (!((q < r.keep.size && r.keep[q]) || (q > 0 && r.keep[q - 1]))) continue
                 val d = hypot(r.x[q] - hx, r.z[q] - hz)
                 if (d >= bd) continue
                 var nearHub = false
                 for (u in hubs) if (hypot(r.x[q] - u.x, r.z[q] - u.z) < u.r + 12f) { nearHub = true; break }
+                if (!nearHub) for (u in pads) if (hypot(r.x[q] - u.x, r.z[q] - u.z) < padR(u) + 6f) { nearHub = true; break }
                 if (nearHub) continue
                 val side = if ((hx - r.x[q]) * r.nx[q] + (hz - r.z[q]) * r.nz[q] >= 0f) 1f else -1f
                 val off = max(0f, r.w / 2f - 2.2f)
@@ -92,7 +99,7 @@ object Relevo {
     fun clear() {
         on = false
         hs = ShortArray(0)
-        roads.clear(); hubs.clear(); segGrid.clear(); houses.clear()
+        roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
@@ -107,7 +114,7 @@ object Relevo {
             val js = JSONObject(am.open("hds/city3.json").bufferedReader().use { it.readText() })
             val wo = js.getJSONArray("world")
             worldW = wo.getDouble(0).toFloat(); worldH = wo.getDouble(1).toFloat()
-            roads.clear(); hubs.clear(); segGrid.clear(); houses.clear()
+            roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
             val ra = js.getJSONArray("roads")
             for (i in 0 until ra.length()) {
                 val o = ra.getJSONObject(i); val p = o.getJSONArray("p"); val n = p.length() / 4
@@ -126,12 +133,23 @@ object Relevo {
                     ex[q] = -tz; ez[q] = tx
                 }
                 val w = o.getDouble("w").toFloat()
-                roads.add(Road(o.getInt("c"), w, x, z, y, br, ex, ez))
+                // Etapa 179: cada trecho vai de cruzamento a cruzamento; as pontas dentro do cruzamento (a, b) não são desenhadas
+                val ta = o.optDouble("a", 0.0).toFloat(); val tb = o.optDouble("b", 0.0).toFloat()
+                val cs = FloatArray(n)
+                for (q in 1 until n) cs[q] = cs[q - 1] + hypot(x[q] - x[q - 1], z[q] - z[q - 1])
+                val tot = cs[n - 1]
+                val keep = BooleanArray(n - 1) { q -> cs[q] >= ta - 0.4f && cs[q + 1] <= tot - tb + 0.4f }
+                roads.add(Road(o.getInt("c"), w, x, z, y, br, ex, ez, keep))
             }
             val ro = js.getJSONArray("rounds")
             for (i in 0 until ro.length()) {
                 val o = ro.getJSONObject(i)
                 hubs.add(Hub(o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.getDouble("r").toFloat(), o.getDouble("y").toFloat()))
+            }
+            val na = js.optJSONArray("nodes")
+            if (na != null) for (i in 0 until na.length()) {
+                val o = na.getJSONArray(i)
+                pads.add(Pad(o.getDouble(0).toFloat() + CX, o.getDouble(1).toFloat() + CZ, o.getDouble(3).toFloat(), o.getDouble(2).toFloat(), o.getInt(4)))
             }
             val ha = js.getJSONArray("houses")
             for (i in 0 until ha.length()) {
@@ -195,10 +213,17 @@ object Relevo {
     }
 
     private fun indexRoads() {
-        segGrid.clear()
+        segGrid.clear(); padGrid.clear()
+        for (p in pads) {
+            val e = padR(p) + 2f
+            val a0 = Math.floor((p.x - e) / 32.0).toInt(); val a1 = Math.floor((p.x + e) / 32.0).toInt()
+            val b0 = Math.floor((p.z - e) / 32.0).toInt(); val b1 = Math.floor((p.z + e) / 32.0).toInt()
+            for (a in a0..a1) for (b in b0..b1) padGrid.getOrPut((a + 1000) * 4096 + (b + 1000)) { ArrayList() }.add(p)
+        }
         for ((ri, r) in roads.withIndex()) {
             val e = r.w / 2f + curbW(r) + 1f
             for (q in 0 until r.x.size - 1) {
+                if (!r.keep[q]) continue
                 val x0 = min(r.x[q], r.x[q + 1]) - e; val x1 = max(r.x[q], r.x[q + 1]) + e
                 val z0 = min(r.z[q], r.z[q + 1]) - e; val z1 = max(r.z[q], r.z[q + 1]) + e
                 val a0 = Math.floor(x0 / 32.0).toInt(); val a1 = Math.floor(x1 / 32.0).toInt()
@@ -222,6 +247,14 @@ object Relevo {
             val hw = r.w / 2f
             if (d > hw + curbW(r)) continue
             val y = r.y[q] + (r.y[q + 1] - r.y[q]) * t + ROADY + (if (d > hw) 0.05f else 0f)
+            if (best.isNaN() || y > best) best = y
+        }
+        val pl = padGrid[(Math.floor(x / 32.0).toInt() + 1000) * 4096 + (Math.floor(z / 32.0).toInt() + 1000)]
+        if (pl != null) for (p in pl) {
+            val d = hypot(x - p.x, z - p.z)
+            val rr = padR(p)
+            if (d > rr + 1.2f) continue
+            val y = p.y + ROADY + 0.06f + (if (d > rr) 0.04f else 0f)
             if (best.isNaN() || y > best) best = y
         }
         for (h in hubs) {
@@ -287,6 +320,27 @@ object Relevo {
             wall(b, x0 - ax * ow, z0 - az * ow, x1 - bx * ow, z1 - bz * ow, y0 + 1.0f, y0 + 0.05f, -ax, -az, COL_BRIDGE)
             tri(b, x0 + ax * ow, y0 - 1.3f, z0 + az * ow, x0 - ax * ow, y0 - 1.3f, z0 - az * ow, x1 - bx * ow, y1 - 1.3f, z1 - bz * ow, 0f, -1f, 0f, COL_UNDER)
             tri(b, x0 + ax * ow, y0 - 1.3f, z0 + az * ow, x1 - bx * ow, y1 - 1.3f, z1 - bz * ow, x1 + bx * ow, y1 - 1.3f, z1 + bz * ow, 0f, -1f, 0f, COL_UNDER)
+            if (q % 3 == 0) {   // Etapa 179: pilar sob o viaduto/ponte, do terreno até o fundo da pista
+                val top = y0 - 1.3f; val gh = height(x0, z0)
+                if (top - gh > 2.2f) { b.m(Mt.PLAIN, 1f); b.box(x0, (top + gh) / 2f, z0, 1.8f, top - gh, 1.8f, COL_UNDER) }
+            }
+        }
+    }
+
+    private fun emitPad(b: MB, p: Pad) {
+        val n = 20
+        val rr = padR(p)
+        val y = p.y + ROADY + 0.06f
+        b.m(Mt.ASPHALT, 0.25f)
+        for (k in 0 until n) {
+            val a0 = (k * 2 * Math.PI / n).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / n).toFloat()
+            tri(b, p.x, y, p.z, p.x + cos(a0) * rr, y, p.z + sin(a0) * rr, p.x + cos(a1) * rr, y, p.z + sin(a1) * rr, 0f, 1f, 0f, COL_ASPH)
+        }
+        b.m(Mt.PAVER, 0.9f)
+        val r2 = rr + 1.2f
+        for (k in 0 until n) {
+            val a0 = (k * 2 * Math.PI / n).toFloat(); val a1 = ((k + 1) * 2 * Math.PI / n).toFloat()
+            strip(b, p.x + cos(a0) * rr, p.z + sin(a0) * rr, p.x + cos(a0) * r2, p.z + sin(a0) * r2, p.x + cos(a1) * rr, p.z + sin(a1) * rr, p.x + cos(a1) * r2, p.z + sin(a1) * r2, y + 0.0f, y + 0.0f, COL_CURB)
         }
     }
 
@@ -339,6 +393,7 @@ object Relevo {
         val csize = CS * g
         val segs = HashMap<Int, ArrayList<IntArray>>()
         for ((ri, r) in roads.withIndex()) for (q in 0 until r.x.size - 1) {
+            if (!r.keep[q]) continue
             val mx = (r.x[q] + r.x[q + 1]) / 2f; val mz = (r.z[q] + r.z[q + 1]) / 2f
             val ci = ((mx - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((mz - CZ) / csize).toInt().coerceIn(0, ncz - 1)
             segs.getOrPut(cj * 1000 + ci) { ArrayList() }.add(intArrayOf(ri, q))
@@ -347,6 +402,11 @@ object Relevo {
         for (h in hubs) {
             val ci = ((h.x - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((h.z - CZ) / csize).toInt().coerceIn(0, ncz - 1)
             hubB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(h)
+        }
+        val padB = HashMap<Int, ArrayList<Pad>>()
+        for (p in pads) {
+            val ci = ((p.x - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((p.z - CZ) / csize).toInt().coerceIn(0, ncz - 1)
+            padB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(p)
         }
         // distância às ruas (grade de 16 m) para não plantar árvores no asfalto
         val gw = (worldW / 16f).toInt() + 2; val gh = (worldH / 16f).toInt() + 2
@@ -363,6 +423,7 @@ object Relevo {
         }
         for (r in roads) for (q in r.x.indices) mark(r.x[q], r.z[q], 40f, r.w / 2f)
         for (h in hubs) mark(h.x, h.z, h.r + 40f, h.r)
+        for (p in pads) mark(p.x, p.z, padR(p) + 40f, padR(p))
 
         val total = ncx * ncz
         for (cj in 0 until ncz) for (ci in 0 until ncx) {
@@ -406,6 +467,8 @@ object Relevo {
             }
             val hl = hubB[cj * 1000 + ci]
             if (hl != null) { ext = 40f; for (h in hl) { emitHub(b, h); ymax = max(ymax, h.y + 1f) } }
+            val pdl = padB[cj * 1000 + ci]
+            if (pdl != null) { ext = 40f; for (p in pdl) { emitPad(b, p); ymax = max(ymax, p.y + 1f) } }
             if (!b.isEmpty()) {
                 val c = City.Chunk(b.toMesh(true).gpuOnly(), null, tx0 - ext, tz0 - ext, tx1 + ext, tz1 + ext, ymax + 1.5f)
                 c.terrain = true   // pedaço de terreno: aparece de mais longe (ver Renderer3D)
@@ -463,15 +526,25 @@ object Relevo {
         p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
         fun path(r: Road): Path {
             val pa = Path()
-            for (q in r.x.indices) { val x = (r.x[q] - CX) / 4f; val z = (r.z[q] - CZ) / 4f; if (q == 0) pa.moveTo(x, z) else pa.lineTo(x, z) }
+            var started = false
+            for (q in 0 until r.x.size - 1) {
+                if (!r.keep[q]) continue
+                if (!started) { pa.moveTo((r.x[q] - CX) / 4f, (r.z[q] - CZ) / 4f); started = true }
+                pa.lineTo((r.x[q + 1] - CX) / 4f, (r.z[q + 1] - CZ) / 4f)
+            }
             return pa
         }
         for (r in roads) { p.color = 0xFF455A64.toInt(); p.strokeWidth = r.w / 4f * 1.1f + 1.6f; cv.drawPath(path(r), p) }
+        p.style = Paint.Style.FILL
+        for (pd in pads) { p.color = 0xFF455A64.toInt(); cv.drawCircle((pd.x - CX) / 4f, (pd.z - CZ) / 4f, padR(pd) / 4f + 0.8f, p) }
+        p.style = Paint.Style.STROKE
         for (r in roads) {
             p.color = if (r.c == 0) 0xFFFF9800.toInt() else if (r.c == 3) 0xFFEEE6DF.toInt() else 0xFFFFFFFF.toInt()
             p.strokeWidth = r.w / 4f * 1.1f; cv.drawPath(path(r), p)
         }
         p.style = Paint.Style.FILL
+        p.color = 0xFFEEE6DF.toInt()
+        for (pd in pads) cv.drawCircle((pd.x - CX) / 4f, (pd.z - CZ) / 4f, padR(pd) / 4f, p)
         for (h in hubs) {
             val x = (h.x - CX) / 4f; val z = (h.z - CZ) / 4f
             p.color = 0xFF455A64.toInt(); cv.drawCircle(x, z, h.r / 4f + 1.5f, p)
