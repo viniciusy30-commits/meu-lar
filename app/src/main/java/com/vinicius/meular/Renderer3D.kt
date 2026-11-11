@@ -712,9 +712,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             carKey = key
         }
         if (carX.isNaN()) {
-            // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
-            val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 33f   // Etapa 131: R. das Magnólias, em frente de casa
-            carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
+            if (City.HDS && !hdsSpawned && !st.testRoom) { City.ownCar = null; return }   // Etapa 178: espera o jogador nascer na Casa 1
+            val sp = if (City.HDS && Relevo.on) Relevo.carSpot() else null
+            if (sp != null) {
+                // Etapa 178: vaga na rua em frente da Casa 1 do relevo, na altura do asfalto
+                carX = sp[0]; carZ = sp[1]; carH = sp[2]; carY = Relevo.groundH(carX, carZ)
+            } else {
+                // vaga junto da calçada, do lado da casa, virado no sentido da mão (-x)
+                val zc = if (City.bandZ.size > 9) (City.bandZ[8] + City.bandZ[9]) / 2f else 33f   // Etapa 131: R. das Magnólias, em frente de casa
+                carX = st.gw / 2f + 7f; carZ = zc - 2.25f; carH = (-Math.PI / 2).toFloat()
+            }
         }
         City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
     }
@@ -740,7 +747,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         var ok = false
         for (side in floatArrayOf(-1f, 1f)) {
             val ex = carX + rx * side * (carHalfW() + 0.8f); val ez = carZ + rz * side * (carHalfW() + 0.8f)
-            val up = carY > 0.45f   // Etapa 145: em cima do elevado, desce do carro na própria pista
+            val up = !Relevo.on && carY > 0.45f   // Etapa 178: no relevo a altura do chão não é elevado. Etapa 145: em cima do elevado, desce do carro na própria pista
             if (!City.on || (if (up) !Elevado.blockedWalk(ex, ez, carY) && !Elevado.surface(ex, ez, carY).isNaN() else !City.blocked(ex, ez))) { px = ex; pz = ez; ok = true; break }
         }
         baseY = carY
@@ -929,7 +936,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         val k = min(1f, dt * (if (turbo) 2.2f else 3.5f))
         fvx += (tx - fvx) * k; fvy += (ty - fvy) * k; fvz += (tz - fvz) * k
         px += fvx * dt; pz += fvz * dt
-        if (City.on) { px = px.coerceIn(City.X0 + 2f, City.X1 - 2f); pz = pz.coerceIn(City.Z0 + 2f, City.SEA_Z + 380f) }
+        if (City.on) { px = px.coerceIn(City.X0 + 2f, City.X1 - 2f); pz = pz.coerceIn(City.Z0 + 2f, if (Relevo.on) City.Z1 - 2f else City.SEA_Z + 380f) }
         flyAlt += fvy * dt
         val g2 = groundH(px, pz)
         if (flyAlt < g2) { flyAlt = g2; if (fvy < 0f) fvy = 0f }
@@ -1014,7 +1021,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for (a in floatArrayOf(-hl, -hl * 0.5f, 0f, hl * 0.5f, hl)) for (b in floatArrayOf(-hw, 0f, hw)) {
             if (b == 0f && a != -hl && a != hl) continue
             val qx = x + fx * a + rx * b; val qz = z + fz * a + rz * b
-            if (City.inLot(qx, qz) || (carY < 0.9f && City.blocked(qx, qz)) || Elevado.blockedCar(qx, qz, carY)) { n++; sx += qx; sz += qz }
+            if (City.inLot(qx, qz) || ((carY < 0.9f || Relevo.on) && City.blocked(qx, qz)) || Elevado.blockedCar(qx, qz, carY)) { n++; sx += qx; sz += qz }
         }
         if (n > 0) { hitCX = sx / n; hitCZ = sz / n }
         return n
@@ -1114,7 +1121,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         for ((ci, c) in City.chunks.withIndex()) {
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
-            if (d2 > 245f * 245f) continue
+            val lim = if (c.terrain) (if (flying || landing) 520f else 420f) else 245f   // Etapa 178: terreno do relevo aparece de longe
+            if (d2 > lim * lim) continue
             if (!boxVisible(c.x0, -0.6f, c.z0, c.x1, c.h, c.z1)) continue
             val wantNear = d2 < City.NEAR * City.NEAR || (c.far == null && c.farRanges == null) || (ib != null && ib.chunk == ci)
             val nm = c.near
@@ -1308,6 +1316,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     val streetAerial: Boolean get() = cityAer()
     private var acx = Float.NaN
     private var acz = 0f
+    private var acy = 0f
 
     fun faceCameraBehindPlayer() {
         fyaw = (Math.PI - Math.toRadians(pYaw.toDouble())).toFloat()
@@ -1479,6 +1488,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val sp = Hds.spawn()
             if (sp != null) {
                 px = sp[0]; pz = sp[1]; py = 0f; posInit = true; hdsSpawned = true
+                if (Relevo.on) baseY = Hds.spY   // Etapa 178: a Casa 1 fica num platô do relevo
                 path = null; pMoving = false
                 pYaw = 180f
                 fyaw = 0f
@@ -2115,7 +2125,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 // 3ª pessoa: câmera atrás do personagem, orbitando com o olhar
                 crouchK += ((if (crouch) 1f else 0f) - crouchK) * 0.15f
                 val fly = flying || landing
-                val tx = px; val ty = if (fly) baseY + py + 1.05f else py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
+                val tx = px; val ty = if (fly) baseY + py + 1.05f else (if (Relevo.on) baseY else 0f) + py * 0.6f + 1.05f - 0.36f * crouchK; val tz = pz
                 val inRoom = px > 0.32f && px < gw - 0.32f && pz > 0.32f && pz < gh - 0.32f && !(fly && py > 1.2f)
                 val cb = if (City.on && !(fly && py > 2.2f)) City.bldAt(px, pz) else null
                 camBld = cb
@@ -2131,10 +2141,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     t -= 0.07f
                 }
                 if (t < 0.12f) t = 0.12f
-                ex = ox; ey = maxOf(oy, 0.25f); ez = oz
+                ex = ox; ey = maxOf(oy, (if (Relevo.on) baseY else 0f) + 0.25f); ez = oz
+                if (Relevo.on && !Hds.inside(px, pz)) ey = maxOf(ey, Relevo.groundH(ex, ez) + 0.35f)   // Etapa 178: a câmera não entra no morro
                 // Etapa 126: plano próximo maior fora de casa = profundidade bem mais precisa ao longe (janelas, guias e lajes paravam de piscar)
                 val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else if (Hds.inside(px, pz)) 0.25f else if (fly && py > 6f) 0.5f else 0.3f
-                Matrix.perspectiveM(proj, 0, 60f + (if (fly) min(14f, flySpeed / 3.5f) else 0f), aspect, nearP, if (fly) 520f else 260f)
+                Matrix.perspectiveM(proj, 0, 60f + (if (fly) min(14f, flySpeed / 3.5f) else 0f), aspect, nearP, if (fly) 520f else if (Relevo.on) 430f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else {
                 // 1ª pessoa: a câmera fica no olho do personagem, seguindo a cabeça animada (corrida, pulo...)
@@ -2156,20 +2167,21 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     ey = plM[1] * e0 + plM[5] * e1 + plM[9] * e2 + plM[13]
                     ez = plM[2] * e0 + plM[6] * e1 + plM[10] * e2 + plM[14]
                 }
-                Matrix.perspectiveM(proj, 0, 72f, aspect, if (atHome(px, pz)) 0.04f else 0.09f, if (flying || landing) 520f else 260f)
+                Matrix.perspectiveM(proj, 0, 72f, aspect, if (atHome(px, pz)) 0.04f else 0.09f, if (flying || landing) 520f else if (Relevo.on) 430f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             }
         } else if (cityAer()) {
             // Etapa 126: vista de cima na cidade, seguindo o personagem (o prédio em que ele está fica sem teto e paredes altas)
-            if (acx.isNaN()) { acx = px; acz = pz }
+            if (acx.isNaN()) { acx = px; acz = pz; acy = baseY }
             val k = min(1f, dt * 5f)
-            acx += (px - acx) * k; acz += (pz - acz) * k
+            acx += (px - acx) * k; acz += (pz - acz) * k; acy += (baseY - acy) * k
+            val ab = if (Relevo.on) acy else 0f   // Etapa 178: relevo
             val dist = 19f / minOf(aspect, 1f) * zoom
             ex = acx + dist * cos(pitch) * sin(yaw)
-            ey = 0.5f + dist * sin(pitch)
+            ey = ab + 0.5f + dist * sin(pitch)
             ez = acz + dist * cos(pitch) * cos(yaw)
             Matrix.perspectiveM(proj, 0, 40f, aspect, 0.3f, 300f)
-            Matrix.setLookAtM(view, 0, ex, ey, ez, acx, 0.4f, acz, 0f, 1f, 0f)
+            Matrix.setLookAtM(view, 0, ex, ey, ez, acx, ab + 0.4f, acz, 0f, 1f, 0f)
         } else {
             acx = Float.NaN
             val dist = maxOf(gw, gh) * 2.0f / minOf(aspect, 1f) * zoom

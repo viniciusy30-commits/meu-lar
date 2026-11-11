@@ -52,6 +52,8 @@ object City {
         var glass = false
         var pend: Flora.Batch? = null       // flora a montar na thread do GL (precisa criar texturas)
         var lazyI = -1; var lazyJ = -1      // quarteirão que se recarrega sob demanda
+        /** Etapa 178: pedaço do terreno do relevo (Relevo.kt): aparece de bem mais longe que as casas */
+        @JvmField var terrain = false
         @Volatile var loading = false
         @Volatile var failed = false
         @Volatile var result: Pair<Mesh, Flora.Batch>? = null
@@ -350,7 +352,7 @@ object City {
         buildPeds()
         if (TOWN) TownPark.buildLife()
         // pontos do mapa
-        places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
+        if (!Relevo.on) places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
         places.add(Place("Píer", PIER_X, SEA_Z + 20f, 0xFF8D6E63.toInt(), 'Í'))
         if (tk != token) return
@@ -546,6 +548,7 @@ object City {
             if (abs(dx * fx + dz * fz) < o[3] + 0.2f && abs(dx * fz - dz * fx) < o[4] + 0.2f) return true
         }
         if (x < X0 + 0.5f || x > X1 - 0.5f || z < Z0 + 0.5f) return true
+        if (Relevo.on && (z > Z1 - 0.5f || Relevo.wet(x, z))) return true   // Etapa 178: borda do mapa e água funda (ponte vale como chão)
         if (z > SEA_Z + 2f) {   // mar: dá para molhar os pés; mais fundo, só pelo píer
             val onPier = (abs(x - PIER_X) < 2.3f && z < SEA_Z + 62f) || (abs(x - PIER_X) < 5.8f && z >= SEA_Z + 62f && z < SEA_Z + 67.8f)
             if (!onPier) return true

@@ -26,7 +26,7 @@ object Hds {
     private class Job(val chunk: City.Chunk?, val roof: Roof?, val pends: List<Pend>)
 
     /** Etapa 166: grade de 25 cm de uma casa: máscara de paredes por faixa de 50 cm de altura e alturas de chão (andares, escadas, porão). */
-    private class WG(val x0: Float, val z0: Float, val nx: Int, val nz: Int, val wall: IntArray, val off: IntArray, val fl: ShortArray)
+    private class WG(val x0: Float, val z0: Float, val nx: Int, val nz: Int, val wall: IntArray, val off: IntArray, val fl: ShortArray, val dy: Float = 0f)
     @Volatile private var walk: List<WG> = emptyList()
     private const val WCS = 0.25f
     /** altura dos pés do jogador (a Renderer3D atualiza a cada quadro) */
@@ -44,7 +44,7 @@ object Hds {
         val c = j * g.nx + i
         var best = Float.NaN
         for (k in g.off[c] until g.off[c + 1]) {
-            val h = g.fl[k] / 100f
+            val h = g.fl[k] / 100f + g.dy   // Etapa 178: a casa pode estar num platô do relevo
             if (h <= ref + 0.55f && (best.isNaN() || h > best)) best = h
         }
         return best
@@ -52,10 +52,11 @@ object Hds {
 
     /** -1: fora das casas ou no térreo (vale a colisão antiga); 0/1: andar de cima/escada/porão, livre/bloqueado pelas paredes daquele andar. */
     fun upper(x: Float, z: Float): Int {
-        if (refY < 1.2f && refY > -1.0f) return -1
         val g = wgAt(x, z) ?: return -1
-        val lo = Math.floor(((refY + 0.25f + 3f) / 0.5f).toDouble()).toInt().coerceIn(0, 31)
-        val hi = Math.floor(((refY + 1.8f + 3f) / 0.5f).toDouble()).toInt().coerceIn(0, 31)
+        val ry = refY - g.dy   // altura dos pés em relação ao térreo desta casa
+        if (ry < 1.2f && ry > -1.0f) return -1
+        val lo = Math.floor(((ry + 0.25f + 3f) / 0.5f).toDouble()).toInt().coerceIn(0, 31)
+        val hi = Math.floor(((ry + 1.8f + 3f) / 0.5f).toDouble()).toInt().coerceIn(0, 31)
         var mask = 0
         for (b in lo..hi) mask = mask or (1 shl b)
         for (k in 0 until 5) {
@@ -81,6 +82,11 @@ object Hds {
     @Volatile private var mzr = FloatArray(0)
     @Volatile private var mplots: List<FloatArray> = emptyList()
     @Volatile var offX = 0f; @Volatile var offZ = 0f
+    /** Etapa 178: altura do térreo de cada casa no relevo (nível do platô + 8 cm, para a grama da casa não brigar com o terreno) */
+    @Volatile private var plotY = FloatArray(0)
+    private const val HOUSE_UP = 0.08f
+    /** Etapa 178: altura dos pés ao nascer na Casa 1 */
+    @Volatile var spY = 0f
 
     /** Etapa 174: ponto de partida do jogador dentro da Casa 1 (sala da esquerda, perto da porta); null enquanto a cidade não montou. */
     fun spawn(): FloatArray? = if (roofs.isEmpty()) null else floatArrayOf(spX, spZ)
@@ -95,6 +101,16 @@ object Hds {
 
     /** Altura real de caminhada da Cidade 2: pisos internos, asfalto e calçadas. */
     fun groundH(x: Float, z: Float): Float {
+        if (Relevo.on) {   // Etapa 178: cidade com relevo
+            val py = plotY
+            for (i in mplots.indices) {
+                if (i >= py.size) break
+                val p = mplots[i]
+                if (x > p[0] + 0.05f && x < p[2] - 0.05f && z > p[1] + 0.05f && z < p[3] - 0.05f) return City.FLOOR + py[i]
+                if (x > p[0] - 4f && x < p[2] + 4f && z > p[1] - 4f && z < p[3] + 4f) return py[i]   // quintal plano em volta da casa
+            }
+            return Relevo.groundH(x, z)
+        }
         for (p in mplots) if (x > p[0] + 0.05f && x < p[2] - 0.05f && z > p[1] + 0.05f && z < p[3] - 0.05f) return City.FLOOR
         var dx = Float.MAX_VALUE
         for (v in mxr) dx = minOf(dx, kotlin.math.abs(x - v))
@@ -114,6 +130,8 @@ object Hds {
         texIds = IntArray(0)
         mxr = FloatArray(0); mzr = FloatArray(0); mplots = emptyList()
         walk = emptyList(); refY = 0f
+        plotY = FloatArray(0); spY = 0f
+        Relevo.clear()
     }
 
     private fun addPrim(g: Group, p: GPrim, m: FloatArray, ox: Float, oz: Float, cg: CG?) {
@@ -284,8 +302,9 @@ object Hds {
         val js = JSONObject(am.open("hds/city2.json").bufferedReader().use { it.readText() })
         City.step(0.5f)
         val res = js.getJSONArray("res")
-        val ox = (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
-        val oz = (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
+        val rel = Relevo.load(am)   // Etapa 178: relevo.bin + city3.json; sem eles vale a Cidade 2 antiga
+        val ox = if (rel) 0f else (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
+        val oz = if (rel) 0f else (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
         offX = ox; offZ = oz
         val plots = js.getJSONArray("plots"); val np = plots.length()
         val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
@@ -296,15 +315,28 @@ object Hds {
 
         // quarteirões de destino: um por casa (com o contexto de onde ela nasceu) + os vazios (praças com árvores)
         val dst = ArrayList<Dst>()
-        val host = js.getJSONArray("host")
         val pdx = FloatArray(np); val pdz = FloatArray(np)
-        for (k in 0 until np) {
-            val h = host.getJSONArray(k)
-            dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), k))
-            pdx[k] = (h.getInt(0) - h.getInt(2)) * CW; pdz[k] = (h.getInt(1) - h.getInt(3)) * CW
+        val py = FloatArray(np)
+        if (rel) {
+            // Etapa 178: cada casa vai para a posição dela no mapa novo e sobe/desce para o platô do terreno
+            for (k in 0 until np) {
+                val hs = Relevo.house(k) ?: continue
+                val pb = plots.getJSONObject(k)
+                val cxs = (pb.getDouble("x0") + pb.getDouble("x1")).toFloat() / 2f
+                val czs = (pb.getDouble("z0") + pb.getDouble("z1")).toFloat() / 2f
+                pdx[k] = Relevo.CX + hs.x - cxs; pdz[k] = Relevo.CZ + hs.z - czs
+                py[k] = hs.lvl + HOUSE_UP
+            }
+        } else {
+            val host = js.getJSONArray("host")
+            for (k in 0 until np) {
+                val h = host.getJSONArray(k)
+                dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), k))
+                pdx[k] = (h.getInt(0) - h.getInt(2)) * CW; pdz[k] = (h.getInt(1) - h.getInt(3)) * CW
+            }
+            val fa = js.getJSONArray("fill")
+            for (k in 0 until fa.length()) { val h = fa.getJSONArray(k); dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), -1)) }
         }
-        val fa = js.getJSONArray("fill")
-        for (k in 0 until fa.length()) { val h = fa.getJSONArray(k); dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), -1)) }
 
         val clamp = BooleanArray(gm.images.size)
         for (n in gm.nodes) for (p in n.prims) if (p.cut && p.img in clamp.indices) clamp[p.img] = true
@@ -314,9 +346,10 @@ object Hds {
         val inst = js.getJSONArray("inst")
         val m = FloatArray(12)
 
-        fun addInst(a: org.json.JSONArray, j: Int, dx: Float, dz: Float, hl: FloatArray, mm: FloatArray?) {
+        fun addInst(a: org.json.JSONArray, j: Int, dx: Float, dz: Float, hl: FloatArray, mm: FloatArray?, dy: Float = 0f) {
             val pi = a.getInt(0)
             if (mm == null) for (k in 0 until 12) m[k] = a.getDouble(1 + k).toFloat() else for (k in 0 until 12) m[k] = mm[k]
+            m[7] += dy   // Etapa 178: altura do platô
             val kind = a.getInt(13); val plot = a.getInt(14)
             val node = gm.nodes.getOrNull(pi) ?: return
             if (node.prims.isEmpty()) return
@@ -335,6 +368,17 @@ object Hds {
             }
         }
 
+        if (rel) {
+            for (k in 0 until np) {
+                for (j in 0 until inst.length()) {
+                    if (bcell.getInt(j) != -1) continue
+                    val a = inst.getJSONArray(j)
+                    if (a.getInt(14) != k) continue
+                    addInst(a, j, pdx[k], pdz[k], FloatArray(0), null, py[k])
+                }
+                City.step(0.5f + 0.05f * (k + 1) / np)
+            }
+        }
         for ((di, d) in dst.withIndex()) {
             val dx = (d.cx - d.sx) * CW; val dz = (d.cz - d.sz) * CW
             val src = d.sx + d.sz * 8
@@ -351,8 +395,8 @@ object Hds {
             }
             City.step(0.5f + 0.4f * di / dst.size)
         }
-        // anéis de grama em volta da cidade, esticados para o novo tamanho
-        for (j in 0 until inst.length()) {
+        // anéis de grama em volta da cidade, esticados para o novo tamanho (o relevo tem o terreno dele)
+        if (!rel) for (j in 0 until inst.length()) {
             val bc = bcell.getInt(j)
             if (bc > -3) continue
             val sxs = (wx + 540f) / 1200f; val szs = (wz + 20f) / 360f
@@ -383,7 +427,8 @@ object Hds {
             if (roofG[k].all.isNotEmpty()) jobs.add(Job(null, r, roofG[k].all))
             City.addPlace(City.Place(HdsEstate.label(k), (x0 + x1) / 2f, (z0 + z1) / 2f, 0xFFFF7043.toInt(), 'C'))
         }
-        spX = 47.84f + ox + pdx[0]; spZ = 19.9f + oz + pdz[0]
+        spX = 47.84f + ox + pdx[0]; spZ = 19.9f + oz + pdz[0]; spY = py[0] + City.FLOOR
+        if (rel) Relevo.build(out, pl)   // Etapa 178: terreno, água, ruas curvas, rotatórias, pontes e árvores
 
         // colisões (paredes e cercas, já com os vãos de porta); as das casas vão com a casa, as de árvores/ruas repetem em cada quarteirão
         val so = js.getJSONArray("solids")
@@ -422,15 +467,22 @@ object Hds {
                     for (q in 0 until cnt) fl[n++] = bb.getShort()
                 }
                 off[nx * nz] = n
-                wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n)))
+                wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))
             }
             walk = wl
         } catch (e: Throwable) { android.util.Log.w("Hds", "city2walk.bin: $e") }
 
-        minX = ox - 20f - 250f; minZ = oz - 20f - 250f
-        maxX = ox + wx + 250f; maxZ = oz + wz + 250f
-        mxr = FloatArray(ncx) { ox + CW * it }
-        mzr = FloatArray(ncz) { oz + CW * it }
+        if (rel) {
+            minX = Relevo.CX; minZ = Relevo.CZ
+            maxX = Relevo.CX + Relevo.worldW; maxZ = Relevo.CZ + Relevo.worldH
+            mxr = FloatArray(0); mzr = FloatArray(0)
+        } else {
+            minX = ox - 20f - 250f; minZ = oz - 20f - 250f
+            maxX = ox + wx + 250f; maxZ = oz + wz + 250f
+            mxr = FloatArray(ncx) { ox + CW * it }
+            mzr = FloatArray(ncz) { oz + CW * it }
+        }
+        plotY = py
         android.util.Log.i("Hds", "triângulos repetidos descartados: $dropped")
         seen.clear()
         mplots = pl
@@ -498,6 +550,12 @@ object Hds {
 
     /** Ruas, calçadas, quarteirões e casas no mapa (mundo já em metros do jogo). */
     fun drawMap(c: Canvas, fill: Paint, road: Paint) {
+        if (Relevo.on) {   // Etapa 178: mapa do relevo + os lotes das casas
+            Relevo.drawMap(c)
+            fill.color = 0xFFBCAAA4.toInt()
+            for (p in mplots) c.drawRect(p[0] - 3f, p[1] - 3f, p[2] + 3f, p[3] + 3f, fill)
+            return
+        }
         val xs = mxr; val zs = mzr
         if (xs.isEmpty() || zs.isEmpty()) return
         fill.color = 0xFFC5E1A5.toInt()

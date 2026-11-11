@@ -218,7 +218,7 @@ object MapPaint {
         fill.color = 0xFFF4F1EA.toInt(); c.drawRect(City.X0 - 400f, City.Z1, City.X1 + 400f, City.BEACH_Z, fill)
         fill.color = 0xFF8D6E63.toInt(); c.drawRect(City.PIER_X - 2.5f, City.BEACH_Z + 4f, City.PIER_X + 2.5f, City.SEA_Z + 62f, fill); c.drawRect(City.PIER_X - 6f, City.SEA_Z + 62f, City.PIER_X + 6f, City.SEA_Z + 70f, fill)
         }
-        val ph = photo
+        val ph = if (Relevo.on) null else photo   // Etapa 178: o relevo tem o mapa próprio (água, morros, ruas curvas)
         if (ph != null) {
             val r = photoRect
             c.drawBitmap(ph, null, RectF(r[0], r[1], r[2], r[3]), photoPaint)
@@ -358,7 +358,7 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
         }
         addView(map, LayoutParams(-1, -1))
         val sg = ScaleGestureDetector(ctx, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(d: ScaleGestureDetector): Boolean { scale = (scale * d.scaleFactor).coerceIn(0.35f, 6f); map.invalidate(); return true }
+            override fun onScale(d: ScaleGestureDetector): Boolean { scale = (scale * d.scaleFactor).coerceIn(if (Relevo.on) 0.15f else 0.35f, 6f); map.invalidate(); return true }
         })
         var lx = 0f; var ly = 0f; var moved = 0f; var multi = false
         map.setOnTouchListener { _, e ->
