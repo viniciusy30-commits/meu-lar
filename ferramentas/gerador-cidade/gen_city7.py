@@ -369,7 +369,12 @@ for i,r in enumerate(roads):
             if d<r['snap'] and (best is None or d<best[0]): best=(d,q,j)
         if best:
             d,q,j=best
-            if d>0.5: r['pts']=np.vstack([r['pts'],q]) if end==-1 else np.vstack([q,r['pts']])
+            if d>0.5:
+                r['pts']=np.vstack([r['pts'],q]) if end==-1 else np.vstack([q,r['pts']])
+                # O bbox precisa acompanhar a geometria estendida. Sem atualizar,
+                # as próximas pontas ignoram esta rua como destino de snap e podem
+                # ficar soltas mesmo estando a poucos metros da nova conexão.
+                BB[i]=bbox(r['pts'],2)
             k=get_node(q);onroad[i].append(k);onroad[best[2]].append(k)
 for i,r in enumerate(roads):
     if not r['elev']: continue
