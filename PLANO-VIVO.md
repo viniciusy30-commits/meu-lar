@@ -293,3 +293,12 @@ Ver no APK: se o andar ainda parecer rápido/lento demais, ajustar só o comprim
 - [x] Loja: categorias com ícones, botões de subcategoria (Todos, Sofás e poltronas...), cartões com o ícone do móvel e aviso "Grátis · cores".
 - [ ] Testar no celular: aparência das cores (texturas), nomes ainda em inglês (86 itens sem tradução oficial), 92 móveis sem ícone do Hds (ficam com miniatura gerada), portas/janelas ainda não encaixam na parede.
 - Para regenerar: `ferramentas/hds/icons_extract.py`, `loc1.py` + `loc2.py`, `furn_export2.py` e `furn_pack2.py` (precisam da pasta `Hds` do jogo original).
+
+## Etapa 173 — Correção do catálogo Hds (texturas/ícones) + loja em tela cheia
+- [x] Causa dos "móveis bugados" e dos ícones de cadeado: só a parte 2 da etapa 172 foi aplicada no repositório (código, mobilia.json e texturas novas). A parte 1 (ícones `ic/`, `cat/` e os 1.115 modelos `m/*.glb` novos) nunca entrou: 1.025 modelos antigos continuavam apontando para texturas que foram substituídas.
+- [x] Reenviados `ic/`, `cat/`, `m/` e as 34 texturas da parte 1 em ZIPs menores (cada um independente).
+- [x] `MainActivity.lojaHds()`: loja do catálogo em tela cheia (trilho de categorias à esquerda com os ícones do Hds, botões de subcategoria, cartões azuis com ícone, nome e "Grátis"). Mostra aviso se faltarem os ícones.
+- [ ] Testar no celular. Se ainda houver textura estranha, conferir antes se todos os ZIPs da 173 entraram.
+- [ ] Ainda não feito: tiling (UV0 chega a 6,4) conferido só no código; cores de tecido por máscara (`_ColorMaskTexture`) usam a fórmula aproximada do `bake.py`.
+
+- [x] Sala de testes (Etapa 173): Configurações > Sala de testes abre um seletor (móveis do jogo ou uma categoria do catálogo Hds). Cada categoria é montada em fileiras, uma por subcategoria; dá para trocar de categoria sem sair. `GameState.enterTest(hdsCat)/trocarTest/fillTest`, `MainActivity.escolherSalaTestes`.

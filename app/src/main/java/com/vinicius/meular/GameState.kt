@@ -153,17 +153,30 @@ class GameState(ctx: Context) {
     private var bkMoney = 0; private var bkGw = 6; private var bkGh = 5; private var bkFloor = 0; private var bkWall = 0
     private val bkItems = ArrayList<Item>()
 
-    fun enterTest() {
+    /** [hdsCat] -1 = móveis do jogo; 0.. = só os móveis dessa categoria do catálogo Hds (Etapa 173) */
+    fun enterTest(hdsCat: Int = -1) {
         if (testRoom) return
         bkMoney = money; bkGw = gw; bkGh = gh; bkFloor = floorIdx; bkWall = wallIdx
         bkItems.clear(); bkItems.addAll(items)
         testRoom = true
+        gw = 26
+        fillTest(hdsCat)
+    }
+
+    /** Etapa 173: troca o que aparece na sala de testes sem sair dela */
+    fun trocarTest(hdsCat: Int) {
+        if (!testRoom) return
+        fillTest(hdsCat)
+    }
+
+    private fun fillTest(hdsCat: Int) {
         items.clear()
-        gw = 26; gh = 30
+        gw = 26; gh = 400   // altura provisória; a final é calculada no fim
         // Etapa 87: plantas e árvores (cat 4) ficam do lado de fora da casa, no quintal (Models.yard com vitrine); dentro só os móveis do PDF
-        val list = Type.values().filter { it.cat in 0..3 }.sortedBy { it.cat }   // Etapa 171: sem as plantas (4) nem o catálogo Hds (100+)
+        val list = if (hdsCat >= 0) HdsMob.items(hdsCat) else Type.values().filter { it.cat in 0..3 }.sortedBy { it.cat }   // Etapa 173: uma categoria do catálogo Hds por vez
         var cx = 0.4f; var cz = 0.4f; var rowH = 0f
         var lastCat = -1
+        var lastSub = ""
         for (t in list) {
             val b = Foot.box(t)
             val big = t.cat == 4
@@ -171,6 +184,11 @@ class GameState(ctx: Context) {
             val ih = if (big) t.h.toFloat() else (b[3] - b[1]) + 0.35f
             if (t.cat != lastCat && lastCat != -1 && t.cat == 4) { cx = 0.4f; cz += rowH; rowH = 0f }
             lastCat = t.cat
+            // Etapa 173: cada subcategoria do Hds começa numa fileira nova, com um espaço antes
+            if (hdsCat >= 0) {
+                val s = HdsMob.sub(t)
+                if (s != lastSub) { if (lastSub != "") { cx = 0.4f; cz += rowH + 1.2f; rowH = 0f }; lastSub = s }
+            }
             if (cx + iw > gw - 0.2f) { cx = 0.4f; cz += rowH; rowH = 0f }
             val it = Item(t, 0, 0)
             // posição do canto da área w x h; o corpo fica centrado nela
@@ -184,6 +202,7 @@ class GameState(ctx: Context) {
             cx += iw
             if (ih > rowH) rowH = ih
         }
+        gh = Math.max(30, Math.ceil((cz + rowH + 0.5f).toDouble()).toInt())
     }
 
     fun exitTest() {

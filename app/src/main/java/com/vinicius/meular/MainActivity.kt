@@ -1090,6 +1090,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loja(tab: Int) {
+        if (tab == 7) { lojaHds(); return }   // Etapa 173: catálogo Hds em tela cheia, como a loja original
         shopTab = tab
         tabViews = ArrayList()
         val adapter = ShopAdapter()
@@ -1113,7 +1114,7 @@ class MainActivity : AppCompatActivity() {
                 val t = tv(n, 14f, Pal.SUB, true)
                 t.setPadding(dp(16), dp(8), dp(16), dp(11))
                 t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
-                t.setOnClickListener { shopTab = i; hdsCat = -1; hdsSub = -1; refreshShop() }
+                t.setOnClickListener { if (i == 7) { lojaHds() } else { shopTab = i; hdsCat = -1; hdsSub = -1; refreshShop() } }
                 tabViews.add(t)
                 row.addView(t)
             }
@@ -1142,6 +1143,182 @@ class MainActivity : AppCompatActivity() {
         }
         shopDialog = d
         refreshShop()
+        d.show()
+    }
+
+
+    /** Etapa 173: loja do catálogo Hds em tela cheia (trilho de categorias à esquerda, cartões azuis com o ícone do próprio Hds) */
+    private fun lojaHds() {
+        shopDialog?.dismiss()
+        var cat = if (hdsCat >= 0) hdsCat else 0
+        var sub = -1
+        val d = Dialog(this)
+        d.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val raiz = LinearLayout(this)
+        raiz.orientation = LinearLayout.VERTICAL
+        raiz.background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF1D5683.toInt(), 0xFF0E2D4C.toInt()))
+        raiz.setPadding(dp(14), dp(8), dp(14), dp(8) + bottomInset)
+
+        // barra de cima: moedas e fechar
+        val topo = LinearLayout(this)
+        topo.orientation = LinearLayout.HORIZONTAL
+        topo.gravity = Gravity.CENTER_VERTICAL
+        val chip = LinearLayout(this)
+        chip.orientation = LinearLayout.HORIZONTAL
+        chip.gravity = Gravity.CENTER_VERTICAL
+        chip.setPadding(dp(6), dp(3), dp(14), dp(5))
+        chip.background = Ui.bg(0x66000000, dpf(18f))
+        chip.addView(IconView(this, Ic.COIN), LinearLayout.LayoutParams(dp(22), dp(22)).also { it.rightMargin = dp(7) })
+        chip.addView(tvShadow(tv("\u221E", 18f, Pal.GOLD, true)))
+        topo.addView(chip, LinearLayout.LayoutParams(-2, -2))
+        topo.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        val x = FrameLayout(this)
+        x.background = Ui.chunky(Tn.CORAL, dpf(40f), dpf(3f))
+        x.setPadding(0, 0, 0, dp(3))
+        x.addView(IconView(this, Ic.CLOSE, Color.WHITE, Tn.CORAL.edge), FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER))
+        press(x) { d.dismiss() }
+        topo.addView(x, LinearLayout.LayoutParams(dp(40), dp(40)))
+        raiz.addView(topo, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(6) })
+
+        // aviso se os arquivos do catálogo não chegaram inteiros
+        val faltam = (try { assets.list("hds/mobilia/ic")?.size ?: 0 } catch (e: Exception) { 0 }) < 100
+        if (faltam) {
+            val av = tv("Faltam arquivos do catálogo (ícones). Suba todos os ZIPs da etapa 173 no GitHub.", 13f, 0xFFFFD27A.toInt(), true)
+            av.gravity = Gravity.CENTER
+            raiz.addView(av, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(6) })
+        }
+
+        val corpo = LinearLayout(this)
+        corpo.orientation = LinearLayout.HORIZONTAL
+        raiz.addView(corpo, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val trilhoScroll = android.widget.ScrollView(this)
+        trilhoScroll.isVerticalScrollBarEnabled = false
+        val trilho = LinearLayout(this)
+        trilho.orientation = LinearLayout.VERTICAL
+        trilhoScroll.addView(trilho, ViewGroup.LayoutParams(-1, -2))
+        corpo.addView(trilhoScroll, LinearLayout.LayoutParams(dp(118), -1).also { it.rightMargin = dp(10) })
+
+        val direita = LinearLayout(this)
+        direita.orientation = LinearLayout.VERTICAL
+        corpo.addView(direita, LinearLayout.LayoutParams(0, -1, 1f))
+
+        val subSc = HorizontalScrollView(this)
+        subSc.isHorizontalScrollBarEnabled = false
+        val subLin = LinearLayout(this)
+        subLin.orientation = LinearLayout.HORIZONTAL
+        subSc.addView(subLin)
+        direita.addView(subSc, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(8) })
+
+        val dm = resources.displayMetrics
+        val larguraGrade = dm.widthPixels - dp(118 + 10 + 28)
+        val colunas = (larguraGrade / dp(150)).coerceIn(2, 6)
+        val rv = RecyclerView(this)
+        rv.layoutManager = GridLayoutManager(this, colunas)
+        rv.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        direita.addView(rv, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        class Cartao(val raizV: LinearLayout, val nome: TextView, val img: ImageView, val preco: TextView) : RecyclerView.ViewHolder(raizV)
+        val lista = ArrayList<Type>()
+        val ad = object : RecyclerView.Adapter<Cartao>() {
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Cartao {
+                val c = LinearLayout(this@MainActivity)
+                c.orientation = LinearLayout.VERTICAL
+                c.gravity = Gravity.CENTER_HORIZONTAL
+                val g = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF76B8EC.toInt(), 0xFF3F88C6.toInt()))
+                g.cornerRadius = dpf(14f)
+                c.background = g
+                c.layoutParams = RecyclerView.LayoutParams(-1, dp(160)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+                val n = tv("", 12f, Color.WHITE, true)
+                n.gravity = Gravity.CENTER
+                n.maxLines = 2
+                n.setPadding(dp(6), dp(7), dp(6), 0)
+                c.addView(n, LinearLayout.LayoutParams(-1, dp(38)))
+                val im = ImageView(this@MainActivity)
+                im.scaleType = ImageView.ScaleType.FIT_CENTER
+                im.setPadding(dp(4), dp(2), dp(4), dp(2))
+                c.addView(im, LinearLayout.LayoutParams(-1, 0, 1f))
+                val p = tv("", 13f, Color.WHITE, true)
+                p.gravity = Gravity.CENTER
+                val gp = android.graphics.drawable.GradientDrawable()
+                gp.setColor(0xFF4C7FA5.toInt())
+                gp.cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dpf(14f), dpf(14f), dpf(14f), dpf(14f))
+                p.background = gp
+                c.addView(p, LinearLayout.LayoutParams(-1, dp(34)))
+                return Cartao(c, n, im, p)
+            }
+            override fun onBindViewHolder(h: Cartao, i: Int) {
+                val t = lista[i]
+                h.nome.text = t.nome
+                h.img.setImageBitmap(t.glb?.let { thumb(it) })
+                h.preco.text = if (HdsMob.temCor(t)) "Gr\u00e1tis \u00b7 cores" else "Gr\u00e1tis"
+                h.raizV.setOnClickListener { comprar(t) }
+            }
+            override fun getItemCount() = lista.size
+        }
+        rv.adapter = ad
+
+        lateinit var atualizar: () -> Unit
+        atualizar = {
+            // trilho de categorias, duas por linha
+            trilho.removeAllViews()
+            var linha: LinearLayout? = null
+            HdsMob.cats.forEachIndexed { i, c ->
+                if (i % 2 == 0) {
+                    linha = LinearLayout(this)
+                    linha!!.orientation = LinearLayout.HORIZONTAL
+                    trilho.addView(linha, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(6) })
+                }
+                val b = LinearLayout(this)
+                b.orientation = LinearLayout.VERTICAL
+                b.gravity = Gravity.CENTER
+                b.setPadding(dp(2), dp(6), dp(2), dp(4))
+                val sel = i == cat
+                val bg = android.graphics.drawable.GradientDrawable()
+                bg.setColor(if (sel) 0x66BFE9FF else 0x22FFFFFF)
+                bg.cornerRadius = dpf(10f)
+                if (sel) bg.setStroke(dp(2), 0xFFD6F1FF.toInt())
+                b.background = bg
+                val ic = ImageView(this)
+                ic.scaleType = ImageView.ScaleType.FIT_CENTER
+                ic.setImageBitmap(thumb("hdscat:" + c.icone))
+                ic.alpha = if (sel) 1f else 0.75f
+                b.addView(ic, LinearLayout.LayoutParams(dp(44), dp(44)))
+                val nm = tv(c.nome, 9f, Color.WHITE, true)
+                nm.gravity = Gravity.CENTER
+                nm.maxLines = 2
+                b.addView(nm, LinearLayout.LayoutParams(-1, -2))
+                b.setOnClickListener { cat = i; sub = -1; hdsCat = i; atualizar(); rv.scrollToPosition(0) }
+                linha!!.addView(b, LinearLayout.LayoutParams(0, -2, 1f).also { it.rightMargin = dp(3); it.leftMargin = dp(3) })
+            }
+            // botões de subcategoria
+            subLin.removeAllViews()
+            val nomes = listOf("Todos") + (HdsMob.cats.getOrNull(cat)?.subs ?: emptyList())
+            nomes.forEachIndexed { j, n ->
+                val sel = (j - 1) == sub
+                val t = tv(n, 13f, Color.WHITE, true)
+                t.setPadding(dp(14), dp(6), dp(14), dp(8))
+                val bg = android.graphics.drawable.GradientDrawable()
+                bg.setColor(if (sel) 0xFF3FA6E8.toInt() else 0x33FFFFFF)
+                bg.cornerRadius = dpf(16f)
+                t.background = bg
+                t.layoutParams = LinearLayout.LayoutParams(-2, -2).also { it.rightMargin = dp(8) }
+                t.setOnClickListener { sub = j - 1; atualizar(); rv.scrollToPosition(0) }
+                subLin.addView(t)
+            }
+            lista.clear()
+            lista.addAll(HdsMob.items(cat, sub))
+            ad.notifyDataSetChanged()
+        }
+        atualizar()
+
+        d.setContentView(raiz)
+        d.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setDimAmount(0.0f)
+        }
+        shopDialog = d
         d.show()
     }
 
@@ -1187,21 +1364,35 @@ class MainActivity : AppCompatActivity() {
         st.save(); atualizarDinheiro(true); refreshShop()
     }
 
-    /** Etapa 70: liga/desliga a sala de testes (todos os móveis e decorações do jogo, sem mexer na sua casa). */
-    private fun alternarSalaTestes() {
+    /** Etapa 70/173: sala de testes. [hdsCat] -1 = móveis do jogo; 0.. = uma categoria do catálogo Hds; [sair] volta para a casa. */
+    private fun alternarSalaTestes(hdsCat: Int = -1, sair: Boolean = false) {
         game.selected = null
         game.r.grabbed = null
-        val entrar = !st.testRoom
+        val estava = st.testRoom
         // roda na thread do OpenGL: montar a sala lê as malhas dos móveis (texturas)
         game.queueEvent {
-            if (entrar) st.enterTest() else st.exitTest()
+            if (sair) { if (estava) st.exitTest() } else if (estava) st.trocarTest(hdsCat) else st.enterTest(hdsCat)
             game.r.resetPlayer()
             runOnUiThread {
                 atualizarDinheiro(false)
-                msg(if (entrar) "Sala de testes: tudo do jogo está aqui. Nada do que você mexer aqui é salvo." else "Voltou para a sua casa.")
+                val nome = if (hdsCat >= 0) HdsMob.cats.getOrNull(hdsCat)?.nome ?: "" else "móveis do jogo"
+                msg(if (sair) "Voltou para a sua casa." else "Sala de testes: $nome. Nada do que você mexer aqui é salvo.")
                 refreshShop()
             }
         }
+    }
+
+    /** Etapa 173: escolhe o que mostrar na sala de testes (móveis do jogo ou uma categoria do catálogo Hds) */
+    private fun escolherSalaTestes() {
+        var dlg: Dialog? = null
+        dlg = sheet("Sala de testes", Ic.HOME, Tn.SUN) { panel ->
+            if (st.testRoom) linha(panel, Ic.BACK, "Sair da sala de testes", Tn.CORAL) { dlg?.dismiss(); alternarSalaTestes(-1, true) }
+            linha(panel, Ic.HOME, "Móveis do jogo", Tn.SUN) { dlg?.dismiss(); alternarSalaTestes(-1) }
+            HdsMob.cats.forEachIndexed { i, c ->
+                linha(panel, Ic.SHOP, c.nome + " (" + HdsMob.count(i) + ")", Tn.SKY) { dlg?.dismiss(); alternarSalaTestes(i) }
+            }
+        }
+        dlg?.show()
     }
 
     private fun ampliarCasa() {
@@ -1310,7 +1501,7 @@ class MainActivity : AppCompatActivity() {
             linha(panel, Ic.REFRESH, "Verificar atualização", Tn.MINT) { dlg?.dismiss(); Updater.check(this, true) }
             linha(panel, Ic.PERSON, "Meu personagem", Tn.ROSE) { dlg?.dismiss(); abrirCriador() }
             linha(panel, Ic.INFO, "O que mudou", Tn.SKY) { dlg?.dismiss(); mostrarNovidades(true) }
-            linha(panel, Ic.HOME, if (st.testRoom) "Sair da sala de testes" else "Sala de testes", Tn.SUN) { dlg?.dismiss(); alternarSalaTestes() }
+            linha(panel, Ic.HOME, "Sala de testes", Tn.SUN) { dlg?.dismiss(); escolherSalaTestes() }
             var fpsT: TextView? = null
             fpsT = linha(panel, Ic.INFO, if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado", Tn.MINT) {
                 game.r.showFps = !game.r.showFps
