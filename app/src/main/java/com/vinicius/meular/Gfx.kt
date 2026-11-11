@@ -290,12 +290,12 @@ object Tex {
                     px(k, k, k * 1.02f)
                 }
                 Mt.ASPHALT -> {
-                    val n = Noise.fbm(u, v, 8, 8, 4, 131)
+                    // Asfalto uniforme: grão fino e discreto. O ruído 3x3 antigo criava grandes
+                    // manchas escuras ("remendos") visíveis como círculos pretos nas pistas.
+                    val n = Noise.fbm(u, v, 24, 24, 3, 131)
                     val g = Noise.h(x, y, 137)
-                    var k = 0.30f + 0.10f * n + 0.08f * (g - 0.5f)
-                    if (g > 0.97f) k += 0.12f
-                    if (Noise.fbm(u, v, 3, 3, 3, 141) > 0.72f) k *= 0.88f   // remendos
-                    px(k, k, k * 1.03f)
+                    val k = 0.31f + 0.035f * n + 0.012f * (g - 0.5f)
+                    px(k, k, k * 1.025f)
                 }
                 Mt.FACADE -> facade(x, y, u, v)
                 Mt.CURTAIN -> curtain(x, y, u, v)
