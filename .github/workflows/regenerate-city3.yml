@@ -1,0 +1,70 @@
+name: Regenerar Cidade 3 (ruas, calçadas e relevo)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ferramentas/gerador-cidade/gen_city7.py'
+      - 'ferramentas/gerador-cidade/terrain4.py'
+      - 'ferramentas/gerador-cidade/city2.json'
+      - 'ferramentas/gerador-cidade/bairros_casas.json'
+      - '.github/workflows/regenerate-city3.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar dependências do gerador
+        run: python -m pip install --upgrade numpy scipy pillow
+      - name: Gerar geometria completa da cidade
+        working-directory: ferramentas/gerador-cidade
+        run: python gen_city7.py
+      - name: Validar JSON e relevo gerados
+        run: |
+          python - <<'PY'
+          import json, struct, os
+          p='ferramentas/gerador-cidade/city3.json'
+          d=json.load(open(p))
+          assert d.get('roads') and d.get('rounds') is not None and d.get('houses')
+          b='ferramentas/gerador-cidade/relevo.bin'
+          raw=open(b,'rb').read()
+          nx,nz,g=struct.unpack('<iif',raw[:12])
+          assert nx>0 and nz>0 and len(raw)==12+nx*nz*2
+          print('Ruas:',len(d['roads']),'rotatórias:',len(d['rounds']),'casas:',len(d['houses']),'grade:',nx,'x',nz)
+          PY
+      - name: Atualizar assets usados pelo jogo
+        run: |
+          cp ferramentas/gerador-cidade/city3.json app/src/main/assets/hds/city3.json
+          cp ferramentas/gerador-cidade/relevo.bin app/src/main/assets/hds/relevo.bin
+      - name: Publicar geometria regenerada
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/assets/hds/city3.json app/src/main/assets/hds/relevo.bin
+          if git diff --cached --quiet; then
+            echo "Os assets já correspondem ao gerador."
+          else
+            git commit -m "Regenera geometria da Cidade 3 com conexões corrigidas"
+            git push
+          fi
+      - name: Guardar prévias para inspeção
+        run: |
+          cd ferramentas/gerador-cidade
+          python render7.py 1100 1120 700 0.65 /tmp/centro.png
+          python render7.py 500 1120 500 0.75 /tmp/oeste.png
+          python render7.py 2600 790 500 0.75 /tmp/jardim.png
+          python render7.py 2300 1740 500 0.75 /tmp/recanto.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cidade3-Prévias-Ruas-e-Calçadas
+          path: /tmp/*.png
+          if-no-files-found: error
+          retention-days: 7
