@@ -56,11 +56,17 @@ object Relevo {
     @Volatile private var mapBmp: Bitmap? = null
 
     private val COL_WATER = C("#4F9BD0")
+    private val COL_SHAL = C("#8FE0D6")      // água rasa (turquesa)
+    private val COL_DEEP = C("#1B5FA6")      // água funda
+    private val COL_FOAM = C("#E8FAF7")      // espuma na beira
     private val COL_BED = C("#A8966F")
     private val COL_SAND = C("#E6D6A4")
     private val COL_ROCK = C("#A89C84")
     private val COL_ASPH = C("#D0D0D0")
     private val COL_CURB = C("#CFCAC0")
+    private val COL_WALK = C("#DAD5CB")      // calçada de bairro (ladrilho claro)
+    private val COL_VERGE = C("#8DBE6E")     // faixa de grama ao lado das avenidas
+    private val COL_FENCE = C("#4A525C")     // cerca/guard-rail de avenida
     private val COL_LINE = C("#FFFFFF")
     private val COL_LINE_Y = C("#FFD54F")
     private val COL_BRIDGE = C("#B7B0A8")
@@ -195,7 +201,7 @@ object Relevo {
     // As bocas de cruzamento (cl/cr) são calculadas com essas larguras;
     // usar valores maiores no runtime fazia as calçadas invadirem os cruzamentos
     // e criarem sobras/recortes irregulares nas esquinas.
-    private fun curbW(r: Road) = if (r.c == 3) 1.2f else 1.8f
+    private fun curbW(r: Road) = when (r.c) { 0, 1 -> 1.4f; 2 -> 2.0f; else -> 2.4f }
 
     /** Sobe a rua onde o terreno chegaria acima do asfalto (nunca desce): o asfalto fica sempre à vista. Pontes não mudam. */
     private fun liftRoads() {
@@ -262,7 +268,7 @@ object Relevo {
             val d = hypot(x - (r.x[q] + vx * t), z - (r.z[q] + vz * t))
             val hw = r.w / 2f
             if (d > hw + curbW(r)) continue
-            val y = r.y[q] + (r.y[q + 1] - r.y[q]) * t + ROADY + (if (d > hw) 0.05f else 0f)
+            val y = r.y[q] + (r.y[q + 1] - r.y[q]) * t + ROADY + (if (d > hw) (if (r.c <= 1) 0.07f else 0.1f) else 0f)
             if (best.isNaN() || y > best) best = y
         }
         val pl = padGrid[(Math.floor(x / 32.0).toInt() + 1000) * 4096 + (Math.floor(z / 32.0).toInt() + 1000)]
@@ -329,6 +335,29 @@ object Relevo {
         return out
     }
 
+    /** Etapa 182: true se (x, z) cai sobre a ilha central de uma rotatória (onde a rodovia elevada passa por cima). */
+    private fun nearIsland(x: Float, z: Float): Boolean {
+        for (h in hubs) if (hypot(x - h.x, z - h.z) < h.r * 0.45f + 3f) return true
+        return false
+    }
+
+    /** Etapa 182: cerca de avenida de (x0,z0,y0) a (x1,z1,y1): mourões a cada ~3 m e duas travessas (alta e baixa), de dois lados. */
+    private fun emitFence(b: MB, x0: Float, z0: Float, y0: Float, x1: Float, z1: Float, y1: Float) {
+        val len = hypot(x1 - x0, z1 - z0)
+        if (len < 0.3f) return
+        val n = max(1, Math.round(len / 3f))
+        b.m(Mt.PLAIN, 1f)
+        val nx = -(z1 - z0) / len; val nz = (x1 - x0) / len
+        for (k in 0..n) {
+            val t = k.toFloat() / n
+            b.box(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + 0.55f, z0 + (z1 - z0) * t, 0.12f, 1.1f, 0.12f, COL_FENCE)
+        }
+        for (hgt in floatArrayOf(0.45f, 0.95f)) {
+            wall(b, x0, z0, x1, z1, y0 + hgt + 0.07f, y1 + hgt - 0.07f, nx, nz, COL_FENCE)
+            wall(b, x1, z1, x0, z0, y1 + hgt + 0.07f, y0 + hgt - 0.07f, -nx, -nz, COL_FENCE)
+        }
+    }
+
     private fun emitSeg(b: MB, r: Road, q: Int) {
         val hw = r.w / 2f
         val x0 = r.x[q]; val z0 = r.z[q]; val y0 = r.y[q] + ROADY
@@ -352,8 +381,10 @@ object Relevo {
         val cw = curbW(r)
         val sA = r.cs[q]; val sB = r.cs[q + 1]
         val sl = sB - sA
-        b.m(Mt.PAVER, 0.9f)
-        // Etapa 180b: meio-fio dos dois lados, com "bocas" onde outra rua se abre (r.gl: lado +n, r.gr: lado -n)
+        // Etapa 182: avenida/rodovia = guia baixa + faixa de grama + cerca (sem calçada); rua de bairro = guia fina + calçada larga de ladrilho
+        val avenue = r.c <= 1
+        val gw = 0.35f   // largura da guia de pedra junto ao asfalto
+        val inHub = nearIsland(x0, z0) || nearIsland(x1, z1)
         for (side in 0 until 2) {
             val sg = if (side == 0) 1f else -1f
             for (sp in spans(sA, sB, if (side == 0) r.gl else r.gr)) {
@@ -364,7 +395,17 @@ object Relevo {
                 val nn0 = normalAt(t0); val nn1 = normalAt(t1)
                 val mx0 = nn0[0] * sg; val mz0 = nn0[1] * sg
                 val mx1 = nn1[0] * sg; val mz1 = nn1[1] * sg
-                strip(b, px0 + mx0 * hw, pz0 + mz0 * hw, px0 + mx0 * (hw + cw), pz0 + mz0 * (hw + cw), px1 + mx1 * hw, pz1 + mz1 * hw, px1 + mx1 * (hw + cw), pz1 + mz1 * (hw + cw), py0 + 0.05f, py1 + 0.05f, COL_CURB)
+                if (inHub && avenue) continue   // a pista que cruza a ilha da rotatória não leva guia nem cerca
+                b.m(Mt.PAVER, 0.9f)
+                strip(b, px0 + mx0 * hw, pz0 + mz0 * hw, px0 + mx0 * (hw + gw), pz0 + mz0 * (hw + gw), px1 + mx1 * hw, pz1 + mz1 * hw, px1 + mx1 * (hw + gw), pz1 + mz1 * (hw + gw), py0 + 0.07f, py1 + 0.07f, COL_CURB)
+                if (avenue) {
+                    b.m(Mt.GRASS, 0.3f)
+                    strip(b, px0 + mx0 * (hw + gw), pz0 + mz0 * (hw + gw), px0 + mx0 * (hw + cw), pz0 + mz0 * (hw + cw), px1 + mx1 * (hw + gw), pz1 + mz1 * (hw + gw), px1 + mx1 * (hw + cw), pz1 + mz1 * (hw + cw), py0 + 0.03f, py1 + 0.03f, COL_VERGE)
+                    if (!(r.br[q] && r.br[q + 1])) emitFence(b, px0 + mx0 * (hw + cw - 0.2f), pz0 + mz0 * (hw + cw - 0.2f), py0, px1 + mx1 * (hw + cw - 0.2f), pz1 + mz1 * (hw + cw - 0.2f), py1)
+                } else {
+                    b.m(Mt.TILE, 0.5f)
+                    strip(b, px0 + mx0 * (hw + gw), pz0 + mz0 * (hw + gw), px0 + mx0 * (hw + cw), pz0 + mz0 * (hw + cw), px1 + mx1 * (hw + gw), pz1 + mz1 * (hw + gw), px1 + mx1 * (hw + cw), pz1 + mz1 * (hw + cw), py0 + 0.1f, py1 + 0.1f, COL_WALK)
+                }
             }
         }
         b.m(Mt.PLAIN, 1f)
@@ -387,13 +428,29 @@ object Relevo {
             val ow = hw + cw
             wall(b, x0 + n0[0] * ow, z0 + n0[1] * ow, x1 + n1[0] * ow, z1 + n1[1] * ow, y0 + 0.05f, y0 - 1.3f, n0[0], n0[1], COL_BRIDGE)
             wall(b, x0 - n0[0] * ow, z0 - n0[1] * ow, x1 - n1[0] * ow, z1 - n1[1] * ow, y0 + 0.05f, y0 - 1.3f, -n0[0], -n0[1], COL_BRIDGE)
-            wall(b, x0 + n0[0] * ow, z0 + n0[1] * ow, x1 + n1[0] * ow, z1 + n1[1] * ow, y0 + 1.0f, y0 + 0.05f, n0[0], n0[1], COL_BRIDGE)
-            wall(b, x0 - n0[0] * ow, z0 - n0[1] * ow, x1 - n1[0] * ow, z1 - n1[1] * ow, y0 + 1.0f, y0 + 0.05f, -n0[0], -n0[1], COL_BRIDGE)
-            tri(b, x0 + n0[0] * ow, y0 - 1.3f, z0 + n0[1] * ow, x0 - n0[0] * ow, y0 - 1.3f, z0 - n0[1] * ow, x1 - n1[0] * ow, y1 - 1.3f, z1 - n1[1] * ow, 0f, -1f, 0f, COL_UNDER)
-            tri(b, x0 + n0[0] * ow, y0 - 1.3f, z0 + n0[1] * ow, x1 - n1[0] * ow, y1 - 1.3f, z1 - n1[1] * ow, x1 + n1[0] * ow, y1 - 1.3f, z1 + n1[1] * ow, 0f, -1f, 0f, COL_UNDER)
-            if (q % 3 == 0) {   // Etapa 179: pilar sob o viaduto/ponte, do terreno até o fundo da pista
-                val top = y0 - 1.3f; val gh = height(x0, z0)
-                if (top - gh > 2.2f) { b.m(Mt.PLAIN, 1f); b.box(x0, (top + gh) / 2f, z0, 1.8f, top - gh, 1.8f, COL_UNDER) }
+            // Etapa 183: parapeito com as duas faces visíveis + capa de pedra, poste de luz e pilares duplos com travessa
+            for (sg in floatArrayOf(1f, -1f)) {
+                val ex0 = x0 + n0[0] * ow * sg; val ez0 = z0 + n0[1] * ow * sg; val ex1 = x1 + n1[0] * ow * sg; val ez1 = z1 + n1[1] * ow * sg
+                val ix0 = x0 + n0[0] * (ow - 0.3f) * sg; val iz0 = z0 + n0[1] * (ow - 0.3f) * sg; val ix1 = x1 + n1[0] * (ow - 0.3f) * sg; val iz1 = z1 + n1[1] * (ow - 0.3f) * sg
+                wall(b, ex0, ez0, ex1, ez1, y0 + 1.0f, y0 + 0.05f, n0[0] * sg, n0[1] * sg, COL_BRIDGE)
+                wall(b, ix1, iz1, ix0, iz0, y0 + 1.0f, y0 + 0.05f, -n0[0] * sg, -n0[1] * sg, shade(COL_BRIDGE, 14))
+                strip(b, ix0, iz0, ex0, ez0, ix1, iz1, ex1, ez1, y0 + 1.0f, y1 + 1.0f, COL_CURB)
+                if (q % 4 == 0) {
+                    b.box(ix0, y0 + 2.6f, iz0, 0.16f, 3.2f, 0.16f, COL_FENCE)
+                    b.box(ix0, y0 + 4.3f, iz0, 0.55f, 0.22f, 0.55f, C("#FFF0B8"), false)
+                }
+            }
+            if (q % 3 == 0) {   // pilares sob a ponte, do terreno até o fundo da pista
+                val top = y0 - 1.3f
+                val hgt = top - height(x0, z0)
+                if (hgt > 2.2f) {
+                    b.m(Mt.PLAIN, 1f)
+                    for (sg in floatArrayOf(1f, -1f)) {
+                        val cx = x0 + n0[0] * hw * 0.55f * sg; val cz = z0 + n0[1] * hw * 0.55f * sg
+                        b.box(cx, (top + height(cx, cz)) / 2f, cz, 1.6f, top - height(cx, cz), 1.6f, COL_UNDER)
+                    }
+                    b.box(x0, top - 0.35f, z0, hw * 2f + 1.2f, 0.7f, 1.6f, shade(COL_UNDER, -10))
+                }
             }
         }
     }
@@ -456,6 +513,8 @@ object Relevo {
             tri(b, h.x, y + 0.2f, h.z, h.x + cos(a0) * ri, y + 0.2f, h.z + sin(a0) * ri, h.x + cos(a1) * ri, y + 0.2f, h.z + sin(a1) * ri, 0f, 1f, 0f, COL_ISLAND)
         }
     }
+
+    private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((-0.2f - h) / 7f).coerceIn(0f, 1f))
 
     /** árvore simples e fofinha: tronco e copa em dois cones (bipirâmide de 6 lados) */
     private fun tree(b: MB, px: Float, py: Float, pz: Float, s: Float, col: Int) {
@@ -532,10 +591,10 @@ object Relevo {
                 val steep = max(max(abs(h10 - h00), abs(h01 - h00)), max(abs(h11 - h10), abs(h11 - h01))) / g > 0.5f
                 val mode = if (avg < -0.1f) 0 else if (avg < 1.3f) 1 else 2
                 if (mode == 2) b.m(Mt.GRASS, 0.3f) else b.m(Mt.PLAIN, 1f)
-                val c00 = if (mode == 0) COL_BED else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h00)
-                val c10 = if (mode == 0) COL_BED else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h10)
-                val c01 = if (mode == 0) COL_BED else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h01)
-                val c11 = if (mode == 0) COL_BED else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h11)
+                val c00 = if (mode == 0) bedCol(h00) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h00)
+                val c10 = if (mode == 0) bedCol(h10) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h10)
+                val c01 = if (mode == 0) bedCol(h01) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h01)
+                val c11 = if (mode == 0) bedCol(h11) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h11)
                 // normais por vértice (diferença central)
                 fun nv(ii: Int, jj: Int, h: Float, x: Float, z: Float, c: Int) {
                     val dx = (hh(ii + 1, jj) - hh(ii - 1, jj)) / (2f * g); val dz = (hh(ii, jj + 1) - hh(ii, jj - 1)) / (2f * g)
@@ -546,8 +605,15 @@ object Relevo {
                 nv(i, j, h00, x0, z0, c00); nv(i + 1, j + 1, h11, x1, z1, c11); nv(i, j + 1, h01, x0, z1, c01)
                 if (lo < -0.15f) {
                     b.m(Mt.PLAIN, 1f)
-                    tri(b, x0, -0.2f, z0, x1, -0.2f, z0, x1, -0.2f, z1, 0f, 1f, 0f, COL_WATER)
-                    tri(b, x0, -0.2f, z0, x1, -0.2f, z1, x0, -0.2f, z1, 0f, 1f, 0f, COL_WATER)
+                    // Etapa 183: cor por profundidade (rasa turquesa -> funda azul) com espuma onde encosta na margem
+                    fun wc(h: Float): Int {
+                        val d = (-0.2f - h).coerceIn(0f, 9f) / 9f
+                        val body = mix(COL_SHAL, COL_DEEP, sqrt(d))
+                        return mix(body, COL_FOAM, (1f - (-0.2f - h) / 0.55f).coerceIn(0f, 1f) * 0.8f)
+                    }
+                    val w00 = wc(h00); val w10 = wc(h10); val w01 = wc(h01); val w11 = wc(h11)
+                    b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z0, 0f, 1f, 0f, w10, x1, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1)
+                    b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1); b.v(x0, -0.2f, z1, 0f, 1f, 0f, w01, x0, z1)
                 }
             }
             var ext = 0f
@@ -567,6 +633,8 @@ object Relevo {
             }
             // árvores deste pedaço (chunk à parte: só aparecem de perto)
             val tb = MB()
+            val fl = Flora.Batch(); fl.fixedY = 0f   // Etapa 183: árvores modeladas do HDS (carvalho, bordo, cerejeira, pinheiro)
+            var nTrees = 0
             val ts = 26f
             val a0 = Math.ceil(((tx0 - CX) / ts).toDouble()).toInt(); val a1 = Math.ceil(((tx1 - CX) / ts).toDouble()).toInt() - 1
             val e0 = Math.ceil(((tz0 - CZ) / ts).toDouble()).toInt(); val e1 = Math.ceil(((tz1 - CZ) / ts).toDouble()).toInt() - 1
@@ -586,10 +654,21 @@ object Relevo {
                 var near = false
                 for (p in plots) if (px > p[0] - 14f && px < p[2] + 14f && pz > p[1] - 14f && pz < p[3] + 14f) { near = true; break }
                 if (near) continue
-                tree(tb, px, h - 0.05f, pz, sc, cl)
-                ty1 = max(ty1, h + 5f * sc)
+                val pine = h > 28f || (h > 14f && rg.nextFloat() < (h - 14f) / 22f)
+                val id = if (pine) "pine_a" else when (rg.nextInt(6)) { 0, 1 -> "oak_a"; 2, 3 -> "oak_b"; 4 -> "cherry_a"; else -> "oak_a" }
+                val ss = if (pine) sc * 0.9f + 0.25f else sc * 0.35f + 0.85f
+                val kv = 0.92f + rg.nextFloat() * 0.16f
+                fl.place(id, px.toDouble(), (h - 0.05f).toDouble(), pz.toDouble(), ss.toDouble(), (rg.nextFloat() * 6.28f).toDouble(), kv, kv, kv)
+                nTrees++
+                ty1 = max(ty1, h + 9f * ss)
             }
-            if (!tb.isEmpty()) out.add(City.Chunk(tb.toMesh(true).gpuOnly(), null, tx0 - 12f, tz0 - 12f, tx1 + 12f, tz1 + 12f, ty1 + 1f))
+            if (nTrees > 0) {
+                tb.m(Mt.PLAIN, 1f)
+                tri(tb, tx0, 0f, tz0, tx0, 0f, tz0, tx0, 0f, tz0, 0f, 1f, 0f, COL_TRUNK)   // triângulo vazio: o pedaço precisa de malha para receber a flora
+                val tc = City.Chunk(tb.toMesh(true).gpuOnly(), null, tx0 - 12f, tz0 - 12f, tx1 + 12f, tz1 + 12f, ty1 + 1f)
+                tc.pend = fl
+                out.add(tc)
+            }
         }
         buildMap()
     }

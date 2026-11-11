@@ -63,7 +63,7 @@ def render(cx,cz,half,S,fn):
             dr.ellipse([P(h['x']-ri-1,h['z']-ri-1),P(h['x']+ri+1,h['z']+ri+1)],fill=CURB)
             dr.ellipse([P(h['x']-ri,h['z']-ri),P(h['x']+ri,h['z']+ri)],fill=(185,220,160))
     for r in near:
-        cw=1.2 if r['c']==3 else 1.8;hw=r['w']/2
+        cw={0:1.4,1:1.4,2:2.0,3:2.4}[r["c"]];hw=r['w']/2
         for q in range(len(r['x'])-1):
             x0,z0,x1,z1=r['x'][q],r['z'][q],r['x'][q+1],r['z'][q+1];ax,az,bx,bz=r['nx'][q],r['nz'][q],r['nx'][q+1],r['nz'][q+1]
             sA,sB=r['cs'][q],r['cs'][q+1];sl=sB-sA

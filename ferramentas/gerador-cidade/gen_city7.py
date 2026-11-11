@@ -691,7 +691,7 @@ print('componentes conectadas:',sorted(collections.Counter(lb_[[e['a'] for e in 
 # =====================================================================================
 # exportação (Etapa 180b): pistas vão até o centro do cruzamento; meio-fio com "bocas"; sem discos
 # =====================================================================================
-CWF=lambda c:1.2 if c==3 else 1.8
+CWF=lambda c:{0:1.4,1:1.4,2:2.0,3:2.4}[c]
 def away(e,end):
     P=e['pts'];cs=cum(P)
     if end=='a':
