@@ -83,7 +83,7 @@ object Hds {
     @Volatile var offX = 0f; @Volatile var offZ = 0f
 
     /** Etapa 174: ponto de partida do jogador dentro da Casa 1 (sala da esquerda, perto da porta); null enquanto a cidade não montou. */
-    fun spawn(): FloatArray? = if (roofs.isEmpty()) null else floatArrayOf(47.84f + offX, 19.9f + offZ)
+    fun spawn(): FloatArray? = if (roofs.isEmpty()) null else floatArrayOf(spX, spZ)
     /** Etapa 174: retângulo (x0, z0, x1, z1) do lote k no mundo */
     fun plot(k: Int): FloatArray? = mplots.getOrNull(k)
 
@@ -270,6 +270,10 @@ object Hds {
     }
 
     /** Thread da cidade. Preenche [out] com os pedaços (malhas chegam depois, pelo GL) e registra colisões e marcadores. */
+    /** Etapa 177: a cidade foi ampliada. Ruas/quarteirões originais (160 m) são repetidos em ncx x ncz quarteirões e cada casa fica no seu próprio quarteirão, bem longe das outras. */
+    private class Dst(val cx: Int, val cz: Int, val sx: Int, val sz: Int, val plot: Int)
+    @Volatile var spX = 0f; @Volatile var spZ = 0f
+
     fun build(out: ArrayList<City.Chunk>, W: Float, H: Float, tk: Int) {
         clear()
         seen.clear(); dropped = 0
@@ -285,6 +289,22 @@ object Hds {
         offX = ox; offZ = oz
         val plots = js.getJSONArray("plots"); val np = plots.length()
         val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
+        val ncx = js.getInt("ncx"); val ncz = js.getInt("ncz")
+        val bcell = js.getJSONArray("bcell"); val spA = js.getJSONArray("sp"); val hpA = js.getJSONArray("hp"); val wpA = js.getJSONArray("wp")
+        val CW = 160f
+        val wx = CW * ncx - 20f; val wz = CW * ncz - 20f   // borda direita / de baixo dos últimos quarteirões
+
+        // quarteirões de destino: um por casa (com o contexto de onde ela nasceu) + os vazios (praças com árvores)
+        val dst = ArrayList<Dst>()
+        val host = js.getJSONArray("host")
+        val pdx = FloatArray(np); val pdz = FloatArray(np)
+        for (k in 0 until np) {
+            val h = host.getJSONArray(k)
+            dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), k))
+            pdx[k] = (h.getInt(0) - h.getInt(2)) * CW; pdz[k] = (h.getInt(1) - h.getInt(3)) * CW
+        }
+        val fa = js.getJSONArray("fill")
+        for (k in 0 until fa.length()) { val h = fa.getJSONArray(k); dst.add(Dst(h.getInt(0), h.getInt(1), h.getInt(2), h.getInt(3), -1)) }
 
         val clamp = BooleanArray(gm.images.size)
         for (n in gm.nodes) for (p in n.prims) if (p.cut && p.img in clamp.indices) clamp[p.img] = true
@@ -293,26 +313,56 @@ object Hds {
         val cells = HashMap<Long, CG>()
         val inst = js.getJSONArray("inst")
         val m = FloatArray(12)
-        for (j in 0 until inst.length()) {
-            val a = inst.getJSONArray(j)
+
+        fun addInst(a: org.json.JSONArray, j: Int, dx: Float, dz: Float, hl: FloatArray, mm: FloatArray?) {
             val pi = a.getInt(0)
-            for (k in 0 until 12) m[k] = a.getDouble(1 + k).toFloat()
+            if (mm == null) for (k in 0 until 12) m[k] = a.getDouble(1 + k).toFloat() else for (k in 0 until 12) m[k] = mm[k]
             val kind = a.getInt(13); val plot = a.getInt(14)
-            val node = gm.nodes.getOrNull(pi) ?: continue
-            if (node.prims.isEmpty()) continue
+            val node = gm.nodes.getOrNull(pi) ?: return
+            if (node.prims.isEmpty()) return
+            val ox2 = ox + dx; val oz2 = oz + dz
             if (kind == 2 && plot in 0 until np) {
-                for (p in node.prims) addPrim(roofG[plot], p, m, ox, oz, null)
+                for (p in node.prims) addPrim(roofG[plot], p, m, ox2, oz2, null)
             } else {
-                val cx = Math.floor(((m[3] + ox) / CELL).toDouble()).toInt(); val cz = Math.floor(((m[11] + oz) / CELL).toDouble()).toInt()
+                val cx = Math.floor(((m[3] + ox2) / CELL).toDouble()).toInt(); val cz = Math.floor(((m[11] + oz2) / CELL).toDouble()).toInt()
                 val key = (cx + 4096).toLong() * 65536L + (cz + 4096).toLong()
                 val cg = cells.getOrPut(key) { CG() }
                 for (p in node.prims) {
                     // Etapas 167/168: grama e faixas rente ao chão ganham buracos sobre porões, escadas e piscinas
-                    if (kind == 0 && plot < 0 && holes.isNotEmpty() && addClipped(cg.g, p, m, ox, oz, cg, holes)) continue
-                    addPrim(cg.g, p, m, ox, oz, cg)
+                    if (kind == 0 && plot < 0 && hl.isNotEmpty() && addClipped(cg.g, p, m, ox2, oz2, cg, hl)) continue
+                    addPrim(cg.g, p, m, ox2, oz2, cg)
                 }
             }
-            if (j % 256 == 0) City.step(0.5f + 0.4f * j / inst.length())
+        }
+
+        for ((di, d) in dst.withIndex()) {
+            val dx = (d.cx - d.sx) * CW; val dz = (d.cz - d.sz) * CW
+            val src = d.sx + d.sz * 8
+            val hl = if (d.plot >= 0) {
+                val l = ArrayList<Float>()
+                for (q in 0 until hpA.length()) if (hpA.getInt(q) == d.plot) for (c in 0 until 4) l.add(holes[q * 4 + c])
+                l.toFloatArray()
+            } else FloatArray(0)
+            for (j in 0 until inst.length()) {
+                val bc = bcell.getInt(j)
+                val a = inst.getJSONArray(j)
+                val ok = if (bc == -1) a.getInt(14) == d.plot else bc == src
+                if (ok) addInst(a, j, dx, dz, hl, null)
+            }
+            City.step(0.5f + 0.4f * di / dst.size)
+        }
+        // anéis de grama em volta da cidade, esticados para o novo tamanho
+        for (j in 0 until inst.length()) {
+            val bc = bcell.getInt(j)
+            if (bc > -3) continue
+            val sxs = (wx + 540f) / 1200f; val szs = (wz + 20f) / 360f
+            val mm = when (bc) {
+                -3 -> floatArrayOf(sxs, 0f, 0f, -280f + 280f * sxs, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f)
+                -4 -> floatArrayOf(sxs, 0f, 0f, -280f + 280f * sxs, 0f, 1f, 0f, 0f, 0f, 0f, 1f, wz - 340f)
+                -5 -> floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, szs, -20f + 20f * szs)
+                else -> floatArrayOf(1f, 0f, 0f, wx - 660f, 0f, 1f, 0f, 0f, 0f, 0f, szs, -20f + 20f * szs)
+            }
+            addInst(inst.getJSONArray(j), j, 0f, 0f, FloatArray(0), mm)
         }
 
         for (cg in cells.values) {
@@ -325,20 +375,31 @@ object Hds {
         val pl = ArrayList<FloatArray>()
         for (k in 0 until np) {
             val b = plots.getJSONObject(k)
-            val x0 = b.getDouble("x0").toFloat() + ox; val z0 = b.getDouble("z0").toFloat() + oz
-            val x1 = b.getDouble("x1").toFloat() + ox; val z1 = b.getDouble("z1").toFloat() + oz
+            val x0 = b.getDouble("x0").toFloat() + ox + pdx[k]; val z0 = b.getDouble("z0").toFloat() + oz + pdz[k]
+            val x1 = b.getDouble("x1").toFloat() + ox + pdx[k]; val z1 = b.getDouble("z1").toFloat() + oz + pdz[k]
             pl.add(floatArrayOf(x0, z0, x1, z1))
             val r = Roof(x0 - 0.3f, z0 - 0.3f, x1 + 0.3f, z1 + 0.3f)
             rl.add(r)
             if (roofG[k].all.isNotEmpty()) jobs.add(Job(null, r, roofG[k].all))
             City.addPlace(City.Place(HdsEstate.label(k), (x0 + x1) / 2f, (z0 + z1) / 2f, 0xFFFF7043.toInt(), 'C'))
         }
+        spX = 47.84f + ox + pdx[0]; spZ = 19.9f + oz + pdz[0]
 
-        // colisões (paredes e cercas, já com os vãos de porta)
+        // colisões (paredes e cercas, já com os vãos de porta); as das casas vão com a casa, as de árvores/ruas repetem em cada quarteirão
         val so = js.getJSONArray("solids")
         var i = 0
         while (i + 3 < so.length()) {
-            City.addSolid(floatArrayOf(so.getDouble(i).toFloat() + ox - PAD, so.getDouble(i + 1).toFloat() + oz - PAD, so.getDouble(i + 2).toFloat() + ox + PAD, so.getDouble(i + 3).toFloat() + oz + PAD))   // Etapa 164: folga = raio do corpo
+            val v = spA.getInt(i / 4)
+            val sx0 = so.getDouble(i).toFloat(); val sz0 = so.getDouble(i + 1).toFloat(); val sx1 = so.getDouble(i + 2).toFloat(); val sz1 = so.getDouble(i + 3).toFloat()
+            if (v >= 0) {
+                City.addSolid(floatArrayOf(sx0 + ox + pdx[v] - PAD, sz0 + oz + pdz[v] - PAD, sx1 + ox + pdx[v] + PAD, sz1 + oz + pdz[v] + PAD))
+            } else if (v != -99) {
+                val c = -1 - v
+                for (d in dst) if (d.sx + d.sz * 8 == c) {
+                    val dx = (d.cx - d.sx) * CW; val dz = (d.cz - d.sz) * CW
+                    City.addSolid(floatArrayOf(sx0 + ox + dx - PAD, sz0 + oz + dz - PAD, sx1 + ox + dx + PAD, sz1 + oz + dz + PAD))
+                }
+            }
             i += 4
         }
 
@@ -348,7 +409,8 @@ object Hds {
             val ng = bb.getInt(); bb.getFloat()
             val wl = ArrayList<WG>()
             for (gk in 0 until ng) {
-                val gx = bb.getFloat() + ox; val gz = bb.getFloat() + oz; val nx = bb.getInt(); val nz = bb.getInt()
+                val pk = wpA.getInt(gk)
+                val gx = bb.getFloat() + ox + pdx[pk]; val gz = bb.getFloat() + oz + pdz[pk]; val nx = bb.getInt(); val nz = bb.getInt()
                 val wall = IntArray(nx * nz) { bb.getInt() }
                 val off = IntArray(nx * nz + 1)
                 var fl = ShortArray(nx * nz * 2)
@@ -365,12 +427,10 @@ object Hds {
             walk = wl
         } catch (e: Throwable) { android.util.Log.w("Hds", "city2walk.bin: $e") }
 
-        val bd = js.getJSONArray("bounds")
-        minX = bd.getDouble(0).toFloat() + ox - 250f; minZ = bd.getDouble(1).toFloat() + oz - 250f
-        maxX = bd.getDouble(2).toFloat() + ox + 250f; maxZ = bd.getDouble(3).toFloat() + oz + 250f
-        val xa = js.getJSONArray("xr"); val za = js.getJSONArray("zr")
-        mxr = FloatArray(xa.length()) { xa.getDouble(it).toFloat() + ox }
-        mzr = FloatArray(za.length()) { za.getDouble(it).toFloat() + oz }
+        minX = ox - 20f - 250f; minZ = oz - 20f - 250f
+        maxX = ox + wx + 250f; maxZ = oz + wz + 250f
+        mxr = FloatArray(ncx) { ox + CW * it }
+        mzr = FloatArray(ncz) { oz + CW * it }
         android.util.Log.i("Hds", "triângulos repetidos descartados: $dropped")
         seen.clear()
         mplots = pl

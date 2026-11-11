@@ -1475,10 +1475,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private fun updateFP(dt: Float) {
         City.update(dt, px, pz)   // Etapa 121: trânsito e pedestres
-        if (!posInit && !homeOn) {
+        if (City.HDS && !hdsSpawned && !st.testRoom) {   // Etapa 175: espera a Cidade 2 montar (City.on liga depois do primeiro quadro)
             val sp = Hds.spawn()
             if (sp != null) {
-                px = sp[0]; pz = sp[1]; posInit = true; hdsSpawned = true
+                px = sp[0]; pz = sp[1]; py = 0f; posInit = true; hdsSpawned = true
+                path = null; pMoving = false
                 pYaw = 180f
                 fyaw = 0f
             }
@@ -2249,11 +2250,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             buyIdx = -1
             if (!homeOn && !driving && mode == 0 && sitPh == 0 && swimPh == 0 && nearKind == 0) {
                 for (h in HdsEstate.houses) {
-                    if (HdsEstate.isOwned(h.idx)) continue
+                    if (HdsEstate.isOwned(h.idx) || !h.venda) continue
                     val r = Hds.plot(h.idx) ?: continue
                     if (px > r[0] - 3f && px < r[2] + 3f && pz > r[1] - 3f && pz < r[3] + 3f) {
                         buyIdx = h.idx; nearKind = 30
-                        nearLabel = "Comprar casa · ${h.area} m² · ${HdsEstate.brl(h.price)}"
+                        nearLabel = "Comprar · ${h.bairro} · ${h.area} m² · ${HdsEstate.brl(h.price)}"
                         break
                     }
                 }
@@ -2280,7 +2281,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     30 -> if (buyIdx >= 0) {
                         val h = HdsEstate.houses[buyIdx]
                         HdsEstate.buy(h.idx)
-                        toast = "Comprou a ${HdsEstate.label(h.idx)} (${h.classe}) por ${HdsEstate.brl(h.price)}"
+                        toast = "Comprou a ${HdsEstate.label(h.idx)} (${h.classe}), a ${HdsEstate.dist(h.idx)} m da primeira casa, por ${HdsEstate.brl(h.price)}"
                         nearKind = 0
                     }
                 }
