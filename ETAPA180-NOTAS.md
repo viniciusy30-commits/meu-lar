@@ -1,9 +1,14 @@
-# Etapa 180 - Rede de ruas v5 (organica) - cidade completa, parte 1
+# Etapa 180 (v6) - Cidade realista: rede de ruas refeita do zero
 
-- Rede de ruas refeita: quarteiroes de formas e tamanhos variados (tecido organico com densidade maior no centro e menor nos morros), bairros em grade irregular (Centro, Parque das Flores, Vila Esperanca, Jardim Central, Recanto do Sul, Distrito Leste), avenidas curvas, coletoras, ruas sem saida nos subúrbios, rotatorias, rodovia elevada e pontes sobre o rio.
-- 1071 trechos, 559 cruzamentos/fins de rua, 15 rotatorias; todas as ruas conectadas numa so rede.
-- 91% da terra fica a menos de 100 m de uma rua (antes sobrava muito mapa vazio).
-- As 17 casas continuam alinhadas e de frente para a rua.
-- Arquivos: assets/hds/city3.json e relevo.bin (regenerados) e Relevo.kt (o mesmo da etapa 179, le cortes a/b e "nodes"). Sem mudanca de logica.
-- Proximas etapas: 2 (lotes e casas em quarteiroes), 3 (centro com predios, comercio, parques), 4 (carros e pedestres).
-- Se o build falhar, corrigir so o erro apontado em Relevo.kt.
+Por que refiz: a versao anterior tinha rua sem saida, circulo em todo cruzamento e muita rua se cruzando.
+
+- Hierarquia: 1 rodovia elevada (leste-oeste), 8 rotatorias grandes, avenidas que LIGAM os bairros e os centros, e ruas de quadra que saem das avenidas em T (cruzamento reto, sem angulo estranho).
+- ZERO ruas sem saida (so as pontas da rodovia/avenidas que saem do mapa).
+- Todas as ruas formam uma rede unica conectada (387 trechos, ~210 cruzamentos).
+- Bairros: Centro, Parque das Flores, Vila Esperanca, Oeste Alto, Alto da Colina, Bairro Norte, Morro Alto, Jardim Central, Recanto do Sul, Distrito Leste, Porto, Beira-Rio. Morros e rio ficam com natureza (sem rua demais).
+- Cruzamentos: Relevo.kt - a placa do cruzamento agora e so um pouco maior que a rua (antes tinha "bolha" redonda).
+- 17 casas colocadas, de frente para a rua, em terreno plano.
+- Verificado antes de entregar (renderizei o mapa inteiro e os 4 cantos, e rodei auditoria): 0 pontas soltas, 0 ruas se sobrepondo, 1 cruzamento levemente agudo, inclinacao maxima de rua 13% (so nos morros).
+- ferramentas/gerador-cidade/: o gerador completo (para nao perder de novo).
+
+Arquivos do app: Relevo.kt, assets/hds/city3.json, assets/hds/relevo.bin.

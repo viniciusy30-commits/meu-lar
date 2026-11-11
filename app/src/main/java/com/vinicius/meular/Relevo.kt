@@ -47,7 +47,7 @@ object Relevo {
     private val hubs = ArrayList<Hub>()
     private val pads = ArrayList<Pad>()
     private val padGrid = HashMap<Int, ArrayList<Pad>>()
-    private fun padR(p: Pad): Float = if (p.kind == 1) p.r else p.r * 1.25f + 1.2f
+    private fun padR(p: Pad): Float = if (p.kind == 1) p.r else p.r + 1.0f   // Etapa 180: cruzamento sem "bolha" (antes r*1.25+1.2)
     private val segGrid = HashMap<Int, ArrayList<IntArray>>()   // células de 32 m -> (rua, trecho) que passam por ali (para o chão)
     private val houses = HashMap<Int, House>()
     @Volatile private var mapBmp: Bitmap? = null

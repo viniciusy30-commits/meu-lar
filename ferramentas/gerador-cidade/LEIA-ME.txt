@@ -1,0 +1,3 @@
+Gerador da cidade (etapa 180). Rodar: python3 gen_city6.py  -> gera city3.json e relevo.bin (copiar para app/src/main/assets/hds/).
+Previa: python3 render6.py 0.9 (gera full.png e q0..q3.png). Auditoria: python3 audit2.py.
+Precisa de numpy, scipy, pillow. gen_city6.py importa terrain4.py (terreno) e le city2.json e bairros_casas.json.
