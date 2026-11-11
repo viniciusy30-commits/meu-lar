@@ -459,6 +459,7 @@ object City {
     fun service(ex: Float, ez: Float) {
         if (!on) return
         if (HDS) Hds.gl()
+        if (Relevo.on) Relevo.service(ex, ez)   // Etapa 183b: árvores modeladas só perto do jogador
         val now = System.currentTimeMillis()
         for ((ci, c) in chunks.withIndex()) {
             c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()).gpuOnly() }; c.pend = null }

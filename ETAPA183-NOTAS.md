@@ -7,7 +7,7 @@
 - curbW/CWF agora: 0,1 -> 1,4 | 2 -> 2,0 | 3 -> 2,4. city3.json e relevo.bin regenerados (gen_city7.py): casas, rotatórias, terreno e pontes idênticos.
 
 ## 183 — gráficos
-- Árvores: Flora do HDS (oak_a, oak_b, cherry_a, pine_a; pinheiro cresce com a altitude) no lugar das pirâmides. Pedaço de árvore tem 1 triângulo vazio só para receber a flora (c.pend).
+- Árvores: Flora do HDS (oak_a, oak_b, cherry_a, pine_a; pinheiro cresce com a altitude). CUIDADO com memória: cada árvore tem ~7 mil vértices (~0,7 MB). A 1ª versão plantava ~3 mil no mapa todo e estourou o heap (OOM). Agora (183b) o mapa todo mantém as árvores leves e Relevo.service(), chamado de City.service, troca por modelos do HDS nos pedaços a menos de 260 m do jogador (o mais perto primeiro, 1 por quadro), devolve a memória a mais de 340 m e para de montar se o heap passar de 72%.
 - Água: cor por vértice, turquesa rasa -> azul funda, espuma na margem; leito escurece com a profundidade. Continua plana (sem ondas animadas).
 - Pontes: parapeito com duas faces + capa de pedra, postes de luz a cada 4 trechos, pilares duplos com travessa.
 - Manchas escuras no asfalto: causa não confirmada (ver conversa).

@@ -514,6 +514,51 @@ object Relevo {
         }
     }
 
+    private class LazyTrees(val chunk: City.Chunk, val cheap: Mesh, val data: FloatArray) { var rich: Mesh? = null }
+    private val lazyTrees = ArrayList<LazyTrees>()
+    private val TREE_IDS = arrayOf("oak_a", "oak_b", "cherry_a", "pine_a")
+
+    /**
+     * Etapa 183b/c: chamado a cada quadro pela thread do GL (City.service). Troca as árvores leves pelas modeladas do HDS
+     * nos pedaços a menos de TREE_NEAR do jogador (o mais perto primeiro, um por quadro) e devolve a memória dos que
+     * passam de TREE_FAR. Trava de memória: acima de 72% do heap não monta mais nenhum e solta o pedaço detalhado mais longe.
+     */
+    private const val TREE_NEAR = 260f
+    private const val TREE_FAR = 340f
+
+    fun service(ex: Float, ez: Float) {
+        if (!on) return
+        var best: LazyTrees? = null; var bestD = TREE_NEAR * TREE_NEAR
+        var worst: LazyTrees? = null; var worstD = 0f
+        for (t in lazyTrees) {
+            val c = t.chunk
+            val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
+            val d2 = dx * dx + dz * dz
+            val rich = t.rich
+            if (rich == null) {
+                if (d2 < bestD) { bestD = d2; best = t }
+            } else if (d2 > TREE_FAR * TREE_FAR) {
+                c.near = t.cheap; t.rich = null; rich.release()
+            } else if (d2 > worstD) { worstD = d2; worst = t }
+        }
+        val rt = Runtime.getRuntime()
+        val tight = (rt.totalMemory() - rt.freeMemory()) > rt.maxMemory() * 0.72
+        if (tight) {   // memória apertada: solta o detalhado mais longe e não monta nada novo neste quadro
+            worst?.let { w -> w.rich?.release(); w.chunk.near = w.cheap; w.rich = null }
+            return
+        }
+        val t = best ?: return
+        val fl = Flora.Batch(); fl.fixedY = 0f
+        var i = 0
+        while (i + 6 < t.data.size) {
+            val k = t.data[i + 6]
+            fl.place(TREE_IDS[t.data[i].toInt().coerceIn(0, 3)], t.data[i + 1].toDouble(), t.data[i + 2].toDouble(), t.data[i + 3].toDouble(), t.data[i + 4].toDouble(), t.data[i + 5].toDouble(), k, k, k)
+            i += 7
+        }
+        val parts = fl.build()
+        if (parts.isNotEmpty()) { val m = Mesh(parts).gpuOnly(); t.rich = m; t.chunk.near = m }
+    }
+
     private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((-0.2f - h) / 7f).coerceIn(0f, 1f))
 
     /** árvore simples e fofinha: tronco e copa em dois cones (bipirâmide de 6 lados) */
@@ -539,6 +584,7 @@ object Relevo {
      */
     fun build(out: ArrayList<City.Chunk>, plots: List<FloatArray>) {
         if (!on) return
+        lazyTrees.clear()
         val ncx = (nx - 1 + CS - 1) / CS; val ncz = (nz - 1 + CS - 1) / CS
         val csize = CS * g
         val segs = HashMap<Int, ArrayList<IntArray>>()
@@ -633,8 +679,7 @@ object Relevo {
             }
             // árvores deste pedaço (chunk à parte: só aparecem de perto)
             val tb = MB()
-            val fl = Flora.Batch(); fl.fixedY = 0f   // Etapa 183: árvores modeladas do HDS (carvalho, bordo, cerejeira, pinheiro)
-            var nTrees = 0
+            val tdata = ArrayList<Float>()   // Etapa 183b: árvores modeladas do HDS, montadas só perto do jogador (cada uma tem ~7 mil vértices)
             val ts = 26f
             val a0 = Math.ceil(((tx0 - CX) / ts).toDouble()).toInt(); val a1 = Math.ceil(((tx1 - CX) / ts).toDouble()).toInt() - 1
             val e0 = Math.ceil(((tz0 - CZ) / ts).toDouble()).toInt(); val e1 = Math.ceil(((tz1 - CZ) / ts).toDouble()).toInt() - 1
@@ -658,16 +703,16 @@ object Relevo {
                 val id = if (pine) "pine_a" else when (rg.nextInt(6)) { 0, 1 -> "oak_a"; 2, 3 -> "oak_b"; 4 -> "cherry_a"; else -> "oak_a" }
                 val ss = if (pine) sc * 0.9f + 0.25f else sc * 0.35f + 0.85f
                 val kv = 0.92f + rg.nextFloat() * 0.16f
-                fl.place(id, px.toDouble(), (h - 0.05f).toDouble(), pz.toDouble(), ss.toDouble(), (rg.nextFloat() * 6.28f).toDouble(), kv, kv, kv)
-                nTrees++
+                tree(tb, px, h - 0.05f, pz, sc, cl)   // versão leve, sempre visível
+                tdata.add(when (id) { "oak_a" -> 0f; "oak_b" -> 1f; "cherry_a" -> 2f; else -> 3f })
+                tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(ss); tdata.add(rg.nextFloat() * 6.28f); tdata.add(kv)
                 ty1 = max(ty1, h + 9f * ss)
             }
-            if (nTrees > 0) {
-                tb.m(Mt.PLAIN, 1f)
-                tri(tb, tx0, 0f, tz0, tx0, 0f, tz0, tx0, 0f, tz0, 0f, 1f, 0f, COL_TRUNK)   // triângulo vazio: o pedaço precisa de malha para receber a flora
-                val tc = City.Chunk(tb.toMesh(true).gpuOnly(), null, tx0 - 12f, tz0 - 12f, tx1 + 12f, tz1 + 12f, ty1 + 1f)
-                tc.pend = fl
+            if (!tb.isEmpty()) {
+                val cheap = tb.toMesh(true).gpuOnly()
+                val tc = City.Chunk(cheap, null, tx0 - 12f, tz0 - 12f, tx1 + 12f, tz1 + 12f, ty1 + 1f)
                 out.add(tc)
+                if (tdata.isNotEmpty()) lazyTrees.add(LazyTrees(tc, cheap, tdata.toFloatArray()))
             }
         }
         buildMap()
