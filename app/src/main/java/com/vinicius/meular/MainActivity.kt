@@ -257,7 +257,8 @@ class MainActivity : AppCompatActivity() {
         Flora.assets = assets
         Glb.assets = assets
         HdsMob.load(assets)   // Etapa 171: móveis do catálogo Hds entram na lista de tipos antes de ler o save
-        City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", false)   // mapa escolhido em Configurações
+        HdsEstate.init(getSharedPreferences("meular", MODE_PRIVATE))
+        City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", true)   // mapa escolhido em Configurações
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -515,6 +516,7 @@ class MainActivity : AppCompatActivity() {
         val useTick = object : Runnable {
             override fun run() {
                 val k = game.r.nearKind
+                game.r.toast?.let { game.r.toast = null; msg(it) }
                 if (game.r.saveReq) { game.r.saveReq = false; st.save() }   // Etapa 83: objeto com física parou (grava a posição)
                 if ((game.mode == 0 || k == 5) && k != 0 && game.mode != 2) {
                     val lab = game.r.nearLabel

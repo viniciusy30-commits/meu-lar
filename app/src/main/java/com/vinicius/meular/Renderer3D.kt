@@ -263,6 +263,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     @Volatile var fullReq = false
     var onFullBody: ((android.graphics.Bitmap) -> Unit)? = null
     @Volatile var nearKind = 0
+    /** Etapa 174: a casa antiga some quando se joga na Cidade 2 (o jogador mora na Casa 1 do Hds) */
+    private val homeOn: Boolean get() = !(City.on && City.HDS)
+    @Volatile var toast: String? = null
+    private var hdsSpawned = false
+    private var buyIdx = -1
     @Volatile var nearId = 0
     @Volatile var nearLabel = ""
     private var clothT = 0L
@@ -634,17 +639,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun walkable(nx: Float, nz: Float, ox: Float, oz: Float): Boolean {
         val gw = st.gw.toFloat()
         val gh = st.gh.toFloat()
-        val inFoot = nx > -0.45f && nx < gw + 0.45f && nz > -0.45f && nz < gh + 0.45f
+        val inFoot = homeOn && nx > -0.45f && nx < gw + 0.45f && nz > -0.45f && nz < gh + 0.45f
         if (inFoot) {
             val ins = nx > 0.32f && nx < gw - 0.32f && nz > 0.32f && nz < gh - 0.32f
             val door = abs(nx - gw / 2f) < 0.42f && nz > gh - 0.4f && nz < gh + 0.45f
             if (!ins && !door) return false
             if (HouseLayout.blocks(st.gw, st.gh, nx, nz) && !HouseLayout.blocks(st.gw, st.gh, ox, oz)) return false
         } else if (!yardOk(nx, nz)) return false
-        else if (HouseLayout.yardBlocks(st.gw, st.gh, nx, nz) && !HouseLayout.yardBlocks(st.gw, st.gh, ox, oz)) return false
-        if (swimPh == 0 && Pool.blocksWalker(st.gw, nx, nz)) return false   // Etapa 118: a água só se entra correndo (mergulho)
+        else if (homeOn && HouseLayout.yardBlocks(st.gw, st.gh, nx, nz) && !HouseLayout.yardBlocks(st.gw, st.gh, ox, oz)) return false
+        if (homeOn && swimPh == 0 && Pool.blocksWalker(st.gw, nx, nz)) return false   // Etapa 118: a água só se entra correndo (mergulho)
         val g = grabbed
-        for (o in st.items) {
+        if (homeOn) for (o in st.items) {
             if (o.type.rug || o.type.dyn || o === g || Foot.height(o.type) < 0.12f) continue   // coisa baixinha dá para pisar por cima; objeto solto é empurrado
             if (inside(o, nx, nz) && !inside(o, ox, oz)) return false
         }
@@ -656,10 +661,10 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Etapa 121: dentro do quintal valem os limites de antes; o portão da frente leva à cidade, onde só prédios, muros e carros bloqueiam. */
     private fun yardOk(x: Float, z: Float): Boolean {
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
-        if (x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f) return true
+        if (homeOn && x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f) return true
         if (!City.on) return false
         if (abs(x - gw / 2f) < 1.25f && z >= gh + 8.4f && z < gh + 9.8f) return true   // portão
-        if (x > -7.4f && x < gw + 7.4f && z > -19.4f && z < gh + 9.4f) return false     // cerca do quintal
+        if (homeOn && x > -7.4f && x < gw + 7.4f && z > -19.4f && z < gh + 9.4f) return false     // cerca do quintal
         if (Elevado.blockedWalk(x, z, baseY)) return false   // Etapa 145: pilares, aterro e guarda-corpo do elevado
         return baseY > 0.45f || !City.blocked(x, z)
     }
@@ -1296,7 +1301,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     /** Etapa 126: área da casa e do quintal (onde vale a grade de caminho e a câmera aérea da casa). */
     private fun atHome(x: Float, z: Float): Boolean {
         val gw = st.gw.toFloat(); val gh = st.gh.toFloat()
-        return x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f
+        return homeOn && x > -6.6f && x < gw + 6.6f && z > Pool.WALK_Z && z < gh + 8.6f
     }
     /** Etapa 126: vista aérea na rua: a câmera segue o personagem pela cidade. */
     private fun cityAer() = mode == 1 && City.on && !atHome(px, pz)
@@ -1313,16 +1318,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun blockedAt(x: Float, z: Float): Boolean {
         val gw = st.gw.toFloat()
         val gh = st.gh.toFloat()
-        val inFoot = x > -0.45f && x < gw + 0.45f && z > -0.45f && z < gh + 0.45f
+        val inFoot = homeOn && x > -0.45f && x < gw + 0.45f && z > -0.45f && z < gh + 0.45f
         if (inFoot) {
             val ins = x > 0.32f && x < gw - 0.32f && z > 0.32f && z < gh - 0.32f
             val door = abs(x - gw / 2f) < 0.42f && z > gh - 0.4f && z < gh + 0.45f
             if (!ins && !door) return true
             if (HouseLayout.blocks(st.gw, st.gh, x, z)) return true   // Etapa 144: paredes internas
         } else if (!yardOk(x, z)) return true   // fora do quintal (ou prédio/carro da cidade)
-        else if (HouseLayout.yardBlocks(st.gw, st.gh, x, z)) return true
-        if (Pool.blocksWalker(st.gw, x, z)) return true   // Etapa 118: piscina
-        for (o in st.items) {
+        else if (homeOn && HouseLayout.yardBlocks(st.gw, st.gh, x, z)) return true
+        if (homeOn && Pool.blocksWalker(st.gw, x, z)) return true   // Etapa 118: piscina
+        if (homeOn) for (o in st.items) {
             if (o.type.rug || o.type.dyn || Foot.height(o.type) < 0.12f) continue
             if (inside(o, x, z)) return true
         }
@@ -1470,7 +1475,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     private fun updateFP(dt: Float) {
         City.update(dt, px, pz)   // Etapa 121: trânsito e pedestres
-        if (!posInit) {
+        if (!posInit && !homeOn) {
+            val sp = Hds.spawn()
+            if (sp != null) {
+                px = sp[0]; pz = sp[1]; posInit = true; hdsSpawned = true
+                pYaw = 180f
+                fyaw = 0f
+            }
+        }
+        if (!homeOn && st.money < HdsEstate.INFINITE / 2) st.money = HdsEstate.INFINITE   // dinheiro infinito por enquanto
+        if (!posInit && homeOn) {
             px = st.gw / 2f
             pz = st.gh - 0.9f
             posInit = true
@@ -2203,16 +2217,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
 
         Matrix.setIdentityM(mdl, 0)
-        yardM?.let { draw(it, mdl, 1f) }
+        if (homeOn) yardM?.let { draw(it, mdl, 1f) }
         if (City.on) drawCity(ex, ez)
         Matrix.setIdentityM(mdl, 0)
-        floorM?.let { draw(it, mdl, 1f) }
+        if (homeOn) floorM?.let { draw(it, mdl, 1f) }
 
         val shown = shownB
-        shown[0] = fp || ez >= cz
-        shown[1] = fp || ez < cz
-        shown[2] = fp || ex >= cx
-        shown[3] = fp || ex < cx
+        shown[0] = homeOn && (fp || ez >= cz)
+        shown[1] = homeOn && (fp || ez < cz)
+        shown[2] = homeOn && (fp || ex >= cx)
+        shown[3] = homeOn && (fp || ex < cx)
         for (i in 0..3) if (shown[i]) {
             wallModel(i, gw.toFloat(), gh.toFloat())
             walls[i]?.let { draw(it, mdl, 1f) }
@@ -2230,6 +2244,19 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (driving) { nearKind = 21; nearLabel = if (isMoto()) "Descer da moto" else "Sair do carro" }
             else if (mode == 0 && sitPh == 0 && swimPh == 0 && !carX.isNaN() && carMesh != null && kotlin.math.hypot(px - carX, pz - carZ) < carHalfL() + 1.6f) {
                 nearKind = 20; nearLabel = if (isMoto()) "Subir na moto" else "Dirigir"
+            }
+            // Etapa 174: casas à venda na Cidade 2
+            buyIdx = -1
+            if (!homeOn && !driving && mode == 0 && sitPh == 0 && swimPh == 0 && nearKind == 0) {
+                for (h in HdsEstate.houses) {
+                    if (HdsEstate.isOwned(h.idx)) continue
+                    val r = Hds.plot(h.idx) ?: continue
+                    if (px > r[0] - 3f && px < r[2] + 3f && pz > r[1] - 3f && pz < r[3] + 3f) {
+                        buyIdx = h.idx; nearKind = 30
+                        nearLabel = "Comprar casa · ${h.area} m² · ${HdsEstate.brl(h.price)}"
+                        break
+                    }
+                }
             }
             if ((flying || landing) && py > 0.4f) { nearKind = 0; nearLabel = "" }   // Etapa 128: no ar não dá para usar nada
             if (useReq) {
@@ -2250,6 +2277,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                     9 -> nearItem?.let { startWash(it, nearSeat) }
                     20 -> enterCar()
                     21 -> exitCar()
+                    30 -> if (buyIdx >= 0) {
+                        val h = HdsEstate.houses[buyIdx]
+                        HdsEstate.buy(h.idx)
+                        toast = "Comprou a ${HdsEstate.label(h.idx)} (${h.classe}) por ${HdsEstate.brl(h.price)}"
+                        nearKind = 0
+                    }
                 }
             }
             for (pn in cloth.panels) if (shown[pn.wall]) {
@@ -2272,12 +2305,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 draw(dm, mdl, 1f)
             }
         }
-        if (fp) {
+        if (fp && homeOn) {
             Matrix.setIdentityM(mdl, 0)
             ceilM?.let { draw(it, mdl, 1f) }
         }
 
-        val items = st.items
+        val items = if (homeOn) st.items else java.util.concurrent.CopyOnWriteArrayList<Item>()
         glassQ.clear(); lateQ.clear()
         for (item in items) {
             val t = item.type
@@ -2348,7 +2381,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         // vidros por último
         run {   // Etapa 120: água com ondas, reflexo e ondinhas (programa próprio); se não compilar, volta ao plano de vidro da Etapa 118
             val ym = yardM
-            if (ym != null && boxVisible(Pool.x0(st.gw), -2f, Pool.Z0, Pool.x1(st.gw), 0.2f, Pool.Z1)) {   // Etapa 121: fora da câmera não desenha
+            if (homeOn && ym != null && boxVisible(Pool.x0(st.gw), -2f, Pool.Z0, Pool.x1(st.gw), 0.2f, Pool.Z1)) {   // Etapa 121: fora da câmera não desenha
                 val ok = Water.draw(vp, frameU[0], frameU[1], frameU[2], st.gw)
                 useProg(curProg)
                 if (!ok) { Matrix.setIdentityM(mdl, 0); draw(ym, mdl, 1f, true) }

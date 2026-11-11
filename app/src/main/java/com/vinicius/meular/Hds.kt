@@ -80,6 +80,12 @@ object Hds {
     @Volatile private var mxr = FloatArray(0)
     @Volatile private var mzr = FloatArray(0)
     @Volatile private var mplots: List<FloatArray> = emptyList()
+    @Volatile var offX = 0f; @Volatile var offZ = 0f
+
+    /** Etapa 174: ponto de partida do jogador dentro da Casa 1 (sala da esquerda, perto da porta); null enquanto a cidade não montou. */
+    fun spawn(): FloatArray? = if (roofs.isEmpty()) null else floatArrayOf(47.84f + offX, 19.9f + offZ)
+    /** Etapa 174: retângulo (x0, z0, x1, z1) do lote k no mundo */
+    fun plot(k: Int): FloatArray? = mplots.getOrNull(k)
 
     private const val CELL = 64f
     private const val PAD = 0.15f
@@ -276,6 +282,7 @@ object Hds {
         val res = js.getJSONArray("res")
         val ox = (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
         val oz = (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
+        offX = ox; offZ = oz
         val plots = js.getJSONArray("plots"); val np = plots.length()
         val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
 
@@ -324,7 +331,7 @@ object Hds {
             val r = Roof(x0 - 0.3f, z0 - 0.3f, x1 + 0.3f, z1 + 0.3f)
             rl.add(r)
             if (roofG[k].all.isNotEmpty()) jobs.add(Job(null, r, roofG[k].all))
-            City.addPlace(City.Place("Casa ${k + 1}", (x0 + x1) / 2f, (z0 + z1) / 2f, 0xFFFF7043.toInt(), 'C'))
+            City.addPlace(City.Place(HdsEstate.label(k), (x0 + x1) / 2f, (z0 + z1) / 2f, 0xFFFF7043.toInt(), 'C'))
         }
 
         // colisões (paredes e cercas, já com os vãos de porta)
