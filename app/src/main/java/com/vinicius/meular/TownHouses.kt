@@ -182,6 +182,32 @@ object TownHouses {
             lotBy.getOrPut((gx + 3000) * 8192 + (gz + 3000)) { ArrayList() }.add(l)
     }
 
+    // Etapa 174: profundidade livre medida em cada ponto da rua (antes era uma só para a rua inteira: quarteirões em triângulo,
+    // esquinas e cantos ficavam sem casa nenhuma e sobrava só gramado)
+    private var fdLot = false
+    private fun inLot(x: Float, z: Float): Boolean {
+        val l = lotBy[cell(x, z)] ?: return false
+        for (o in l) if (o.has(x, z)) return true
+        return false
+    }
+    private fun inHome(x: Float, z: Float) = x > City.lotX0 - 3f && x < City.lotX1 + 3f && z > City.lotZ0 - 3f && z < City.lotZ1 + 3f
+    /** Quanto dá para entrar a partir da frente (fx, fz) do lote, medido no meio e nas duas pontas. Para na rua, calçada, fora do quarteirão, parque, casa do jogador ou outro lote (fdLot diz se foi outro lote). */
+    private fun freeDepth(fx: Float, fz: Float, tx: Float, tz: Float, nx: Float, nz: Float, w: Float, maxD: Float): Float {
+        var best = maxD; var byLotBest = false
+        for (uo in floatArrayOf(-w / 2 + 0.4f, 0f, w / 2 - 0.4f)) {
+            var t = 0.8f; var byLot = false
+            while (t < best) {
+                val x = fx + tx * uo + nx * t; val z = fz + tz * uo + nz * t
+                if (Town.clearance(x, z) < 0.1f || !Town.inAnyBlock(x, z) || TownPark.inPark(x, z) || inHome(x, z)) break
+                if (inLot(x, z)) { byLot = true; break }
+                t += 2f
+            }
+            if (t < best) { val c = t - 1f; if (c < best) { best = c; byLotBest = byLot } }
+        }
+        fdLot = byLotBest
+        return best
+    }
+
     var dbgNoDep = 0; var dbgNoIv = 0
     fun plan() {
         dbgNoDep = 0; dbgNoIv = 0
@@ -209,6 +235,49 @@ object TownHouses {
                 val tier = tierOf(mid[0] + mid[4] * 15f, mid[1] + mid[5] * 15f)
                 if (tier == 0) continue
                 val LWt = LW[tier]
+                if (tier < 4) {
+                    // Etapa 174: cada lote tem a profundidade que realmente cabe ali. A primeira fileira leva metade do quarteirão,
+                    // a fileira do outro lado leva o que sobrou (fundos encostados, sem miolo vazio); cunhas e triângulos recebem lotes mais rasos.
+                    val ldT = LD[tier]; val minD = ldT * 0.55f
+                    fun depthFor(sPos: Float, w: Float): Float {
+                        val q = frame(sPos)
+                        val av = freeDepth(q[0], q[1], -sd * q[2], -sd * q[3], q[4], q[5], w, ldT * 3.2f)
+                        return when {
+                            av < minD -> 0f
+                            fdLot || av < 2f * minD + 1.5f -> min(av - 0.4f, ldT * 1.45f)   // fileira de trás, ou só cabe uma fileira
+                            av < ldT * 2.9f -> (av / 2f - 0.8f).coerceIn(ldT * 0.6f, ldT * 1.45f)
+                            else -> ldT
+                        }
+                    }
+                    fun tryLot(c: Float, w: Float): Lot? {
+                        val d = depthFor(c, w)
+                        if (d < minD) return null
+                        for (k in floatArrayOf(1f, 0.88f)) { if (d * k < minD) break; val l = lotAt(c, w, d * k, tier); if (fits(l)) return l }
+                        return null
+                    }
+                    val okT = ArrayList<FloatArray>(); var b0 = -1f
+                    var sT = LWt / 2
+                    while (sT <= cum[n - 1] - LWt / 2) {
+                        val good = tryLot(sT, LWt - 0.25f) != null
+                        if (good && b0 < 0f) b0 = sT
+                        if (!good && b0 >= 0f) { okT.add(floatArrayOf(b0, sT - 1.5f)); b0 = -1f }
+                        sT += 1.5f
+                    }
+                    if (b0 >= 0f) okT.add(floatArrayOf(b0, sT - 1.5f))
+                    if (okT.isEmpty()) dbgNoIv++
+                    for (iv in okT) {
+                        val span = iv[1] - iv[0]
+                        val cnt = (span / LWt).toInt() + 1
+                        val step = if (cnt > 1) span / (cnt - 1) else 0f
+                        val w = (if (cnt > 1) min(step, LWt * 1.3f) else LWt) - 0.25f
+                        for (q in 0 until cnt) {
+                            val c = if (cnt == 1) (iv[0] + iv[1]) / 2 else iv[0] + step * q
+                            val l = tryLot(c, w) ?: tryLot(c, LWt - 0.25f)
+                            if (l != null) { add(l); seed++ }
+                        }
+                    }
+                    continue
+                }
                 // profundidade que cabe neste lado (testada no meio da rua)
                 var dep = 0f
                 // Etapa 144: testa em vários pontos da rua (o meio pode cair no terreno do jogador)

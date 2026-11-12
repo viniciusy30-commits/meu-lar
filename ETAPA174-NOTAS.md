@@ -1,8 +1,9 @@
-# Etapa 174 - Casas do Hds: comecar na Casa 1 e comprar outras
-- Na Cidade 2 (agora o mapa padrao) a casa antiga some (parede, piso, quintal, piscina e moveis nao aparecem nem bloqueiam).
-- O jogador nasce dentro da Casa 1 do Hds (a menor, 76 m2). Dinheiro continua infinito.
-- 17 casas com bairro e classe: Alto da Colina, Jardim Central, Vila Esperanca, Parque das Flores, Recanto do Sul, Peninsula Real.
-  Preco = area x valor do m2 da classe (Popular < 200 m2, Medio < 400, Alto padrao < 700, Nobre).
-- Chegue perto de uma casa a venda (3 m do lote) e aparece o botao "Comprar casa". Casas compradas ficam salvas.
-- Moveis dentro das casas do Hds: etapa seguinte (opcao B).
-- Mapa 1 nao foi alterado (so deixou de ser o padrao).
+# Etapa 174 — Casas nos lotes certos, sem sobrar só gramado
+- Lotes com profundidade medida em cada ponto da rua (`TownHouses.plan`): antes a rua inteira usava uma profundidade só, e se um ponto
+  (triângulo, esquina, rua curva) não coubesse, o lado inteiro da rua ficava sem casa. Agora cada lote mede o que cabe ali:
+  a 1ª fileira leva metade do quarteirão, a do outro lado leva o que sobrou (fundos encostados), e cunhas/triângulos recebem lotes mais rasos.
+- Ao medir, os lotes param no parque, na casa do jogador e em outros lotes (nada se sobrepõe).
+- Sobras dos quarteirões residenciais (`TownSmall`): em vez de "sobrados colados" e pátio pavimentado no meio da grama (a calçada sem sentido),
+  vira jardim com árvores e arbustos.
+- Mansões (nível 4) continuam com a lógica antiga.
+- Arquivos: `TownHouses.kt`, `TownSmall.kt` (pasta `app/src/main/java/com/vinicius/meular`).

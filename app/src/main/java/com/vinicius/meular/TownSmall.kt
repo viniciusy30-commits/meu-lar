@@ -48,7 +48,8 @@ object TownSmall {
         val urbanD = d == TownPlan.DOWN || d == TownPlan.COM
         CityGeo.groundBox(b, u.x0, u.z0, u.x1, u.z1, if (urbanD) Mt.PAVER else Mt.GRASS, if (urbanD) 0.9f else 0.3f, if (urbanD) C("#E3E0DA") else C("#D6EEC4"))
         CityGeo.groundBox(g.f, u.x0, u.z0, u.x1, u.z1, if (urbanD) Mt.PAVER else Mt.GRASS, if (urbanD) 0.9f else 0.3f, if (urbanD) C("#E3E0DA") else C("#D6EEC4"))
-        val kind = if (d == TownPlan.MAN) 5 else if (d == TownPlan.SUB || d == TownPlan.HOME || d == TownPlan.PARK) (if (W >= 14f && D >= 14f) 0 else 5) else when {
+        // Etapa 174: nos bairros de casas o que sobra dos quarteirões vira jardim com árvores (antes: sobrados colados e pátio pavimentado no meio da grama)
+        val kind = if (d == TownPlan.MAN || d == TownPlan.SUB || d == TownPlan.HOME || d == TownPlan.PARK) 6 else when {
             W < 14f || D < 12f -> if (r.chance(0.5f)) 4 else 5
             urbanD -> intArrayOf(2, 3, 1, 2, 3, 4, 1)[r.i(7)]
             else -> intArrayOf(0, 0, 1, 2, 0, 1, 5, 4)[r.i(8)]
@@ -59,6 +60,7 @@ object TownSmall {
             2 -> shop(g, f, r)
             3 -> office(g, f, r)
             4 -> parking(g, f, r)
+            6 -> garden(g, f, r)
             else -> courtyard(g, f, r)
         }
     }
@@ -191,6 +193,19 @@ object TownSmall {
         CityGeo.publicBench(b, f.x(W / 2, D * 0.8f), f.z(W / 2, D * 0.8f), f.fx, f.fz)
         if (r.chance(0.5f)) CityGeo.tree(g, f.x(W * 0.8f, D * 0.75f), f.z(W * 0.8f, D * 0.75f), 0.9f)
         return 4f
+    }
+
+    /** Etapa 174: jardim dos fundos dos quarteirões de casas: só grama com árvores e arbustos soltos (sem calçada, sem prédio). */
+    private fun garden(g: CityGeo.Gen, f: F, r: City.Rng): Float {
+        val W = f.W; val D = f.D
+        val n = ((W * D) / 140f).toInt().coerceIn(2, 9)
+        for (k in 0 until n) {
+            val u = 2f + r.r(0f, max(0.1f, W - 4f)); val v = 2f + r.r(0f, max(0.1f, D - 4f))
+            val tx = f.x(u, v); val tz = f.z(u, v)
+            if (r.chance(0.7f)) { CityGeo.tree(g, tx, tz, r.r(0.8f, 1.15f)); g.solid(tx - 0.3f, tz - 0.3f, tx + 0.3f, tz + 0.3f) }
+            else CityGeo.bush(g, tx, tz, r.r(0.6f, 0.9f))
+        }
+        return 6f
     }
 
     @Suppress("unused") private fun unused() = abs(0f)
