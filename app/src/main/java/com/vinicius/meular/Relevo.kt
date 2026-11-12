@@ -174,6 +174,8 @@ object Relevo {
                 val o = ha.getJSONObject(i); val k = o.getInt("k")
                 houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat())
             }
+            fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
+            bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
             hs = h
             on = true
             liftRoads()
@@ -440,6 +442,18 @@ object Relevo {
                     b.box(ix0, y0 + 4.3f, iz0, 0.55f, 0.22f, 0.55f, C("#FFF0B8"), false)
                 }
             }
+            // Etapa 184: duas vigas longitudinais sob o tabuleiro e junta de dilatação no início de cada trecho
+            val bl = hypot(x1 - x0, z1 - z0)
+            if (bl > 0.5f) {
+                val bang = Math.atan2((z1 - z0).toDouble(), (x1 - x0).toDouble()).toFloat()
+                val ym = (y0 + y1) / 2f
+                b.m(Mt.PLAIN, 1f)
+                for (sg in floatArrayOf(-1f, 1f)) {
+                    obox(b, (x0 + x1) / 2f + n0[0] * hw * 0.5f * sg, (z0 + z1) / 2f + n0[1] * hw * 0.5f * sg, bl, 0.7f, bang, ym - 2.1f, ym - 1.3f, shade(COL_UNDER, -14))
+                }
+                val jx = (x1 - x0) / bl * 0.18f; val jz = (z1 - z0) / bl * 0.18f
+                strip(b, x0 + n0[0] * hw, z0 + n0[1] * hw, x0 - n0[0] * hw, z0 - n0[1] * hw, x0 + n0[0] * hw + jx, z0 + n0[1] * hw + jz, x0 - n0[0] * hw + jx, z0 - n0[1] * hw + jz, y0 + ROADY + 0.03f, y0 + ROADY + 0.03f, C("#2B2E33"))
+            }
             if (q % 3 == 0) {   // pilares sob a ponte, do terreno até o fundo da pista
                 val top = y0 - 1.3f
                 val hgt = top - height(x0, z0)
@@ -516,6 +530,194 @@ object Relevo {
 
     private class LazyTrees(val chunk: City.Chunk, val cheap: Mesh, val data: FloatArray) { var rich: Mesh? = null }
     private val lazyTrees = ArrayList<LazyTrees>()
+    private var bldA = FloatArray(0)    // 9 por prédio: x, z, w, d, andares, ang, tipo, seed, pódio
+    private var lampA = FloatArray(0)   // 4 por poste: x, z, ang, tipo
+    private var hydA = FloatArray(0)    // 2 por hidrante
+    private var treeA = FloatArray(0)   // 6 por árvore: x, z, espécie, escala, giro, tom
+
+    private val FAC_HOUSE = intArrayOf(C("#F2E3C6"), C("#E8C9A0"), C("#D9E4EA"), C("#EBD3D0"), C("#CFE0C8"), C("#F4EEDC"), C("#E3D0B5"), C("#F0DDB0"))
+    private val FAC_APT = intArrayOf(C("#D8D2C8"), C("#C9C3B8"), C("#E0C9B0"), C("#BFC8CE"), C("#D6BFB0"), C("#CBB8A4"), C("#E4DDD0"))
+    private val FAC_SHOP = intArrayOf(C("#F0C27A"), C("#E7A98F"), C("#B9D3C2"), C("#E9DDA6"), C("#C7B9D9"), C("#F2B8B0"), C("#BFD6E8"))
+    private val FAC_OFFICE = intArrayOf(C("#9FB8CC"), C("#8FA6B8"), C("#A9BFCB"), C("#B7C4CC"), C("#7F9DB5"))
+    private val FAC_TOWER = intArrayOf(C("#6F93B3"), C("#5F83A6"), C("#7FA2BC"), C("#8AA9B8"), C("#4F7092"))
+    private val ROOFS = intArrayOf(C("#B5523B"), C("#9C4A38"), C("#6E6A66"), C("#8C5B3C"), C("#5E6670"))
+    private val AWNINGS = intArrayOf(C("#C62828"), C("#1565C0"), C("#2E7D32"), C("#EF6C00"), C("#6A1B9A"), C("#00838F"))
+    private val COL_FOUND = C("#8A8478")
+    private val COL_FLAT = C("#8C8F94")
+    private val COL_POLE = C("#3A3F47")
+    private val COL_LAMP = C("#FFF3C4")
+    private val COL_HYD = C("#D32F2F")
+    private val COL_BRICK = C("#9C5A44")
+    private val TREE_COL = intArrayOf(C("#4F9A55"), C("#6BB45C"), C("#E7A9BE"), C("#2F7A4A"))
+    private val TREE_SP = arrayOf("oak_a", "oak_b", "cherry_a", "pine_a")
+
+    /** Etapa 184: quadrilátero (4 pontos, 4 UV) com a ordem dos vértices ajustada à normal (a face aparece por fora). */
+    private fun quadN(b: MB, p: FloatArray, uv: FloatArray, nx: Float, ny: Float, nz: Float, c: Int, lit: Boolean = true) {
+        val ax = p[3] - p[0]; val ay = p[4] - p[1]; val az = p[5] - p[2]
+        val bx = p[6] - p[0]; val by = p[7] - p[1]; val bz = p[8] - p[2]
+        val gx = ay * bz - az * by; val gy = az * bx - ax * bz; val gz = ax * by - ay * bx
+        val ord = if (gx * nx + gy * ny + gz * nz < 0f) intArrayOf(0, 2, 1, 0, 3, 2) else intArrayOf(0, 1, 2, 0, 2, 3)
+        val l = if (lit) 1f else 0f
+        for (i in ord) b.v(p[i * 3], p[i * 3 + 1], p[i * 3 + 2], nx * l, ny * l, nz * l, c, uv[i * 2], uv[i * 2 + 1])
+    }
+
+    private fun triN(b: MB, p: FloatArray, nx: Float, ny: Float, nz: Float, c: Int) {
+        val ax = p[3] - p[0]; val ay = p[4] - p[1]; val az = p[5] - p[2]
+        val bx = p[6] - p[0]; val by = p[7] - p[1]; val bz = p[8] - p[2]
+        val gx = ay * bz - az * by; val gy = az * bx - ax * bz; val gz = ax * by - ay * bx
+        val ord = if (gx * nx + gy * ny + gz * nz < 0f) intArrayOf(0, 2, 1) else intArrayOf(0, 1, 2)
+        for (i in ord) b.v(p[i * 3], p[i * 3 + 1], p[i * 3 + 2], nx, ny, nz, c, p[i * 3], p[i * 3 + 2])
+    }
+
+    /** caixa girada (ang = direção do eixo "largura" no plano XZ). Paredes com UV de fachada (u = metros ao longo, v = y). */
+    private fun obox(b: MB, cx: Float, cz: Float, w: Float, d: Float, ang: Float, y0: Float, y1: Float, col: Int, top: Boolean = true, topCol: Int = col, lit: Boolean = true) {
+        val c = cos(ang); val s = sin(ang)
+        val lu = floatArrayOf(-w / 2f, w / 2f, w / 2f, -w / 2f); val lv = floatArrayOf(-d / 2f, -d / 2f, d / 2f, d / 2f)
+        val xs = FloatArray(4) { cx + c * lu[it] - s * lv[it] }; val zs = FloatArray(4) { cz + s * lu[it] + c * lv[it] }
+        for (k in 0..3) {
+            val k2 = (k + 1) % 4
+            var nx = (xs[k] + xs[k2]) / 2f - cx; var nz = (zs[k] + zs[k2]) / 2f - cz
+            val l = hypot(nx, nz).coerceAtLeast(1e-4f); nx /= l; nz /= l
+            val len = hypot(xs[k2] - xs[k], zs[k2] - zs[k])
+            quadN(b, floatArrayOf(xs[k], y0, zs[k], xs[k2], y0, zs[k2], xs[k2], y1, zs[k2], xs[k], y1, zs[k]),
+                floatArrayOf(0f, y0, len, y0, len, y1, 0f, y1), nx, 0f, nz, col, lit)
+        }
+        if (top) quadN(b, floatArrayOf(xs[0], y1, zs[0], xs[1], y1, zs[1], xs[2], y1, zs[2], xs[3], y1, zs[3]),
+            floatArrayOf(xs[0], zs[0], xs[1], zs[1], xs[2], zs[2], xs[3], zs[3]), 0f, 1f, 0f, topCol, lit)
+    }
+
+    /** ponto do mundo a partir do centro do prédio e coordenadas locais (u ao longo, v em profundidade) */
+    private fun wx(cx: Float, ang: Float, u: Float, v: Float) = cx + cos(ang) * u - sin(ang) * v
+    private fun wz(cz: Float, ang: Float, u: Float, v: Float) = cz + sin(ang) * u + cos(ang) * v
+
+    /** Etapa 184: um prédio/casa. Devolve a altura do topo (para o corte de visibilidade do pedaço). */
+    private fun emitBuilding(b: MB, i: Int): Float {
+        val o = i * 9
+        val x = bldA[o] + CX; val z = bldA[o + 1] + CZ; val w = bldA[o + 2]; val d = bldA[o + 3]
+        val fl = bldA[o + 4].toInt().coerceAtLeast(1); val ang = bldA[o + 5]; val kind = bldA[o + 6].toInt(); val seed = bldA[o + 7].toInt(); val pod = bldA[o + 8].toInt()
+        val rg = java.util.Random(seed.toLong())
+        var hmax = -1e9f; var hmin = 1e9f
+        for (k in 0..4) {
+            val u = if (k == 4) 0f else (if (k % 2 == 0) -w / 2f else w / 2f); val v = if (k == 4) 0f else (if (k < 2) -d / 2f else d / 2f)
+            val h = height(wx(x, ang, u, v), wz(z, ang, u, v)); if (h > hmax) hmax = h; if (h < hmin) hmin = h
+        }
+        val y0 = hmax + 0.15f
+        b.m(Mt.PLAIN, 1f)
+        obox(b, x, z, w + 0.2f, d + 0.2f, ang, hmin - 0.6f, y0, COL_FOUND, false)
+        val pal = when (kind) { 0, 1 -> FAC_HOUSE; 2 -> FAC_SHOP; 3 -> FAC_APT; 4 -> FAC_OFFICE; else -> FAC_TOWER }
+        val col = pal[rg.nextInt(pal.size)]
+        fun walls(yb: Float, floors: Int, ww: Float, dd: Float, top: Boolean, c: Int): Float {
+            b.m(Mt.FACADE, 1f / 3f, 0f, -y0 / 3f)
+            obox(b, x, z, ww, dd, ang, yb, yb + floors * 3f, c, false)
+            return yb + floors * 3f
+        }
+        var yt: Float
+        when (kind) {
+            0, 1 -> {
+                yt = walls(y0, fl, w, d, false, col)
+                val rc = ROOFS[rg.nextInt(ROOFS.size)]
+                val hx = w / 2f + 0.4f; val hz = d / 2f + 0.5f
+                val rh = min(d * 0.34f, if (kind == 1) 3.6f else 2.8f)
+                fun P(u: Float, v: Float, y: Float) = floatArrayOf(wx(x, ang, u, v), y, wz(z, ang, u, v))
+                val a0 = P(-hx, -hz, yt); val a1 = P(hx, -hz, yt); val a2 = P(hx, 0f, yt + rh); val a3 = P(-hx, 0f, yt + rh)
+                val b0 = P(-hx, hz, yt); val b1 = P(hx, hz, yt); val b2 = P(hx, 0f, yt + rh); val b3 = P(-hx, 0f, yt + rh)
+                val nl = hypot(rh, hz)
+                val fvx = -(-sin(ang)); val fvz = -cos(ang)   // direção "frente" (-v)
+                b.m(Mt.ROOF, 0.5f)
+                quadN(b, a0 + a1 + a2 + a3, floatArrayOf(-hx, 0f, hx, 0f, hx, nl, -hx, nl), fvx * rh / nl, hz / nl, fvz * rh / nl, rc)
+                quadN(b, b0 + b1 + b2 + b3, floatArrayOf(-hx, 0f, hx, 0f, hx, nl, -hx, nl), -fvx * rh / nl, hz / nl, -fvz * rh / nl, rc)
+                b.m(Mt.PLAIN, 1f)
+                val gr = rh * (d / 2f) / hz
+                for (sgn in floatArrayOf(-1f, 1f)) {
+                    val ux = cos(ang) * sgn; val uz = sin(ang) * sgn
+                    triN(b, P(sgn * w / 2f, -d / 2f, yt) + P(sgn * w / 2f, d / 2f, yt) + P(sgn * w / 2f, 0f, yt + gr), ux, 0f, uz, col)
+                }
+                // porta e chaminé
+                val du = (rg.nextFloat() - 0.5f) * (w - 3f)
+                obox(b, wx(x, ang, du, -d / 2f - 0.08f), wz(z, ang, du, -d / 2f - 0.08f), 1.1f, 0.2f, ang, y0, y0 + 2.1f, C("#5B4636"))
+                if (rg.nextInt(3) == 0) obox(b, wx(x, ang, w * 0.25f, 0f), wz(z, ang, w * 0.25f, 0f), 0.7f, 0.7f, ang, yt + rh * 0.3f, yt + rh + 1.1f, COL_BRICK)
+                yt += rh + 1.1f
+            }
+            2 -> {
+                yt = walls(y0, fl, w, d, true, col)
+                b.m(Mt.PLAIN, 1f)
+                obox(b, x, z, w + 0.4f, d + 0.4f, ang, yt, yt + 0.35f, COL_FLAT)   // laje com beiral
+                // toldo da loja (frente = -v)
+                val ac = AWNINGS[rg.nextInt(AWNINGS.size)]
+                obox(b, wx(x, ang, 0f, -d / 2f - 0.75f), wz(z, ang, 0f, -d / 2f - 0.75f), w - 0.6f, 1.5f, ang, y0 + 3.0f, y0 + 3.25f, ac)
+                yt += 0.35f
+            }
+            3 -> {
+                yt = walls(y0, fl, w, d, true, col)
+                b.m(Mt.PLAIN, 1f)
+                obox(b, x, z, w + 0.5f, d + 0.5f, ang, yt, yt + 0.5f, COL_FLAT)
+                yt += 0.5f
+                if (rg.nextInt(3) == 0 && fl > 4) { b.m(Mt.FACADE, 1f / 3f, 0f, -y0 / 3f); obox(b, x, z, w * 0.6f, d * 0.6f, ang, yt, yt + 3f, col, false); b.m(Mt.PLAIN, 1f); obox(b, x, z, w * 0.66f, d * 0.66f, ang, yt + 3f, yt + 3.4f, COL_FLAT); yt += 3.4f }
+            }
+            4 -> {
+                val base = if (pod > 0) pod else 0
+                var y = y0
+                if (base > 0) y = walls(y0, base, w, d, true, col)
+                val tw = if (base > 0) w * 0.78f else w; val td = if (base > 0) d * 0.78f else d
+                yt = walls(y, fl - base, tw, td, true, col)
+                b.m(Mt.PLAIN, 1f)
+                obox(b, x, z, tw + 0.5f, td + 0.5f, ang, yt, yt + 0.5f, COL_FLAT)
+                yt += 0.5f
+            }
+            else -> {
+                val base = pod.coerceAtLeast(2)
+                var y = walls(y0, base, w, d, true, C("#B9B2A6"))
+                b.m(Mt.PLAIN, 1f)
+                obox(b, x, z, w + 0.5f, d + 0.5f, ang, y, y + 0.4f, COL_FLAT); y += 0.4f
+                val tw = w * 0.7f; val td = d * 0.7f
+                b.m(Mt.FACADE, 1f / 3f, 0f, -y0 / 3f)
+                yt = y + (fl - base) * 3f
+                obox(b, x, z, tw, td, ang, y, yt, col, false)
+                // coroa do topo
+                b.m(Mt.PLAIN, 1f)
+                obox(b, x, z, tw + 0.5f, td + 0.5f, ang, yt, yt + 0.6f, C("#5E6670"))
+                obox(b, x, z, tw * 0.5f, td * 0.5f, ang, yt + 0.6f, yt + 3.2f, C("#7C838C"))
+                obox(b, x, z, 0.35f, 0.35f, ang, yt + 3.2f, yt + 11f, C("#C8CCD2"))
+                yt += 11f
+            }
+        }
+        if (kind in 3..4) {   // casa de máquinas e ar-condicionado no telhado
+            b.m(Mt.PLAIN, 1f)
+            val tw = if (kind == 4 && pod > 0) w * 0.78f else w
+            obox(b, wx(x, ang, -tw * 0.22f, 0f), wz(z, ang, -tw * 0.22f, 0f), 3.2f, 3.0f, ang, yt, yt + 2.6f, C("#A5A9B0"))
+            obox(b, wx(x, ang, tw * 0.25f, 1.5f), wz(z, ang, tw * 0.25f, 1.5f), 2.0f, 1.6f, ang, yt, yt + 1.2f, C("#8E9298"))
+            yt += 2.6f
+        }
+        return yt
+    }
+
+    /** poste de luz: haste, braço para a pista e luminária (sem iluminação, brilha) */
+    private fun emitLamp(b: MB, i: Int) {
+        val o = i * 4
+        val x = lampA[o] + CX; val z = lampA[o + 1] + CZ; val ang = lampA[o + 2]; val av = lampA[o + 3] > 0.5f
+        val y = groundH(x, z)
+        val hgt = if (av) 8.5f else 5.8f; val arm = if (av) 2.4f else 1.5f
+        b.m(Mt.PLAIN, 1f)
+        obox(b, x, z, 0.22f, 0.22f, 0f, y, y + 0.5f, C("#4B515A"))
+        obox(b, x, z, 0.14f, 0.14f, 0f, y + 0.5f, y + hgt, COL_POLE)
+        val dx = cos(ang); val dz = sin(ang)
+        obox(b, x + dx * arm / 2f, z + dz * arm / 2f, arm, 0.1f, ang, y + hgt - 0.12f, y + hgt, COL_POLE)
+        obox(b, x + dx * arm, z + dz * arm, 0.75f, 0.32f, ang, y + hgt - 0.2f, y + hgt - 0.02f, COL_LAMP, true, COL_LAMP, false)
+        if (av) {   // avenida: segundo braço para o outro lado
+            obox(b, x - dx * arm / 2f, z - dz * arm / 2f, arm, 0.1f, ang, y + hgt - 0.12f, y + hgt, COL_POLE)
+            obox(b, x - dx * arm, z - dz * arm, 0.75f, 0.32f, ang, y + hgt - 0.2f, y + hgt - 0.02f, COL_LAMP, true, COL_LAMP, false)
+        }
+    }
+
+    private fun emitHydrant(b: MB, i: Int) {
+        val x = hydA[i * 2] + CX; val z = hydA[i * 2 + 1] + CZ
+        val y = groundH(x, z)
+        b.m(Mt.PLAIN, 1f)
+        obox(b, x, z, 0.3f, 0.3f, 0f, y, y + 0.65f, COL_HYD)
+        obox(b, x, z, 0.38f, 0.38f, 0f, y + 0.55f, y + 0.72f, C("#B71C1C"))
+        obox(b, x, z, 0.52f, 0.14f, 0f, y + 0.32f, y + 0.46f, COL_HYD)
+    }
+
     private val TREE_IDS = arrayOf("oak_a", "oak_b", "cherry_a", "pine_a")
 
     /**
@@ -604,22 +806,15 @@ object Relevo {
             val ci = ((p.x - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((p.z - CZ) / csize).toInt().coerceIn(0, ncz - 1)
             padB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(p)
         }
-        // distância às ruas (grade de 16 m) para não plantar árvores no asfalto
-        val gw = (worldW / 16f).toInt() + 2; val gh = (worldH / 16f).toInt() + 2
-        val rd = FloatArray(gw * gh) { 1e9f }
-        fun mark(px: Float, pz: Float, rad: Float, off: Float) {
-            val ci = ((px - CX) / 16f).toInt(); val cj = ((pz - CZ) / 16f).toInt()
-            val k = (rad / 16f).toInt() + 1
-            for (dj in -k..k) for (di in -k..k) {
-                val i = ci + di; val j = cj + dj
-                if (i < 0 || j < 0 || i >= gw || j >= gh) continue
-                val d = hypot(CX + i * 16f - px, CZ + j * 16f - pz) - off
-                if (d < rd[j * gw + i]) rd[j * gw + i] = d
+        fun binOf(arr: FloatArray, st: Int): HashMap<Int, ArrayList<Int>> {
+            val m = HashMap<Int, ArrayList<Int>>()
+            for (k in 0 until arr.size / st) {
+                val ci = ((arr[k * st] - 0f) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((arr[k * st + 1]) / csize).toInt().coerceIn(0, ncz - 1)
+                m.getOrPut(cj * 1000 + ci) { ArrayList() }.add(k)
             }
+            return m
         }
-        for (r in roads) for (q in r.x.indices) mark(r.x[q], r.z[q], 40f, r.w / 2f)
-        for (h in hubs) mark(h.x, h.z, h.r + 40f, h.r)
-        for (p in pads) mark(p.x, p.z, padR(p) + 40f, padR(p))
+        val bldB = binOf(bldA, 9); val lampB = binOf(lampA, 4); val hydB = binOf(hydA, 2); val treeB = binOf(treeA, 6)
 
         val total = ncx * ncz
         for (cj in 0 until ncz) for (ci in 0 until ncx) {
@@ -672,6 +867,9 @@ object Relevo {
             if (hl != null) { ext = 40f; for (h in hl) { emitHub(b, h); ymax = max(ymax, h.y + 1f) } }
             val pdl = padB[cj * 1000 + ci]
             if (pdl != null) { ext = 40f; for (p in pdl) { emitPad(b, p); ymax = max(ymax, p.y + 1f) } }
+            bldB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) ymax = max(ymax, emitBuilding(b, k)) }
+            lampB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitLamp(b, k); ymax += 9.5f }
+            hydB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitHydrant(b, k) }
             if (!b.isEmpty()) {
                 val c = City.Chunk(b.toMesh(true).gpuOnly(), null, tx0 - ext, tz0 - ext, tx1 + ext, tz1 + ext, ymax + 1.5f)
                 c.terrain = true   // pedaço de terreno: aparece de mais longe (ver Renderer3D)
@@ -680,33 +878,17 @@ object Relevo {
             // árvores deste pedaço (chunk à parte: só aparecem de perto)
             val tb = MB()
             val tdata = ArrayList<Float>()   // Etapa 183b: árvores modeladas do HDS, montadas só perto do jogador (cada uma tem ~7 mil vértices)
-            val ts = 26f
-            val a0 = Math.ceil(((tx0 - CX) / ts).toDouble()).toInt(); val a1 = Math.ceil(((tx1 - CX) / ts).toDouble()).toInt() - 1
-            val e0 = Math.ceil(((tz0 - CZ) / ts).toDouble()).toInt(); val e1 = Math.ceil(((tz1 - CZ) / ts).toDouble()).toInt() - 1
             var ty1 = 0f
-            for (a in a0..a1) for (e in e0..e1) {
-                val rg = java.util.Random((a * 73856093L) xor (e * 19349663L) xor 11L)
-                val px = CX + a * ts + (rg.nextFloat() - 0.5f) * 14f; val pz = CZ + e * ts + (rg.nextFloat() - 0.5f) * 14f
-                val roll = rg.nextFloat(); val sc = 0.8f + rg.nextFloat() * 0.8f; val cl = TREES[rg.nextInt(TREES.size)]
-                if (px < CX + 10f || pz < CZ + 10f || px > CX + worldW - 10f || pz > CZ + worldH - 10f) continue
-                val h = height(px, pz)
-                if (h < 2.2f) continue
-                if (roll > 0.16f + 0.3f * ((h - 18f) / 30f).coerceIn(0f, 1f)) continue
-                val gx = abs(height(px + 4f, pz) - height(px - 4f, pz)) / 8f; val gz = abs(height(px, pz + 4f) - height(px, pz - 4f)) / 8f
-                if (max(gx, gz) > 0.3f) continue
-                val ri = ((px - CX) / 16f).toInt().coerceIn(0, gw - 1); val rj = ((pz - CZ) / 16f).toInt().coerceIn(0, gh - 1)
-                if (rd[rj * gw + ri] < 20f) continue
-                var near = false
-                for (p in plots) if (px > p[0] - 14f && px < p[2] + 14f && pz > p[1] - 14f && pz < p[3] + 14f) { near = true; break }
-                if (near) continue
-                val pine = h > 28f || (h > 14f && rg.nextFloat() < (h - 14f) / 22f)
-                val id = if (pine) "pine_a" else when (rg.nextInt(6)) { 0, 1 -> "oak_a"; 2, 3 -> "oak_b"; 4 -> "cherry_a"; else -> "oak_a" }
-                val ss = if (pine) sc * 0.9f + 0.25f else sc * 0.35f + 0.85f
-                val kv = 0.92f + rg.nextFloat() * 0.16f
-                tree(tb, px, h - 0.05f, pz, sc, cl)   // versão leve, sempre visível
-                tdata.add(when (id) { "oak_a" -> 0f; "oak_b" -> 1f; "cherry_a" -> 2f; else -> 3f })
-                tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(ss); tdata.add(rg.nextFloat() * 6.28f); tdata.add(kv)
-                ty1 = max(ty1, h + 9f * ss)
+            treeB[cj * 1000 + ci]?.let { l ->
+                for (k in l) {
+                    val o = k * 6
+                    val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
+                    val h = groundH(px, pz)
+                    if (h < 1.0f) continue
+                    tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve, sempre visível
+                    tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
+                    ty1 = max(ty1, h + 9f * sc)
+                }
             }
             if (!tb.isEmpty()) {
                 val cheap = tb.toMesh(true).gpuOnly()
