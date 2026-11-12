@@ -1,0 +1,3 @@
+Cidade nova (etapa 185): python3 gen_city8.py -> city3.json + relevo.bin ; python3 gen_pop8.py -> acrescenta bld/lamp/hyd/tree.
+Precisa terrain4.py, city2.json e bairros_casas.json (da pasta gerador-cidade anterior), numpy, scipy, pillow.
+Previa: python3 rview.py city3.json saida.png 1.4 1300 1100 300
