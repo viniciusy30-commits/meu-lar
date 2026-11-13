@@ -107,6 +107,8 @@ object Relevo {
     private val TREES = intArrayOf(C("#4F9A55"), C("#5FAE5A"), C("#3F8A50"), C("#6BB45C"), C("#7CBF62"))
 
     fun house(k: Int): House? = houses[k]
+    /** Etapa 187: a casa k existe neste mapa? (no mapa do jogador nem todas as 17 casas são colocadas) */
+    fun has(k: Int): Boolean = houses.containsKey(k)
 
     /** Etapa 178: vaga do carro junto à calçada, em frente da Casa 1: (x, z, rumo em rad; frente = (sin h, -cos h)). null se não achar rua perto. */
     fun carSpot(): FloatArray? {
@@ -144,14 +146,22 @@ object Relevo {
     }
 
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
-    fun load(am: AssetManager, wantSub: Boolean = false): Boolean {
+    fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false): Boolean {
         on = false; sub = false
         try {
-            val bb = ByteBuffer.wrap(am.open(if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
-            nx = bb.getInt(); nz = bb.getInt(); g = bb.getFloat()
-            val h = ShortArray(nx * nz)
-            for (i in h.indices) h[i] = bb.getShort()
-            val js = JSONObject(am.open(if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
+            val h: ShortArray
+            val js: JSONObject
+            if (user) {   // Etapa 187: mapa criado pelo jogador no editor (UserMap)
+                val cm = UserMap.compile()
+                nx = UserMap.NX; nz = UserMap.NZ; g = UserMap.G
+                h = cm.hs; js = cm.json
+            } else {
+                val bb = ByteBuffer.wrap(am.open(if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+                nx = bb.getInt(); nz = bb.getInt(); g = bb.getFloat()
+                h = ShortArray(nx * nz)
+                for (i in h.indices) h[i] = bb.getShort()
+                js = JSONObject(am.open(if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
+            }
             val wo = js.getJSONArray("world")
             worldW = wo.getDouble(0).toFloat(); worldH = wo.getDouble(1).toFloat()
             roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()

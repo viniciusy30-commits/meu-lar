@@ -14,3 +14,10 @@
 - Extras de quintal: casinha de ferramentas, trampolim, piscina de lona, mesa de piquenique, balanço.
 - Colisão em todas as cercas (1.821 colisões no total). Malha subiu para ~111 mil triângulos (arquivo sub_mesh.bin ~11 MB): se o FPS cair, reduzir o fio do alambrado em fences.py.
 - Gerador: tools/gen-bairro/fences.py (chamado por gen_bairro.py).
+
+# Etapa 187 — Editor de mapas e Cidade 4 (NÃO compilada: se o build falhar, mande o erro)
+- Novos: UserMap.kt (modelo do mapa, salvamento em usermap.json, compilador para o formato do Relevo) e MapEditorActivity.kt (tela do editor, registrada no AndroidManifest).
+- Editor: Mover, Rua, Avenida, Via expressa, Viaduto, Rotatória, Casa (1 a 17), Árvores, Rio/Lago, Subir terra, Descer terra, Nivelar, Borracha; Desfazer (25 passos), Tamanho do pincel/raio, dois dedos para zoom. Salva ao sair.
+- Compilador: ruas suavizadas, cruzamentos e T com meio-fio aberto, rotatórias com as ruas encaixadas, ruas sobre água viram ponte, viaduto sobe 6,8 m, beco sem saída ganha bolsão, postes automáticos, platô sob casas e rotatórias, árvores removidas de ruas e água.
+- Hds.kt: casas não colocadas no mapa são ignoradas (Relevo.has). Configurações > Mapa agora cicla Cidade 1 → 2 → 3 → 4.
+- Limites: mapa fixo 1000 x 800 m; casas não giram (frente para o norte); a Casa 1 sempre existe.

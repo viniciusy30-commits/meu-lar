@@ -260,6 +260,8 @@ class MainActivity : AppCompatActivity() {
         HdsEstate.init(getSharedPreferences("meular", MODE_PRIVATE))
         City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", true)   // mapa escolhido em Configurações
         City.C3 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade3", true)   // Etapa 185: bairro novo (Cidade 3)
+        UserMap.init(filesDir)   // Etapa 187: mapa do jogador
+        City.C4 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade4", false)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -1512,14 +1514,19 @@ class MainActivity : AppCompatActivity() {
                 fpsT?.text = if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado"
             }
             var cidT: TextView? = null
-            fun cidTxt() = if (!City.HDS) "Mapa: Cidade 1" else if (City.C3) "Mapa: Cidade 3 (bairro americano)" else "Mapa: Cidade 2 (casas do Hds)"
+            fun cidTxt() = if (!City.HDS) "Mapa: Cidade 1" else if (City.C4) "Mapa: Cidade 4 (a sua, do editor)" else if (City.C3) "Mapa: Cidade 3 (bairro americano)" else "Mapa: Cidade 2 (casas do Hds)"
             cidT = linha(panel, Ic.HOME, cidTxt(), Tn.SKY) {
-                // Etapa 185: Cidade 1 -> Cidade 2 -> Cidade 3 -> Cidade 1
-                if (!City.HDS) { City.HDS = true; City.C3 = false }
-                else if (!City.C3) { City.C3 = true }
-                else { City.HDS = false; City.C3 = false }
-                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).apply()
+                // Etapas 185/187: Cidade 1 -> 2 -> 3 -> 4 (a sua) -> 1
+                if (!City.HDS) { City.HDS = true; City.C3 = false; City.C4 = false }
+                else if (City.C4) { City.HDS = false; City.C3 = false; City.C4 = false }
+                else if (City.C3) { City.C4 = true }
+                else { City.C3 = true }
+                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).putBoolean("cidade4", City.C4).apply()
                 cidT?.text = cidTxt()
+            }
+            linha(panel, Ic.HOME, "Editor de mapas (criar a sua cidade)", Tn.MINT) {
+                dlg?.dismiss()
+                startActivity(android.content.Intent(this@MainActivity, MapEditorActivity::class.java))
             }
             var sens: TextView? = null
             sens = linha(panel, Ic.EYE, "Sensibilidade do olhar: ${nomes[st.sens]}", Tn.SUN) {

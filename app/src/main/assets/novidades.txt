@@ -1,3 +1,9 @@
+#id 2026-11-13-b
+#titulo Editor de mapas: crie a sua cidade
+- Configurações > Editor de mapas: vista de cima para desenhar ruas, avenidas, vias expressas, viadutos e rotatórias
+- Rios e lagos com pontes automáticas, morros e vales, árvores, e você escolhe onde fica cada uma das casas (a Casa 1 é a do jogador)
+- O mapa é salvo sozinho e aparece como Cidade 4 em Configurações > Mapa
+
 #id 2026-11-13-a
 #titulo Cidade 3: bairro americano
 - Novo mapa: um bairro de subúrbio americano com ruas arborizadas, casas com garagem, cercas, caixas de correio, carros e floresta em volta

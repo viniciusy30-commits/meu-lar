@@ -274,7 +274,7 @@ object City {
         val tk = token
         startGen = GlGen.gen
         error = null
-        hdsBuilt = HDS; c3Built = C3
+        hdsBuilt = HDS; c3Built = C3; c4Built = C4; c4Ver = UserMap.ver
         builder.execute {
             if (tk != token) return@execute
             try { buildTk = tk; build(gw, gh, tk) }
@@ -376,6 +376,10 @@ object City {
     /** Etapa 185: Cidade 3 (bairro americano) em vez da Cidade 2 quando o mapa Hds está ligado */
     @Volatile @JvmField var C3 = true
     @Volatile @JvmField var c3Built = true
+    /** Etapa 187: Cidade 4 = mapa criado pelo jogador no editor */
+    @Volatile @JvmField var C4 = false
+    @Volatile @JvmField var c4Built = false
+    @Volatile @JvmField var c4Ver = 0
 
     private fun buildHds(W: Float, H: Float, tk: Int) {
         Town.clear()
