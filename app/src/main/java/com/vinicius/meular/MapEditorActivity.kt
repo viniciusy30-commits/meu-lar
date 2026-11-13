@@ -108,7 +108,7 @@ class MapEditorActivity : Activity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     fun selectTool(i: Int) {
-        mv.setTool(i)
+        mv.chooseTool(i)
         hint.text = names[i] + ": " + hints[i]
         for ((k, b) in toolBtns.withIndex()) b.setBackgroundColor(if (k == i) Color.argb(255, 255, 140, 60) else Color.argb(255, 58, 70, 92))
     }
@@ -157,7 +157,7 @@ class MapEditorActivity : Activity() {
         private var cy0 = 0f
 
         fun sizeM(): Float = sizes[sizeI]
-        fun setTool(t: Int) { tool = t; cur.clear(); invalidate() }
+        fun chooseTool(t: Int) { tool = t; cur.clear(); invalidate() }
         fun cycleSize() { sizeI = (sizeI + 1) % sizes.size; (context as MapEditorActivity).refreshButtons() }
         fun cycleHouse() { house = (house + 1) % UserMap.MAX_HOUSES; (context as MapEditorActivity).refreshButtons(); invalidate() }
 
