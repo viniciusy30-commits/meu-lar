@@ -302,7 +302,7 @@ object Hds {
         val js = JSONObject(am.open("hds/city2.json").bufferedReader().use { it.readText() })
         City.step(0.5f)
         val res = js.getJSONArray("res")
-        val rel = Relevo.load(am, City.C3 && !City.C4, City.C4)   // Etapa 178: relevo.bin + city3.json (Etapa 185: ou sub.bin + sub.json da Cidade 3); sem eles vale a Cidade 2 antiga
+        val rel = Relevo.load(am, (City.C3 && !City.C4) || City.C5, City.C4, City.C5)   // Etapa 178: relevo.bin + city3.json (Etapa 185: ou sub.bin + sub.json da Cidade 3); sem eles vale a Cidade 2 antiga
         val ox = if (rel) 0f else (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
         val oz = if (rel) 0f else (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
         offX = ox; offZ = oz

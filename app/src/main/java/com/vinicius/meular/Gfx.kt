@@ -485,12 +485,32 @@ object Tex {
         } catch (e: Exception) { null }
     }
 
+    /** Cidade 5: o atlas de placas dela (PARE, velocidades, nomes de rua...) no lugar do atlas de letreiros das lojas */
+    private var signC5 = false
+    private fun signAtlas(): Bitmap {
+        signC5 = City.C5
+        if (City.C5) try {
+            val am = Glb.assets
+            if (am != null) am.open("hds/c5_signs.png").use { android.graphics.BitmapFactory.decodeStream(it)?.let { b -> return if (b.config == Bitmap.Config.ARGB_8888) b else b.copy(Bitmap.Config.ARGB_8888, false) } }
+        } catch (e: Exception) { android.util.Log.w("Tex", "c5_signs.png: $e") }
+        signC5 = false
+        return Signs.atlas()
+    }
+    /** chamado na thread GL ao trocar de mapa */
+    fun refreshSign() {
+        if (signC5 == City.C5) return
+        val bmp = signAtlas()
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[Mt.SIGN])
+        uploadCoverageMips(bmp, 0.5f)
+        bmp.recycle()
+    }
+
     fun init() {
         GLES20.glGenTextures(Mt.COUNT, ids, 0)
         for (m in 0 until Mt.COUNT) {
             val small = m == Mt.PLAIN || m == Mt.GLASS
             val sz = if (small) 4 else S
-            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) Signs.atlas() else fileTex(m)
+            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) signAtlas() else fileTex(m)
             if (bmp == null) {
                 val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
                 bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)
