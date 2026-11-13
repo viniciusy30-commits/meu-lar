@@ -215,6 +215,74 @@ class City:
             if not changed: break
         self.drop_unused()
 
+    def contract_short(self, min_len=40.0):
+        """funde nos ligados por trechos muito curtos (Y e cruzamentos colados viram um cruzamento so)"""
+        n = 0
+        for _ in range(500):
+            deg, inc = self.degrees(); best = None
+            for k, e in enumerate(self.edges):
+                if e['kind'] != 'n' or e['a'] == e['b']: continue
+                if len(self.nodes[e['a']]) > 2 or len(self.nodes[e['b']]) > 2: continue
+                L = elen(e['p'])
+                if L < min_len and (best is None or L < best[0]): best = (L, k)
+            if not best: break
+            k = best[1]; e = self.edges[k]; a, b = e['a'], e['b']
+            na, nb = self.nodes[a][:2], self.nodes[b][:2]
+            mx, mz = (na[0] + nb[0]) / 2, (na[1] + nb[1]) / 2
+            self.nodes[a][0], self.nodes[a][1] = mx, mz
+            out = []
+            for i, ed in enumerate(self.edges):
+                if i == k: continue
+                if ed['a'] == b: ed['a'] = a; ed['p'][0] = (mx, mz)
+                if ed['b'] == b: ed['b'] = a; ed['p'][-1] = (mx, mz)
+                if ed['a'] == a: ed['p'][0] = (mx, mz)
+                if ed['b'] == a: ed['p'][-1] = (mx, mz)
+                if ed['a'] == ed['b']: continue
+                out.append(ed)
+            self.edges = out; n += 1
+        self.dedupe(); self.drop_unused(); self.contracted = n
+
+    def arm_dir(self, k, node):
+        e = self.edges[k]; p = e['p'] if e['a'] == node else e['p'][::-1]
+        acc = 0.0
+        for a, b in zip(p, p[1:]):
+            acc += math.hypot(b[0] - a[0], b[1] - a[1])
+            if acc >= 16.0: return math.atan2(b[1] - p[0][1], b[0] - p[0][0])
+        return math.atan2(p[-1][1] - p[0][1], p[-1][0] - p[0][0])
+
+    def connected_without(self, k):
+        adj = defaultdict(list)
+        for i, e in enumerate(self.edges):
+            if i != k: adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
+        seen = {self.edges[k]['a']}; st = [self.edges[k]['a']]
+        while st:
+            u = st.pop()
+            for w in adj[u]:
+                if w not in seen: seen.add(w); st.append(w)
+        return self.edges[k]['b'] in seen
+
+    def fix_acute(self, min_gap=math.radians(52.0)):
+        """remove a rua de menor hierarquia que sai de um cruzamento colada demais a outra (cantos que nao se desenham bem)"""
+        removed = 0
+        for _ in range(300):
+            deg, inc = self.degrees(); victim = None
+            for ni, ks in inc.items():
+                if len(ks) < 3 or len(self.nodes[ni]) > 2: continue
+                ang = sorted((self.arm_dir(k, ni), k) for k in ks)
+                for q in range(len(ang)):
+                    a, b = ang[q], ang[(q + 1) % len(ang)]
+                    gap = (b[0] - a[0]) % (2 * math.pi)
+                    if gap < min_gap:
+                        ka, kb = a[1], b[1]
+                        cand = sorted((ka, kb), key=lambda k: (-self.edges[k]['lvl'], elen(self.edges[k]['p'])))
+                        for k in cand:
+                            if self.edges[k]['kind'] == 'n' and self.connected_without(k): victim = k; break
+                    if victim is not None: break
+                if victim is not None: break
+            if victim is None: break
+            self.edges.pop(victim); removed += 1
+        self.drop_unused(); self.acute_removed = removed
+
     def dedupe(self):
         seen = set(); out = []
         for e in self.edges:
@@ -246,5 +314,5 @@ class City:
 
 def build(geo):
     c = City(geo)
-    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.fix_dead_ends(); c.make_rounds(); c.flags()
+    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.make_rounds(); c.flags()
     return c

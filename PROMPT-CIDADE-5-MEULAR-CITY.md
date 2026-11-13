@@ -44,7 +44,7 @@ O gerador calcula o zoneamento a partir da geografia; cada item abaixo vai para 
 Regras de lote, orientação das casas (frente para a rua), interior das 19 profissões (PARTE 9) e das 17 casas, alturas, texturas e orçamento continuam como estão. **Onde as partes 3, 6, 7, 8 citam coordenadas de grade (X/Z de superquadra, "SQ(i,j)", "bloco (bx,bz)"), troque pela zona acima; o gerador entrega as coordenadas reais.**
 
 ## R2.4 Etapas (nova ordem)
-A **ETAPA A** (geografia + rede viária orgânica + pontes + validadores + prévia) está FEITA em `tools/gen-cidade5/` (rodar: `python3 gen_cidade5.py out`). Seguem B (terreno final 8 m, terraplenagem de ruas, pontes e portais; estradas dos túneis), C (chão), D (lotes + 17 casas), E (centro), F (parques/pontos turísticos), G (19 profissões), H (vida: árvores, trânsito, luz), I (integração no jogo).
+A **ETAPA A** (geografia + rede viária orgânica + pontes + validadores + prévia), a **ETAPA B** (terreno final e terraplenagem) e a **ETAPA C** (chão: asfalto, guias, calçadas por zona, cruzamentos, faixas, cercas/guard-rail/muros, pontes) estão FEITAS em `tools/gen-cidade5/` (rodar: `python3 gen_cidade5.py out`). **Correção técnica da Etapa C:** como o motor não tem polygonOffset, decals/faixas ficam a **+0,02 m** (não +0,005) e o asfalto a Y da rua + 0,12 m (como `Relevo.ROADY`). Seguem B (terreno final 8 m, terraplenagem de ruas, pontes e portais; estradas dos túneis), C (chão), D (lotes + 17 casas), E (centro), F (parques/pontos turísticos), G (19 profissões), H (vida: árvores, trânsito, luz), I (integração no jogo).
 
 ---
 

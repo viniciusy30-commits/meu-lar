@@ -22,6 +22,22 @@ print(('PASSOU ' if ok_b else 'FALHOU ') + 'ETAPA B: terreno final e terraplenag
 for m in msg_b: print('   ' + m)
 allok &= ok_b
 T.write_bin(hf, os.path.join(out, 'relevo5.bin'))
+# ---- ETAPA C: chao (asfalto, guias, calcadas, faixas, cruzamentos, protecoes, pontes)
+import ground, validate_ground, render3d, prev_ground, math
+t0 = time.time()
+gr = ground.Ground(c, geo, hf, ynode); gr.build()
+ok_c, msg_c = validate_ground.v_ground(gr)
+print(('PASSOU ' if ok_c else 'FALHOU ') + f'ETAPA C: chao e protecoes ({time.time()-t0:.1f}s)')
+for m in msg_c: print(m)
+allok &= ok_c
+nrec = gr.B.write(os.path.join(out, 'city5_ground.bin'))
+json.dump({'fronts': gr.fronts, 'red_bridges': [{k: float(v) if hasattr(v, 'item') or isinstance(v, float) else v for k, v in r.items()} for r in gr.red_info]}, open(os.path.join(out, 'frontages.json'), 'w'), separators=(',', ':'))
+# vistas de conferencia
+jn = min((n for n, a in gr.arms.items() if len(a) >= 4), key=lambda n: math.hypot(c.nodes[n][0] - LAGOON[0], c.nodes[n][1] - LAGOON[1]))
+jx, jz = c.nodes[jn][:2]
+prev_ground.crop(gr, jx, jz, 60, 10, os.path.join(out, 'ground_cruzamento_topo.png'))
+render3d.render(gr.B, jx, 0, jz, 60, math.radians(35), math.radians(40), os.path.join(out, 'ground_cruzamento_obliquo.png'))
+render3d.render(gr.B, 520, 35, 1500, 300, math.radians(-18), math.radians(10), os.path.join(out, 'ponte_vermelha_oeste.png'), size=1200, dist=620)
 KIND = ['ave', 'col', 'loc', 'hwy']
 data = {'world': [WX, WZ], 'lagoon': list(LAGOON), 'channels': [CHANNEL_W, CHANNEL_E], 'river': RIVER, 'red_bridges': c.red,
         'rounds': [{'x': r['x'], 'z': r['z'], 'r': r['r']} for r in c.rounds],
@@ -45,5 +61,6 @@ for nm, (x, z) in PLACES.items(): d.text((x * 0.3 - 30, z * 0.3 - 5), nm, fill=(
 d.text((8, 6), f'MEULAR CITY v2 - ETAPA A - mundo {WX:.0f}x{WZ:.0f} m (1 px = 3,3 m) - {len(c.edges)} trechos, {len(c.nodes)} nos', fill=(255, 255, 255))
 d.text((8, 20), 'amarelo = bolsao de retorno | ciano = fim na praia/cais | magenta = mirante da ponte (cancela) | ponte vermelha = SO VISUAL (sem acesso)', fill=(255, 255, 255))
 im.save(os.path.join(out, 'preview_A.png'))
+print(f'saidas: city5_ground.bin ({os.path.getsize(os.path.join(out, "city5_ground.bin"))/1e6:.1f} MB, {nrec} blocos), frontages.json, relevo5.bin, city5_roads.json')
 print(f'ETAPA A v2: {"TODOS OS VALIDADORES VERDES" if allok else "HA VALIDADORES VERMELHOS"}  ({time.time()-t:.1f}s)')
 sys.exit(0 if allok else 1)

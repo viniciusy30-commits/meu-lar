@@ -29,7 +29,7 @@ def node_profile(city, geo, iters=900):
     """altura de cada no = terreno, depois relaxa ate todas as ruas respeitarem o declive maximo"""
     y = [geo.height(n[0], n[1]) for n in city.nodes]
     y = [max(v, 1.2) for v in y]                              # nunca abaixo do nivel do mar + calcada
-    E = [(e['a'], e['b'], elen(e['p']), GRADE.get(e['lvl'], 0.065) if e['kind'] != 'bridge' else 0.07) for e in city.edges]
+    E = [(e['a'], e['b'], max(elen(e['p']) - e.get('_ca', 0) - e.get('_cb', 0), 0.3 * elen(e['p'])), GRADE.get(e['lvl'], 0.065) if e['kind'] != 'bridge' else 0.07) for e in city.edges]
     for it in range(iters):
         worst = 0.0
         for a, b, L, lim in E:
@@ -41,10 +41,16 @@ def node_profile(city, geo, iters=900):
     return y
 
 def profile_pts(e, ya, yb):
+    """perfil de altura da rua: PLATO plano junto a cada cruzamento (cruzamentos planos) e rampa linear no meio"""
     pts = e['p']; Ls = [0.0]
     for a, b in zip(pts, pts[1:]): Ls.append(Ls[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
     T = Ls[-1] or 1.0
-    return [(p[0], p[1], ya + (yb - ya) * s / T) for p, s in zip(pts, Ls)]
+    ca = min(e.get('_ca', 0.0), T * 0.45); cb = min(e.get('_cb', 0.0), T * 0.45)
+    def y(s):
+        if s <= ca: return ya
+        if s >= T - cb: return yb
+        return ya + (yb - ya) * (s - ca) / max(T - ca - cb, 1e-6)
+    return [(p[0], p[1], y(s)) for p, s in zip(pts, Ls)]
 
 def carve(h, X, Z, city, ynode):
     h0 = h.copy(); acc_y = np.zeros_like(h); acc_w = np.zeros_like(h)
@@ -77,12 +83,19 @@ def carve(h, X, Z, city, ynode):
     wgt = np.clip(acc_w, 0, 1)
     return np.where(wgt > 0, h0 * (1 - wgt) + np.where(acc_w > 0, acc_y, h0) * wgt, h0)
 
+def set_plateaus(city, geo):
+    import ground
+    cuts = ground.compute_all_cuts(city, geo)
+    for k, e in enumerate(city.edges):
+        e['_ca'] = cuts.get((k, 'a'), 0.0); e['_cb'] = cuts.get((k, 'b'), 0.0)
+
 def write_bin(h, path):
     cm = np.clip(np.round(h * 100.0), -32000, 32000).astype('<i2')
     with open(path, 'wb') as f:
         f.write(struct.pack('<iif', N8X, N8Z, STEP)); f.write(cm.tobytes())
 
 def run(city, geo):
+    set_plateaus(city, geo)
     h, X, Z = upsample(geo)
     ynode = node_profile(city, geo)
     hf = carve(h, X, Z, city, ynode)
