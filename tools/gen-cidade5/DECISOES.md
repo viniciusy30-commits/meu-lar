@@ -1,20 +1,21 @@
-# DECISOES - Cidade 5 (Meular City)
+# DECISOES - Cidade 5 (Meular City) v2
 
-## Fatos confirmados no repositorio
-- `Relevo.kt` le `hds/*.json` com `roads[]` (c: 0/1 avenida/rodovia, 2 coletora, 3 local; w largura; `p` = x,z,y,ponte a cada 4 numeros, somando CX=CZ=300), `rounds[]` (x,z,r,y,arms), `houses[]`, `bld/lamp/hyd/tree` e `relevo.bin` (nx, nz, passo, alturas cm).
-- `UserMap.kt` limita o mundo a 1000x800 m (NX=126, NZ=101, G=8). A Cidade 5 usa 2700x2100 m: o formato de saida (Etapa I) precisa ler `world` do JSON (ja le) e `nx,nz` do `.bin` (ja le); o limite so existe no editor.
-- Casas do Hds: caixas em `city2.json` -> `plots`. A orientacao real da frente ainda NAO foi confirmada (Etapa D).
+## Mudanca de direcao (feedback do usuario)
+A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, pequena". Codigo antigo guardado em `old_grid/` (nao usado).
 
-## Decisoes
-- Mundo 2700x2100 m; grade mestra e perfis exatamente como na especificacao. Tudo em `plan.py`.
-- Contorno irregular (PARTE 3.4b): `CITY_MASK` com 60+ vertices, entalhe a oeste (serra), entalhe ao norte, enseada da marina (com Ponte da Marina), baia a sudeste, cabo a sudoeste e Peninsula Real separada (so por ponte). Vias urbanas cortadas pela mascara terminam em cul-de-sac (raio 12 m); infraestrutura (rodovia, marginais, pontes, extensoes a leste da Av. Leste) e isenta.
-- Rotatorias: 7 da especificacao + a da Peninsula (2560,1752) = 8 (a tabela 3.4 so listava 7).
-- Alcas da rodovia: 4 alcas de 8 m de largura (declive 6,25 % limite do validador 6,5 %).
-- Hospital: quarteiroes (1,1),(2,1),(1,2),(2,2) da SQ(3,0) fundidos (ruas internas removidas).
-- Condominio Rio Azul (SQ(4,2)): rua central + 2 transversais (privadas).
-- Arena (SQ(4,0)): uma coletora E-O em Z=394. Marina (SQ(1,3)): coletora N-S em X=902.
+## Fatos do repositorio (confirmados)
+- `Relevo.kt` le `roads[]` (c: 0/1 avenida/rodovia, 2 coletora, 3 local; w; p = x,z,y,ponte x4; soma CX=CZ=300), `rounds[]`, `houses[]`, relevo em celulas de 8 m. Conversao para esse formato = Etapa I.
+- `UserMap.kt` limita o editor a 1000x800 m; a Cidade 5 tem 4400x3600 (o `Relevo.kt` ja le `world`, `nx`, `nz` do arquivo).
 
-## Pendencias / duvidas para as proximas etapas
-- Etapa A so gera o GRAFO de ruas (JSON proprio `city5_roads.json`) e a previa. A conversao para o formato `Relevo.kt` (polilinhas com y/ponte, normais de emenda, `cl/cr`) e a Etapa I.
-- Calcada/guia/faixas (Etapa C) e terreno (Etapa B) ainda nao existem; o app nao carrega a Cidade 5 ainda.
-- Nada foi testado em aparelho.
+## Decisoes da Etapa A v2
+- Mundo 4400x3600 m, campos de trabalho de 16 m (o heightmap final de 8 m sai na Etapa B).
+- Relevo: montanhas ao redor (ruido fractal + cumes), 9 colinas, bacia urbana com contorno por ruido + 2 enseadas, mar ao sul, 2 estreitos, rio, lagoa.
+- Mascara urbana: terra > 0,55 m, < 150 m, declive < 34 %, afastada 1 celula da agua, componentes >= 900 celulas (0,23 km2).
+- Rede: campo de tensores (grades zonais, radial na lagoa, alinhamento a agua, curvas de nivel nas colinas) + linhas de fluxo em 3 niveis (ave 360 m, col 150 m, loc 80 m de separacao), planarizacao, fusao de nos (9 m), poda de tocos < 80 m.
+- Pontes vermelhas: Z=1500, oeste (290->800) e leste (3640->4100), torres em 330/750 e 3680/4060, tabuleiro +34 m, portais de tunel em (90,1420) e (4310,1440). Estradas de montanha e acessos sao polilinhas provisorias; terraplenagem na Etapa B.
+- Anel da Lagoa (ave) com 4 ligacoes; 9 rotatorias; 4 pontes sobre o rio (3 geradas + ligacoes).
+- Declive: 1 trecho local a 25 % (limite 16 %): sera resolvido pela terraplenagem/ajuste na Etapa B.
+
+## Pendencias
+- O app ainda NAO carrega a Cidade 5. Nada testado em aparelho.
+- Zoneamento exato dos bairros/casas/profissoes (Etapa D) e orla/parques (Etapa F).

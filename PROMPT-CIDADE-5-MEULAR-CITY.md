@@ -5,6 +5,48 @@
 
 ---
 
+# REVISÃO 2 — PREVALECE SOBRE AS PARTES 2, 3, 5.2, 6, 7 E 8 (feedback do usuário: "quadradona, repetitiva, pequena")
+
+O usuário rejeitou a grade retangular. **A cidade NÃO usa superquadras nem coordenadas de grade fixa.** O que vale agora:
+
+## R2.1 Mundo e geografia (calculados em `tools/gen-cidade5/plan.py` + `geo.py`)
+- Mundo **4400 × 3600 m** (heightmap final de 8 m). A cidade ocupa só ~4–6 km² no meio; **o resto é paisagem**: montanhas altas com rocha e neve ao norte, a oeste e a leste (relevo fractal, até ~400 m), colinas arborizadas, fiordes e mar ao sul. O jogador vê montanha em todo o horizonte.
+- **Bacia urbana com contorno orgânico** (sem lado reto, nem elipse, nem quadrado): contorno por ruído, enseadas que entram na terra (enseada da Marina a oeste, enseada da Orla Leste a leste), pontas de terra e dois bairros de colina. A máscara urbana é calculada (terra, declive < 34 %, altitude < 150 m, ao menos 0,15 km²).
+- **Água:** **mar e praia ao sul** (costa ondulada, baía, praia de areia clara com dunas); **dois estreitos** (fiordes) a oeste e a leste da cidade, com 400–440 m de largura; **um rio** que desce da montanha ao norte, atravessa a cidade (50 → 140 m de largura) e desemboca no mar; **a Lagoa** (190×110 m) numa praça no centro, com **Anel da Lagoa** (avenida em volta), praia de areia, coreto, pier de madeira, bancos e árvores.
+- **Colinas dentro da cidade (ruas sobem e acompanham as curvas de nível):** Alto da Colina (120 m, NW), Parque do Mirante (85 m, NE), Colina da Igreja, Colina Leste, morro do centro, Península Real (SE) e as colinas de acesso às pontes.
+- **PONTES VERMELHAS (uma em cada lado do mapa), estilo Golden Gate (EUA):** pontes suspensas **vermelho-alaranjado "International Orange"**, **duas torres art déco** de ~80 m com travessas, cabos principais em curva (catenária) e pendurais verticais a cada 12 m, tabuleiro a +34 m sobre a água, vão central ~420 m, 4 faixas + calçadas, iluminação. Uma cruza o estreito **oeste** (Z=1500) e a outra o estreito **leste**. **Cada uma termina em um TÚNEL (boca com arco de concreto) na montanha, na borda do mapa**, de modo que o mapa **nunca termina abruptamente**: o carro entra no túnel, a tela escurece e o jogo devolve o jogador à cidade (ou mostra "fim da estrada"). Névoa leve e montanhas ao fundo.
+- **Outras pontes:** 3 sobre o rio (Ponte do Moinho, Ponte Central, Ponte Real e Ponte da Foz), todas com parapeito, postes e calçadas.
+
+## R2.2 Rede viária ORGÂNICA (nada de grade)
+- Gerada por **campo de tensores + linhas de fluxo** (Chen et al.): hierarquia **avenida (28 m) → coletora (20 m) → local (15 m)**; cada região tem sua própria direção e densidade: centro com grade inclinada, bairros do oeste e do leste em ângulos diferentes, **ruas circulares em volta da lagoa**, **ruas paralelas à costa/rio/enseadas**, **ruas que acompanham as curvas de nível nas colinas**, becos e cul-de-sacs. Quarteirões de tamanhos e formas variados; sem dois bairros com o mesmo desenho.
+- **Av. Beira-Mar** segue a costa a ~60 m da água. **Rotatórias** em 6–9 nós de avenida (R 30–48 m). Perfis de via, faixas, esquinas, semáforos etc. da PARTE 2.3, 2.4 e 4 continuam valendo.
+- Toda via termina em outra via, rotatória, **cul-de-sac**, praia/cais ou **portal de túnel**. Grafo único e conexo. Validadores da PARTE 14 (adaptados: conexão, tocos curtos, cruzamentos sem nó, declives, via na água, pontes, rotatórias) e **terraplenagem** (Etapa B) para declives acima do limite.
+
+## R2.3 Onde ficam os bairros, casas e profissões (ZONEAMENTO, não coordenadas fixas)
+O gerador calcula o zoneamento a partir da geografia; cada item abaixo vai para a zona indicada, em lotes ao longo das ruas, **tabela final em `HOUSE_LOTS`/`JOB_PLACE`** gerada de forma determinística:
+| Zona | Onde | O que vai lá |
+|---|---|---|
+| **Centro / Praça da Lagoa** | em volta da lagoa e das avenidas centrais, terreno plano | arranha-céus (Atlas 172 m, Nova Tech), Prefeitura, Fórum, Almeida & Prado, Escritório Central, teatro, museu, biblioteca, hotéis, comércio |
+| **Distrito Médico** | terra plana ao norte do centro, junto ao rio | Hospital Santa Clara, Clínica Aurora, farmácia 24h |
+| **Alto da Colina** | colina noroeste (nobre) | Casas **2** e **3**, mansões decorativas, portão com guarita, mirante |
+| **Parque do Mirante** | colina nordeste | trilhas, mirante, reservatório |
+| **Vila Esperança** (popular) | oeste, flat, perto do centro | Casas **1** (inicial), **12**, **8**, **13**, **9**; Brilho Limpeza, Lanchonete do Zé, Posto Rota Sul |
+| **Parque das Flores** | oeste, junto ao parque grande | Casas **10**, **11**, **14**; Escola Primavera |
+| **Jardim Central** | leste, ruas de tijolo, igreja | Casas **5**, **6**, **7**; Igreja Matriz |
+| **Recanto do Sul / Praia** | orla sul, lotes entre a Av. Beira-Mar e a areia | Casas **15**, **16**, **4**; píer, quiosques, calçadão |
+| **Península Real** | ponta de terra a sudeste | Casa **17**, doca, mansões |
+| **Distrito de Serviços** | planície ao longo do rio/oeste | Delegacia, Quartel, Oficina do Toninho, Central de Coleta, Expresso Já, Pilar Construtora |
+| **Orla Leste / enseada leste** | enseada leste | Parque de Diversões (roda-gigante, montanha-russa), farol |
+| **Marina** | enseada oeste | marina, clube náutico |
+| **Parque Aquático** | orla, areia plana | Splash Meular |
+| **Estádio / SuperBom / Shopping** | terras planas do leste | Arena, shopping, SuperBom |
+Regras de lote, orientação das casas (frente para a rua), interior das 19 profissões (PARTE 9) e das 17 casas, alturas, texturas e orçamento continuam como estão. **Onde as partes 3, 6, 7, 8 citam coordenadas de grade (X/Z de superquadra, "SQ(i,j)", "bloco (bx,bz)"), troque pela zona acima; o gerador entrega as coordenadas reais.**
+
+## R2.4 Etapas (nova ordem)
+A **ETAPA A** (geografia + rede viária orgânica + pontes + validadores + prévia) está FEITA em `tools/gen-cidade5/` (rodar: `python3 gen_cidade5.py out`). Seguem B (terreno final 8 m, terraplenagem de ruas, pontes e portais; estradas dos túneis), C (chão), D (lotes + 17 casas), E (centro), F (parques/pontos turísticos), G (19 profissões), H (vida: árvores, trânsito, luz), I (integração no jogo).
+
+---
+
 # MISSÃO
 
 Crie do zero uma cidade americana grande e completa para o jogo Android "Meu Lar" (Kotlin + OpenGL ES próprio, sem Unity). A cidade será o mapa "Cidade 5". Ela tem: centro com arranha-céus, bairros ricos e pobres, subúrbios, condomínios, apartamentos, orla com praia e píer, parque aquático, parque de diversões, praças, parques, marina, estádio, shopping, hospital, escolas, rio com pontes, rodovia elevada com viadutos e rotatórias.
