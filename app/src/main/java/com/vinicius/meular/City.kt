@@ -274,7 +274,7 @@ object City {
         val tk = token
         startGen = GlGen.gen
         error = null
-        hdsBuilt = HDS; c3Built = C3; c4Built = C4; c4Ver = UserMap.ver
+        hdsBuilt = HDS; c3Built = C3; c4Built = C4; c5Built = C5; c4Ver = UserMap.ver
         builder.execute {
             if (tk != token) return@execute
             try { buildTk = tk; build(gw, gh, tk) }
@@ -378,6 +378,9 @@ object City {
     @Volatile @JvmField var c3Built = true
     /** Etapa 187: Cidade 4 = mapa criado pelo jogador no editor */
     @Volatile @JvmField var C4 = false
+    /** Cidade 5 (Meular City, gerada em tools/gen-cidade5): relevo grande, ruas organicas, orla, pontes vermelhas */
+    @Volatile @JvmField var C5 = false
+    @Volatile @JvmField var c5Built = false
     @Volatile @JvmField var c4Built = false
     @Volatile @JvmField var c4Ver = 0
 

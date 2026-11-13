@@ -57,3 +57,9 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Atlas de placas (signs_atlas.png, Mt.SIGN): PARE, PREFERENCIAL, velocidades, pedestre, lombada, rotatória, fim de via, placas de nome de rua. Setas de conversão no asfalto, semáforos de pedestre, quebra-molas.
 - Cantos de calçada arredondados (ilhas) em ângulos agudos.
 - Pendente: textos das placas só aparecem no app na Etapa I (integração do atlas).
+
+## Integração provisória no app (para ver a cidade no jogo)
+- gen_cidade5.py agora exporta (app_export.py) para app/src/main/assets/hds: c5.bin (relevo), c5.json (mundo, Casa 1 provisória no terreno mais plano da zona urbana, ~16 mil árvores fora de ruas/zona urbana), c5_mesh.bin (malha assada: ruas, calçadas, orla, píeres, placas, semáforos, pontes), c5_signs.png (atlas de placas).
+- App: City.C5 + Configurações > Mapa cicla 1→2→3→4→5. Relevo.load(c5) reutiliza o caminho "sub" da Cidade 3. Tex.refreshSign troca o atlas de placas ao mudar de mapa.
+- Ainda não há prédios, lotes nem as 17 casas (Etapa D em diante): só terreno, água, ruas, orla, pontes e árvores.
+- O APK é gerado pelo workflow Build APK na branch main.

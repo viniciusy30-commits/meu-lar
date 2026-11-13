@@ -76,6 +76,8 @@ data = {'world': [WX, WZ], 'lagoon': list(LAGOON), 'channels': [CHANNEL_W, CHANN
         'edges': [{'a': e['a'], 'b': e['b'], 'cls': KIND[e['lvl']], 'c': LEVELS[min(e['lvl'], 2)][1] if e['lvl'] < 3 else 0, 'kind': e['kind'], 'name': e['name'],
                    'p': [[round(q[0], 1), round(q[1], 1), round(q[2], 2)] for q in T.profile_pts(e, ynode[e['a']], ynode[e['b']])]} for e in c.edges]}
 json.dump(data, open(os.path.join(out, 'city5_roads.json'), 'w'), separators=(',', ':'))
+import app_export
+app_export.run(out, geo, hf, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'src', 'main', 'assets', 'hds')))
 np.save(os.path.join(out, 'height16.npy'), geo.h.astype(np.float32))
 import types
 im = preview2.terrain_img(types.SimpleNamespace(h=hf), 0.3, cell=8.0)

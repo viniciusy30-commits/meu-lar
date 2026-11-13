@@ -54,9 +54,9 @@ object Relevo {
         return l
     }
 
-    private fun loadSubMesh(am: AssetManager) {
+    private fun loadSubMesh(am: AssetManager, name: String) {
         subCells.clear()
-        val bb = ByteBuffer.wrap(am.open("hds/sub_mesh.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        val bb = ByteBuffer.wrap(am.open(name).use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
         bb.getInt()   // "SUB1"
         val n = bb.getInt()
         for (r in 0 until n) {
@@ -146,7 +146,7 @@ object Relevo {
     }
 
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
-    fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false): Boolean {
+    fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false, c5: Boolean = false): Boolean {
         on = false; sub = false
         try {
             val h: ShortArray
@@ -156,11 +156,11 @@ object Relevo {
                 nx = UserMap.NX; nz = UserMap.NZ; g = UserMap.G
                 h = cm.hs; js = cm.json
             } else {
-                val bb = ByteBuffer.wrap(am.open(if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+                val bb = ByteBuffer.wrap(am.open(if (c5) "hds/c5.bin" else if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
                 nx = bb.getInt(); nz = bb.getInt(); g = bb.getFloat()
                 h = ShortArray(nx * nz)
                 for (i in h.indices) h[i] = bb.getShort()
-                js = JSONObject(am.open(if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
+                js = JSONObject(am.open(if (c5) "hds/c5.json" else if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
             }
             val wo = js.getJSONArray("world")
             worldW = wo.getDouble(0).toFloat(); worldH = wo.getDouble(1).toFloat()
@@ -217,7 +217,7 @@ object Relevo {
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
-                loadSubMesh(am)
+                loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
                 val sa = js.optJSONArray("solid")
                 val so = ArrayList<Float>()
                 if (sa != null) for (i in 0 until sa.length()) {
