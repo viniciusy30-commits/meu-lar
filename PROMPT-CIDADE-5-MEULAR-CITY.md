@@ -159,6 +159,15 @@ Visão de cima (norte para cima). Cada célula é uma superquadra SQ(i,j). Tipos
 | **Rotatória do Farol** | (1364, 1752) | 44 | chafariz + miniatura do farol + bandeiras |
 Nas rotatórias, os quarteirões de canto são **cortados pelo círculo** de raio R + 6 (calçada de 4 + guia 2): o espaço cortado vira calçada em arco, ligando as calçadas das avenidas sem emenda.
 
+## 3.4b Contorno irregular da cidade (OBRIGATÓRIO — a cidade NÃO é retângulo nem círculo)
+A grade mestra (2.2) continua sendo a base, mas **o que existe de cidade é definido por uma MÁSCARA DE CIDADE** (`CITY_MASK`, polígono fechado em `plan.py`, raster de 8 m), e o contorno é **orgânico**:
+- **Silhueta:** polígono de ~40 vértices com reentrâncias e saliências, sem lados paralelos longos: baía côncava no sudeste (entra até Z≈1650 entre X 1900…2300), cabo de pedra no sudoeste, vale do rio a leste, serra recortando o noroeste, enseada da marina, e um **bairro anexo** (Península Real) ligado só por ponte. Perímetro/área ≥ 1,25 do de um retângulo equivalente.
+- **Superquadras de borda são PARCIAIS:** SQ(0,0), (4,0), (0,3), (4,3) e as que tocam a baía/serra/rio são **cortadas pela máscara**. Quarteirão cortado: só os lotes 100 % dentro da máscara são construídos; o resto vira mata, rocha, duna, margem ou água.
+- **Ruas que saem da grade:** além da grade, 6 a 10 ruas **curvas** (raio mínimo 25 m, declive ≤ 8 %): estrada panorâmica da colina, rua da orla acompanhando a costa, estrada ribeirinha, 2 acessos do Beltway. Elas **ligam** nós da grade por arcos/clotoides (nunca por "ponte no ar").
+- **Fim de rua:** onde a máscara corta uma rua da grade, ela termina em **cul-de-sac** (raio 12 m), **mirante/píer/praça de margem** ou **portão/estrada de terra**, nunca em vazio, nunca com asfalto "cortado".
+- **Fora da máscara:** terreno natural contínuo até a borda do mundo (mata, campo, rocha, água) com talude suave; **sem parede/borda visível**. A cidade inteira é cercada por um anel de 150 m de mata/colina que fecha o horizonte.
+- **Validadores:** (a) todo elemento urbano está dentro da máscara; (b) nenhuma via termina na máscara sem o fim de rua previsto; (c) o contorno não tem lado reto > 300 m; (d) conectividade mantida após o recorte.
+
 ## 3.5 Zonas com nome (o "bairro" que aparece no mapa/GPS)
 Mapa/GPS lista: Alto da Colina · Parque do Mirante · Jardim Central · Distrito Médico · Arena Meular · Parque das Flores (bairro + parque) · Centro (Norte/Leste/Oeste/Sul) · Shopping · Vila Esperança · Distrito de Serviços · Condomínio Rio Azul · Recanto do Sul · Marina · Orla Central · Parque Aquático · Parque de Diversões · Península Real.
 
@@ -656,4 +665,5 @@ Ao final de cada etapa entregue: (a) arquivos novos/alterados, (b) comandos para
 - Nunca diga "ficou perfeito". Diga o que foi gerado, o que foi verificado e o que depende de teste no aparelho.
 
 ## 14.6 Primeira resposta esperada (antes de escrever código)
+*(Execução direta neste repositório: o usuário autorizou começar sem esperar confirmação. Registre os fatos/dúvidas em `DECISOES.md` e siga para a ETAPA A.)*
 Responda apenas com: (1) **fatos do repositório** que você confirmou (formatos, constantes, orientação da frente das 17 casas, limites do mundo 1000×800 e como vai estendê-los), (2) **lista de dúvidas/conflitos** entre esta especificação e o código (com a decisão sugerida para cada), (3) **plano de arquivos** e a confirmação "começo pela ETAPA A?". Só depois de o usuário responder, comece a ETAPA A.
