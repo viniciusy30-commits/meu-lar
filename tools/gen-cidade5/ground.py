@@ -198,6 +198,7 @@ class Ground:
         if n == 1:
             a = arms[0]
             if a.get('bulb') in ('bolsao', 'lookout'): self.bulb(ni, a, a['Rb'], a['bulb'])
+            else: self.cais_cap(ni, a)
             return
         if ni in self.rounds and n >= 3:
             self.roundabout(ni, self.rounds[ni]); return
@@ -291,6 +292,26 @@ class Ground:
         for lvl, _, x, z, a in cand:
             if any(math.hypot(x - cx, z - cz) < 60.0 for cx, cz in self.xw_centers): continue
             a['xw'] = True; self.xw_centers.append((x, z))
+
+    def cais_cap(self, ni, a):
+        """fim de rua na beira d'agua/cais: meio-fio atravessado, pracinha de calcada e balizas (nada de pista 'cortada')"""
+        nx, nz = self.c.nodes[ni][:2]; yc = self.yn[ni] + ROADY
+        d = a['d']; r = (-d[1], d[0]); h = a['h']; ap = a['a']
+        zone = self.zone(nx, nz); sc = {'centro': COL['brick'], 'res': COL['conc'], 'colina': COL['conc2'], 'orla': COL['sand']}[zone]
+        def P(s, o): return (nx + d[0] * s + r[0] * o, nz + d[1] * s + r[1] * o)
+        # meio-fio transversal (0,3 m) e face voltada para a rua
+        c0, c1, c2, c3 = P(0.5, -ap), P(0.5, ap), P(0.2, ap), P(0.2, -ap)
+        self.quad(PAVER, [(c0[0], yc + CURB_H, c0[1]), (c1[0], yc + CURB_H, c1[1]), (c2[0], yc + CURB_H, c2[1]), (c3[0], yc + CURB_H, c3[1])], COL['curb'], 'curb')
+        self.B.quad(PLAIN, [(c0[0], yc, c0[1]), (c1[0], yc, c1[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], (d[0], 0, d[1]), COL['curb'], None, True)
+        # pracinha atras do meio-fio (4,5 m) com a largura da rua + calcadas
+        q0, q1, q2, q3 = P(0.2, -h), P(0.2, h), P(-4.5, h), P(-4.5, -h)
+        self.quad(PAVER, [(q0[0], yc + CURB_H, q0[1]), (q1[0], yc + CURB_H, q1[1]), (q2[0], yc + CURB_H, q2[1]), (q3[0], yc + CURB_H, q3[1])], sc, 'sidewalk')
+        for p0, p1, nv in ((q3, q2, (-d[0], 0, -d[1])), (q0, q3, (-r[0], 0, -r[1])), (q2, q1, (r[0], 0, r[1]))):
+            self.B.quad(PLAIN, [(p0[0], yc + CURB_H - 0.45, p0[1]), (p1[0], yc + CURB_H - 0.45, p1[1]), (p1[0], yc + CURB_H, p1[1]), (p0[0], yc + CURB_H, p0[1])], nv, COL['conc2'], None, True)
+        # balizas (bollards) na borda da agua
+        for o in np.arange(-h + 1.0, h - 0.5, 2.4):
+            bx, bz = P(-3.9, o); self.B.cyl(bx, bz, 0.11, yc + CURB_H, yc + CURB_H + 0.95, COL['iron'], 8)
+        self.cais_info = getattr(self, 'cais_info', []) + [{'node': ni, 'x': nx, 'z': nz, 'dx': d[0], 'dz': d[1]}]
 
     def bulb(self, ni, a, Rb, kind):
         nx, nz = self.c.nodes[ni][:2]; yc = self.yn[ni] + ROADY

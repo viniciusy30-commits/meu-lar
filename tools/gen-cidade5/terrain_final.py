@@ -54,6 +54,15 @@ def profile_pts(e, ya, yb):
 
 def carve(h, X, Z, city, ynode):
     h0 = h.copy(); acc_y = np.zeros_like(h); acc_w = np.zeros_like(h)
+    # rotatorias: disco plano (anel + calcada) na altura do no
+    for rd in city.rounds:
+        y = ynode[rd['node']]; R = rd['r'] + 3.0
+        i0, i1 = int((rd['x'] - R - 14) / STEP), int((rd['x'] + R + 14) / STEP) + 1; j0, j1 = int((rd['z'] - R - 14) / STEP), int((rd['z'] + R + 14) / STEP) + 1
+        i0, j0 = max(i0, 0), max(j0, 0); i1, j1 = min(i1, N8X), min(j1, N8Z)
+        d = np.hypot(X[j0:j1, i0:i1] - rd['x'], Z[j0:j1, i0:i1] - rd['z'])
+        w = np.clip(1.0 - np.clip(d - R, 0, None) / 14.0, 0, 1); w = w * w * (3 - 2 * w); w = np.where(d <= R, 1.0, w)
+        sub_w = acc_w[j0:j1, i0:i1]; sub_y = acc_y[j0:j1, i0:i1]; better = (w >= sub_w) & (w > 0)
+        sub_y[better] = y; sub_w[better] = w[better]
     order = sorted(range(len(city.edges)), key=lambda k: -city.edges[k]['lvl'])    # ave por ultimo => prevalece
     for k in order:
         e = city.edges[k]
@@ -80,15 +89,6 @@ def carve(h, X, Z, city, ynode):
             better = (w >= sub_w) & (w > 0)
             sub_y[better] = (y * w)[better] / np.maximum(w[better], 1e-6) * 0 + y        # a rua mais "perto" decide a altura
             sub_w[better] = w[better]
-    # rotatorias: disco plano (anel + calcada) na altura do no
-    for rd in city.rounds:
-        y = ynode[rd['node']]; R = rd['r'] + 12.0
-        i0, i1 = int((rd['x'] - R - 14) / STEP), int((rd['x'] + R + 14) / STEP) + 1; j0, j1 = int((rd['z'] - R - 14) / STEP), int((rd['z'] + R + 14) / STEP) + 1
-        i0, j0 = max(i0, 0), max(j0, 0); i1, j1 = min(i1, N8X), min(j1, N8Z)
-        d = np.hypot(X[j0:j1, i0:i1] - rd['x'], Z[j0:j1, i0:i1] - rd['z'])
-        w = np.clip(1.0 - np.clip(d - R, 0, None) / 14.0, 0, 1); w = w * w * (3 - 2 * w); w = np.where(d <= R, 1.0, w)
-        sub_w = acc_w[j0:j1, i0:i1]; sub_y = acc_y[j0:j1, i0:i1]; better = (w >= sub_w) & (w > 0)
-        sub_y[better] = y; sub_w[better] = w[better]
     wgt = np.clip(acc_w, 0, 1)
     return np.where(wgt > 0, h0 * (1 - wgt) + np.where(acc_w > 0, acc_y, h0) * wgt, h0)
 

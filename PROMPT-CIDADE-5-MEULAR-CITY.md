@@ -589,6 +589,22 @@ Decoração = **casca**: 4 fachadas completas + telhado + calçada de entrada. *
 
 ---
 
+# PARTE 11B — TRÂNSITO E SINALIZAÇÃO (OBRIGATÓRIO — pedido do usuário; implementado em `traffic.py`, `furniture.py`, `validate_traffic.py`)
+O jogo precisa ter trânsito que **respeita as leis**: carros na mão certa, curvas suaves, semáforos, PARE, preferencial, lombadas e placas. Tudo é gerado a partir do grafo de ruas, sem coordenada solta.
+- **Mão direita (EUA).** Faixas por sentido: avenida 2 × 3,5 m (+ estacionamento 2,5 m) com canteiro central; coletora 1 × 3,5 m; local 1 × 3,0 m; ponte 50 km/h. Limites: avenida 60, coletora 40, local 30 km/h.
+- **Trajetórias:** cada entrada de cruzamento liga a cada saída possível com uma curva de Bézier **tangente** (rumo de chegada = rumo da faixa; rumo de saída = rumo da faixa de saída). Direita sai da faixa externa para a externa; esquerda da interna para a interna; reto mantém a faixa. **Raio mínimo de giro ≥ 4,4 m**, trajetória **≥ 99 % dentro do asfalto** (a calçada nunca atrapalha a curva). Rotatórias: entrada pela direita, anel **anti-horário** (visto de cima, norte para cima), saída pela direita. Becos sem saída: retorno no bolsão. O grafo de faixas (rua × sentido) tem de ser **fortemente conexo** (todo lugar chega em todo lugar).
+- **Curvas das ruas:** raio ≥ (faixa mais externa + 7 m); a rua é refeita com arco/Bézier quando não cabe.
+- **Controle de cada braço de cruzamento (todos têm um):**
+  - **Semáforo** em cruzamentos de 4+ braços (ou avenida) cujos dois maiores braços são avenida/coletora, com **≥ 150 m** entre semáforos. Fases por eixo (verde 30 s eixo principal, 22 s demais, amarelo 3 s, todo-vermelho 2 s). Avenida: poste na calçada (à direita de quem chega) com **braço de mastro** sobre as faixas e uma cabeça por faixa; coletora/local: poste com cabeça. **Linha de retenção** antes da faixa de pedestre.
+  - **PARE** (octogonal vermelha, 0,8 m) nos braços de rua menor (T e cruzamentos locais); em cruzamento só de ruas locais com 4 braços, PARE nos quatro. Linha de retenção branca.
+  - **Dê a preferência** (triângulo) + **dentes de tubarão** na entrada de rotatória; placa **"Rotatória à frente"** a 60 m nas vias maiores.
+  - Setas retas nas faixas de avenida a 14 m do cruzamento.
+- **Faixa de pedestre:** 1 por braço, só onde há avenida/coletora, ≥ 45 m livres, ≥ 60 m entre faixas; canteiro central **aberto** (passagem) antes dela; rampa de cadeirante tátil nas pontas; placa amarela "pedestre" 13 m antes quando não há semáforo.
+- **Lombadas (quebra-molas):** trapézio de 3,6 m (rampas 0,9 m, topo 1,8 m, altura 0,10 m) listrado amarelo/preto, atravessando a rua inteira, **em ruas locais de bairro/colina a cada ~80 m**, **36 m antes de faixa de pedestre** em coletoras/locais e **32 m antes de rotatória**; nunca em avenida, ponte, curva fechada, a menos de 28 m de cruzamento ou de faixa, nem a menos de 65 m de outra. Placa amarela "lombada" 24 m antes, nos dois sentidos.
+- **Placas:** velocidade (disco branco/borda vermelha) a ~38 m depois de cada cruzamento, nos dois sentidos, e a cada 300 m; PARE; preferencial; pedestre; lombada; rotatória; **"fim da via"** (placa vermelha/branca + 2 balizas) nos fins de rua à beira d'água. Postes a 0,85 m do meio-fio, **nunca** sobre a pista, a rampa tátil ou a cova de árvore (se bater, desloca 2,3 m).
+- **Dados para o jogo:** `traffic.json` (faixas, movimentos com caminho, controle de cada braço, fases dos semáforos), `signage.json` (placas, cabeças de semáforo, lombadas).
+- **Validadores:** grafo de tráfego conexo; todo braço com controle e toda fase cobrindo cada braço uma vez; trajetórias dentro do asfalto e raio ≥ 4,4 m; curvas das ruas; postes fora da pista/rampa/cova; lombadas dentro do asfalto, espaçadas e fora de avenida; semáforos ≥ 150 m.
+
 # PARTE 12 — MATERIAIS, TEXTURAS E ALTURAS (NÃO INVENTE ALTURAS)
 
 ## 12.1 Tabela de alturas (Y, em metros, relativas ao asfalto = 0)

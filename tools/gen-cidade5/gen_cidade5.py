@@ -26,15 +26,35 @@ T.write_bin(hf, os.path.join(out, 'relevo5.bin'))
 import ground, validate_ground, render3d, prev_ground, math
 t0 = time.time()
 gr = ground.Ground(c, geo, hf, ynode); gr.build()
+import traffic, furniture, validate_traffic
+tr = traffic.Traffic(gr); tr.build_moves(); tr.plan_control(); tr.plan_bumps()
+fu = furniture.Furn(gr, tr).build()
 ok_c, msg_c = validate_ground.v_ground(gr)
 print(('PASSOU ' if ok_c else 'FALHOU ') + f'ETAPA C: chao e protecoes ({time.time()-t0:.1f}s)')
 for m in msg_c: print(m)
 allok &= ok_c
+ok_t, msg_t = validate_traffic.run(gr, tr, fu)
+print(('PASSOU ' if ok_t else 'FALHOU ') + 'ETAPA C2: transito e sinalizacao')
+for m in msg_t: print(m)
+allok &= ok_t
 nrec = gr.B.write(os.path.join(out, 'city5_ground.bin'))
 json.dump({'fronts': gr.fronts, 'red_bridges': [{k: float(v) if hasattr(v, 'item') or isinstance(v, float) else v for k, v in r.items()} for r in gr.red_info]}, open(os.path.join(out, 'frontages.json'), 'w'), separators=(',', ':'))
+# dados de transito e sinalizacao para o jogo (carros, semaforos, placas, lombadas)
+lanes = {}
+for k, e in enumerate(c.edges):
+    lvl = min(e['lvl'], 2)
+    lanes[k] = {'lvl': e['lvl'], 'kind': e['kind'], 'speed_kmh': 50 if e['kind'] == 'bridge' else traffic.LANES[lvl]['speed'],
+                'fwd_offsets': traffic.lane_offsets(lvl), 'bwd_offsets': [-o for o in traffic.lane_offsets(lvl)], 'drive_side': 'right'}
+def rp(P): return [[round(p[0], 1), round(p[1], 1)] for p in P[::2]] if len(P) > 6 else [[round(p[0], 1), round(p[1], 1)] for p in P]
+json.dump({'lanes': lanes, 'moves': [{'node': m['node'], 'kind': m['kind'], 'from': list(m['from']), 'to': list(m['to']), 'lane_from': m['lane_from'], 'lane_to': m['lane_to'], 'y': round(m['y'], 2), 'path': rp(m['path'])} for m in tr.moves],
+           'control': [{'node': k[0], 'edge': k[1], 'end': k[2], 'type': v} for k, v in tr.control.items()],
+           'signals': {str(k): v for k, v in tr.signals.items()}},
+          open(os.path.join(out, 'traffic.json'), 'w'), separators=(',', ':'))
+json.dump({'signs': fu.signs, 'signal_heads': fu.heads, 'speed_bumps': [{'x': round(b['x'], 2), 'z': round(b['z'], 2), 'y': round(b['y'], 2), 'tx': round(b['tx'], 3), 'tz': round(b['tz'], 3), 'edge': b['k'], 'why': b['why']} for b in tr.bumps]},
+          open(os.path.join(out, 'signage.json'), 'w'), separators=(',', ':'))
 # fotos de TODAS as ruas (ladrilhos de 400 m) + mapa-indice
 import tiles
-made = tiles.make_all(gr, c, os.path.join(out, 'fotos'))
+made = tiles.make_all(gr, c, os.path.join(out, 'fotos'), hf=hf, extras={'signs': fu.signs, 'heads': fu.heads, 'bumps': [b['poly'] for b in tr.bumps]})
 print(f'  {len(made)} fotos geradas em out/fotos')
 # vistas de conferencia
 jn = min((n for n, a in gr.arms.items() if len(a) >= 4), key=lambda n: math.hypot(c.nodes[n][0] - LAGOON[0], c.nodes[n][1] - LAGOON[1]))

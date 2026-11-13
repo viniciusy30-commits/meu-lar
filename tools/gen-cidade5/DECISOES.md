@@ -42,3 +42,11 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Causas do "grama/calcada cortando a pista": (1) bulbos de retorno em cima de outra rua; (2) cantos agudos (< 72 graus) entre bracos; (3) curvas fechadas e grampos nas polilinhas; (4) pares de ruas paralelas coladas. Corrigido com: bulbo so se livre, remocao de bracos agudos (medidos a 12 e 26 m), fusao de nos de grau 2, simplificacao + arredondamento das curvas (raio >= 1,4 x meia-largura), remocao de ruas paralelas coladas e laco de reparo que mede a sobreposicao asfalto x calcada/ilha/canteiro e remove a rua de menor hierarquia ali.
 - Validadores novos: sobreposicao (asfalto x calcada/canteiro/verge), buracos no eixo, faixas fora do asfalto, faixas a < 60 m, calcada dos dois lados.
 - `out/fotos/` traz 39 fotos de TODAS as ruas (ladrilhos de 400 x 400 m) + `00_mapa_indice.png`.
+
+## Etapa C2 (feita): transito, sinalizacao, lombadas; ruas "cortadas"
+- Ruas cortadas das fotos 11/26/31/39 eram de dois tipos: (1) beco sem saida com bolsao BLOQUEADO por outra rua (ficava com ponta reta no meio do mato) -> agora liga na rua vizinha em T, ou encurta ate o bolsao caber, ou apaga o toco; (2) fim de rua na beira do rio/mar (a agua nao aparecia nas fotos) -> as fotos agora mostram relevo e agua e o fim da rua tem pracinha, meio-fio, balizas e placa "fim da via".
+- Rede refeita: nos de grau 2 fundidos, curvas arredondadas (raio >= 1,4 x meia-largura), 4 ruas apertadas refeitas em Bezier.
+- Modelo de transito (`traffic.py`): mao direita, faixas por sentido, 1.933 movimentos (reto/direita/esquerda/retorno/rotatoria) com caminho de Bezier, 40 semaforos, 265 PARE, 29 dê-a-preferencia, 141 lombadas.
+- `furniture.py`: semaforo (poste + braco de mastro + cabecas), placas (PARE, preferencial, velocidade, pedestre, lombada, rotatoria, fim da via), linhas de retencao, setas, dentes de tubarao, lombadas listradas.
+- Validadores novos em `validate_traffic.py`. Detalhes visuais em `out/transito/`.
+- Nao feito: faixas de pedestre com semaforo de pedestres, setas de conversao, ciclo luminoso animado (o jogo anima pelas fases de `traffic.json`), textos nas placas (atlas na Etapa I).

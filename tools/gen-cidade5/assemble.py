@@ -98,6 +98,16 @@ class City:
             if d.min() < r: return True
         return False
 
+    def crosses_except(self, path, k0):
+        from network import seg_inter
+        for k, e in enumerate(self.edges):
+            if k == k0 or e['kind'] in ('bridge', 'redbridge'): continue
+            for a, b in zip(e['p'], e['p'][1:]):
+                for c_, d_ in zip(path, path[1:]):
+                    r = seg_inter(a, b, c_, d_)
+                    if r and 0.02 < r[0] < 0.98 and 0.02 < r[1] < 0.98: return True
+        return False
+
     def components(self):
         adj = defaultdict(list)
         for e in self.edges: adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
@@ -355,33 +365,97 @@ class City:
             if e['kind'] != 'n' or len(e['p']) < 3: continue
             e['p'] = [tuple(q) for q in network.rdp([tuple(q) for q in e['p']], tol)]
 
+    def fillet_edge(self, e):
+        HALF = {0: 14.0, 1: 10.0, 2: 7.5, 3: 18.0}
+        p = [tuple(q) for q in e['p']]
+        if len(p) < 3: return
+        h = HALF[min(e['lvl'], 3)]
+        out = [p[0]]
+        for i in range(1, len(p) - 1):
+            v1 = (p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); v2 = (p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])
+            L1 = math.hypot(*v1); L2 = math.hypot(*v2)
+            if L1 < 1e-6 or L2 < 1e-6: out.append(p[i]); continue
+            u1 = (v1[0] / L1, v1[1] / L1); u2 = (v2[0] / L2, v2[1] / L2)
+            dot = max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1])); th = math.acos(dot)
+            if th < 0.08: out.append(p[i]); continue
+            R = max(1.4 * h, 14.0); t = R * math.tan(th / 2)
+            tmax = 0.48 * min(L1, L2)
+            if t > tmax: t = tmax; R = t / max(math.tan(th / 2), 1e-6)
+            T1 = (p[i][0] - u1[0] * t, p[i][1] - u1[1] * t); T2 = (p[i][0] + u2[0] * t, p[i][1] + u2[1] * t)
+            sign = 1.0 if (u1[0] * u2[1] - u1[1] * u2[0]) > 0 else -1.0
+            n1 = (-u1[1] * sign, u1[0] * sign); C = (T1[0] + n1[0] * R, T1[1] + n1[1] * R)
+            a0 = math.atan2(T1[1] - C[1], T1[0] - C[0]); k = max(2, int(th * R / 4.0))
+            for q in range(k + 1):
+                ang = a0 + sign * th * q / k
+                out.append((C[0] + math.cos(ang) * R, C[1] + math.sin(ang) * R))
+        out.append(p[-1]); e['p'] = out
+
     def fillet_polylines(self):
         """substitui cada curva por um arco de raio >= 1,4 x meia-largura da rua (limitado pelo comprimento dos trechos)"""
-        HALF = {0: 14.0, 1: 10.0, 2: 7.5, 3: 18.0}
         for e in self.edges:
-            if e['kind'] != 'n': continue
+            if e['kind'] == 'n': self.fillet_edge(e)
+
+    def relax_tight_curves(self, passes=3):
+        """curvas mais fechadas do que a faixa externa aguenta (raio < offset + 8 m) ganham suavizacao extra"""
+        import traffic as TR
+        fixed = 0
+        for e in self.edges:
+            if e['kind'] != 'n' or len(e['p']) < 3: continue
+            need = TR.lane_offsets(min(e['lvl'], 2))[-1] + 7.0
+            if TR.min_radius(e['p']) >= need: continue
             p = [tuple(q) for q in e['p']]
-            if len(p) < 3: continue
-            h = HALF[min(e['lvl'], 3)]
-            out = [p[0]]
-            for i in range(1, len(p) - 1):
-                v1 = (p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); v2 = (p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])
-                L1 = math.hypot(*v1); L2 = math.hypot(*v2)
-                if L1 < 1e-6 or L2 < 1e-6: out.append(p[i]); continue
-                u1 = (v1[0] / L1, v1[1] / L1); u2 = (v2[0] / L2, v2[1] / L2)
-                dot = max(-1.0, min(1.0, u1[0] * u2[0] + u1[1] * u2[1])); th = math.acos(dot)
-                if th < 0.08: out.append(p[i]); continue
-                R = max(1.4 * h, 14.0); t = R * math.tan(th / 2)
-                tmax = 0.48 * min(L1, L2)
-                if t > tmax: t = tmax; R = t / max(math.tan(th / 2), 1e-6)
-                T1 = (p[i][0] - u1[0] * t, p[i][1] - u1[1] * t); T2 = (p[i][0] + u2[0] * t, p[i][1] + u2[1] * t)
-                sign = 1.0 if (u1[0] * u2[1] - u1[1] * u2[0]) > 0 else -1.0
-                n1 = (-u1[1] * sign, u1[0] * sign); C = (T1[0] + n1[0] * R, T1[1] + n1[1] * R)
-                a0 = math.atan2(T1[1] - C[1], T1[0] - C[0]); k = max(2, int(th * R / 4.0))
-                for q in range(k + 1):
-                    ang = a0 + sign * th * q / k
-                    out.append((C[0] + math.cos(ang) * R, C[1] + math.sin(ang) * R))
-            out.append(p[-1]); e['p'] = out
+            for _ in range(passes):
+                out = [p[0]]
+                for i in range(len(p) - 1):
+                    a_, b_ = p[i], p[i + 1]; L = math.hypot(b_[0] - a_[0], b_[1] - a_[1]); f = min(0.25, 12.0 / max(L, 1e-6))
+                    if i > 0: out.append((a_[0] + (b_[0] - a_[0]) * f, a_[1] + (b_[1] - a_[1]) * f))
+                    if i < len(p) - 2: out.append((b_[0] - (b_[0] - a_[0]) * f, b_[1] - (b_[1] - a_[1]) * f))
+                out.append(p[-1]); p = out
+                if TR.min_radius(p) >= need: break
+            e['p'] = p
+            for _try in range(4):                                   # ainda apertada: retifica a regiao e arredonda de novo
+                if TR.min_radius(e['p']) >= need: break
+                rs = TR.resample(e['p'], 6.0); bad = None
+                for i in range(1, len(rs) - 1):
+                    A, B_, C_ = rs[i - 1], rs[i], rs[i + 1]
+                    ab = math.hypot(B_[0] - A[0], B_[1] - A[1]); bc = math.hypot(C_[0] - B_[0], C_[1] - B_[1]); ca = math.hypot(A[0] - C_[0], A[1] - C_[1])
+                    ar = abs((B_[0] - A[0]) * (C_[1] - A[1]) - (B_[1] - A[1]) * (C_[0] - A[0]))
+                    if ar > 1e-6 and ab * bc * ca / (2 * ar) < need: bad = B_; break
+                if bad is None: break
+                keep = [e['p'][0]] + [q for q in e['p'][1:-1] if math.hypot(q[0] - bad[0], q[1] - bad[1]) > 26.0] + [e['p'][-1]]
+                e['p'] = keep; self.fillet_edge(e)
+            fixed += 1
+        self.curves_relaxed = fixed
+
+    def drop_tight_edges(self):
+        import traffic as TR
+        n = 0
+        for _ in range(20):
+            hit = None
+            for k, e in enumerate(self.edges):
+                if e['kind'] != 'n': continue
+                need = TR.lane_offsets(min(e['lvl'], 2))[-1] + 7.0
+                if TR.min_radius(e['p']) < need:
+                    if self.connected_without(k): hit = k; break
+                    # essencial: refaz a rua como uma curva de Bezier suave entre as duas pontas, mantendo as direcoes de chegada
+                    p = e['p']; A, B_ = p[0], p[-1]
+                    def dirn(pts):
+                        acc = 0.0
+                        for s_, t_ in zip(pts, pts[1:]):
+                            acc += math.hypot(t_[0] - s_[0], t_[1] - s_[1])
+                            if acc >= 18.0: return ((t_[0] - pts[0][0]), (t_[1] - pts[0][1]))
+                        return ((pts[-1][0] - pts[0][0]), (pts[-1][1] - pts[0][1]))
+                    dA = dirn(p); dB = dirn(p[::-1]); la = math.hypot(*dA) or 1; lb = math.hypot(*dB) or 1
+                    ch = math.hypot(B_[0] - A[0], B_[1] - A[1]); kk = 0.38 * ch
+                    P1 = (A[0] + dA[0] / la * kk, A[1] + dA[1] / la * kk); P2 = (B_[0] + dB[0] / lb * kk, B_[1] + dB[1] / lb * kk)
+                    new = TR.bez(A, P1, P2, B_, 24)
+                    if TR.min_radius(new) >= need * 0.95 and not self.crosses_except(new, k):
+                        e['p'] = [tuple(q) for q in new]; n += 1; continue
+            if hit is None: break
+            self.edges.pop(hit); n += 1; self.drop_unused()
+        if n:
+            self.fix_dead_ends(); self.connect_components(); self.resolve_bulbs(); self.merge_degree2(); self.clean_polylines()
+        self.tight_dropped = n
 
     def fix_close_parallel(self, margin=1.5, max_iter=120):
         """duas ruas cujos eixos chegam mais perto que (meia-largura A + meia-largura B): calcadas/pistas se sobrepoem -> remove a de menor hierarquia"""
@@ -475,6 +549,108 @@ class City:
         self.fix_dead_ends(); self.connect_components(); self.drop_unused(); self.merge_degree2(); self.clean_polylines(); self.simplify_polylines(); self.fillet_polylines()
         self.rounds = []; self.make_rounds(); self.flags(); self.repairs = removed
 
+    # ------------------------------------------------------------ becos sem saida com bolsao bloqueado
+    def nearest_on_edges(self, x, z, skip_edge=None, maxd=1e9):
+        best = None
+        for k, e in enumerate(self.edges):
+            if k == skip_edge or e['kind'] == 'redbridge': continue
+            for i, (p, q) in enumerate(zip(e['p'], e['p'][1:])):
+                dx, dz = q[0] - p[0], q[1] - p[1]; L2 = dx * dx + dz * dz
+                if L2 < 1e-9: continue
+                t = max(0.0, min(1.0, ((x - p[0]) * dx + (z - p[1]) * dz) / L2))
+                px, pz = p[0] + dx * t, p[1] + dz * t; d = math.hypot(px - x, pz - z)
+                if d < maxd and (best is None or d < best[0]): best = (d, k, i, (px, pz), t)
+        return best
+
+    def split_edge(self, k, seg, pt):
+        """cria um no em pt (sobre a polilinha da aresta k, entre os vertices seg e seg+1) e divide a aresta"""
+        e = self.edges[k]
+        ni = self.add_node(pt[0], pt[1])
+        p1 = list(e['p'][:seg + 1]) + [pt]; p2 = [pt] + list(e['p'][seg + 1:])
+        e1 = dict(e); e1['b'] = ni; e1['p'] = p1
+        e2 = dict(e); e2['a'] = ni; e2['p'] = p2
+        self.edges[k] = e1; self.edges.append(e2)
+        return ni
+
+    def bulb_blocked_xy(self, ni, k_own, Rb):
+        nx, nz = self.nodes[ni][:2]
+        HALF = {0: 14.0, 1: 10.0, 2: 7.5, 3: 18.0}
+        for k, e in enumerate(self.edges):
+            if k == k_own or e['kind'] == 'redbridge': continue
+            for p, q in zip(e['p'], e['p'][1:]):
+                L = math.hypot(q[0] - p[0], q[1] - p[1]) or 1e-9
+                for t in range(0, int(L // 3) + 2):
+                    f = min(1.0, t * 3.0 / L); x, z = p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f
+                    if math.hypot(x - nx, z - nz) < Rb + 2.6 + HALF[min(e['lvl'], 3)] * 0.6: return True
+        return False
+
+    def resolve_bulbs(self):
+        """nenhuma rua 'cortada': bolsao bloqueado -> liga na rua vizinha (T), ou encurta a rua ate caber o bolsao, ou apaga o toco"""
+        fixed = {'conectado': 0, 'encurtado': 0, 'apagado': 0}
+        for _ in range(60):
+            deg, inc = self.degrees(); lx = getattr(self, 'legit_xy', {}); target = None
+            for ni, ks in inc.items():
+                if len(ks) != 1 or len(self.nodes[ni]) > 2: continue
+                if lx.get((round(self.nodes[ni][0], 2), round(self.nodes[ni][1], 2))) != 'bolsao': continue
+                if self.bulb_blocked_xy(ni, ks[0], 11.0): target = (ni, ks[0]); break
+            if not target: break
+            ni, k = target; e = self.edges[k]
+            pts = e['p'] if e['a'] == ni else e['p'][::-1]          # pts[0] = ponta morta
+            x, z = pts[0]
+            hx, hz = pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]; hl = math.hypot(hx, hz) or 1; hx, hz = hx / hl, hz / hl   # sentido para fora da rua (alem da ponta)
+            done = False
+            # 1) liga numa rua proxima, a frente, em T (>= 60 graus)
+            for _r in range(1):
+                nb = self.nearest_on_edges(x + hx * 2, z + hz * 2, skip_edge=k, maxd=75.0)
+                if not nb: break
+                d, k2, seg, P, t = nb
+                dx, dz = P[0] - x, P[1] - z; dl = math.hypot(dx, dz)
+                if dl < 6 or dl > 75: break
+                e2 = self.edges[k2]; ex, ez = e2['p'][seg + 1][0] - e2['p'][seg][0], e2['p'][seg + 1][1] - e2['p'][seg][1]; el = math.hypot(ex, ez) or 1
+                ang = abs(((dx * ex + dz * ez) / (dl * el)))
+                if ang > 0.5: break                                      # menos de 60 graus com a rua alvo
+                if (dx * hx + dz * hz) / dl < 0.3: break                 # nao e "a frente" da rua
+                path = [(x, z), P]
+                if self.crosses(path, ()) or any(self.geo.is_water(*q) for q in path): break
+                n2 = self.split_edge(k2, seg, P)
+                self.edges.append({'a': ni, 'b': n2, 'p': [(x, z), P], 'lvl': e['lvl'], 'kind': 'n', 'name': ''})
+                self.legit_xy.pop((round(x, 2), round(z, 2)), None); fixed['conectado'] += 1; done = True
+            if done: self.drop_unused(); continue
+            # 2) encurta a rua ate o bolsao caber (minimo 45 m sobrando)
+            L = elen(e['p'])
+            if L > 70:
+                cut = 14.0
+                for _s in range(8):
+                    new = self.trim_end(e, ni, cut)
+                    if new is None: break
+                    nx_, nz_ = new
+                    # recoloca o no na nova ponta
+                    old = tuple(self.nodes[ni][:2]); self.nodes[ni][0], self.nodes[ni][1] = nx_, nz_
+                    self.legit_xy.pop((round(old[0], 2), round(old[1], 2)), None); self.legit_xy[(round(nx_, 2), round(nz_, 2))] = 'bolsao'
+                    if not self.bulb_blocked_xy(ni, k, 11.0): fixed['encurtado'] += 1; done = True; break
+                    cut += 12.0
+            if done: self.drop_unused(); continue
+            # 3) apaga o toco
+            self.edges.pop(k); self.legit_xy.pop((round(x, 2), round(z, 2)), None); fixed['apagado'] += 1
+            self.drop_unused()
+        self.bulbs_fixed = fixed
+
+    def trim_end(self, e, ni, dist):
+        """remove `dist` metros da ponta da aresta (no ni); devolve a nova ponta ou None"""
+        p = list(e['p']) if e['a'] == ni else list(e['p'][::-1])
+        total = elen(p)
+        if total - dist < 45: return None
+        acc = 0.0; out = [p[0]]; newpt = None
+        for a_, b_ in zip(p, p[1:]):
+            L = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+            if newpt is None and acc + L >= dist:
+                f = (dist - acc) / (L or 1); newpt = (a_[0] + (b_[0] - a_[0]) * f, a_[1] + (b_[1] - a_[1]) * f); out = [newpt, b_]
+            elif newpt is not None: out.append(b_)
+            acc += L
+        if newpt is None: return None
+        e['p'] = out if e['a'] == ni else out[::-1]
+        return newpt
+
     def make_rounds(self, n=9, mind=420.0):
         deg = defaultdict(int); hi = defaultdict(int)
         for e in self.edges:
@@ -498,5 +674,5 @@ class City:
 
 def build(geo):
     c = City(geo)
-    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.fix_close_parallel(); c.fix_dead_ends(); c.connect_components(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.connect_components(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.make_rounds(); c.flags(); c.repair_overlaps(); c.fix_acute(); c.make_rounds(); c.flags()
+    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.fix_close_parallel(); c.fix_dead_ends(); c.connect_components(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.connect_components(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.make_rounds(); c.flags(); c.repair_overlaps(); c.fix_acute(); c.resolve_bulbs(); c.merge_degree2(); c.clean_polylines(); c.relax_tight_curves(); c.drop_tight_edges(); c.make_rounds(); c.flags()
     return c
