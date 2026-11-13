@@ -84,7 +84,108 @@ def run(out, geo, hf, assets):
           'bld': [], 'lamp': [], 'hyd': [], 'tree': flat, 'solid': []}
     os.makedirs(assets, exist_ok=True)
     json.dump(js, open(os.path.join(assets, 'c5.json'), 'w'), separators=(',', ':'))
-    shutil.copy(os.path.join(out, 'relevo5.bin'), os.path.join(assets, 'c5.bin'))
+    # terreno abaixo da malha + mapa de altura de caminhada
+    print('  ajustando terreno a malha...')
+    h2, tris = fit_terrain(hf, os.path.join(out, 'city5_ground.bin'))
+    drop = hf - h2
+    print(f'  vertices abaixados: {int((drop > 0.001).sum())} (max {drop.max():.2f} m); viraram areia/agua: {int(((hf >= 1.3) & (h2 < 1.3)).sum())}/{int(((hf >= -0.1) & (h2 < -0.1)).sum())}')
+    import terrain_final as T
+    T.write_bin(h2, os.path.join(assets, 'c5.bin'))
+    W, wnx, wnz, wst = walk_raster(tris)
+    write_walk(W, wnx, wnz, wst, os.path.join(assets, 'c5_walk.bin'))
     shutil.copy(os.path.join(out, 'city5_ground.bin'), os.path.join(assets, 'c5_mesh.bin'))
     shutil.copy(os.path.join(out, 'signs_atlas.png'), os.path.join(assets, 'c5_signs.png'))
     print('  exportado para', assets)
+
+
+# ------------------------------------------------------------------------------------------------
+# terreno x malha assada: o terreno do app (grade de 8 m, 2 triangulos por celula) nunca pode ficar acima do asfalto/calcada
+PAVED = (15, 9, 3, 8)
+
+
+def _read_ground(path):
+    import struct
+    b = open(path, 'rb').read(); n = struct.unpack_from('<i', b, 4)[0]; o = 8
+    out = {}
+    dt = np.dtype([('f', '<f4', 8), ('c', 'u1', 3)])
+    for _ in range(n):
+        cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16
+        arr = np.frombuffer(b, dtype=dt, count=nv, offset=o); o += nv * 35
+        if mat in PAVED:
+            out.setdefault(mat, []).append(arr['f'][:, :6].copy())
+    return {m: np.concatenate(v) for m, v in out.items()}
+
+
+def _terr(hf, g, x, z):
+    ny, nx = hf.shape
+    fx = np.clip(x / g, 0, nx - 1.001); fz = np.clip(z / g, 0, ny - 1.001)
+    i = fx.astype(int); j = fz.astype(int); tx = fx - i; tz = fz - j
+    h00 = hf[j, i]; h10 = hf[j, i + 1]; h01 = hf[j + 1, i]; h11 = hf[j + 1, i + 1]
+    up = tx >= tz
+    return np.where(up, h00 + (h10 - h00) * tx + (h11 - h10) * tz, h00 + (h11 - h01) * tx + (h01 - h00) * tz), i, j, up
+
+
+def fit_terrain(hf, ground_path, g=8.0, margin=0.05, tunnel=3.0):
+    """abaixa os vertices do terreno onde ele cobriria a malha; devolve (hf novo, amostras pavimentadas x,z,y)"""
+    G = _read_ground(ground_path)
+    pts = []
+    tris = []
+    for m, V in G.items():
+        if m != 15 and m != 9 and m != 3 and m != 8: continue
+        T = V.reshape(-1, 3, 6)
+        up = T[:, :, 4].mean(1) > 0.5
+        T = T[up]
+        tris.append(T[:, :, [0, 1, 2]])
+    tris = np.concatenate(tris)                       # (n, 3, xyz)
+    a, b_, c = tris[:, 0], tris[:, 1], tris[:, 2]
+    S = np.concatenate([a, b_, c, (a + b_ + c) / 3, (a + b_) / 2, (b_ + c) / 2, (a + c) / 2, (2 * a + b_ + c) / 4, (a + 2 * b_ + c) / 4, (a + b_ + 2 * c) / 4])
+    ny, nx = hf.shape
+    h = hf.copy()
+    for it in range(8):
+        t, i, j, up = _terr(h, g, S[:, 0], S[:, 2])
+        viol = t - (S[:, 1] - margin)
+        bad = (viol > 0.005) & (viol < tunnel)
+        print(f'   passo {it}: {int(bad.sum())} amostras sob o terreno (max {viol[bad].max() if bad.any() else 0:.2f} m)')
+        if not bad.any(): break
+        i, j, up, v = i[bad], j[bad], up[bad], viol[bad]
+        flat = h.reshape(-1); base = flat.copy()
+        for (di, dj) in ((0, 0), (1, 0), (1, 1)):
+            idx = (j + dj) * nx + (i + di)
+            sel = up
+            np.minimum.at(flat, idx[sel], base[idx[sel]] - v[sel])
+        for (di, dj) in ((0, 0), (1, 1), (0, 1)):
+            idx = (j + dj) * nx + (i + di)
+            sel = ~up
+            np.minimum.at(flat, idx[sel], base[idx[sel]] - v[sel])
+        h = flat.reshape(ny, nx)
+    return h, tris
+
+
+def walk_raster(tris, step=2.0, size=(4400.0, 3600.0)):
+    """alturas do chao pavimentado a cada 2 m (para o jogador/carro andarem em cima do asfalto); -32768 = sem pavimento"""
+    nx = int(size[0] / step) + 1; nz = int(size[1] / step) + 1
+    W = np.full((nz, nx), -1e9, np.float32)
+    for t in tris:
+        x0 = t[:, 0].min(); x1 = t[:, 0].max(); z0 = t[:, 2].min(); z1 = t[:, 2].max()
+        i0 = max(int(np.ceil(x0 / step)), 0); i1 = min(int(np.floor(x1 / step)), nx - 1)
+        j0 = max(int(np.ceil(z0 / step)), 0); j1 = min(int(np.floor(z1 / step)), nz - 1)
+        if i1 < i0 or j1 < j0: continue
+        xs = np.arange(i0, i1 + 1) * step; zs = np.arange(j0, j1 + 1) * step
+        X, Z = np.meshgrid(xs, zs)
+        ax, az = t[0, 0], t[0, 2]; bx, bz = t[1, 0] - ax, t[1, 2] - az; cx, cz = t[2, 0] - ax, t[2, 2] - az
+        den = bx * cz - bz * cx
+        if abs(den) < 1e-9: continue
+        u = ((X - ax) * cz - (Z - az) * cx) / den; v = ((Z - az) * bx - (X - ax) * bz) / den
+        ins = (u >= -1e-4) & (v >= -1e-4) & (u + v <= 1 + 1e-4)
+        if not ins.any(): continue
+        Y = t[0, 1] + u * (t[1, 1] - t[0, 1]) + v * (t[2, 1] - t[0, 1])
+        sub = W[j0:j1 + 1, i0:i1 + 1]
+        np.maximum(sub, np.where(ins, Y, -1e9), out=sub)
+    return W, nx, nz, step
+
+
+def write_walk(W, nx, nz, step, path):
+    import struct
+    cm = np.where(W < -1e8, -32768, np.clip(np.round(W * 100.0), -32000, 32000)).astype('<i2')
+    with open(path, 'wb') as f:
+        f.write(struct.pack('<iif', nx, nz, step)); f.write(cm.tobytes())

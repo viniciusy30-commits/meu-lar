@@ -45,6 +45,25 @@ object Relevo {
     private class SubRec(val mat: Int, val nv: Int, val ymax: Float, val f: FloatArray, val c: ByteArray)
     private val subCells = HashMap<Int, ArrayList<SubRec>>()
     private var subSol = FloatArray(0)
+    /** Cidade 5: altura do chão pavimentado a cada [wst] m (asfalto, calçada, orla, ponte); -32768 = sem pavimento */
+    private var walk = ShortArray(0)
+    private var wnx = 0
+    private var wnz = 0
+    private var wst = 2f
+    private fun loadWalk(am: AssetManager) {
+        val bb = ByteBuffer.wrap(am.open("hds/c5_walk.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        wnx = bb.getInt(); wnz = bb.getInt(); wst = bb.getFloat()
+        val w = ShortArray(wnx * wnz)
+        for (i in w.indices) w[i] = bb.getShort()
+        walk = w
+    }
+    private fun walkAt(x: Float, z: Float): Float {
+        if (walk.isEmpty()) return Float.NaN
+        val i = Math.round((x - CX) / wst); val j = Math.round((z - CZ) / wst)
+        if (i < 0 || j < 0 || i >= wnx || j >= wnz) return Float.NaN
+        val v = walk[j * wnx + i].toInt()
+        return if (v == -32768) Float.NaN else v / 100f
+    }
 
     /** colisões do bairro (x0, z0, x1, z1) já em coordenadas do mundo */
     fun subSolids(): List<FloatArray> {
@@ -141,7 +160,7 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
-        sub = false; subCells.clear(); subSol = FloatArray(0)
+        sub = false; subCells.clear(); subSol = FloatArray(0); walk = ShortArray(0)
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
@@ -218,6 +237,7 @@ object Relevo {
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
+                if (c5) loadWalk(am) else walk = ShortArray(0)
                 val sa = js.optJSONArray("solid")
                 val so = ArrayList<Float>()
                 if (sa != null) for (i in 0 until sa.length()) {
@@ -344,6 +364,8 @@ object Relevo {
     /** chão sob (x, z): rua, ponte ou rotatória; senão o terreno */
     fun groundH(x: Float, z: Float): Float {
         val h = height(x, z)
+        val wv = walkAt(x, z)
+        if (!wv.isNaN() && wv > h - 0.6f) return wv
         val rs = roadSurface(x, z)
         return if (!rs.isNaN() && rs > h - 0.6f) rs else h
     }
