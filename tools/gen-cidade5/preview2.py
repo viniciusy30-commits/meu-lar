@@ -3,8 +3,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from plan import *
 
-def terrain_img(G, scale=0.3):
-    h = G.h; gz, gx = np.gradient(h, CELL)
+def terrain_img(G, scale=0.3, cell=CELL):
+    h = G.h; gz, gx = np.gradient(h, cell)
     k = 2.6
     nx_, nz_ = -gx * k, -gz * k; nn = np.sqrt(nx_ ** 2 + 1 + nz_ ** 2)
     L = np.array([-0.55, 0.70, -0.45]); L = L / np.linalg.norm(L)
@@ -41,8 +41,9 @@ def draw_roads(im, edges, nodes, scale=0.3, rounds=()):
         if e['kind'] == 'bridge': c = (255, 255, 255)
         w = wid[e['cls']] + (2 if e['kind'] == 'redbridge' else 0)
         d.line(pts, fill=c, width=w, joint='curve')
+    colk = {'bolsao': (255, 215, 0), 'cais': (0, 230, 230), 'lookout': (255, 0, 255), 'cul': (255, 215, 0)}
     for n in nodes:
-        if n['kind'] in ('cul',): d.ellipse([n['x'] * scale - 2, n['z'] * scale - 2, n['x'] * scale + 2, n['z'] * scale + 2], fill=(255, 215, 0))
+        if n['kind'] in colk: d.ellipse([n['x'] * scale - 3, n['z'] * scale - 3, n['x'] * scale + 3, n['z'] * scale + 3], fill=colk[n['kind']], outline=(0, 0, 0))
     for r in rounds:
         d.ellipse([r['x'] * scale - 5, r['z'] * scale - 5, r['x'] * scale + 5, r['z'] * scale + 5], outline=(255, 255, 255), fill=(80, 150, 70))
     return im

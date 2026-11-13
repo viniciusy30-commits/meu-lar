@@ -10,16 +10,16 @@ def v_connect(c):
     return len(groups) == 1, msgs
 
 def v_deadends(c):
-    bad = [i for i in c.cul if False]
-    msgs = [f'{len(c.cul)} fins de rua (cul-de-sac) registrados; {len(c.portals)} portais de tunel']
     deg = defaultdict(int)
     for e in c.edges: deg[e['a']] += 1; deg[e['b']] += 1
-    long_dead = []
-    for e in c.edges:
-        L = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(e['p'], e['p'][1:]))
-        if (deg[e['a']] == 1 or deg[e['b']] == 1) and L < 45 and e['kind'] == 'n':
-            long_dead.append(f'  toco muito curto ({L:.0f} m) perto de {tuple(round(v) for v in e["p"][0])}')
-    return not long_dead, msgs + long_dead[:20]
+    ends = [i for i, d in deg.items() if d == 1]
+    bad = []; kinds = defaultdict(int)
+    for i in ends:
+        if i in c.lookouts: kinds['mirante da ponte'] += 1
+        elif i in c.legit: kinds[c.legit[i]] += 1
+        else: bad.append(f'  fim de rua sem sentido em {round(c.nodes[i][0])},{round(c.nodes[i][1])}')
+    msgs = [f'{len(ends)} fins de rua: ' + ', '.join(f'{v} {k}' for k, v in sorted(kinds.items()))]
+    return not bad, msgs + bad[:25]
 
 def v_crossings(c):
     from network import seg_inter
@@ -63,12 +63,12 @@ def v_water(c, geo):
 
 def v_bridges(c):
     msgs = []; ok = True
-    rb = [e for e in c.edges if e['kind'] == 'redbridge']
-    msgs.append(f'pontes vermelhas: {len(rb)} (esperado 2)'); ok &= len(rb) == 2
+    msgs.append(f'pontes vermelhas (so cenario): {len(c.red)} (esperado 2)'); ok &= len(c.red) == 2
+    ok &= all(not r['drivable'] for r in c.red)
+    ok &= not any(e['kind'] == 'redbridge' for e in c.edges)
+    msgs.append(f'pontes vermelhas sem ligacao viaria: {"sim" if ok else "NAO"}; miradouros com cancela: {len(c.lookouts)} (esperado 2)'); ok &= len(c.lookouts) == 2
     br = [e for e in c.edges if e['kind'] == 'bridge' and e['name'].startswith('Ponte')]
-    msgs.append(f'pontes sobre o rio: {len(br)}')
-    ok &= len(br) >= 3
-    msgs.append(f'portais de tunel nas bordas: {len(c.portals)} (esperado 2)'); ok &= len(c.portals) == 2
+    msgs.append(f'pontes sobre o rio: {len(br)}'); ok &= len(br) >= 3
     return ok, msgs
 
 def v_rounds(c):
@@ -80,3 +80,24 @@ def run_all(c, geo):
                     ('declives', lambda: v_grades(c, geo)), ('vias na agua', lambda: v_water(c, geo)), ('pontes e tuneis', lambda: v_bridges(c)), ('rotatorias', lambda: v_rounds(c))):
         ok, m = f(); out.append((name, ok, m))
     return out
+
+
+def v_final(city, hf, ynode):
+    import terrain_final as T
+    bad_g, bad_h, bad_w = [], [], []
+    maxcut = 0.0
+    for e in city.edges:
+        if e['kind'] == 'redbridge': continue
+        pp = T.profile_pts(e, ynode[e['a']], ynode[e['b']])
+        L = T.elen(e['p']); lim = T.GRADE.get(e['lvl'], 0.065) if e['kind'] != 'bridge' else 0.07
+        if L > 1 and abs(ynode[e['a']] - ynode[e['b']]) / L > lim * 1.02:
+            bad_g.append(f'  declive {abs(ynode[e["a"]]-ynode[e["b"]])/L*100:.1f}% (limite {lim*100:.1f}%) em {round(pp[0][0])},{round(pp[0][1])}')
+        if e['kind'] == 'bridge':
+            if min(ynode[e['a']], ynode[e['b']]) < 1.0: bad_w.append(f'  ponte {e["name"]} com tabuleiro baixo')
+            continue
+        for (x, z, y) in pp:
+            d = abs(T.sample8(hf, x, z) - y); maxcut = max(maxcut, d)
+            if d > 1.2: bad_h.append(f'  rua fora do terreno ({d:.1f} m) em {round(x)},{round(z)}'); break
+            if T.sample8(hf, x, z) < 0.2: bad_w.append(f'  rua na agua em {round(x)},{round(z)}'); break
+    ok = not (bad_g or bad_h or bad_w)
+    return ok, [f'declives finais acima do limite: {len(bad_g)}', f'ruas fora do terreno (>1,2 m): {len(bad_h)}', f'ruas/pontes na agua ou baixas: {len(bad_w)}'] + (bad_g + bad_h + bad_w)[:20]

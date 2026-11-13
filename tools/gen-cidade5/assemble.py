@@ -68,11 +68,34 @@ class City:
             r = idx[k]; x0, z0 = self.nodes[r]
             cands = sorted((i for i in range(len(self.nodes)) if i not in ring and len(self.nodes[i]) == 2), key=lambda i: math.hypot(self.nodes[i][0] - x0, self.nodes[i][1] - z0))
             for tgt in cands[:30]:
-                tx, tz = self.nodes[tgt]
+                tx, tz = self.nodes[tgt][:2]
                 path = [(x0, z0), ((x0 + tx) / 2, (z0 + tz) / 2), (tx, tz)]
-                if math.hypot(tx - x0, tz - z0) < 420 and not self.crosses(path, ()) and not any(self.geo.is_water(*q) for q in path):
+                if math.hypot(tx - x0, tz - z0) < 420 and not self.crosses(path, ()) and not self.too_close(path) and not any(self.geo.is_water(*q) for q in path):
                     self.edges.append({'a': r, 'b': tgt, 'p': path, 'lvl': 0, 'kind': 'n', 'name': 'Av. da Lagoa'}); added += 1; break
         self.ring = idx
+
+    def too_close(self, path, r=22.0, skip=38.0):
+        import numpy as np
+        A = []; B = []
+        for e in self.edges:
+            for a, b in zip(e['p'], e['p'][1:]): A.append(a[:2]); B.append(b[:2])
+        if not A: return False
+        A = np.array(A, float); B = np.array(B, float); D = B - A; L2 = (D ** 2).sum(1) + 1e-9
+        total = elen(path); n = max(2, int(total / 10))
+        for s in range(1, n):
+            t = s / n; L = total * t
+            if L < skip or total - L < skip: continue
+            # ponto na polilinha
+            acc = 0.0
+            for a, b in zip(path, path[1:]):
+                seg = math.hypot(b[0] - a[0], b[1] - a[1])
+                if acc + seg >= L:
+                    f = (L - acc) / (seg or 1); px, pz = a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f; break
+                acc += seg
+            u = np.clip(((px - A[:, 0]) * D[:, 0] + (pz - A[:, 1]) * D[:, 1]) / L2, 0, 1)
+            d = np.hypot(A[:, 0] + u * D[:, 0] - px, A[:, 1] + u * D[:, 1] - pz)
+            if d.min() < r: return True
+        return False
 
     def components(self):
         adj = defaultdict(list)
@@ -126,26 +149,79 @@ class City:
             self.drop_unused()
 
     def red_bridges(self):
+        """Pontes vermelhas: SO CENARIO (sem acesso, sem estrada alem do mirante). A via da cidade termina num mirante com cancela."""
+        self.lookouts = []
         for tag, rb, name in (('W', RED_BRIDGE_W, 'Ponte Vermelha Oeste'), ('E', RED_BRIDGE_E, 'Ponte Vermelha Leste')):
-            z = rb['z']
-            a = self.add_node(rb['x_a'], z); b = self.add_node(rb['x_b'], z)
-            self.edges.append({'a': a, 'b': b, 'p': [(rb['x_a'], z), (rb['x_b'], z)], 'lvl': 3, 'kind': 'redbridge', 'name': name})
-            self.red.append({'name': name, 'z': z, 'x_a': rb['x_a'], 'x_b': rb['x_b'], 'towers': rb['towers'], 'deck': rb['deck']})
-            # estrada de montanha ate o portal do tunel (borda do mapa)
-            px, pz = rb['portal']; pn = self.add_node(px, pz)
-            sgn = -1 if tag == 'W' else 1
-            mid = [(rb['x_a'] + sgn * 70, z + 10), (rb['x_a'] + sgn * 120, z - 25), (rb['x_a'] + sgn * 170, z - 60), (px - sgn * 30, pz + 15)]
-            self.edges.append({'a': a, 'b': pn, 'p': [(rb['x_a'], z)] + mid + [(px, pz)], 'lvl': 3, 'kind': 'n', 'name': 'Rodovia do Tunel ' + tag})
-            self.nodes[pn].append('portal')
-            # acesso do lado da cidade: curva suave ate o no mais proximo da rede
-            cands = sorted((i for i in range(len(self.nodes)) if len(self.nodes[i]) == 2 and i != b and abs(self.nodes[i][0] - rb['x_b']) > 60),
-                           key=lambda i: math.hypot(self.nodes[i][0] - rb['x_b'] - (260 if tag == 'W' else -260), self.nodes[i][1] - z - 60))
-            for tgt in cands[:40]:
-                tx, tz = self.nodes[tgt]
-                mid = [((rb['x_b'] * 2 + tx) / 3, z + (tz - z) * 0.25), ((rb['x_b'] + tx * 2) / 3, z + (tz - z) * 0.75)]
-                path = [(rb['x_b'], z)] + mid + [(tx, tz)]
-                if not self.crosses(path, (b, tgt)) and not any(self.geo.is_water(*q) for q in path[1:]):
-                    self.edges.append({'a': b, 'b': tgt, 'p': path, 'lvl': 3, 'kind': 'n', 'name': 'Acesso ' + name}); break
+            z = rb['z']; sgn = 1 if tag == 'W' else -1
+            lx = rb['x_b'] + sgn * 30.0                      # mirante, 30 m antes da cabeceira
+            self.red.append({'name': name, 'z': z, 'x_a': rb['x_a'], 'x_b': rb['x_b'], 'towers': rb['towers'], 'deck': rb['deck'],
+                             'portal': rb['portal'], 'lookout': (lx, z), 'drivable': False})
+            lk = self.add_node(lx, z); self.nodes[lk].append('lookout'); self.lookouts.append(lk)
+            cands = sorted((i for i in range(len(self.nodes)) if len(self.nodes[i]) == 2 and i != lk and abs(self.nodes[i][0] - lx) > 60),
+                           key=lambda i: math.hypot(self.nodes[i][0] - lx - sgn * 260, self.nodes[i][1] - z - 60))
+            for tgt in cands[:60]:
+                tx, tz = self.nodes[tgt][:2]
+                mid = [((lx * 2 + tx) / 3, z + (tz - z) * 0.25 + 18), ((lx + tx * 2) / 3, z + (tz - z) * 0.75 - 18)]
+                path = [(lx, z)] + mid + [(tx, tz)]
+                if not self.crosses(path, ()) and not self.too_close(path) and not any(self.geo.is_water(*q) for q in path[1:]):
+                    self.edges.append({'a': lk, 'b': tgt, 'p': path, 'lvl': 1, 'kind': 'n', 'name': 'Estrada da ' + name}); break
+
+    def degrees(self):
+        deg = defaultdict(int); inc = defaultdict(list)
+        for k, e in enumerate(self.edges): deg[e['a']] += 1; deg[e['b']] += 1; inc[e['a']].append(k); inc[e['b']].append(k)
+        return deg, inc
+
+    def fix_dead_ends(self):
+        """cada fim de rua precisa ter sentido: liga a outra rua, termina em cais/praia, vira bolsao de retorno (rua local curta) ou e apagado"""
+        self.legit_xy = {}
+        for it in range(400):
+            deg, inc = self.degrees(); changed = False
+            for i in [i for i, d in deg.items() if d == 1 and len(self.nodes[i]) == 2]:
+                if (round(self.nodes[i][0], 2), round(self.nodes[i][1], 2)) in self.legit_xy: continue
+                k = inc[i][0]; e = self.edges[k]; L = elen(e['p'])
+                x, z = self.nodes[i][:2]
+                # direcao de chegada
+                p = e['p'] if e['a'] == i else e['p'][::-1]
+                hx, hz = p[0][0] - p[1][0], p[0][1] - p[1][1]; hl = math.hypot(hx, hz) or 1; hx /= hl; hz /= hl
+                j_, i_ = self.geo.idx(x, z); dwater = float(self.geo.D[j_, i_])
+                # 1) cais / praia
+                if dwater < 70 and e['lvl'] >= 1:
+                    self.legit_xy[(round(x, 2), round(z, 2))] = 'cais'; continue
+                # 2) tenta ligar a uma rua proxima (de preferencia a frente)
+                cands = []
+                for t in range(len(self.nodes)):
+                    if t == i or len(self.nodes[t]) != 2 and self.nodes[t][2] != 'lookout': continue
+                    d = math.hypot(self.nodes[t][0] - x, self.nodes[t][1] - z)
+                    if d < 60 or d > 330: continue
+                    ca = ((self.nodes[t][0] - x) * hx + (self.nodes[t][1] - z) * hz) / d
+                    if ca < 0.35: continue
+                    cands.append((d * (2 - ca), t, d))
+                cands.sort(); done = False
+                for _, t, d in cands[:25]:
+                    tx, tz = self.nodes[t][:2]
+                    nxp, nzp = -(tz - z) / d, (tx - x) / d
+                    path = [(x, z), (x + (tx - x) / 3 + nxp * d * 0.07, z + (tz - z) / 3 + nzp * d * 0.07), (x + (tx - x) * 2 / 3 - nxp * d * 0.05, z + (tz - z) * 2 / 3 - nzp * d * 0.05), (tx, tz)]
+                    if any(self.geo.is_water(*q) for q in path) or not self.geo.is_urban(path[1][0], path[1][1]): continue
+                    if abs(self.geo.height(tx, tz) - self.geo.height(x, z)) / d > 0.10: continue
+                    if any({ee['a'], ee['b']} == {i, t} for ee in self.edges): continue
+                    if self.crosses(path, ()) or self.too_close(path): continue
+                    self.edges.append({'a': i, 'b': t, 'p': path, 'lvl': max(e['lvl'], 1) if e['lvl'] < 2 else 2, 'kind': 'n', 'name': 'Ligacao'}); done = True; break
+                if done: changed = True; break
+                # 3) bolsao de retorno so em rua local de 60..320 m
+                if e['lvl'] == 2 and 60 <= L <= 320:
+                    self.legit_xy[(round(x, 2), round(z, 2))] = 'bolsao'; continue
+                # 4) sem sentido: apaga o trecho
+                self.edges.pop(k); changed = True; break
+            if not changed: break
+        self.drop_unused()
+
+    def dedupe(self):
+        seen = set(); out = []
+        for e in self.edges:
+            k = frozenset((e['a'], e['b']))
+            if k in seen and e['a'] != e['b']: continue
+            seen.add(k); out.append(e)
+        self.edges = out
 
     def make_rounds(self, n=9, mind=420.0):
         deg = defaultdict(int); hi = defaultdict(int)
@@ -164,9 +240,11 @@ class City:
         deg = defaultdict(int)
         for e in self.edges: deg[e['a']] += 1; deg[e['b']] += 1
         self.cul = {i for i, d in deg.items() if d == 1 and len(self.nodes[i]) == 2}
-        self.portals = {i for i, n in enumerate(self.nodes) if len(n) > 2}
+        self.portals = {i for i, n in enumerate(self.nodes) if len(n) > 2 and n[2] == 'portal'}
+        self.lookouts = [i for i, n in enumerate(self.nodes) if len(n) > 2 and n[2] == 'lookout']
+        self.legit = {i: self.legit_xy[(round(n[0], 2), round(n[1], 2))] for i, n in enumerate(self.nodes) if (round(n[0], 2), round(n[1], 2)) in self.legit_xy}
 
 def build(geo):
     c = City(geo)
-    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.make_rounds(); c.flags()
+    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.fix_dead_ends(); c.make_rounds(); c.flags()
     return c
