@@ -32,6 +32,10 @@ for m in msg_c: print(m)
 allok &= ok_c
 nrec = gr.B.write(os.path.join(out, 'city5_ground.bin'))
 json.dump({'fronts': gr.fronts, 'red_bridges': [{k: float(v) if hasattr(v, 'item') or isinstance(v, float) else v for k, v in r.items()} for r in gr.red_info]}, open(os.path.join(out, 'frontages.json'), 'w'), separators=(',', ':'))
+# fotos de TODAS as ruas (ladrilhos de 400 m) + mapa-indice
+import tiles
+made = tiles.make_all(gr, c, os.path.join(out, 'fotos'))
+print(f'  {len(made)} fotos geradas em out/fotos')
 # vistas de conferencia
 jn = min((n for n, a in gr.arms.items() if len(a) >= 4), key=lambda n: math.hypot(c.nodes[n][0] - LAGOON[0], c.nodes[n][1] - LAGOON[1]))
 jx, jz = c.nodes[jn][:2]

@@ -30,6 +30,8 @@ def compute_all_cuts(city, geo):
     for e in city.edges:
         gr.profiles.append(None if e['kind'] == 'redbridge' else [(p[0], p[1], 0.0) for p in e['p']])
     gr.arms = {}; gr.layers = []; gr.stats = {}
+    gr.rounds = {r['node']: r['r'] for r in city.rounds}
+    gr.tan_ov = {}
     gr.build_arms()
     out = {}
     for ni in gr.arms:
@@ -45,6 +47,9 @@ class Ground:
         self.stats = {'quads': 0, 'junctions': 0, 'short_edges': 0, 'guard_m': 0.0, 'wall_m': 0.0}
         self.fronts = []                              # linhas de frente de lote (para a Etapa D)
         self.arms = {}
+        self.rounds = {r['node']: r['r'] for r in city.rounds}
+        self.xw_centers = []
+        self.tan_ov = {}
         self.build_profiles()
         self.build_arms()
 
@@ -130,15 +135,43 @@ class Ground:
         t = min(t, 24.0)
         return {'si': si, 'sj': sj, 't': t, 'gap': gap}
 
+    def bulb_blocked(self, ni, a, Rb):
+        """o bulbo de retorno (+calcada) bateria em outra rua?"""
+        nx, nz = self.c.nodes[ni][:2]
+        for k, e in enumerate(self.c.edges):
+            if k == a['k'] or e['kind'] == 'redbridge': continue
+            for p, q in zip(e['p'], e['p'][1:]):
+                L = math.hypot(q[0] - p[0], q[1] - p[1]) or 1e-9
+                for t in np.linspace(0, 1, max(2, int(L / 4))):
+                    x, z = p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+                    h = SEC[min(e['lvl'], 2)]['half']
+                    if math.hypot(x - nx, z - nz) < Rb + 2.6 + h * 0.6: return True
+        return False
+
     def compute_cuts(self, ni):
         arms = self.arms[ni]; n = len(arms)
         nx, nz = self.c.nodes[ni][:2]
         for a in arms:
             sec = SEC[min(a['lvl'], 2)]; a['a'] = sec['asph']; a['h'] = sec['half']; a['R'] = sec['R']
             a['cut'] = 1.0
+        if ni in self.rounds and n >= 3:
+            Ro = self.rounds[ni]
+            for a in arms: a['cut'] = math.sqrt(max(Ro * Ro - a['h'] * a['h'] * 0.0 - a['a'] ** 2, 1.0)) + 0.4; a['round'] = Ro
+            return None
+        if n == 2 and ni not in self.rounds:
+            a1, a2 = arms; d1, d2 = a1['d'], a2['d']
+            if a1['lvl'] == a2['lvl'] and a1['kind'] == a2['kind'] and d1[0] * d2[0] + d1[1] * d2[1] < -0.82:
+                # curva suave da mesma rua: sem cruzamento; as duas pontas dividem a mesma normal (bissetriz) e o canteiro continua
+                tx, tz = norm(d2[0] - d1[0], d2[1] - d1[1])
+                for a, sgn in ((a1, -1), (a2, 1)):
+                    out = (tx * sgn, tz * sgn)                                  # sentido para fora do no ao longo deste braco
+                    self.tan_ov[(a['k'], a['end'])] = out if a['end'] == 'a' else (-out[0], -out[1])
+                    a['cut'] = 0.0; a['merge'] = True
+                return None
         if n == 1:
             a = arms[0]; kind = self.c.legit.get(ni) or ('lookout' if ni in self.c.lookouts else 'cais')
             a['cut'] = 0.5; a['bulb'] = kind
+            if kind in ('bolsao', 'lookout') and self.bulb_blocked(ni, a, 11.0 if kind == 'bolsao' else 12.5): a['bulb'] = 'cais'; kind = 'cais'
             if kind in ('bolsao', 'lookout'):
                 Rb = 11.0 if kind == 'bolsao' else 12.5; a['Rb'] = Rb
                 a['cut'] = math.sqrt(max(Rb * Rb - a['a'] ** 2, 1))
@@ -160,11 +193,15 @@ class Ground:
     def junction(self, ni):
         arms = self.arms[ni]; n = len(arms)
         nx, nz = self.c.nodes[ni][:2]; ny = self.yn[ni]
+        if n == 2 and arms[0].get('merge'): return
         self.stats['junctions'] += 1
         if n == 1:
             a = arms[0]
             if a.get('bulb') in ('bolsao', 'lookout'): self.bulb(ni, a, a['Rb'], a['bulb'])
             return
+        if ni in self.rounds and n >= 3:
+            self.roundabout(ni, self.rounds[ni]); return
+        if arms[0].get('merge'): return
         info = self.infos[ni]
         # monta os contornos de cada canto
         center = (nx, nz, ny)
@@ -232,12 +269,28 @@ class Ground:
         # faixas de pedestre e linha de retencao (so em cruzamentos de 3+ bracos)
         if n >= 3:
             for a in arms:
+                if a.get('xw'): self.crosswalk(ni, a, nx, nz, yc)
+        self.cuts_done = True
+
+    def plan_crosswalks(self):
+        """decide ONDE ha faixa de pedestre: so em cruzamentos de 3+ bracos, 1 por braco, trecho com >= 45 m livres e nunca a menos de 40 m de outra faixa"""
+        cand = []
+        for ni, arms in self.arms.items():
+            if len(arms) < 3: continue
+            if all(x['lvl'] >= 2 for x in arms): continue            # cruzamento so de ruas locais: sem faixa (so PARE)
+            for a in arms:
                 if a['kind'] == 'bridge': continue
                 e = self.c.edges[a['k']]; oth = e['b'] if a['end'] == 'a' else e['a']
                 oc = max([x['cut'] for x in self.arms.get(oth, []) if x['k'] == a['k']] or [0])
-                if self.elen(a['k']) < a['cut'] + oc + 14: continue          # trecho curto entre dois cruzamentos: sem faixa duplicada
-                self.crosswalk(ni, a, nx, nz, yc)
-        self.cuts_done = True
+                L = self.elen(a['k'])
+                if L < a['cut'] + oc + 45.0: continue
+                s = a['cut'] + 2.5 if a['end'] == 'a' else L - a['cut'] - 2.5
+                x, z, _, _, _ = self.at(a['k'], s)
+                cand.append((a['lvl'], -len(arms), x, z, a))
+        cand.sort(key=lambda t: (t[0], t[1]))                      # avenidas primeiro
+        for lvl, _, x, z, a in cand:
+            if any(math.hypot(x - cx, z - cz) < 60.0 for cx, cz in self.xw_centers): continue
+            a['xw'] = True; self.xw_centers.append((x, z))
 
     def bulb(self, ni, a, Rb, kind):
         nx, nz = self.c.nodes[ni][:2]; yc = self.yn[ni] + ROADY
@@ -271,25 +324,83 @@ class Ground:
                 self.B.quad(PLAIN, [(cx + r[0] * u0, yc + 1.05, cz + r[1] * u0), (cx + r[0] * u1, yc + 1.05, cz + r[1] * u1), (cx + r[0] * u1, yc + 1.25, cz + r[1] * u1), (cx + r[0] * u0, yc + 1.25, cz + r[1] * u0)], (d[0], 0, d[1]), col, None, True)
                 self.B.quad(PLAIN, [(cx + r[0] * u1, yc + 1.05, cz + r[1] * u1), (cx + r[0] * u0, yc + 1.05, cz + r[1] * u0), (cx + r[0] * u0, yc + 1.25, cz + r[1] * u0), (cx + r[0] * u1, yc + 1.25, cz + r[1] * u1)], (-d[0], 0, -d[1]), col, None, True)
 
+    def roundabout(self, ni, Ro):
+        arms = self.arms[ni]; n = len(arms)
+        nx, nz = self.c.nodes[ni][:2]; ny = self.yn[ni]; yc = ny + ROADY
+        W = 9.5; Ri = Ro - W
+        zone = self.zone(nx, nz)
+        sc = {'centro': COL['brick'], 'res': COL['conc'], 'colina': COL['conc2'], 'orla': COL['sand']}[zone]
+        N = 56
+        def P(r, ang): return (nx + math.cos(ang) * r, nz + math.sin(ang) * r)
+        for q in range(N):
+            a0, a1 = 2 * math.pi * q / N, 2 * math.pi * (q + 1) / N
+            p = [P(Ri, a0), P(Ro, a0), P(Ro, a1), P(Ri, a1)]
+            self.quad(ASPHALT, [(v[0], yc, v[1]) for v in p], COL['asph'], 'asphalt')
+            # ilha central: grama + guia
+            c0, c1 = P(Ri - 0.2, a0), P(Ri - 0.2, a1)
+            self.quad(PAVER, [(P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], COL['curb'], 'island')
+            self.B.quad(PLAIN, [(P(Ri, a0)[0], yc, P(Ri, a0)[1]), (P(Ri, a1)[0], yc, P(Ri, a1)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1])], (-math.cos((a0 + a1) / 2), 0, -math.sin((a0 + a1) / 2)), COL['curb'], None, True)
+            self.B.tri(GRASS, (nx, yc + CURB_H - 0.05, nz), (c0[0], yc + CURB_H - 0.05, c0[1]), (c1[0], yc + CURB_H - 0.05, c1[1]), (0, 1, 0), COL['grass'], None, True)
+            self.poly('island', [(nx, nz), c0, c1])
+            # linha tracejada no meio do anel
+            if q % 2 == 0:
+                rm = (Ri + Ro) / 2
+                self.quad(PLAIN, [(P(rm - 0.06, a0)[0], yc + 0.02, P(rm - 0.06, a0)[1]), (P(rm + 0.06, a0)[0], yc + 0.02, P(rm + 0.06, a0)[1]), (P(rm + 0.06, a1)[0], yc + 0.02, P(rm + 0.06, a1)[1]), (P(rm - 0.06, a1)[0], yc + 0.02, P(rm - 0.06, a1)[1])], COL['white'], 'mark')
+        # guia + calcada externas, interrompidas onde as ruas entram
+        gaps = []
+        for a in arms:
+            d = math.asin(min((a['a'] + 0.2) / (Ro + 0.2), 0.95)) + 0.02
+            gaps.append((a['ang'] - d, a['ang'] + d))
+        sw = max(2.0, 0.5 * sum(a['h'] - a['a'] for a in arms) / n - 0.2)
+        for q in range(len(arms)):
+            g0 = gaps[q][1]; g1 = gaps[(q + 1) % len(arms)][0]
+            if g1 <= g0: g1 += 2 * math.pi
+            m = max(4, int((g1 - g0) * Ro / 3.0))
+            for t in range(m):
+                a0 = g0 + (g1 - g0) * t / m; a1 = g0 + (g1 - g0) * (t + 1) / m
+                P0, P1 = P(Ro, a0), P(Ro, a1); Q0, Q1 = P(Ro + 0.2, a0), P(Ro + 0.2, a1); S0, S1 = P(Ro + 0.2 + sw, a0), P(Ro + 0.2 + sw, a1)
+                self.quad(PAVER, [(P0[0], yc + CURB_H, P0[1]), (P1[0], yc + CURB_H, P1[1]), (Q1[0], yc + CURB_H, Q1[1]), (Q0[0], yc + CURB_H, Q0[1])], COL['curb'], 'curb')
+                self.B.quad(PLAIN, [(P0[0], yc, P0[1]), (P1[0], yc, P1[1]), (P1[0], yc + CURB_H, P1[1]), (P0[0], yc + CURB_H, P0[1])], (-math.cos((a0 + a1) / 2), 0, -math.sin((a0 + a1) / 2)), COL['curb'], None, True)
+                self.quad(PAVER, [(Q0[0], yc + CURB_H, Q0[1]), (Q1[0], yc + CURB_H, Q1[1]), (S1[0], yc + CURB_H, S1[1]), (S0[0], yc + CURB_H, S0[1])], sc, 'sidewalk')
+                self.B.quad(PLAIN, [(S0[0], yc + CURB_H - 0.45, S0[1]), (S1[0], yc + CURB_H - 0.45, S1[1]), (S1[0], yc + CURB_H, S1[1]), (S0[0], yc + CURB_H, S0[1])], (math.cos((a0 + a1) / 2), 0, math.sin((a0 + a1) / 2)), COL['conc2'], None, True)
+            self.fronts.append({'node': ni, 'zone': zone, 'kind': 'round', 'pts': [[round(v[0], 2), round(v[1], 2)] for v in [P(Ro + 0.2 + sw, g0 + (g1 - g0) * t / 8) for t in range(9)]], 'y': round(ny + SW_Y, 2)})
+        self.round_info = getattr(self, 'round_info', []) + [{'node': ni, 'x': nx, 'z': nz, 'Ro': Ro, 'Ri': Ri, 'y': ny}]
+        for a in arms:
+            if a.get('xw'): self.crosswalk(ni, a, nx, nz, yc)
+
     def crosswalk(self, ni, a, nx, nz, yc):
-        d = a['d']; r = (-d[1], d[0]); half = a['a']
-        s0 = a['cut'] + 1.0
-        for off in np.arange(-half + 0.8, half - 0.5, 1.0):
-            x0, z0 = nx + d[0] * s0 + r[0] * off, nz + d[1] * s0 + r[1] * off
-            p = [(x0 - r[0] * 0.25, yc + 0.02, z0 - r[1] * 0.25), (x0 + r[0] * 0.25, yc + 0.02, z0 + r[1] * 0.25), (x0 + r[0] * 0.25 + d[0] * 3.0, yc + 0.02, z0 + r[1] * 0.25 + d[1] * 3.0), (x0 - r[0] * 0.25 + d[0] * 3.0, yc + 0.02, z0 - r[1] * 0.25 + d[1] * 3.0)]
-            self.quad(PLAIN, p, COL['white'], 'mark')
-        # linha de retencao (so na metade da pista que entra no cruzamento = lado direito de quem chega)
-        s1 = s0 + 3.6
-        p = [(nx + d[0] * s1 + r[0] * 0.2, yc + 0.02, nz + d[1] * s1 + r[1] * 0.2), (nx + d[0] * s1 + r[0] * (half - 2.4), yc + 0.02, nz + d[1] * s1 + r[1] * (half - 2.4)),
-             (nx + d[0] * (s1 + 0.6) + r[0] * (half - 2.4), yc + 0.02, nz + d[1] * (s1 + 0.6) + r[1] * (half - 2.4)), (nx + d[0] * (s1 + 0.6) + r[0] * 0.2, yc + 0.02, nz + d[1] * (s1 + 0.6) + r[1] * 0.2)]
-        self.quad(PLAIN, p, COL['white'], 'mark')
+        """faixa zebra (barras ao longo do trafego) + linha de retencao + rampas tateis, alinhadas ao eixo REAL da rua naquele ponto"""
+        L = self.elen(a['k']); half = a['a']
+        s_mid = a['cut'] + 2.5 if a['end'] == 'a' else L - a['cut'] - 2.5
+        x, z, y, _, _ = self.at(a['k'], s_mid)
+        xa, za, _, _, _ = self.at(a['k'], max(s_mid - 3, 0)); xb, zb, _, _, _ = self.at(a['k'], min(s_mid + 3, L))
+        tx, tz = norm(xb - xa, zb - za)
+        d = (tx, tz) if a['end'] == 'a' else (-tx, -tz)          # sentido para fora do cruzamento
+        r = (-d[1], d[0])
+        ins = SEC[min(a['lvl'], 2)]['inner']
+        yy = yc if abs(y + ROADY - yc) < 0.2 else y + ROADY
+        if True:
+            lo = -half + 0.8; hi = half - 0.5                         # faixa continua (o canteiro central foi aberto ate depois dela)
+            for off in np.arange(lo, hi, 1.0):
+                o = off
+                cx, cz = x + r[0] * o, z + r[1] * o
+                p = [(cx - r[0] * 0.25 - d[0] * 1.5, yy + 0.02, cz - r[1] * 0.25 - d[1] * 1.5), (cx + r[0] * 0.25 - d[0] * 1.5, yy + 0.02, cz + r[1] * 0.25 - d[1] * 1.5),
+                     (cx + r[0] * 0.25 + d[0] * 1.5, yy + 0.02, cz + r[1] * 0.25 + d[1] * 1.5), (cx - r[0] * 0.25 + d[0] * 1.5, yy + 0.02, cz - r[1] * 0.25 + d[1] * 1.5)]
+                self.quad(PLAIN, p, COL['white'], 'zebra')
+        # linha de retencao (so na metade que ENTRA no cruzamento: lado esquerdo de quem sai, para a direita de quem chega)
+        s1 = 3.6
+        for sg in ((-1, 1) if ins > 0 else (1,)):
+            lo = (ins + 0.4) if ins > 0 else 0.2; hi = half - 2.4 if ins > 0 else half - 2.4
+            p = [(x + d[0] * s1 + r[0] * lo * sg, yy + 0.02, z + d[1] * s1 + r[1] * lo * sg), (x + d[0] * s1 + r[0] * hi * sg, yy + 0.02, z + d[1] * s1 + r[1] * hi * sg),
+                 (x + d[0] * (s1 + 0.6) + r[0] * hi * sg, yy + 0.02, z + d[1] * (s1 + 0.6) + r[1] * hi * sg), (x + d[0] * (s1 + 0.6) + r[0] * lo * sg, yy + 0.02, z + d[1] * (s1 + 0.6) + r[1] * lo * sg)]
+            if sg == 1 or ins > 0: self.quad(PLAIN, p, COL['white'], 'mark') if False else None
         # rampas tateis nas pontas da faixa (calcada)
         for sg in (-1, 1):
-            cx, cz = nx + d[0] * (s0 + 1.5) + r[0] * (half + 1.0) * sg, nz + d[1] * (s0 + 1.5) + r[1] * (half + 1.0) * sg
+            cx, cz = x + r[0] * (half + 1.0) * sg, z + r[1] * (half + 1.0) * sg
             hw = 0.75
-            pp = [(cx - d[0] * 1.5 - r[0] * hw, yc + CURB_H + 0.02, cz - d[1] * 1.5 - r[1] * hw), (cx + d[0] * 1.5 - r[0] * hw, yc + CURB_H + 0.02, cz + d[1] * 1.5 - r[1] * hw),
-                  (cx + d[0] * 1.5 + r[0] * hw, yc + CURB_H + 0.02, cz + d[1] * 1.5 + r[1] * hw), (cx - d[0] * 1.5 + r[0] * hw, yc + CURB_H + 0.02, cz - d[1] * 1.5 + r[1] * hw)]
-            self.quad(PAVER, pp, COL['tact'], 'mark')
+            pp = [(cx - d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 - r[1] * hw), (cx + d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 - r[1] * hw),
+                  (cx + d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 + r[1] * hw), (cx - d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 + r[1] * hw)]
+            self.quad(PAVER, pp, COL['tact'], 'tact')
 
     # ------------------------------------------------------------ corpo das ruas
     def stations(self, k, s0, s1):
@@ -312,6 +423,8 @@ class Ground:
             # tangente suavizada
             xa, za, _, _, _ = self.at(k, max(s - 3, 0)); xb, zb, _, _, _ = self.at(k, min(s + 3, L))
             tx, tz = norm(xb - xa, zb - za)
+            if s <= 1e-6 and (k, 'a') in self.tan_ov: tx, tz = self.tan_ov[(k, 'a')]
+            if s >= L - 1e-6 and (k, 'b') in self.tan_ov: tx, tz = self.tan_ov[(k, 'b')]
             st.append({'s': s, 'x': x, 'z': z, 'y': y, 'tx': tx, 'tz': tz, 'nx': -tz, 'nz': tx})
         return st
 
@@ -340,6 +453,12 @@ class Ground:
         L = self.elen(k)
         if L - la - lb < 1.5: self.stats['short_edges'] += 1; return
         stl = self.stations(k, la, L - lb)
+        # braco com faixa de pedestre: canteiro central e linhas de faixa so comecam DEPOIS da faixa (5,6 m)
+        xa_ = any(a.get('xw') for a in self.arms.get(e['a'], []) if a['k'] == k and a['end'] == 'a')
+        xb_ = any(a.get('xw') for a in self.arms.get(e['b'], []) if a['k'] == k and a['end'] == 'b')
+        ea = 5.6 if xa_ else 0.0; eb = 5.6 if xb_ else 0.0
+        if L - la - lb - ea - eb < 4.0: ea = eb = 0.0
+        stl_m = self.stations(k, la + ea, L - lb - eb) if (ea or eb) else stl
         mx, mz, _, _, _ = self.at(k, L / 2)
         zone = self.zone(mx, mz) if e['kind'] != 'bridge' else 'ponte'
         a_, h_, ins = sec['asph'], sec['half'], sec['inner']
@@ -351,13 +470,16 @@ class Ground:
         # faixa de estacionamento levemente diferente (tom)
         for sgn in (1, -1):
             o0 = sgn * (a_ - (2.5 if lvl == 0 else 2.0 if lvl == 2 else 2.5)); self.strip(ASPHALT, COL['asph2'], stl, o0, sgn * a_, ROADY + 0.003, None)
-        # --- canteiro central (avenida)
+        # --- canteiro central (avenida): termina antes da faixa de pedestre (passagem de pedestres)
         if ins > 0:
-            self.strip(GRASS, COL['grass'], stl, -ins + 0.2, ins - 0.2, VERGE_Y - 0.0, 'median')
+            if stl_m is not stl:
+                if ea: self.strip(ASPHALT, COL['asph'], self.stations(k, la, la + ea), -ins, ins, ROADY, 'asphalt')
+                if eb: self.strip(ASPHALT, COL['asph'], self.stations(k, L - lb - eb, L - lb), -ins, ins, ROADY, 'asphalt')
+            self.strip(GRASS, COL['grass'], stl_m, -ins + 0.2, ins - 0.2, VERGE_Y - 0.0, 'median')
             for sgn in (1, -1):
-                self.strip(PAVER, COL['curb'], stl, sgn * (ins - 0.2), sgn * ins, SW_Y, 'curb')
-                self.vwall(stl, sgn * ins, ROADY, SW_Y, COL['curb'], -sgn)
-                self.vwall(stl, sgn * (ins - 0.2), ROADY, SW_Y, COL['curb'], sgn)
+                self.strip(PAVER, COL['curb'], stl_m, sgn * (ins - 0.2), sgn * ins, SW_Y, 'curb')
+                self.vwall(stl_m, sgn * ins, ROADY, SW_Y, COL['curb'], -sgn)
+                self.vwall(stl_m, sgn * (ins - 0.2), ROADY, SW_Y, COL['curb'], sgn)
         # --- guias, verge e calcadas dos dois lados
         sw_col, sw_col2 = {'centro': (COL['brick'], COL['conc']), 'res': (COL['conc'], COL['conc2']), 'colina': (COL['conc2'], COL['conc']), 'orla': (COL['sand'], COL['sand2']), 'ponte': (COL['bridge'], COL['conc'])}[zone]
         for sgn in (1, -1):
@@ -380,7 +502,7 @@ class Ground:
             self.fronts.append({'edge': k, 'side': int(sgn), 'zone': zone, 'lvl': lvl, 'pts': [[round(v, 2) for v in (*self.off(s_, sgn * h_), s_['y'] + SW_Y)] for s_ in stl]})
         # --- marcacoes
         if not bridge or True:
-            self.markings(k, stl, lvl, sec, bridge)
+            self.markings(k, stl_m, lvl, sec, bridge)
         # --- covas de arvore (centro e avenidas) a cada 12 m
         if zone in ('centro',) or (lvl == 0 and zone != 'ponte'):
             self.tree_pits(k, stl, sec, zone)
@@ -530,6 +652,7 @@ class Ground:
 
     def build(self):
         self.infos = {ni: self.compute_cuts(ni) for ni in self.arms}
+        self.plan_crosswalks()
         for ni in self.arms: self.junction(ni)
         for k in range(len(self.c.edges)): self.edge_body(k)
         self.red_bridges()

@@ -16,7 +16,7 @@ def raster(g, names, scale=1.0):
 
 def v_ground(g):
     c = g.c; out = []; ok = True
-    M = raster(g, ['asphalt', 'curb', 'sidewalk', 'verge', 'median', 'mark'])
+    M = raster(g, ['asphalt', 'curb', 'sidewalk', 'verge', 'median', 'mark', 'island', 'zebra', 'tact'])
     # 1) sobreposicao entre camadas
     def erode(m): return m & np.roll(m, 1, 0) & np.roll(m, -1, 0) & np.roll(m, 1, 1) & np.roll(m, -1, 1)
     E = {k: erode(v) for k, v in M.items()}
@@ -34,11 +34,21 @@ def v_ground(g):
             x, z, y, _, _ = g.at(k, s); tot += 1
             i, j = int(x), int(z)
             if not (0 <= i < M['asphalt'].shape[1] and 0 <= j < M['asphalt'].shape[0]): continue
-            if not (M['asphalt'][j, i] or M['median'][j, i] or M['asphalt'][min(j + 1, M['asphalt'].shape[0] - 1), i] or M['asphalt'][j, min(i + 1, M['asphalt'].shape[1] - 1)]):
+            if not (M['asphalt'][j, i] or M['median'][j, i] or M['island'][j, i] or M['asphalt'][min(j + 1, M['asphalt'].shape[0] - 1), i] or M['asphalt'][j, min(i + 1, M['asphalt'].shape[1] - 1)]):
                 miss += 1
                 if len(samples) < 12: samples.append((round(x), round(z), e['name'] or 'rua'))
     pct = 100.0 * miss / max(tot, 1); good = pct < 0.8
     out.append(f'  buracos no eixo das ruas: {miss}/{tot} amostras ({pct:.2f}%) {"ok" if good else "ALTO"}' + (f' ex.: {samples[:6]}' if samples else '')); ok &= good
+    # 2b) faixas de pedestre: 100% sobre asfalto (nunca sobre canteiro/ilha/calcada) e sem repeticao
+    zb = M['zebra']; badz = int((zb & ~M['asphalt']).sum()); tz = max(1, int(zb.sum()))
+    good = 100.0 * badz / tz < 1.0
+    out.append(f'  faixas de pedestre fora do asfalto (sobre canteiro/ilha/calcada): {badz} m2 de {tz} ({100.0*badz/tz:.2f}%) {"ok" if good else "ALTO"}'); ok &= good
+    xc = g.xw_centers; close = 0
+    for a in range(len(xc)):
+        for b in range(a + 1, len(xc)):
+            if math.hypot(xc[a][0] - xc[b][0], xc[a][1] - xc[b][1]) < 60.0: close += 1
+    good = close == 0
+    out.append(f'  faixas de pedestre: {len(xc)} no total, {close} pares a menos de 60 m {"ok" if good else "REPETIDAS"}'); ok &= good
     # 3) faixas pintadas fora do asfalto (permitido: rampa tatil sobre calcada)
     mk = M['mark']; bad = int((mk & ~M['asphalt'] & ~M['sidewalk'] & ~M['median']).sum())
     pct = 100.0 * bad / max(1, int(mk.sum())); good = pct < 4.0

@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+tools/gen-cidade5/out/*.bin
+tools/gen-cidade5/out/*.npy
