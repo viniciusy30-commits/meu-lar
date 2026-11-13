@@ -302,11 +302,12 @@ object Hds {
         val js = JSONObject(am.open("hds/city2.json").bufferedReader().use { it.readText() })
         City.step(0.5f)
         val res = js.getJSONArray("res")
-        val rel = Relevo.load(am)   // Etapa 178: relevo.bin + city3.json; sem eles vale a Cidade 2 antiga
+        val rel = Relevo.load(am, City.C3)   // Etapa 178: relevo.bin + city3.json (Etapa 185: ou sub.bin + sub.json da Cidade 3); sem eles vale a Cidade 2 antiga
         val ox = if (rel) 0f else (City.lotX0 + City.lotX1) / 2f - res.getDouble(0).toFloat()
         val oz = if (rel) 0f else (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
         offX = ox; offZ = oz
-        val plots = js.getJSONArray("plots"); val np = plots.length()
+        val plots = js.getJSONArray("plots"); val np0 = plots.length()
+        val np = if (rel && Relevo.sub) minOf(1, np0) else np0   // Etapa 185: na Cidade 3 só existe a Casa 1; o resto do bairro é malha assada
         val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
         val ncx = js.getInt("ncx"); val ncz = js.getInt("ncz")
         val bcell = js.getJSONArray("bcell"); val spA = js.getJSONArray("sp"); val hpA = js.getJSONArray("hp"); val wpA = js.getJSONArray("wp")
@@ -315,8 +316,8 @@ object Hds {
 
         // quarteirões de destino: um por casa (com o contexto de onde ela nasceu) + os vazios (praças com árvores)
         val dst = ArrayList<Dst>()
-        val pdx = FloatArray(np); val pdz = FloatArray(np)
-        val py = FloatArray(np)
+        val pdx = FloatArray(np0); val pdz = FloatArray(np0)
+        val py = FloatArray(np0)
         if (rel) {
             // Etapa 178: cada casa vai para a posição dela no mapa novo e sobe/desce para o platô do terreno
             for (k in 0 until np) {
@@ -436,6 +437,7 @@ object Hds {
         while (i + 3 < so.length()) {
             val v = spA.getInt(i / 4)
             val sx0 = so.getDouble(i).toFloat(); val sz0 = so.getDouble(i + 1).toFloat(); val sx1 = so.getDouble(i + 2).toFloat(); val sz1 = so.getDouble(i + 3).toFloat()
+            if (v >= np && v < 1000 && Relevo.sub) { i += 4; continue }   // Etapa 185: casas que não existem na Cidade 3
             if (v >= 0) {
                 City.addSolid(floatArrayOf(sx0 + ox + pdx[v] - PAD, sz0 + oz + pdz[v] - PAD, sx1 + ox + pdx[v] + PAD, sz1 + oz + pdz[v] + PAD))
             } else if (v != -99) {
@@ -447,6 +449,8 @@ object Hds {
             }
             i += 4
         }
+
+        if (rel && Relevo.sub) for (r in Relevo.subSolids()) City.addSolid(r)   // Etapa 185: casas, cercas, postes e carros do bairro
 
         // Etapa 166: chão e paredes por andar (escadas, andar de cima, porão)
         try {
@@ -467,7 +471,7 @@ object Hds {
                     for (q in 0 until cnt) fl[n++] = bb.getShort()
                 }
                 off[nx * nz] = n
-                wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))
+                if (pk < np) wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))   // Etapa 185: Cidade 3 só tem a Casa 1
             }
             walk = wl
         } catch (e: Throwable) { android.util.Log.w("Hds", "city2walk.bin: $e") }

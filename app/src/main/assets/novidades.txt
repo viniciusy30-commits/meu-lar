@@ -1,10 +1,8 @@
-#id 2026-11-10-a
-#titulo Cidade 2: ruas e casas do Hds
-- Novo mapa: Cidade 2, com ruas, quarteirões, postes, hidrantes e árvores, e 17 casas com interior (paredes, pisos e forros)
-- Para trocar: Configurações > Mapa. Cidade 1 continua igual
-- As paredes têm colisão com os vãos de porta abertos, então dá para entrar nas casas; na vista de cima o teto some quando você está dentro
-- As casas ainda não têm compra: aparecem marcadas nos mapas como Casa 1 a Casa 17
-- Seu lote fica num quarteirão livre no meio da cidade
+#id 2026-11-13-a
+#titulo Cidade 3: bairro americano
+- Novo mapa: um bairro de subúrbio americano com ruas arborizadas, casas com garagem, cercas, caixas de correio, carros e floresta em volta
+- A sua casa é a Casa 1 do bairro
+- Escolha em Configurações > Mapa (Cidade 1, 2 ou 3); as Cidades 1 e 2 continuam como estavam
 
 #id 2026-10-30-a
 #titulo Personagem fofinho de verdade

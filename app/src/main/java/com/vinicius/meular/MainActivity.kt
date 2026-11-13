@@ -259,6 +259,7 @@ class MainActivity : AppCompatActivity() {
         HdsMob.load(assets)   // Etapa 171: móveis do catálogo Hds entram na lista de tipos antes de ler o save
         HdsEstate.init(getSharedPreferences("meular", MODE_PRIVATE))
         City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", true)   // mapa escolhido em Configurações
+        City.C3 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade3", true)   // Etapa 185: bairro novo (Cidade 3)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -1511,10 +1512,13 @@ class MainActivity : AppCompatActivity() {
                 fpsT?.text = if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado"
             }
             var cidT: TextView? = null
-            fun cidTxt() = if (City.HDS) "Mapa: Cidade 2 (casas do Hds)" else "Mapa: Cidade 1"
+            fun cidTxt() = if (!City.HDS) "Mapa: Cidade 1" else if (City.C3) "Mapa: Cidade 3 (bairro americano)" else "Mapa: Cidade 2 (casas do Hds)"
             cidT = linha(panel, Ic.HOME, cidTxt(), Tn.SKY) {
-                City.HDS = !City.HDS
-                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).apply()
+                // Etapa 185: Cidade 1 -> Cidade 2 -> Cidade 3 -> Cidade 1
+                if (!City.HDS) { City.HDS = true; City.C3 = false }
+                else if (!City.C3) { City.C3 = true }
+                else { City.HDS = false; City.C3 = false }
+                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).apply()
                 cidT?.text = cidTxt()
             }
             var sens: TextView? = null

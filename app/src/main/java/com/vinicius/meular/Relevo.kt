@@ -40,6 +40,35 @@ object Relevo {
     private class Pad(val x: Float, val z: Float, val r: Float, val y: Float, val kind: Int)
 
     @Volatile var on = false
+    /** Etapa 185: Cidade 3 (bairro americano): lê sub.bin + sub.json + sub_mesh.bin (casas, cercas, carros... já montados) */
+    @Volatile var sub = false
+    private class SubRec(val mat: Int, val nv: Int, val ymax: Float, val f: FloatArray, val c: ByteArray)
+    private val subCells = HashMap<Int, ArrayList<SubRec>>()
+    private var subSol = FloatArray(0)
+
+    /** colisões do bairro (x0, z0, x1, z1) já em coordenadas do mundo */
+    fun subSolids(): List<FloatArray> {
+        val l = ArrayList<FloatArray>()
+        var i = 0
+        while (i + 3 < subSol.size) { l.add(floatArrayOf(subSol[i] + CX, subSol[i + 1] + CZ, subSol[i + 2] + CX, subSol[i + 3] + CZ)); i += 4 }
+        return l
+    }
+
+    private fun loadSubMesh(am: AssetManager) {
+        subCells.clear()
+        val bb = ByteBuffer.wrap(am.open("hds/sub_mesh.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        bb.getInt()   // "SUB1"
+        val n = bb.getInt()
+        for (r in 0 until n) {
+            val cell = bb.getInt(); val mat = bb.getInt(); val nv = bb.getInt(); val ymax = bb.getFloat()
+            val f = FloatArray(nv * 8); val c = ByteArray(nv * 3)
+            for (v in 0 until nv) {
+                for (k in 0 until 8) f[v * 8 + k] = bb.getFloat()
+                c[v * 3] = bb.get(); c[v * 3 + 1] = bb.get(); c[v * 3 + 2] = bb.get()
+            }
+            subCells.getOrPut(cell) { ArrayList() }.add(SubRec(mat, nv, ymax, f, c))
+        }
+    }
     @Volatile var worldW = 3200f
     @Volatile var worldH = 2400f
     private var nx = 0
@@ -110,18 +139,19 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
+        sub = false; subCells.clear(); subSol = FloatArray(0)
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
-    fun load(am: AssetManager): Boolean {
-        on = false
+    fun load(am: AssetManager, wantSub: Boolean = false): Boolean {
+        on = false; sub = false
         try {
-            val bb = ByteBuffer.wrap(am.open("hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+            val bb = ByteBuffer.wrap(am.open(if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
             nx = bb.getInt(); nz = bb.getInt(); g = bb.getFloat()
             val h = ShortArray(nx * nz)
             for (i in h.indices) h[i] = bb.getShort()
-            val js = JSONObject(am.open("hds/city3.json").bufferedReader().use { it.readText() })
+            val js = JSONObject(am.open(if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
             val wo = js.getJSONArray("world")
             worldW = wo.getDouble(0).toFloat(); worldH = wo.getDouble(1).toFloat()
             roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
@@ -176,6 +206,17 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
+            if (wantSub) {
+                loadSubMesh(am)
+                val sa = js.optJSONArray("solid")
+                val so = ArrayList<Float>()
+                if (sa != null) for (i in 0 until sa.length()) {
+                    val q = sa.get(i)
+                    if (q is org.json.JSONArray) for (k in 0 until q.length()) so.add(q.getDouble(k).toFloat()) else so.add((q as Number).toFloat())
+                }
+                subSol = so.toFloatArray()
+            }
+            sub = wantSub
             hs = h
             on = true
             liftRoads()
@@ -870,6 +911,18 @@ object Relevo {
             bldB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) ymax = max(ymax, emitBuilding(b, k)) }
             lampB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitLamp(b, k); ymax += 9.5f }
             hydB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitHydrant(b, k) }
+            if (sub) subCells[cj * 1000 + ci]?.let { l ->   // Etapa 185: casas, garagens, cercas, carros, caixas de correio, postes...
+                ext = 40f
+                for (rc in l) {
+                    b.m(rc.mat, 1f)
+                    for (q in 0 until rc.nv) {
+                        val o = q * 8
+                        b.v(rc.f[o] + CX, rc.f[o + 1], rc.f[o + 2] + CZ, rc.f[o + 3], rc.f[o + 4], rc.f[o + 5],
+                            android.graphics.Color.rgb(rc.c[q * 3].toInt() and 255, rc.c[q * 3 + 1].toInt() and 255, rc.c[q * 3 + 2].toInt() and 255), rc.f[o + 6], rc.f[o + 7])
+                    }
+                    ymax = max(ymax, rc.ymax)
+                }
+            }
             if (!b.isEmpty()) {
                 val c = City.Chunk(b.toMesh(true).gpuOnly(), null, tx0 - ext, tz0 - ext, tx1 + ext, tz1 + ext, ymax + 1.5f)
                 c.terrain = true   // pedaço de terreno: aparece de mais longe (ver Renderer3D)

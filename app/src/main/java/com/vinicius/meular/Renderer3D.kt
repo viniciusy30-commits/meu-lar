@@ -2063,7 +2063,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()
         // Etapa 124: o contexto GL caiu (app foi para o fundo): a cidade não tem cópia na memória, então é montada de novo
-        else if (City.on && (City.builtGen != GlGen.gen || City.hdsBuilt != City.HDS) && !st.testRoom) { City.clear(); City.buildAsync(st.gw, st.gh) }
+        else if (City.on && (City.builtGen != GlGen.gen || City.hdsBuilt != City.HDS || City.c3Built != City.C3) && !st.testRoom) { City.clear(); City.buildAsync(st.gw, st.gh) }
         updateFP(dt)
 
         val gw = st.gw
