@@ -2,8 +2,23 @@
 import math
 from PIL import Image, ImageDraw
 
-def render(bake, cx, cy, cz, radius, yaw, pitch, path, size=1000, dist=None):
-    tris = []
+def terrain_tris(hf, cx, cz, radius, step=8.0):
+    out = []
+    i0 = max(int((cx - radius) / step), 0); i1 = min(int((cx + radius) / step) + 1, hf.shape[1] - 2); j0 = max(int((cz - radius) / step), 0); j1 = min(int((cz + radius) / step) + 1, hf.shape[0] - 2)
+    for j in range(j0, j1):
+        for i in range(i0, i1):
+            h = [hf[j, i], hf[j, i + 1], hf[j + 1, i + 1], hf[j + 1, i]]; avg = sum(h) / 4
+            P = [(i * step, h[0], j * step), ((i + 1) * step, h[1], j * step), ((i + 1) * step, h[2], (j + 1) * step), (i * step, h[3], (j + 1) * step)]
+            if avg < -0.1: col = (58, 148, 190); P = [(p[0], -0.4, p[2]) for p in P]
+            elif avg < 1.3: col = (226, 208, 160)
+            elif avg > 60: col = (118, 110, 98)
+            else: col = (104, 150, 86)
+            dx = (h[1] - h[0] + h[2] - h[3]) / (2 * step); dz = (h[3] - h[0] + h[2] - h[1]) / (2 * step); l = math.sqrt(dx * dx + 1 + dz * dz); n = (-dx / l, 1 / l, -dz / l)
+            for tri in ((P[0], P[1], P[2]), (P[0], P[2], P[3])): out.append([(p[0], p[1], p[2], n[0], n[1], n[2], 0, 0, col[0], col[1], col[2]) for p in tri])
+    return out
+
+def render(bake, cx, cy, cz, radius, yaw, pitch, path, size=1000, dist=None, hf=None):
+    tris = terrain_tris(hf, cx, cz, radius * 1.5) if hf is not None else []
     for (cell, mat), verts in bake.tris.items():
         for i in range(0, len(verts), 3):
             v = verts[i:i + 3]
@@ -30,6 +45,5 @@ def render(bake, cx, cy, cz, radius, yaw, pitch, path, size=1000, dist=None):
         items.append((dep, [(a[0], a[1]) for a in q], col))
     items.sort(key=lambda t: -t[0])
     im = Image.new('RGB', (size, size), (150, 190, 225)); d = ImageDraw.Draw(im)
-    d.rectangle([0, size * 0.62, size, size], fill=(106, 140, 90))
     for dep, pts, col in items: d.polygon(pts, fill=col)
     im.save(path)

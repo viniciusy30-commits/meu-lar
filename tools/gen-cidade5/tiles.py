@@ -24,7 +24,7 @@ def terrain_bg(hf, cx, cz, half, ppm):
     col[:] = (110, 148, 92); hi = np.clip(H / 90.0, 0, 1)[..., None]
     col = col * (1 - hi) + np.array([96, 120, 78]) * hi
     col = np.where((H > 120)[..., None], np.array([130, 122, 110]), col)
-    col = np.where(((H < 2.2) & (H > 0.0))[..., None], np.array([226, 208, 160]), col)
+    col = np.where(((H < 1.3) & (H > 0.0))[..., None], np.array([226, 208, 160]), col)
     deep = np.clip(-H / 12.0, 0, 1)[..., None]
     col = np.where((H <= 0)[..., None], np.array([90, 190, 205]) * (1 - deep) + np.array([30, 90, 150]) * deep, col)
     col = col * np.where(H <= 0, 1.0, sh)[..., None]
@@ -54,6 +54,25 @@ def tile(B, cx, cz, half, ppm, path, label, hf=None, extras=None):
         for h in extras.get('heads', []):
             if abs(h['x'] - cx) > half or abs(h['z'] - cz) > half or h['lane'] != -1: continue
             px, pz = P(h['x'], h['z']); d.rectangle([px - 5, pz - 5, px + 5, pz + 5], fill=(20, 20, 22), outline=(255, 255, 255)); d.ellipse([px - 3, pz - 3, px + 3, pz + 3], fill=(255, 59, 48))
+    if extras and extras.get('orla'):
+        def P2(x, z): return ((x - cx + half) * ppm, (z - cz + half) * ppm)
+        O = extras['orla']
+        for pm in O.get('umbrellas', []):
+            if abs(pm['x'] - cx) < half and abs(pm['z'] - cz) < half:
+                px, pz = P2(pm['x'], pm['z']); d.ellipse([px - 3, pz - 3, px + 3, pz + 3], fill=(229, 57, 53), outline=(255, 255, 255))
+        for k_, col_, r_ in (('palms', (30, 120, 40), 4), ('lamps', (255, 235, 130), 2), ('benches', (122, 90, 58), 3), ('showers', (150, 200, 255), 3)):
+            for pm in O.get(k_, []):
+                if abs(pm['x'] - cx) < half and abs(pm['z'] - cz) < half:
+                    px, pz = P2(pm['x'], pm['z']); d.ellipse([px - r_, pz - r_, px + r_, pz + r_], fill=col_, outline=(0, 0, 0))
+        for pm in O.get('kiosks', []):
+            if abs(pm['x'] - cx) < half and abs(pm['z'] - cz) < half:
+                px, pz = P2(pm['x'], pm['z']); d.rectangle([px - 8, pz - 8, px + 8, pz + 8], fill=(181, 138, 74), outline=(60, 40, 20), width=2)
+        for pm in O.get('towers', []):
+            if abs(pm['x'] - cx) < half and abs(pm['z'] - cz) < half:
+                px, pz = P2(pm['x'], pm['z']); d.rectangle([px - 6, pz - 6, px + 6, pz + 6], fill=(214, 64, 42), outline=(255, 255, 255), width=2)
+        for pm in O.get('courts', []):
+            if abs(pm['x'] - cx) < half and abs(pm['z'] - cz) < half:
+                px, pz = P2(pm['x'], pm['z']); d.line([(px - pm['tx'] * 22, pz - pm['tz'] * 22), (px + pm['tx'] * 22, pz + pm['tz'] * 22)], fill=(255, 255, 255), width=3)
     d.rectangle([0, 0, S - 1, 22], fill=(20, 20, 24)); d.text((8, 5), label, fill=(255, 255, 255))
     # escala 50 m
     d.line([(S - 20 - 50 * ppm, S - 16), (S - 20, S - 16)], fill=(255, 255, 255), width=3); d.text((S - 20 - 50 * ppm, S - 32), '50 m', fill=(255, 255, 255))

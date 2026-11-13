@@ -26,9 +26,14 @@ T.write_bin(hf, os.path.join(out, 'relevo5.bin'))
 import ground, validate_ground, render3d, prev_ground, math
 t0 = time.time()
 gr = ground.Ground(c, geo, hf, ynode); gr.build()
-import traffic, furniture, validate_traffic
+import traffic, furniture, validate_traffic, orla, validate_orla
 tr = traffic.Traffic(gr); tr.build_moves(); tr.plan_control(); tr.plan_bumps()
 fu = furniture.Furn(gr, tr).build()
+o = orla.Orla(gr, geo, hf).build()
+ok_o, msg_o = validate_orla.run(gr, o, geo, hf)
+print(('PASSOU ' if ok_o else 'FALHOU ') + 'ETAPA C3: orla das praias (calcadao, escadas, pieres)')
+for m in msg_o: print(m)
+allok &= ok_o
 ok_c, msg_c = validate_ground.v_ground(gr)
 print(('PASSOU ' if ok_c else 'FALHOU ') + f'ETAPA C: chao e protecoes ({time.time()-t0:.1f}s)')
 for m in msg_c: print(m)
@@ -50,11 +55,13 @@ json.dump({'lanes': lanes, 'moves': [{'node': m['node'], 'kind': m['kind'], 'fro
            'control': [{'node': k[0], 'edge': k[1], 'end': k[2], 'type': v} for k, v in tr.control.items()],
            'signals': {str(k): v for k, v in tr.signals.items()}},
           open(os.path.join(out, 'traffic.json'), 'w'), separators=(',', ':'))
-json.dump({'signs': fu.signs, 'signal_heads': fu.heads, 'speed_bumps': [{'x': round(b['x'], 2), 'z': round(b['z'], 2), 'y': round(b['y'], 2), 'tx': round(b['tx'], 3), 'tz': round(b['tz'], 3), 'edge': b['k'], 'why': b['why']} for b in tr.bumps]},
+fu.atlas.save(os.path.join(out, 'signs_atlas.png'))
+json.dump({'atlas': {k: [round(v, 5) for v in uv] for k, uv in fu.atlas.uv.items()}, 'streets': {str(k): v for k, v in fu.street_of.items()}, 'ped_signal_heads': fu.ped_heads, 'signs': fu.signs, 'signal_heads': fu.heads, 'speed_bumps': [{'x': round(b['x'], 2), 'z': round(b['z'], 2), 'y': round(b['y'], 2), 'tx': round(b['tx'], 3), 'tz': round(b['tz'], 3), 'edge': b['k'], 'why': b['why']} for b in tr.bumps]},
           open(os.path.join(out, 'signage.json'), 'w'), separators=(',', ':'))
+json.dump(o.items, open(os.path.join(out, 'orla.json'), 'w'), separators=(',', ':'))
 # fotos de TODAS as ruas (ladrilhos de 400 m) + mapa-indice
 import tiles
-made = tiles.make_all(gr, c, os.path.join(out, 'fotos'), hf=hf, extras={'signs': fu.signs, 'heads': fu.heads, 'bumps': [b['poly'] for b in tr.bumps]})
+made = tiles.make_all(gr, c, os.path.join(out, 'fotos'), hf=hf, extras={'signs': fu.signs, 'heads': fu.heads, 'bumps': [b['poly'] for b in tr.bumps], 'orla': o.items})
 print(f'  {len(made)} fotos geradas em out/fotos')
 # vistas de conferencia
 jn = min((n for n, a in gr.arms.items() if len(a) >= 4), key=lambda n: math.hypot(c.nodes[n][0] - LAGOON[0], c.nodes[n][1] - LAGOON[1]))

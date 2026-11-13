@@ -44,6 +44,31 @@ def carve(h, d, half, depth, bank, reach=330.0):
     w = smooth(half + reach * 0.45, half + reach, d)          # longe do canal o relevo original volta
     return np.minimum(h, hc) * (1 - w) + h * w
 
+def chamfer(src):
+    """distancia (m) de cada celula ate a celula 'src' mais proxima (chanfro 8-vizinhos)"""
+    D = np.where(src, 0.0, 1e9); r2 = CELL * 1.41421356
+    for j in range(NZ):
+        for i in range(NX):
+            v = D[j, i]
+            if v == 0: continue
+            if i > 0: v = min(v, D[j, i - 1] + CELL)
+            if j > 0:
+                v = min(v, D[j - 1, i] + CELL)
+                if i > 0: v = min(v, D[j - 1, i - 1] + r2)
+                if i < NX - 1: v = min(v, D[j - 1, i + 1] + r2)
+            D[j, i] = v
+    for j in range(NZ - 1, -1, -1):
+        for i in range(NX - 1, -1, -1):
+            v = D[j, i]
+            if v == 0: continue
+            if i < NX - 1: v = min(v, D[j, i + 1] + CELL)
+            if j < NZ - 1:
+                v = min(v, D[j + 1, i] + CELL)
+                if i < NX - 1: v = min(v, D[j + 1, i + 1] + r2)
+                if i > 0: v = min(v, D[j + 1, i - 1] + r2)
+            D[j, i] = v
+    return D
+
 def build():
     xs = np.arange(NX) * CELL; zs = np.arange(NZ) * CELL
     X, Z = np.meshgrid(xs, zs)
@@ -80,6 +105,23 @@ def build():
         e2 = np.hypot((X - cx0) / crx, (Z - cz0) / crz) * (1 + 0.12 * (fbm(X, Z, 200, 2, 2) - 0.5))
         h = np.minimum(h, np.where(e2 < 1.5, 5.0 * (e2 - 1.0) * (crx / 150.0), 1e9))
     water = h < 0.0
+    # ---- ORLA: perfil de praia (areia -> muro -> calcadao -> faixa de palmeiras) nas costas planas do MAR
+    h_pre = h.copy()
+    dch = [poly_dist(X, Z, ch['pts'])[0] for ch in (CHANNEL_W, CHANNEL_E)]
+    drv = poly_dist(X, Z, RIVER['pts'])[0]
+    sea = water & (Z > 2000) & (dch[0] > CHANNEL_W['w'] / 2 + 70) & (dch[1] > CHANNEL_E['w'] / 2 + 70) & (drv > RIVER['w1'] / 2 + 80)
+    Dsea = chamfer(sea) - CELL / 2
+    Dsea = np.where(sea, 0.0, np.maximum(Dsea, 0.0))
+    ok = (~water) & (Dsea < 100) & (X > 820) & (X < 3640) & (h_pre < 9.0) & (Z > 1800)
+    wz = ok.astype(float)
+    for _ in range(3):
+        wz = (wz + np.roll(wz, 1, 0) + np.roll(wz, -1, 0) + np.roll(wz, 1, 1) + np.roll(wz, -1, 1)) / 5.0
+    wz = np.clip((wz - 0.35) / 0.4, 0, 1) * (~water)
+    hp = np.interp(Dsea, [0, 22, 25, 40, 46], [0.15, 1.0, 2.4, 2.4, 2.4])
+    b = smooth(46.0, 74.0, Dsea)
+    hnew = hp * (1 - b) + h_pre * b
+    h = np.where((~water) & (Dsea < 74), h_pre * (1 - wz) + hnew * wz, h)
+    beach_zone = (wz > 0.5) & (Dsea < 90)
     # inclinacao
     gz, gx = np.gradient(h, CELL)
     slope = np.hypot(gx, gz)
@@ -90,6 +132,7 @@ def build():
     for _ in range(1):
         wd = wd | np.roll(wd, 1, 0) | np.roll(wd, -1, 0) | np.roll(wd, 1, 1) | np.roll(wd, -1, 1)
     cand &= ~wd
+    cand &= ~(beach_zone & (Dsea < 62))          # entre a Av. Beira-Mar e o mar so ha orla (nenhuma rua)
     lab = np.zeros(cand.shape, np.int32); n = 0; sizes = {}
     for j0 in range(NZ):
         for i0 in range(NX):
@@ -108,7 +151,7 @@ def build():
         m = urban.astype(np.int16)
         n = sum(np.roll(np.roll(m, dj, 0), di, 1) for dj in (-1, 0, 1) for di in (-1, 0, 1))
         urban = n >= 5
-    return {'X': X, 'Z': Z, 'h': h, 'water': water, 'slope': slope, 'urban': urban, 'rho': rho}
+    return {'X': X, 'Z': Z, 'h': h, 'water': water, 'slope': slope, 'urban': urban, 'rho': rho, 'Dsea': Dsea, 'beach_zone': beach_zone, 'sea': sea}
 
 class Geo:
     def __init__(self):

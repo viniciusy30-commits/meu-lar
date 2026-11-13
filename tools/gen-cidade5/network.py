@@ -262,17 +262,11 @@ def clean(nodes, edges, min_dead=80.0):
 def generate(geo, seed=RNG):
     rng = random.Random(seed)
     fld = Field(geo); occs = {False: Occ(), True: Occ()}; lines = []
-    # Av. Beira-Mar: segue a costa a 60 m da agua, so onde ha cidade
-    run = []; runs = []
-    for x in range(700, 3800, 8):
-        z = coast(x) - 62.0
-        if geo.is_urban(x, z) and not geo.is_water(x, z + 30): run.append((float(x), z))
-        else:
-            if len(run) > 25: runs.append(run)
-            run = []
-    if len(run) > 25: runs.append(run)
+    # Av. Beira-Mar: contorno a 58 m do mar (areia 0-22 m, muro/escadas, calcadao 25-40 m, faixa de palmeiras, avenida)
+    import shore
+    runs = shore.beach_lines(geo, 58.0)
     for r in runs:
-        lines.append({'pts': r, 'lvl': 0, 'id': 1}); 
+        lines.append({'pts': r, 'lvl': 0, 'id': 1})
         for (px, pz) in r: occs[False].add(px, pz, 1, 0); occs[True].add(px, pz, 1, 0)
     stats = []
     for lvl, (nm, c, w, dsep, ms) in enumerate(LEVELS):

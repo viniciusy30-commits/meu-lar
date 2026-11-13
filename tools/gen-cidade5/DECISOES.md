@@ -50,3 +50,10 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - `furniture.py`: semaforo (poste + braco de mastro + cabecas), placas (PARE, preferencial, velocidade, pedestre, lombada, rotatoria, fim da via), linhas de retencao, setas, dentes de tubarao, lombadas listradas.
 - Validadores novos em `validate_traffic.py`. Detalhes visuais em `out/transito/`.
 - Nao feito: faixas de pedestre com semaforo de pedestres, setas de conversao, ciclo luminoso animado (o jogo anima pelas fases de `traffic.json`), textos nas placas (atlas na Etapa I).
+
+## Etapa C3 — Orla das praias, sinalização completa
+- Praia nunca recebe rua direto: rua -> Av. Beira-Mar (protegida) -> calçadão (YP 2.4, faixas em onda + ciclovia vermelha) -> mureta com vãos -> escadas (≤140 m entre elas) -> areia. 2 píeres (~188 m) com estacas, guarda-corpos, postes e mirante. Palmeiras, bancos, quiosques, torres de salva-vidas, chuveiros, redes de vôlei, guarda-sóis.
+- Ruído de detalhe do terreno zerado na zona de praia (calçadão não some sob o relevo).
+- Atlas de placas (signs_atlas.png, Mt.SIGN): PARE, PREFERENCIAL, velocidades, pedestre, lombada, rotatória, fim de via, placas de nome de rua. Setas de conversão no asfalto, semáforos de pedestre, quebra-molas.
+- Cantos de calçada arredondados (ilhas) em ângulos agudos.
+- Pendente: textos das placas só aparecem no app na Etapa I (integração do atlas).

@@ -108,6 +108,74 @@ class City:
                     if r and 0.02 < r[0] < 0.98 and 0.02 < r[1] < 0.98: return True
         return False
 
+    def add_beach_avenue(self):
+        """Av. Beira-Mar: contorno a 58 m do mar; ligada a rede por ruas coletoras a cada ~230 m"""
+        import shore
+        self.beach_nodes = []
+        lines = shore.beach_lines(self.geo, 58.0, 120.0)
+        made = 0
+        for ln in lines:
+            ln = [tuple(p) for p in ln]
+            na = self.add_node(*ln[0]); nb = self.add_node(*ln[-1])
+            self.edges.append({'a': na, 'b': nb, 'p': ln, 'lvl': 0, 'kind': 'n', 'name': 'Av. Beira-Mar', 'protect': True}); made += 1
+        self.beach_made = made
+        # conectores: amostra pontos da avenida e liga ao ponto mais proximo da rede
+        for k0 in [k for k, e in enumerate(self.edges) if e.get('name') == 'Av. Beira-Mar']:
+            pass
+        links = 0
+        for _round in range(1):
+            ks = [k for k, e in enumerate(self.edges) if e.get('name') == 'Av. Beira-Mar' and e.get('protect')]
+            for k in ks:
+                e = self.edges[k]; L = elen(e['p']); s = 70.0
+                targets = []
+                while s < L - 60: targets.append(s); s += 230.0
+                for s in targets:
+                    # ponto da avenida em s (a aresta pode ter sido dividida: procura pela aresta atual mais proxima)
+                    pt = None; acc = 0.0
+                    for p, q in zip(e['p'], e['p'][1:]):
+                        sl = math.hypot(q[0] - p[0], q[1] - p[1])
+                        if acc + sl >= s: f = (s - acc) / (sl or 1); pt = (p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f); break
+                        acc += sl
+                    if pt is None: continue
+                    # procura a rede mais proxima que NAO seja avenida da praia
+                    best = None
+                    for kk, ee in enumerate(self.edges):
+                        if ee.get('protect') or ee['kind'] == 'redbridge': continue
+                        for i, (p, q) in enumerate(zip(ee['p'], ee['p'][1:])):
+                            dx, dz = q[0] - p[0], q[1] - p[1]; L2 = dx * dx + dz * dz
+                            if L2 < 1e-9: continue
+                            t = max(0.0, min(1.0, ((pt[0] - p[0]) * dx + (pt[1] - p[1]) * dz) / L2)); px, pz = p[0] + dx * t, p[1] + dz * t
+                            d = math.hypot(px - pt[0], pz - pt[1])
+                            if 25 < d < 330 and (best is None or d < best[0]): best = (d, kk, i, (px, pz))
+                    if not best: continue
+                    d, kk, i, Q = best
+                    path = [pt, Q]
+                    if self.crosses(path, ()) or any(self.geo.is_water(*q_) for q_ in path): continue
+                    if abs(self.geo.height(*Q) - self.geo.height(*pt)) / d > 0.09: continue
+                    # divide a avenida em pt e a rede em Q
+                    na_ = self._split_any(pt); nq = self._split_edge_near(kk, i, Q)
+                    if na_ is None or nq is None: continue
+                    self.edges.append({'a': na_, 'b': nq, 'p': [pt, Q], 'lvl': 1, 'kind': 'n', 'name': 'Acesso a orla', 'protect': True}); links += 1
+                    break
+        self.beach_links = links
+
+    def _split_any(self, pt):
+        # divide a aresta protegida da avenida que passa por pt
+        for k, e in enumerate(self.edges):
+            if not e.get('protect') or e.get('name') != 'Av. Beira-Mar': continue
+            for i, (p, q) in enumerate(zip(e['p'], e['p'][1:])):
+                dx, dz = q[0] - p[0], q[1] - p[1]; L2 = dx * dx + dz * dz
+                if L2 < 1e-9: continue
+                t = ((pt[0] - p[0]) * dx + (pt[1] - p[1]) * dz) / L2
+                if 0 <= t <= 1 and math.hypot(p[0] + dx * t - pt[0], p[1] + dz * t - pt[1]) < 0.6:
+                    e2 = self.split_edge(k, i, pt); return e2
+        return None
+
+    def _split_edge_near(self, k, seg, Q):
+        e = self.edges[k]
+        if seg >= len(e['p']) - 1: return None
+        return self.split_edge(k, seg, Q)
+
     def components(self):
         adj = defaultdict(list)
         for e in self.edges: adj[e['a']].append(e['b']); adj[e['b']].append(e['a'])
@@ -223,7 +291,8 @@ class City:
                 # 3) bolsao de retorno so em rua local de 60..320 m
                 if e['lvl'] == 2 and 60 <= L <= 320:
                     self.legit_xy[(round(x, 2), round(z, 2))] = 'bolsao'; continue
-                # 4) sem sentido: apaga o trecho
+                # 4) sem sentido: apaga o trecho (a Av. Beira-Mar e as ligacoes da orla nunca sao apagadas: terminam em cais/praia)
+                if e.get('protect'): self.legit_xy[(round(x, 2), round(z, 2))] = 'cais'; continue
                 self.edges.pop(k); changed = True; break
             if not changed: break
         self.drop_unused()
@@ -290,7 +359,7 @@ class City:
                         ka, kb = a[1], b[1]
                         cand = sorted((ka, kb), key=lambda k: (-self.edges[k]['lvl'], elen(self.edges[k]['p'])))
                         for k in cand:
-                            if self.edges[k]['kind'] == 'n' and self.connected_without(k): victim = k; break
+                            if self.edges[k]['kind'] == 'n' and not self.edges[k].get('protect') and self.connected_without(k): victim = k; break
                     if victim is not None: break
                 if victim is not None: break
             if victim is None: break
@@ -353,7 +422,7 @@ class City:
                 p1 = e1['p'] if e1['b'] == ni else e1['p'][::-1]; o1 = e1['a'] if e1['b'] == ni else e1['b']
                 p2 = e2['p'] if e2['a'] == ni else e2['p'][::-1]; o2 = e2['b'] if e2['a'] == ni else e2['a']
                 if o1 == o2: continue
-                new = {'a': o1, 'b': o2, 'p': list(p1) + list(p2[1:]), 'lvl': max(e1['lvl'], e2['lvl']), 'kind': 'n', 'name': e1['name'] or e2['name']}
+                new = {'a': o1, 'b': o2, 'p': list(p1) + list(p2[1:]), 'lvl': min(e1['lvl'], e2['lvl']) if (e1.get('protect') or e2.get('protect')) else max(e1['lvl'], e2['lvl']), 'kind': 'n', 'name': e1['name'] or e2['name'], 'protect': bool(e1.get('protect') or e2.get('protect'))}
                 for kk in sorted(ks, reverse=True): self.edges.pop(kk)
                 self.edges.append(new); did = True; merged += 1; break
             if not did: break
@@ -422,10 +491,35 @@ class City:
                     ar = abs((B_[0] - A[0]) * (C_[1] - A[1]) - (B_[1] - A[1]) * (C_[0] - A[0]))
                     if ar > 1e-6 and ab * bc * ca / (2 * ar) < need: bad = B_; break
                 if bad is None: break
-                keep = [e['p'][0]] + [q for q in e['p'][1:-1] if math.hypot(q[0] - bad[0], q[1] - bad[1]) > 26.0] + [e['p'][-1]]
-                e['p'] = keep; self.fillet_edge(e)
+                if not self.local_bezier(e, bad, need):
+                    keep = [e['p'][0]] + [q for q in e['p'][1:-1] if math.hypot(q[0] - bad[0], q[1] - bad[1]) > 26.0] + [e['p'][-1]]
+                    e['p'] = keep; self.fillet_edge(e)
             fixed += 1
         self.curves_relaxed = fixed
+
+    def local_bezier(self, e, bad, need):
+        """troca o trecho de +-span m em volta da curva apertada por uma curva de Bezier tangente (raio maior)"""
+        import traffic as TR
+        p = e['p']; cum = [0.0]
+        for a_, b_ in zip(p, p[1:]): cum.append(cum[-1] + math.hypot(b_[0] - a_[0], b_[1] - a_[1]))
+        L = cum[-1]
+        sb = min(range(len(p)), key=lambda i: math.hypot(p[i][0] - bad[0], p[i][1] - bad[1])); s_bad = cum[sb]
+        def at(s):
+            s = min(max(s, 0.0), L)
+            for i in range(len(p) - 1):
+                if cum[i + 1] >= s:
+                    f = (s - cum[i]) / ((cum[i + 1] - cum[i]) or 1); return (p[i][0] + (p[i + 1][0] - p[i][0]) * f, p[i][1] + (p[i + 1][1] - p[i][1]) * f), (p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])
+            return p[-1], (1, 0)
+        for span in (30.0, 45.0, 65.0, 90.0):
+            s0, s1 = max(s_bad - span, 6.0), min(s_bad + span, L - 6.0)
+            if s1 - s0 < 25: continue
+            P0, d0 = at(s0); P1, d1 = at(s1); l0 = math.hypot(*d0) or 1; l1 = math.hypot(*d1) or 1
+            ch = math.hypot(P1[0] - P0[0], P1[1] - P0[1]); k = 0.42 * ch
+            new = TR.bez(P0, (P0[0] + d0[0] / l0 * k, P0[1] + d0[1] / l0 * k), (P1[0] - d1[0] / l1 * k, P1[1] - d1[1] / l1 * k), P1, 22)
+            q = [pt for pt, c_ in zip(p, cum) if c_ < s0] + [tuple(n_) for n_ in new] + [pt for pt, c_ in zip(p, cum) if c_ > s1]
+            if TR.min_radius(q) >= need * 0.98 and not self.crosses_except(q, self.edges.index(e)):
+                e['p'] = q; return True
+        return False
 
     def drop_tight_edges(self):
         import traffic as TR
@@ -436,6 +530,7 @@ class City:
                 if e['kind'] != 'n': continue
                 need = TR.lane_offsets(min(e['lvl'], 2))[-1] + 7.0
                 if TR.min_radius(e['p']) < need:
+                    if e.get('protect'): continue
                     if self.connected_without(k): hit = k; break
                     # essencial: refaz a rua como uma curva de Bezier suave entre as duas pontas, mantendo as direcoes de chegada
                     p = e['p']; A, B_ = p[0], p[-1]
@@ -503,7 +598,7 @@ class City:
             pick = sorted((ka, kb), key=lambda kk: (-self.edges[kk]['lvl'], elen(self.edges[kk]['p'])))
             done = False
             for kk in pick:
-                if self.edges[kk]['kind'] == 'n' and self.connected_without(kk): self.edges.pop(kk); done = True; break
+                if self.edges[kk]['kind'] == 'n' and not self.edges[kk].get('protect') and self.connected_without(kk): self.edges.pop(kk); done = True; break
             if not done: break
             removed += 1
         self.drop_unused(); self.close_removed = removed
@@ -537,7 +632,7 @@ class City:
                         L = math.hypot(q[0] - p[0], q[1] - p[1])
                         for t in range(1, int(L // 10) + 1):
                             dmin = min(dmin, math.hypot(p[0] + (q[0] - p[0]) * t * 10 / L - cx, p[1] + (q[1] - p[1]) * t * 10 / L - cz))
-                    if dmin < 42: cands.append((-e['lvl'], elen(e['p']), k))
+                    if dmin < 42 and not e.get('protect'): cands.append((-e['lvl'], elen(e['p']), k))
                 for _, L, k in sorted(cands, key=lambda t: (t[0], t[1])):
                     if self.connected_without(k): self.edges.pop(k); done = True; break
                 if done: break
@@ -674,5 +769,5 @@ class City:
 
 def build(geo):
     c = City(geo)
-    c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.fix_close_parallel(); c.fix_dead_ends(); c.connect_components(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.connect_components(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.make_rounds(); c.flags(); c.repair_overlaps(); c.fix_acute(); c.resolve_bulbs(); c.merge_degree2(); c.clean_polylines(); c.relax_tight_curves(); c.drop_tight_edges(); c.make_rounds(); c.flags()
+    c.add_beach_avenue(); c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.fix_close_parallel(); c.fix_dead_ends(); c.connect_components(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.connect_components(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.make_rounds(); c.flags(); c.repair_overlaps(); c.fix_acute(); c.resolve_bulbs(); c.merge_degree2(); c.clean_polylines(); c.relax_tight_curves(); c.drop_tight_edges(); c.make_rounds(); c.flags()
     return c

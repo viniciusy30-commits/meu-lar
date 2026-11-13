@@ -46,7 +46,7 @@ def v_ground(g):
     xc = g.xw_centers; close = 0
     for a in range(len(xc)):
         for b in range(a + 1, len(xc)):
-            if math.hypot(xc[a][0] - xc[b][0], xc[a][1] - xc[b][1]) < 60.0: close += 1
+            if math.hypot(xc[a][0] - xc[b][0], xc[a][1] - xc[b][1]) < (38.0 if (xc[a] in getattr(g, 'xw_beach', []) or xc[b] in getattr(g, 'xw_beach', [])) else 60.0): close += 1
     good = close == 0
     out.append(f'  faixas de pedestre: {len(xc)} no total, {close} pares a menos de 60 m {"ok" if good else "REPETIDAS"}'); ok &= good
     # 3) faixas pintadas fora do asfalto (permitido: rampa tatil sobre calcada)

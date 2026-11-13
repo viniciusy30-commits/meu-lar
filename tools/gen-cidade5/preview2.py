@@ -15,7 +15,7 @@ def terrain_img(G, scale=0.3, cell=CELL):
     col = lerp((104, 150, 84), (86, 112, 70), np.clip(h / 80, 0, 1))
     col = np.where((h > 80)[..., None], lerp((86, 112, 70), (128, 120, 108), np.clip((h - 80) / 160, 0, 1)), col)
     col = np.where((h > 210)[..., None], lerp((128, 120, 108), (235, 238, 240), np.clip((h - 210) / 60, 0, 1)), col)
-    sand = (h < 2.2) & (h > 0.0)
+    sand = (h < 1.3) & (h > 0.0)
     col = np.where(sand[..., None], np.array([226, 208, 160])[None, None, :], col)
     deep = np.clip(-h / 22.0, 0, 1)
     wcol = lerp((90, 190, 205), (18, 70, 130), deep)

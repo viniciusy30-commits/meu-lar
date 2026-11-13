@@ -21,6 +21,8 @@ def upsample(geo):
     # detalhe fino so em terra e fora do centro plano (a terraplenagem das ruas sobrescreve onde houver rua)
     land = h > 1.0
     det = (G.fbm(X, Z, 70.0, 3, 5) - 0.5) * 1.6 * np.clip(h / 30.0, 0.15, 1.0)
+    bz = geo.beach_zone[np.ix_(np.clip(np.round(zs).astype(int), 0, NZ - 1), np.clip(np.round(xs).astype(int), 0, NX - 1))]
+    det = np.where(bz, 0.0, det)
     return np.where(land, h + det, h), X, Z
 
 def elen(p): return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(p, p[1:]))

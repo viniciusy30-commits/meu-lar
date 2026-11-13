@@ -284,14 +284,16 @@ class Ground:
                 e = self.c.edges[a['k']]; oth = e['b'] if a['end'] == 'a' else e['a']
                 oc = max([x['cut'] for x in self.arms.get(oth, []) if x['k'] == a['k']] or [0])
                 L = self.elen(a['k'])
-                if L < a['cut'] + oc + 45.0: continue
+                if L < a['cut'] + oc + (30.0 if self.c.edges[a['k']].get('protect') else 45.0): continue
                 s = a['cut'] + 2.5 if a['end'] == 'a' else L - a['cut'] - 2.5
                 x, z, _, _, _ = self.at(a['k'], s)
-                cand.append((a['lvl'], -len(arms), x, z, a))
+                cand.append((a['lvl'] - (1 if self.c.edges[a['k']].get('protect') and a['lvl'] == 0 else 0), -len(arms), x, z, a))
         cand.sort(key=lambda t: (t[0], t[1]))                      # avenidas primeiro
         for lvl, _, x, z, a in cand:
-            if any(math.hypot(x - cx, z - cz) < 60.0 for cx, cz in self.xw_centers): continue
+            sp = 38.0 if (self.c.edges[a['k']].get('protect') and a['lvl'] == 0) else 60.0
+            if any(math.hypot(x - cx, z - cz) < sp for cx, cz in self.xw_centers): continue
             a['xw'] = True; self.xw_centers.append((x, z))
+            if self.c.edges[a['k']].get('protect'): self.xw_beach = getattr(self, 'xw_beach', []) + [(x, z)]
 
     def cais_cap(self, ni, a):
         """fim de rua na beira d'agua/cais: meio-fio atravessado, pracinha de calcada e balizas (nada de pista 'cortada')"""

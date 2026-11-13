@@ -726,3 +726,7 @@ Ao final de cada etapa entregue: (a) arquivos novos/alterados, (b) comandos para
 ## 14.6 Primeira resposta esperada (antes de escrever código)
 *(Execução direta neste repositório: o usuário autorizou começar sem esperar confirmação. Registre os fatos/dúvidas em `DECISOES.md` e siga para a ETAPA A.)*
 Responda apenas com: (1) **fatos do repositório** que você confirmou (formatos, constantes, orientação da frente das 17 casas, limites do mundo 1000×800 e como vai estendê-los), (2) **lista de dúvidas/conflitos** entre esta especificação e o código (com a decisão sugerida para cada), (3) **plano de arquivos** e a confirmação "começo pela ETAPA A?". Só depois de o usuário responder, comece a ETAPA A.
+
+## PARTE 11C — ORLA DA PRAIA E SINALIZAÇÃO (adicionado na execução)
+- Nenhuma rua chega à areia: rua -> avenida beira-mar -> calçadão largo (com ciclovia) -> mureta/escadas -> areia. Píeres, quiosques, torres de salva-vidas, chuveiros, palmeiras, bancos e postes ao longo da orla.
+- Placas com texto real via atlas (Mt.SIGN), placas de nome de rua nos cruzamentos, setas de conversão pintadas, semáforos de pedestre, quebra-molas e lombadas sinalizadas.
