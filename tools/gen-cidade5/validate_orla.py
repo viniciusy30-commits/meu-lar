@@ -59,10 +59,10 @@ def run(g, o, geo, hf):
     for it in o.items['palms'] + o.items['lamps']:
         if it.get('pier'): continue
         for (px, pz) in keep:
-            if math.hypot(it['x'] - px, it['z'] - pz) < 4.0: clash += 1; break
+            if math.hypot(it['x'] - px, it['z'] - pz) < 4.0: clash += 1; print('   CLASH', it, px, pz); break
     for it in o.items['palms']:
         for q in o.items['paths']:
-            if math.hypot(it['x'] - q['x'] - q['sx'] * 17, it['z'] - q['z'] - q['sz'] * 17) < 3.0: clash += 1; break
+            if math.hypot(it['x'] - q['x'] - q['sx'] * 17, it['z'] - q['z'] - q['sz'] * 17) < 3.0: clash += 1; print('   CLASH path', it, q); break
     good = clash == 0; ok &= good
     out.append(f'  palmeiras/postes bloqueando escada ou acesso: {clash} {"ok" if good else "PROBLEMA"}')
     out.append(f'  orla: {o.stats["prom_m"]:.0f} m de calcadao, {o.stats["wall_m"]:.0f} m de muro, {len(o.items["palms"])} palmeiras, {len(o.items["lamps"])} postes, {len(o.items["benches"])} bancos, {len(o.items["umbrellas"])} guarda-sois, {len(o.items["paths"])} acessos pela travessia da avenida')
