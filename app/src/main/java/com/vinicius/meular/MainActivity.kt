@@ -261,6 +261,7 @@ class MainActivity : AppCompatActivity() {
         City.HDS = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade2", true)   // mapa escolhido em Configurações
         City.C3 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade3", true)   // Etapa 185: bairro novo (Cidade 3)
         UserMap.init(filesDir)   // Etapa 187: mapa do jogador
+        Relevo.dataDir = filesDir   // Cidade 5: a malha assada é copiada para cá e lida por pedaços (não cabe inteira na memória)
         City.C4 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade4", false)
         City.C5 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade5", false)
         WindowCompat.setDecorFitsSystemWindows(window, false)

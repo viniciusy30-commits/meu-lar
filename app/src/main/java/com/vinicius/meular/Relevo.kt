@@ -28,7 +28,7 @@ object Relevo {
     const val CX = 300f
     const val CZ = 300f
     private const val ROADY = 0.12f
-    private const val CS = 8   // células de terreno por pedaço (8 x 8 m = 64 m)
+    private const val CS = 16   // células de terreno por pedaço (16 x 8 m = 128 m): metade das chamadas de desenho por quadro e menos pedaços para controlar
 
     class House(val k: Int, val x: Float, val z: Float, val lvl: Float)
     /** Etapa 180b: [cs] = distância acumulada de cada ponto; [ta]/[tb] = quanto da faixa central some junto aos cruzamentos; [gl]/[gr] = "bocas" do meio-fio (pares início/fim) nos lados +n e -n */
@@ -42,36 +42,15 @@ object Relevo {
     @Volatile var on = false
     /** Etapa 185: Cidade 3 (bairro americano): lê sub.bin + sub.json + sub_mesh.bin (casas, cercas, carros... já montados) */
     @Volatile var sub = false
-    private class SubRec(val mat: Int, val nv: Int, val ymax: Float, val f: FloatArray, val c: ByteArray)
-    private val subCells = HashMap<Int, ArrayList<SubRec>>()
+    /** registro da malha assada: onde estão os vértices no arquivo (nada é guardado na memória até o pedaço ser montado) */
+    private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float)
+    private val subIdx = HashMap<Int, ArrayList<SubRec>>()
+    private var subFile: java.io.RandomAccessFile? = null
+    private var subMem: ByteArray? = null          // plano B: se não der para gravar o arquivo, mantém tudo na memória
+    private val subLock = Any()
     private var subSol = FloatArray(0)
-    /** Cidade 5: altura do chão pavimentado a cada [wst] m (asfalto, calçada, orla, ponte); -32768 = sem pavimento */
-    private var walk = ShortArray(0)
-    /** Cidade 5: 1 = vértice de areia de praia (o resto, mesmo baixo, é grama: margens de rio/lagoa sem "degraus" de areia) */
-    private var sandMask = ByteArray(0)
-    private fun loadSand(am: AssetManager) {
-        val bb = ByteBuffer.wrap(am.open("hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
-        val sx = bb.getInt(); val sz = bb.getInt()
-        sandMask = if (sx == nx && sz == nz) ByteArray(sx * sz).also { bb.get(it) } else ByteArray(0)
-    }
-    private fun sandAt(i: Int, j: Int): Boolean = sandMask[j.coerceIn(0, nz - 1) * nx + i.coerceIn(0, nx - 1)].toInt() != 0
-    private var wnx = 0
-    private var wnz = 0
-    private var wst = 2f
-    private fun loadWalk(am: AssetManager) {
-        val bb = ByteBuffer.wrap(am.open("hds/c5_walk.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
-        wnx = bb.getInt(); wnz = bb.getInt(); wst = bb.getFloat()
-        val w = ShortArray(wnx * wnz)
-        for (i in w.indices) w[i] = bb.getShort()
-        walk = w
-    }
-    private fun walkAt(x: Float, z: Float): Float {
-        if (walk.isEmpty()) return Float.NaN
-        val i = Math.round((x - CX) / wst); val j = Math.round((z - CZ) / wst)
-        if (i < 0 || j < 0 || i >= wnx || j >= wnz) return Float.NaN
-        val v = walk[j * wnx + i].toInt()
-        return if (v == -32768) Float.NaN else v / 100f
-    }
+    /** pasta de dados do app (MainActivity): a malha assada é copiada para lá uma vez e lida por pedaços */
+    @JvmField @Volatile var dataDir: java.io.File? = null
 
     /** colisões do bairro (x0, z0, x1, z1) já em coordenadas do mundo */
     fun subSolids(): List<FloatArray> {
@@ -81,20 +60,63 @@ object Relevo {
         return l
     }
 
+    /** copia o asset para a pasta do app (só se mudou) e devolve o arquivo; null se não der */
+    private fun ensureSubFile(am: AssetManager, name: String): java.io.File? {
+        val dir = dataDir ?: return null
+        try {
+            val want = try { am.open("$name.len").bufferedReader().use { it.readText().trim().toLong() } } catch (e: Throwable) { -1L }
+            val f = java.io.File(dir, name.substringAfterLast('/'))
+            if (want > 0 && f.exists() && f.length() == want) return f
+            val tmp = java.io.File(dir, f.name + ".tmp")
+            am.open(name).use { ins -> java.io.FileOutputStream(tmp).use { os -> val buf = ByteArray(1 shl 16); while (true) { val n = ins.read(buf); if (n < 0) break; os.write(buf, 0, n) } } }
+            if (f.exists()) f.delete()
+            if (!tmp.renameTo(f)) return null
+            return f
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "copia da malha: $e"); return null }
+    }
+
+    /** lê só os cabeçalhos (16 bytes por registro) e guarda onde estão os vértices de cada pedaço de 64 m */
     private fun loadSubMesh(am: AssetManager, name: String) {
-        subCells.clear()
-        val bb = ByteBuffer.wrap(am.open(name).use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
-        bb.getInt()   // "SUB1"
-        val n = bb.getInt()
-        for (r in 0 until n) {
-            val cell = bb.getInt(); val mat = bb.getInt(); val nv = bb.getInt(); val ymax = bb.getFloat()
-            val f = FloatArray(nv * 8); val c = ByteArray(nv * 3)
-            for (v in 0 until nv) {
-                for (k in 0 until 8) f[v * 8 + k] = bb.getFloat()
-                c[v * 3] = bb.get(); c[v * 3 + 1] = bb.get(); c[v * 3 + 2] = bb.get()
+        subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null
+        val f = ensureSubFile(am, name)
+        val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+        if (f != null) {
+            val raf = java.io.RandomAccessFile(f, "r")
+            try {
+                hd.clear(); raf.readFully(hd.array(), 0, 8); hd.position(4)
+                val n = hd.getInt()
+                var pos = 8L
+                for (r in 0 until n) {
+                    raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
+                    val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax))
+                    pos += 16L + nv.toLong() * SUB_VB
+                }
+                subFile = raf
+            } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
+        } else {
+            val all = am.open(name).use { it.readBytes() }; subMem = all
+            val bb = ByteBuffer.wrap(all).order(ByteOrder.LITTLE_ENDIAN)
+            bb.position(4); val n = bb.getInt(); var pos = 8
+            for (r in 0 until n) {
+                val cell = bb.getInt(pos); val mat = bb.getInt(pos + 4); val nv = bb.getInt(pos + 8); val ymax = bb.getFloat(pos + 12)
+                subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16L, mat, nv, ymax))
+                pos += 16 + nv * SUB_VB
             }
-            subCells.getOrPut(cell) { ArrayList() }.add(SubRec(mat, nv, ymax, f, c))
         }
+    }
+
+    private const val SUB_VB = 35   // bytes por vértice no arquivo (8 floats + 3 bytes de cor)
+
+    private fun readSub(rc: SubRec): ByteBuffer {
+        val n = rc.nv * SUB_VB
+        val mem = subMem
+        val bytes = if (mem != null) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
+            val b = ByteArray(n)
+            synchronized(subLock) { val raf = subFile ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            b
+        }
+        return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     }
     @Volatile var worldW = 3200f
     @Volatile var worldH = 2400f
@@ -168,7 +190,8 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
-        sub = false; subCells.clear(); subSol = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
+        sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; subSol = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
+        gen++; readyQ.clear(); loadedCells.clear(); lazyOf.clear(); cellsT = arrayOfNulls(0); cellsR = arrayOfNulls(0); cellState = ByteArray(0); lazyTrees.clear()
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
@@ -813,6 +836,7 @@ object Relevo {
 
     fun service(ex: Float, ez: Float) {
         if (!on) return
+        streamCells(ex, ez)
         var best: LazyTrees? = null; var bestD = TREE_NEAR * TREE_NEAR
         var worst: LazyTrees? = null; var worstD = 0f
         for (t in lazyTrees) {
@@ -867,24 +891,59 @@ object Relevo {
      * Monta o terreno em pedaços de 64 m (um [City.Chunk] por pedaço) com água, ruas, rotatórias, pontes e árvores.
      * [plots]: retângulos (x0, z0, x1, z1) das casas no mundo (sem árvores em volta delas).
      */
+    // ------------------------------------------------------------------------------------------------
+    // Terreno EM FLUXO: a cidade inteira (4400 x 3600 m) nunca fica montada na memória. Cada pedaço de 128 m é montado numa
+    // thread de fundo quando o jogador chega perto (até LOAD_R) e descartado quando fica longe (UNLOAD_R). Mesma imagem,
+    // uma fração da memória (antes: ~250 MB de vértices; agora só o que está ao redor) e menos pedaços para controlar por quadro.
+    // ------------------------------------------------------------------------------------------------
+    private const val LOAD_R = 600f
+    private const val UNLOAD_R = 780f
+    private var gen = 0
+    private var cellsT: Array<City.Chunk?> = arrayOfNulls(0)    // terreno + ruas + malha assada
+    private var cellsR: Array<City.Chunk?> = arrayOfNulls(0)    // árvores (pedaço à parte: só aparecem de perto)
+    private var cellState = ByteArray(0)                        // 0 = vazio, 1 = montando, 2 = pronto
+    private var cellNx = 0
+    private var cellNz = 0
+    private var cellSize = 128f
+    private class CellRes(val gen: Int, val idx: Int, val terrain: Mesh?, val trees: Array<Mesh?>?, val treeData: Array<FloatArray?>?)
+    private val readyQ = java.util.concurrent.ConcurrentLinkedQueue<CellRes>()
+    private val loadedCells = ArrayList<Int>()
+    private val lazyOf = HashMap<Int, ArrayList<LazyTrees>>()
+    private var trSc = 2                                        // pedaços de árvore (64 m) por lado de pedaço de terreno: a troca pelas árvores modeladas continua em blocos pequenos
+    private val flight = java.util.concurrent.atomic.AtomicInteger(0)
+    private val pool: java.util.concurrent.ExecutorService by lazy {
+        java.util.concurrent.Executors.newFixedThreadPool(2) { r -> Thread(r, "relevo-terreno").apply { priority = Thread.NORM_PRIORITY - 1; isDaemon = true } }
+    }
+    private var segB = HashMap<Int, ArrayList<IntArray>>()
+    private var hubB = HashMap<Int, ArrayList<Hub>>()
+    private var padB = HashMap<Int, ArrayList<Pad>>()
+    private var bldB = HashMap<Int, ArrayList<Int>>()
+    private var lampB = HashMap<Int, ArrayList<Int>>()
+    private var hydB = HashMap<Int, ArrayList<Int>>()
+    private var treeB = HashMap<Int, ArrayList<Int>>()
+
+    /**
+     * Prepara os pedaços (vazios) e agrupa ruas/rotatórias/árvores/postes por pedaço. Nenhuma malha é montada aqui,
+     * exceto os pedaços ao redor do ponto de partida (para o jogo não começar vazio).
+     * [plots]: retângulos (x0, z0, x1, z1) das casas no mundo.
+     */
     fun build(out: ArrayList<City.Chunk>, plots: List<FloatArray>) {
         if (!on) return
-        lazyTrees.clear()
+        lazyTrees.clear(); lazyOf.clear(); loadedCells.clear(); readyQ.clear()
         val ncx = (nx - 1 + CS - 1) / CS; val ncz = (nz - 1 + CS - 1) / CS
         val csize = CS * g
-        val segs = HashMap<Int, ArrayList<IntArray>>()
+        cellNx = ncx; cellNz = ncz; cellSize = csize
+        segB = HashMap(); hubB = HashMap(); padB = HashMap()
         for ((ri, r) in roads.withIndex()) for (q in 0 until r.x.size - 1) {
             if (!r.keep[q]) continue
             val mx = (r.x[q] + r.x[q + 1]) / 2f; val mz = (r.z[q] + r.z[q + 1]) / 2f
             val ci = ((mx - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((mz - CZ) / csize).toInt().coerceIn(0, ncz - 1)
-            segs.getOrPut(cj * 1000 + ci) { ArrayList() }.add(intArrayOf(ri, q))
+            segB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(intArrayOf(ri, q))
         }
-        val hubB = HashMap<Int, ArrayList<Hub>>()
         for (h in hubs) {
             val ci = ((h.x - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((h.z - CZ) / csize).toInt().coerceIn(0, ncz - 1)
             hubB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(h)
         }
-        val padB = HashMap<Int, ArrayList<Pad>>()
         for (p in pads) {
             val ci = ((p.x - CX) / csize).toInt().coerceIn(0, ncx - 1); val cj = ((p.z - CZ) / csize).toInt().coerceIn(0, ncz - 1)
             padB.getOrPut(cj * 1000 + ci) { ArrayList() }.add(p)
@@ -897,113 +956,222 @@ object Relevo {
             }
             return m
         }
-        val bldB = binOf(bldA, 9); val lampB = binOf(lampA, 4); val hydB = binOf(hydA, 2); val treeB = binOf(treeA, 6)
-
-        val total = ncx * ncz
+        bldB = binOf(bldA, 9); lampB = binOf(lampA, 4); hydB = binOf(hydA, 2)
+        val sc = (csize / 64f + 0.5f).toInt().coerceAtLeast(1)    // pedaços de 64 m da malha assada / das árvores por lado de pedaço
+        trSc = sc
+        val tsz = csize / sc
+        treeB = HashMap()
+        for (k in 0 until treeA.size / 6) {
+            val ti = (treeA[k * 6] / tsz).toInt().coerceIn(0, ncx * sc - 1); val tj = (treeA[k * 6 + 1] / tsz).toInt().coerceIn(0, ncz * sc - 1)
+            treeB.getOrPut(tj * 1000 + ti) { ArrayList() }.add(k)
+        }
+        cellsT = arrayOfNulls(ncx * ncz); cellsR = arrayOfNulls(ncx * ncz * sc * sc); cellState = ByteArray(ncx * ncz)
         for (cj in 0 until ncz) for (ci in 0 until ncx) {
-            City.step(0.55f + 0.4f * (cj * ncx + ci) / total)
+            val idx = cj * ncx + ci; val key = cj * 1000 + ci
             val i0 = ci * CS; val i1 = min(i0 + CS, nx - 1); val j0 = cj * CS; val j1 = min(j0 + CS, nz - 1)
             val tx0 = CX + i0 * g; val tx1 = CX + i1 * g; val tz0 = CZ + j0 * g; val tz1 = CZ + j1 * g
-            val b = MB()
             var ymax = -1e9f
-            for (j in j0 until j1) for (i in i0 until i1) {
-                val h00 = hh(i, j); val h10 = hh(i + 1, j); val h01 = hh(i, j + 1); val h11 = hh(i + 1, j + 1)
-                ymax = max(ymax, max(max(h00, h10), max(h01, h11)))
-                val x0 = CX + i * g; val x1 = x0 + g; val z0 = CZ + j * g; val z1 = z0 + g
-                val avg = (h00 + h10 + h01 + h11) / 4f
-                val lo = min(min(h00, h10), min(h01, h11))
-                val mode = if (avg < -0.1f) 0 else if (sandMask.isNotEmpty()) {
-                    val ns = (if (sandAt(i, j)) 1 else 0) + (if (sandAt(i + 1, j)) 1 else 0) + (if (sandAt(i, j + 1)) 1 else 0) + (if (sandAt(i + 1, j + 1)) 1 else 0)
-                    if (ns >= 2 && avg < 1.6f) 1 else 2
-                } else if (avg < 1.3f) 1 else 2
-                if (mode == 2) b.m(Mt.GRASS, 0.3f) else b.m(Mt.PLAIN, 1f)
-                // cor por vértice: na grama, a rocha entra aos poucos com a inclinação do PRÓPRIO vértice (sem quadrados de 8 m)
-                // no fundo, o vertice que fica ACIMA da agua na beira da praia e areia (senao aparece uma serra marrom na linha d'agua)
-                fun bc(ii: Int, jj: Int, h: Float): Int = if (h > -0.15f && sandMask.isNotEmpty() && (sandAt(ii, jj) || h > 0f)) COL_SAND else bedCol(h)
-                val c00 = if (mode == 0) bc(i, j, h00) else if (mode == 1) COL_SAND else 0
-                val c10 = if (mode == 0) bc(i + 1, j, h10) else if (mode == 1) COL_SAND else 0
-                val c01 = if (mode == 0) bc(i, j + 1, h01) else if (mode == 1) COL_SAND else 0
-                val c11 = if (mode == 0) bc(i + 1, j + 1, h11) else if (mode == 1) COL_SAND else 0
-                // normais por vértice (diferença central)
-                fun nv(ii: Int, jj: Int, h: Float, x: Float, z: Float, c0: Int) {
-                    val dx = (hh(ii + 1, jj) - hh(ii - 1, jj)) / (2f * g); val dz = (hh(ii, jj + 1) - hh(ii, jj - 1)) / (2f * g)
-                    val l = sqrt(dx * dx + 1f + dz * dz)
-                    var c = c0
-                    if (mode == 2) {
-                        val rk = ((sqrt(dx * dx + dz * dz) - 0.55f) / 0.45f).coerceIn(0f, 1f)
-                        c = mix(grassCol(h), COL_ROCK, rk * rk * 0.85f)
-                        if (h < 1.3f && sandMask.isEmpty()) c = mix(c, COL_SAND, 0.75f)
-                    }
-                    b.v(x, h, z, -dx / l, 1f / l, -dz / l, c, x, z)
-                }
-                nv(i, j, h00, x0, z0, c00); nv(i + 1, j, h10, x1, z0, c10); nv(i + 1, j + 1, h11, x1, z1, c11)
-                nv(i, j, h00, x0, z0, c00); nv(i + 1, j + 1, h11, x1, z1, c11); nv(i, j + 1, h01, x0, z1, c01)
-                if (lo < -0.15f) {
-                    b.m(Mt.PLAIN, 1f)
-                    // Etapa 183: cor por profundidade (rasa turquesa -> funda azul) com espuma onde encosta na margem
-                    fun wc(h: Float): Int {
-                        val d = (-0.2f - h).coerceIn(0f, 9f) / 9f
-                        val body = mix(COL_SHAL, COL_DEEP, sqrt(d))
-                        return mix(body, COL_FOAM, (1f - (-0.2f - h) / 0.55f).coerceIn(0f, 1f) * 0.8f)
-                    }
-                    val w00 = wc(h00); val w10 = wc(h10); val w01 = wc(h01); val w11 = wc(h11)
-                    b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z0, 0f, 1f, 0f, w10, x1, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1)
-                    b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1); b.v(x0, -0.2f, z1, 0f, 1f, 0f, w01, x0, z1)
-                }
-            }
+            for (j in j0..j1) for (i in i0..i1) ymax = max(ymax, hh(i, j))
             var ext = 0f
-            val sl = segs[cj * 1000 + ci]
-            if (sl != null) {
-                ext = 40f
-                for (s in sl) { val r = roads[s[0]]; emitSeg(b, r, s[1]); ymax = max(ymax, max(r.y[s[1]], r.y[s[1] + 1]) + 1.5f) }
+            segB[key]?.let { l -> ext = 40f; for (sg in l) { val r = roads[sg[0]]; ymax = max(ymax, max(r.y[sg[1]], r.y[sg[1] + 1]) + 1.5f) } }
+            hubB[key]?.let { l -> ext = 40f; for (h in l) ymax = max(ymax, h.y + 1f) }
+            padB[key]?.let { l -> ext = 40f; for (p in l) ymax = max(ymax, p.y + 1f) }
+            if (bldB[key] != null) { ext = 40f; ymax += 260f }          // altura dos prédios só é conhecida ao montar: caixa de visibilidade folgada
+            if (lampB[key] != null) { ext = 40f; ymax += 9.5f }
+            if (hydB[key] != null) ext = 40f
+            if (sub) for (bj in cj * sc until cj * sc + sc) for (bi in ci * sc until ci * sc + sc) subIdx[bj * 1000 + bi]?.let { l -> ext = 40f; for (rc in l) ymax = max(ymax, rc.ymax) }
+            val tc = City.Chunk(null, null, tx0 - ext, tz0 - ext, tx1 + ext, tz1 + ext, ymax + 1.5f)
+            tc.terrain = true   // pedaço de terreno: aparece de mais longe (ver Renderer3D)
+            cellsT[idx] = tc; out.add(tc)
+            for (qj in 0 until sc) for (qi in 0 until sc) {
+                if (treeB[(cj * sc + qj) * 1000 + (ci * sc + qi)] == null) continue
+                val bx0 = CX + (ci * sc + qi) * tsz; val bz0 = CZ + (cj * sc + qj) * tsz
+                val rc = City.Chunk(null, null, bx0 - 12f, bz0 - 12f, bx0 + tsz + 12f, bz0 + tsz + 12f, ymax + 16f)
+                cellsR[idx * sc * sc + qj * sc + qi] = rc; out.add(rc)
             }
-            val hl = hubB[cj * 1000 + ci]
-            if (hl != null) { ext = 40f; for (h in hl) { emitHub(b, h); ymax = max(ymax, h.y + 1f) } }
-            val pdl = padB[cj * 1000 + ci]
-            if (pdl != null) { ext = 40f; for (p in pdl) { emitPad(b, p); ymax = max(ymax, p.y + 1f) } }
-            bldB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) ymax = max(ymax, emitBuilding(b, k)) }
-            lampB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitLamp(b, k); ymax += 9.5f }
-            hydB[cj * 1000 + ci]?.let { l -> ext = 40f; for (k in l) emitHydrant(b, k) }
-            if (sub) subCells[cj * 1000 + ci]?.let { l ->   // Etapa 185: casas, garagens, cercas, carros, caixas de correio, postes...
-                ext = 40f
-                for (rc in l) {
-                    b.m(rc.mat, 1f)
-                    for (q in 0 until rc.nv) {
-                        val o = q * 8
-                        b.v(rc.f[o] + CX, rc.f[o + 1], rc.f[o + 2] + CZ, rc.f[o + 3], rc.f[o + 4], rc.f[o + 5],
-                            android.graphics.Color.rgb(rc.c[q * 3].toInt() and 255, rc.c[q * 3 + 1].toInt() and 255, rc.c[q * 3 + 2].toInt() and 255), rc.f[o + 6], rc.f[o + 7])
-                    }
-                    ymax = max(ymax, rc.ymax)
-                }
-            }
-            if (!b.isEmpty()) {
-                val c = City.Chunk(b.toMesh(true).gpuOnly(), null, tx0 - ext, tz0 - ext, tx1 + ext, tz1 + ext, ymax + 1.5f)
-                c.terrain = true   // pedaço de terreno: aparece de mais longe (ver Renderer3D)
-                out.add(c)
-            }
-            // árvores deste pedaço (chunk à parte: só aparecem de perto)
-            val tb = MB()
-            val tdata = ArrayList<Float>()   // Etapa 183b: árvores modeladas do HDS, montadas só perto do jogador (cada uma tem ~7 mil vértices)
-            var ty1 = 0f
-            treeB[cj * 1000 + ci]?.let { l ->
-                for (k in l) {
-                    val o = k * 6
-                    val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
-                    val h = groundH(px, pz)
-                    if (h < 1.0f) continue
-                    tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve, sempre visível
-                    tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
-                    ty1 = max(ty1, h + 9f * sc)
-                }
-            }
-            if (!tb.isEmpty()) {
-                val cheap = tb.toMesh(true).gpuOnly()
-                val tc = City.Chunk(cheap, null, tx0 - 12f, tz0 - 12f, tx1 + 12f, tz1 + 12f, ty1 + 1f)
-                out.add(tc)
-                if (tdata.isNotEmpty()) lazyTrees.add(LazyTrees(tc, cheap, tdata.toFloatArray()))
+        }
+        // pedaços ao redor da partida (a primeira casa) já prontos, na própria montagem
+        val p0 = plots.firstOrNull()
+        if (p0 != null) {
+            val cx = (p0[0] + p0[2]) / 2f; val cz = (p0[1] + p0[3]) / 2f
+            val cr = (240f / csize).toInt() + 1
+            val pci = ((cx - CX) / csize).toInt(); val pcj = ((cz - CZ) / csize).toInt()
+            for (cj in max(pcj - cr, 0)..min(pcj + cr, ncz - 1)) for (ci in max(pci - cr, 0)..min(pci + cr, ncx - 1)) {
+                val idx = cj * ncx + ci
+                if (cellState[idx].toInt() != 0) continue
+                try { installCell(buildCell(idx, gen)) } catch (e: Throwable) { android.util.Log.w("Relevo", "pedaço inicial $idx: $e") }
             }
         }
         buildMap()
+    }
+
+    private fun installCell(r: CellRes) {
+        if (r.gen != gen || r.idx !in cellsT.indices) return
+        cellState[r.idx] = 2
+        loadedCells.add(r.idx)
+        cellsT[r.idx]?.let { c -> r.terrain?.let { m -> c.near = m } }
+        val tm = r.trees; val td = r.treeData
+        if (tm != null && td != null) for (q in tm.indices) {
+            val tc = cellsR[r.idx * trSc * trSc + q] ?: continue
+            val m = tm[q] ?: continue
+            val d = td[q] ?: continue
+            tc.near = m
+            val lt = LazyTrees(tc, m, d)
+            lazyTrees.add(lt); lazyOf.getOrPut(r.idx) { ArrayList() }.add(lt)
+        }
+    }
+
+    private fun unloadCell(idx: Int) {
+        cellsT[idx]?.let { c -> c.near?.release(); c.near = null }
+        lazyOf.remove(idx)?.let { l -> for (lt in l) { lt.rich?.release(); lt.cheap.release(); lt.chunk.near = null; lazyTrees.remove(lt) } }
+        cellState[idx] = 0
+        loadedCells.remove(idx)
+    }
+
+    private fun requestCell(idx: Int) {
+        cellState[idx] = 1
+        flight.incrementAndGet()
+        val g0 = gen
+        pool.execute {
+            try {
+                val r = buildCell(idx, g0)
+                if (g0 == gen) readyQ.add(r)
+            } catch (e: Throwable) {
+                android.util.Log.e("Relevo", "pedaço $idx: $e")
+                if (g0 == gen) readyQ.add(CellRes(g0, idx, null, null, null))   // marca como pronto (vazio) para não ficar tentando sem parar
+            } finally { flight.decrementAndGet() }
+        }
+    }
+
+    /** thread do GL: instala o que ficou pronto, pede os pedaços que estão perto e solta os que ficaram longe */
+    private fun streamCells(ex: Float, ez: Float) {
+        while (true) { val r = readyQ.poll() ?: break; installCell(r) }
+        if (cellsT.isEmpty()) return
+        val cs = cellSize
+        // solta os distantes
+        var q = loadedCells.size - 1
+        while (q >= 0) {
+            val idx = loadedCells[q]
+            val c = cellsT[idx]
+            if (c != null) {
+                val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
+                if (dx * dx + dz * dz > UNLOAD_R * UNLOAD_R) unloadCell(idx)
+            }
+            q--
+        }
+        // pede os próximos (os mais perto primeiro, poucos de cada vez)
+        if (flight.get() >= 3) return
+        val ci0 = max(((ex - CX - LOAD_R) / cs).toInt(), 0); val ci1 = min(((ex - CX + LOAD_R) / cs).toInt(), cellNx - 1)
+        val cj0 = max(((ez - CZ - LOAD_R) / cs).toInt(), 0); val cj1 = min(((ez - CZ + LOAD_R) / cs).toInt(), cellNz - 1)
+        var best = -1; var bestD = LOAD_R * LOAD_R
+        var tries = 0
+        while (tries < 3 && flight.get() < 3) {
+            best = -1; bestD = LOAD_R * LOAD_R
+            for (cj in cj0..cj1) for (ci in ci0..ci1) {
+                val idx = cj * cellNx + ci
+                if (cellState[idx].toInt() != 0) continue
+                val c = cellsT[idx] ?: continue
+                val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
+                val d2 = dx * dx + dz * dz
+                if (d2 < bestD) { bestD = d2; best = idx }
+            }
+            if (best < 0) break
+            requestCell(best)
+            tries++
+        }
+    }
+
+    /** monta o terreno, a água, as ruas, a malha assada e (num pedaço à parte) as árvores leves de UM pedaço; roda em thread de fundo */
+    private fun buildCell(idx: Int, g0: Int): CellRes {
+        val ci = idx % cellNx; val cj = idx / cellNx
+        val key = cj * 1000 + ci
+        val i0 = ci * CS; val i1 = min(i0 + CS, nx - 1); val j0 = cj * CS; val j1 = min(j0 + CS, nz - 1)
+        val b = MB()
+        for (j in j0 until j1) for (i in i0 until i1) {
+            val h00 = hh(i, j); val h10 = hh(i + 1, j); val h01 = hh(i, j + 1); val h11 = hh(i + 1, j + 1)
+            val x0 = CX + i * g; val x1 = x0 + g; val z0 = CZ + j * g; val z1 = z0 + g
+            val avg = (h00 + h10 + h01 + h11) / 4f
+            val lo = min(min(h00, h10), min(h01, h11))
+            val mode = if (avg < -0.1f) 0 else if (sandMask.isNotEmpty()) {
+                val ns = (if (sandAt(i, j)) 1 else 0) + (if (sandAt(i + 1, j)) 1 else 0) + (if (sandAt(i, j + 1)) 1 else 0) + (if (sandAt(i + 1, j + 1)) 1 else 0)
+                if (ns >= 2 && avg < 1.6f) 1 else 2
+            } else if (avg < 1.3f) 1 else 2
+            if (mode == 2) b.m(Mt.GRASS, 0.3f) else b.m(Mt.PLAIN, 1f)
+            // cor por vértice: na grama, a rocha entra aos poucos com a inclinação do PRÓPRIO vértice (sem quadrados de 8 m)
+            // no fundo, o vertice que fica ACIMA da agua na beira da praia e areia (senao aparece uma serra marrom na linha d'agua)
+            fun bc(ii: Int, jj: Int, h: Float): Int = if (h > -0.15f && sandMask.isNotEmpty() && (sandAt(ii, jj) || h > 0f)) COL_SAND else bedCol(h)
+            val c00 = if (mode == 0) bc(i, j, h00) else if (mode == 1) COL_SAND else 0
+            val c10 = if (mode == 0) bc(i + 1, j, h10) else if (mode == 1) COL_SAND else 0
+            val c01 = if (mode == 0) bc(i, j + 1, h01) else if (mode == 1) COL_SAND else 0
+            val c11 = if (mode == 0) bc(i + 1, j + 1, h11) else if (mode == 1) COL_SAND else 0
+            // normais por vértice (diferença central)
+            fun nv(ii: Int, jj: Int, h: Float, x: Float, z: Float, c0: Int) {
+                val dx = (hh(ii + 1, jj) - hh(ii - 1, jj)) / (2f * g); val dz = (hh(ii, jj + 1) - hh(ii, jj - 1)) / (2f * g)
+                val l = sqrt(dx * dx + 1f + dz * dz)
+                var c = c0
+                if (mode == 2) {
+                    val rk = ((sqrt(dx * dx + dz * dz) - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                    c = mix(grassCol(h), COL_ROCK, rk * rk * 0.85f)
+                    if (h < 1.3f && sandMask.isEmpty()) c = mix(c, COL_SAND, 0.75f)
+                }
+                b.v(x, h, z, -dx / l, 1f / l, -dz / l, c, x, z)
+            }
+            nv(i, j, h00, x0, z0, c00); nv(i + 1, j, h10, x1, z0, c10); nv(i + 1, j + 1, h11, x1, z1, c11)
+            nv(i, j, h00, x0, z0, c00); nv(i + 1, j + 1, h11, x1, z1, c11); nv(i, j + 1, h01, x0, z1, c01)
+            if (lo < -0.15f) {
+                b.m(Mt.PLAIN, 1f)
+                // Etapa 183: cor por profundidade (rasa turquesa -> funda azul) com espuma onde encosta na margem
+                fun wc(h: Float): Int {
+                    val d = (-0.2f - h).coerceIn(0f, 9f) / 9f
+                    val body = mix(COL_SHAL, COL_DEEP, sqrt(d))
+                    return mix(body, COL_FOAM, (1f - (-0.2f - h) / 0.55f).coerceIn(0f, 1f) * 0.8f)
+                }
+                val w00 = wc(h00); val w10 = wc(h10); val w01 = wc(h01); val w11 = wc(h11)
+                b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z0, 0f, 1f, 0f, w10, x1, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1)
+                b.v(x0, -0.2f, z0, 0f, 1f, 0f, w00, x0, z0); b.v(x1, -0.2f, z1, 0f, 1f, 0f, w11, x1, z1); b.v(x0, -0.2f, z1, 0f, 1f, 0f, w01, x0, z1)
+            }
+        }
+        segB[key]?.let { l -> for (sg in l) emitSeg(b, roads[sg[0]], sg[1]) }
+        hubB[key]?.let { l -> for (h in l) emitHub(b, h) }
+        padB[key]?.let { l -> for (p in l) emitPad(b, p) }
+        bldB[key]?.let { l -> for (k in l) emitBuilding(b, k) }
+        lampB[key]?.let { l -> for (k in l) emitLamp(b, k) }
+        hydB[key]?.let { l -> for (k in l) emitHydrant(b, k) }
+        if (sub) {   // Etapa 185: casas, garagens, cercas, carros, caixas de correio, postes... (lidos do arquivo só deste pedaço)
+            val sc = (cellSize / 64f + 0.5f).toInt().coerceAtLeast(1)
+            for (bj in cj * sc until cj * sc + sc) for (bi in ci * sc until ci * sc + sc) {
+                val l = subIdx[bj * 1000 + bi] ?: continue
+                for (rc in l) {
+                    val bb = readSub(rc)
+                    b.m(rc.mat, 1f)
+                    for (q in 0 until rc.nv) {
+                        val px = bb.getFloat(); val py = bb.getFloat(); val pz = bb.getFloat(); val qx = bb.getFloat(); val qy = bb.getFloat(); val qz = bb.getFloat(); val u = bb.getFloat(); val w = bb.getFloat()
+                        val r = bb.get().toInt() and 255; val gg = bb.get().toInt() and 255; val bl = bb.get().toInt() and 255
+                        b.v(px + CX, py, pz + CZ, qx, qy, qz, android.graphics.Color.rgb(r, gg, bl), u, w)
+                    }
+                }
+            }
+        }
+        val terrain = if (!b.isEmpty()) b.toMesh(true).gpuOnly() else null
+        // árvores leves deste pedaço, em blocos de 64 m (as modeladas do HDS entram só perto, por Relevo.service)
+        val sc2 = trSc
+        val trees = arrayOfNulls<Mesh>(sc2 * sc2); val tdArr = arrayOfNulls<FloatArray>(sc2 * sc2)
+        var anyTree = false
+        for (qj in 0 until sc2) for (qi in 0 until sc2) {
+            val tl = treeB[(cj * sc2 + qj) * 1000 + (ci * sc2 + qi)] ?: continue
+            val tb = MB()
+            val tdata = ArrayList<Float>()   // Etapa 183b: árvores modeladas do HDS, montadas só perto do jogador (cada uma tem ~7 mil vértices)
+            for (k in tl) {
+                val o = k * 6
+                val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
+                val h = groundH(px, pz)
+                if (h < 1.0f) continue
+                tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve
+                tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
+            }
+            if (!tb.isEmpty() && tdata.isNotEmpty()) { trees[qj * sc2 + qi] = tb.toMesh(true).gpuOnly(); tdArr[qj * sc2 + qi] = tdata.toFloatArray(); anyTree = true }
+        }
+        return CellRes(g0, idx, terrain, if (anyTree) trees else null, if (anyTree) tdArr else null)
     }
 
     /** imagem do mapa (4 m por pixel): água, relevo sombreado, ruas e rotatórias */
