@@ -384,9 +384,11 @@ class Ground:
             self.quad(ASPHALT, [(v[0], yc, v[1]) for v in p], COL['asph'], 'asphalt')
             # ilha central: grama + guia
             c0, c1 = P(Ri - 0.2, a0), P(Ri - 0.2, a1)
-            self.quad(PAVER, [(P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], COL['curb'], 'island')
+            o0, o1 = P(Ri + 0.06, a0), P(Ri + 0.06, a1)                 # a guia entra 6 cm no asfalto: sem fresta entre ilha e anel
+            self.quad(PAVER, [(o0[0], yc + CURB_H, o0[1]), (o1[0], yc + CURB_H, o1[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], COL['curb'], 'island')
             self.B.quad(PLAIN, [(P(Ri, a0)[0], yc, P(Ri, a0)[1]), (P(Ri, a1)[0], yc, P(Ri, a1)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1])], (-math.cos((a0 + a1) / 2), 0, -math.sin((a0 + a1) / 2)), COL['curb'], None, True)
-            self.B.tri(GRASS, (nx, yc + CURB_H - 0.05, nz), (c0[0], yc + CURB_H - 0.05, c0[1]), (c1[0], yc + CURB_H - 0.05, c1[1]), (0, 1, 0), COL['grass'], None, True)
+            c0g, c1g = P(Ri - 0.1, a0), P(Ri - 0.1, a1)
+            self.B.tri(GRASS, (nx, yc + CURB_H - 0.05, nz), (c0g[0], yc + CURB_H - 0.05, c0g[1]), (c1g[0], yc + CURB_H - 0.05, c1g[1]), (0, 1, 0), COL['grass'], None, True)
             self.poly('island', [(nx, nz), c0, c1])
             # linha tracejada no meio do anel
             if q % 2 == 0:
