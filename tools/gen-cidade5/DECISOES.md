@@ -115,3 +115,10 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Solução (Relevo.kt): terreno EM FLUXO. build() só prepara pedaços vazios (128 m) e agrupa ruas/árvores/postes; cada pedaço é montado numa thread de fundo quando o jogador chega a 600 m e descartado além de 780 m (VBO liberado na thread do GL). Árvores em blocos de 64 m (a troca pelas árvores modeladas continua em blocos pequenos). Só os pedaços ao redor da partida (240 m) nascem prontos.
 - A malha assada (c5_mesh.bin) é copiada uma vez para filesDir (c5_mesh.bin.len guarda o tamanho esperado) e lida por RandomAccessFile: só os cabeçalhos ficam na memória (16 B por registro) e os vértices são lidos pedaço a pedaço. Plano B: lê tudo na memória se não conseguir gravar.
 - FPS: pedaços de 128 m (CS=16) => ~1/4 das chamadas de desenho do terreno e 1/4 dos pedaços para percorrer; loops por quadro sem alocação (City.service e drawCity). A imagem não muda (mesmos limites de desenho: 420 m, 520 m voando).
+
+## Revisão 6 — casas giradas, calçadas, piso tátil
+- Casas giram (yaw em `c5.json`/`lots.json`): frente voltada para a rua, só em trechos de calçada retos (±3° em ±(W/2+12) m) e sem esquinas desalinhadas (ruas vizinhas paralelas/perpendiculares ±4°). App: Hds.kt gira instâncias, colisão (`City.addSolidRot`), pisos internos (WG com rotação) e telhado (`Roof.contains`).
+- Terraço das casas em morro: talude 1:4 (blend = clip(4·dh, 9, 60)).
+- Calçada de esquina 2 cm abaixo da calçada da rua (sem piscar na emenda vermelha/bege).
+- Piso tátil: faixa fina amarela rente à guia com 4 filetes (antes bloco de tijolo 3×1,5 m).
+- QA: `qa3d.real_houses_mesh` (REALH=1) desenha as casas reais do city2.glb com a mesma transformação do app.

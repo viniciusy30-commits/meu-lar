@@ -159,6 +159,27 @@ def load_plots():
     return out
 
 
+def others_aligned(plan, fr, F, Tn, Nn, Wl, Dl, margin=18.0, tol_deg=4.0):
+    """outras calcadas perto do lote (esquinas, ruas dos fundos/lados) precisam ser paralelas ou perpendiculares a frente: a casa nao gira de novo"""
+    if not hasattr(plan, '_fp'):
+        xs, zs, tx, tz, ks = [], [], [], [], []
+        for q, f in enumerate(plan.fronts):
+            xs.append(f['X']); zs.append(f['Z']); tx.append(f['TX']); tz.append(f['TZ']); ks.append(np.full(len(f['X']), q))
+        plan._fp = (np.concatenate(xs), np.concatenate(zs), np.concatenate(tx), np.concatenate(tz), np.concatenate(ks))
+    X, Z, TX, TZ, K = plan._fp
+    own = next(q for q, f in enumerate(plan.fronts) if f is fr)
+    cx = F[0] + Nn[0] * Dl / 2; cz = F[1] + Nn[1] * Dl / 2; rr = math.hypot(Wl, Dl) / 2 + margin
+    m = (np.abs(X - cx) < rr) & (np.abs(Z - cz) < rr) & (K != own)
+    if not m.any(): return True
+    dx = X[m] - F[0]; dz = Z[m] - F[1]
+    u = dx * Tn[0] + dz * Tn[1]; v = dx * Nn[0] + dz * Nn[1]
+    near = (np.abs(u) < Wl / 2 + margin) & (v > -margin) & (v < Dl + margin)
+    if not near.any(): return True
+    dot = np.abs(TX[m][near] * Tn[0] + TZ[m][near] * Tn[1])
+    bad = (dot < math.cos(math.radians(tol_deg))) & (dot > math.sin(math.radians(tol_deg)))
+    return not bad.any()
+
+
 def try_house(plan, geo, hp, fr, i, tol_deg, side_m, gap_front, rear_m, slope_max):
     """tenta colocar a casa hp (com o quintal real) na frente fr, indice i; devolve dict do lote ou None.
     Sistema do lote: u = ao longo da rua (T), v = para dentro do lote (N); a frente do quintal (porta/portao) fica a gap_front m da calcada."""
@@ -186,10 +207,14 @@ def try_house(plan, geo, hp, fr, i, tol_deg, side_m, gap_front, rear_m, slope_ma
     A = (fr['X'][ia], fr['Z'][ia]); B = (fr['X'][ib], fr['Z'][ib])
     dxx, dzz = B[0] - A[0], B[1] - A[1]; ll = math.hypot(dxx, dzz) or 1
     dev = max(abs((fr['X'][q] - A[0]) * dzz - (fr['Z'][q] - A[1]) * dxx) / ll for q in range(ia, ib + 1))
-    if dev > 0.7: return None
+    if dev > 0.4: return None
+    ja = int(np.searchsorted(S, S[i] - Wl / 2 - 12)); jb = min(int(np.searchsorted(S, S[i] + Wl / 2 + 12)), len(S) - 1)           # a calcada nao pode virar mais de ~3 graus em volta do lote
+    cdev = np.abs(fr['TX'][ja:jb + 1] * tx + fr['TZ'][ja:jb + 1] * tz)
+    if cdev.min() < math.cos(math.radians(3.0)): return None
     cor = rect_corners(F, Tn, Nn, Wl, Dl, inset=0.0)
     if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, Dl, inset=0.6)): return None
     if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, Dl - 0.9, inset=0.45), 0.0): return None
+    if not others_aligned(plan, fr, F, Tn, Nn, Wl, Dl): return None
     hm, sl = terrain_stats(geo, cor)
     if sl > slope_max: return None
     yfront = float(np.interp(S[i], S, fr['Y']))
