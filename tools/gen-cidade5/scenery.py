@@ -65,7 +65,7 @@ def red_bridge(B, rb, hf, deck_y, lookout_x):
         if abs(xp - xa) > 260: break
     xl, xr = (min(xa, xb), max(xa, xb))
     # --- tabuleiro: de lookout_x ate o portal
-    xs = sorted([lookout_x, xp]); x0, x1 = xs
+    xs = sorted([lookout_x - sgn * 14.4, xp]); x0, x1 = xs          # o tabuleiro comeca na borda do mirante (nao dentro do retorno)
     yd = deck_y + 0.12
     W2 = 10.0
     slab(B, x0, x1, zc - W2, zc + W2, yd - 0.4, yd, rgb('#3D3E42'), ASPHALT)                 # laje + asfalto (topo)
@@ -97,7 +97,7 @@ def red_bridge(B, rb, hf, deck_y, lookout_x):
     # --- torres e cabos
     y_top = deck_y + 58.0
     for tx in (t1, t2): tower(B, tx, zc, -3.0, y_top, deck_y)
-    cab_z = [zc - 11.0, zc + 11.0]
+    cab_z = [zc - 12.5, zc + 12.5]
     L = t2 - t1; xm = (t1 + t2) / 2; y_mid = deck_y + 13.0
     anc_l = t1 - 62.0; anc_r = t2 + 62.0
     for cz in cab_z:
@@ -113,7 +113,9 @@ def red_bridge(B, rb, hf, deck_y, lookout_x):
                 bar(B, (x, y - 0.4, z), (x, yd + 1.15, z), 0.14, OR3)
     # ancoragens (blocos de concreto) nas duas extremidades dos cabos
     for ax in (anc_l, anc_r):
-        slab(B, ax - 5, ax + 5, zc - 15, zc + 15, deck_y - 3, deck_y + 7, CONC2, STONE)
+        for sg in (-1, 1):                                      # blocos AO LADO do tabuleiro (nunca em cima da pista)
+            slab(B, ax - 5, ax + 5, min(zc + sg * 11.2, zc + sg * 18.0), max(zc + sg * 11.2, zc + sg * 18.0), deck_y - 3, deck_y + 6, CONC2, STONE)
+            slab(B, ax - 5.4, ax + 5.4, min(zc + sg * 11.0, zc + sg * 18.4), max(zc + sg * 11.0, zc + sg * 18.4), deck_y + 6, deck_y + 6.5, CONC, STONE)
     # --- portal do tunel (so visual): moldura de concreto + vao escuro com arco
     px = xp; d = -1 if xb > xa else 1                    # d aponta da ponte para dentro da montanha
     face_x = px

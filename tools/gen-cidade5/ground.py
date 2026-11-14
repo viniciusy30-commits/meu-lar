@@ -10,7 +10,7 @@ import scenery
 
 ASPHALT = 15
 ROADY = 0.12; CURB_H = 0.15; SW_Y = ROADY + CURB_H; VERGE_Y = SW_Y - 0.05; MARK_Y = ROADY + 0.02
-SEC = {0: dict(inner=2.0, asph=11.5, half=14.0, R=8.0), 1: dict(inner=0.0, asph=6.0, half=10.0, R=6.0), 2: dict(inner=0.0, asph=5.0, half=7.5, R=5.0)}
+SEC = {0: dict(inner=2.0, asph=11.5, half=15.8, R=8.0), 1: dict(inner=0.0, asph=6.0, half=10.0, R=6.0), 2: dict(inner=0.0, asph=5.0, half=7.5, R=5.0)}
 COL = {'asph': rgb('#4A4B50'), 'asph2': rgb('#55565B'), 'curb': rgb('#B8B5AD'), 'white': rgb('#F2F2F2'), 'yellow': rgb('#F5C518'), 'grass': rgb('#6FA84A'),
        'brick': rgb('#9C4A35'), 'brick2': rgb('#B56B4A'), 'conc': rgb('#C9C6BE'), 'conc2': rgb('#BDB9B0'), 'sand': rgb('#E4D4B4'), 'sand2': rgb('#D6C39C'), 'tact': rgb('#C9A24A'),
        'soil': rgb('#5A4332'), 'iron': rgb('#2A2C30'), 'rail': rgb('#9AA0A6'), 'wall': rgb('#A29B8D'), 'wall2': rgb('#8F887A'), 'bridge': rgb('#C4BFB6'), 'under': rgb('#8A8580'),
@@ -481,7 +481,8 @@ class Ground:
         lb = max([a['cut'] for a in self.arms.get(e['b'], []) if a['k'] == k and a['end'] == 'b'] or [1.0])
         L = self.elen(k)
         if L - la - lb < 1.5: self.stats['short_edges'] += 1; return
-        stl = self.stations(k, la, L - lb)
+        OV = 0.3                                             # a pista/calcada entra 0,3 m no cruzamento: sem frestas na emenda
+        stl = self.stations(k, max(la - OV, 0.0), min(L - lb + OV, L))
         # braco com faixa de pedestre: canteiro central e linhas de faixa so comecam DEPOIS da faixa (5,6 m)
         xa_ = any(a.get('xw') for a in self.arms.get(e['a'], []) if a['k'] == k and a['end'] == 'a')
         xb_ = any(a.get('xw') for a in self.arms.get(e['b'], []) if a['k'] == k and a['end'] == 'b')
@@ -517,8 +518,26 @@ class Ground:
             self.strip(PAVER, COL['curb'], stl, sgn * a_, sgn * (a_ + 0.2), SW_Y, 'curb')
             self.vwall(stl, sgn * a_, ROADY, SW_Y, COL['curb'], -sgn)
             o = a_ + 0.2
-            if lvl == 0 and not sea and not bridge:                          # AVENIDA: so carros -> sem calcada, canteiro de grama
-                self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * h_, VERGE_Y, 'verge')
+            if lvl == 0 and not bridge:                                      # AVENIDA (como na vida real): guia, faixa de plantio com arvores e calcada mais estreita atras
+                xa_ = any(x_.get('xw') for x_ in self.arms.get(e['a'], []) if x_['k'] == k and x_['end'] == 'a')
+                xb_ = any(x_.get('xw') for x_ in self.arms.get(e['b'], []) if x_['k'] == k and x_['end'] == 'b')
+                sA = stl[0]['s'] + (9.0 if xa_ else 0.0); sB = stl[-1]['s'] - (9.0 if xb_ else 0.0)
+                mid = [q for q in stl if sA <= q['s'] <= sB]
+                if len(mid) >= 2:
+                    self.strip(GRASS, COL['grass'], mid, sgn * o, sgn * (o + 1.6), VERGE_Y, 'verge')
+                    if zone == 'centro': self.strip(PAVER, sw_col, stl, sgn * (o + 1.6), sgn * h_, SW_Y, 'sidewalk')
+                    else: self.strip(PAVER, sw_col, stl, sgn * (o + 1.6), sgn * h_, SW_Y, 'sidewalk')
+                    # faixa pavimentada entre a guia e a calcada nas pontas (pouso das faixas de pedestre)
+                    for sub, lo_, hi_ in ((stl, 0, 0),):
+                        pass
+                    ends = [q for q in stl if q['s'] < sA] if xa_ else []
+                    ends2 = [q for q in stl if q['s'] > sB] if xb_ else []
+                    for part in (ends, ends2):
+                        if len(part) >= 1:
+                            idx = [stl.index(q) for q in part]; i0, i1 = max(min(idx) - 1, 0), min(max(idx) + 1, len(stl) - 1)
+                            if i1 > i0: self.strip(PAVER, sw_col, stl[i0:i1 + 1], sgn * o, sgn * (o + 1.6), SW_Y, 'sidewalk')
+                else:
+                    self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
             elif zone == 'res' and lvl == 2:                                  # faixa-jardim com arvore + calcada
                 self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * (o + 1.2), VERGE_Y, 'verge'); o += 1.2
                 self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
@@ -537,7 +556,9 @@ class Ground:
         if not bridge or True:
             self.markings(k, stl_m, lvl, sec, bridge)
         # --- covas de arvore (centro e avenidas) a cada 12 m
-        if zone == 'centro' and lvl > 0:
+        if lvl > 0 and zone == 'centro':
+            self.tree_pits(k, stl, sec, zone)
+        elif lvl == 0 and not bridge and zone != 'ponte':
             self.tree_pits(k, stl, sec, zone)
         # --- cercas, parapeitos, muros
         self.protections(k, stl, sec, bridge, zone)
@@ -574,8 +595,10 @@ class Ground:
         for q in range(1, n + 1):
             s = stl[0]['s'] + q * 12.0 - 6.0
             x, z, y, tx, tz = self.at(k, s); nx_, nz_ = -tz, tx
+            if self.c.edges[k]['lvl'] == 0 and (s - stl[0]['s'] < 11.0 or stl[-1]['s'] - s < 11.0): continue
             for sgn in (1, -1):
-                o = sec['asph'] + 0.2 + (1.3 if zone == 'centro' else 1.6)
+                if self.sea_sign(k) == sgn: continue
+                o = (sec['asph'] + 1.0) if self.c.edges[k]['lvl'] == 0 else sec['asph'] + 0.2 + (1.3 if zone == 'centro' else 1.6)
                 cx, cz = x + nx_ * o * sgn, z + nz_ * o * sgn
                 hw = 0.65
                 p = [(cx - tx * hw - nx_ * hw, y + SW_Y + 0.02, cz - tz * hw - nz_ * hw), (cx + tx * hw - nx_ * hw, y + SW_Y + 0.02, cz + tz * hw - nz_ * hw),

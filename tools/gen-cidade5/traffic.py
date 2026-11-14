@@ -5,7 +5,7 @@ from collections import defaultdict
 from plan import *
 
 LANES = {0: dict(n=2, w=3.5, first=3.75, speed=60), 1: dict(n=1, w=3.5, first=1.75, speed=40), 2: dict(n=1, w=3.0, first=1.5, speed=30)}
-SEC_A = {0: 11.5, 1: 6.0, 2: 5.0}; SEC_INS = {0: 2.0, 1: 0.0, 2: 0.0}; SEC_H = {0: 14.0, 1: 10.0, 2: 7.5}
+SEC_A = {0: 11.5, 1: 6.0, 2: 5.0}; SEC_INS = {0: 2.0, 1: 0.0, 2: 0.0}; SEC_H = {0: 15.8, 1: 10.0, 2: 7.5}
 
 def lane_offsets(lvl):
     L = LANES[min(lvl, 2)]

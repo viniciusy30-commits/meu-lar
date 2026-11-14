@@ -80,12 +80,13 @@ class Viewer:
         shutil.copy(os.path.join(self.S.assets, 'c5_signs.png'), os.path.join(HERE, 'atlas.png'))
         os.makedirs(os.path.join(HERE, 'tmp'), exist_ok=True)
 
-    def shot(self, path, eye, at, R=None, w=1280, h=720, fov=60, fog=(300, 900)):
+    def shot(self, path, eye, at, R=None, w=1280, h=720, fov=60, fog=(300, 900), terrain=True, bg=None):
         cx, cz = at[0], at[2]; R = R or max(200.0, math.hypot(eye[0] - at[0], eye[2] - at[2]) * 2.0)
         x0, z0, x1, z1 = cx - R, cz - R, cx + R, cz + R
-        data = np.vstack([self.S.terrain(x0, z0, x1, z1), self.S.mesh(x0, z0, x1, z1)])
+        parts = ([self.S.terrain(x0, z0, x1, z1)] if terrain else []) + [self.S.mesh(x0, z0, x1, z1)]
+        data = np.vstack(parts)
         fn = f'tmp/s{len(self.jobs)}.bin'; data.tofile(os.path.join(HERE, fn))
-        self.jobs.append({'file': fn, 'eye': list(map(float, eye)), 'at': list(map(float, at)), 'out': os.path.abspath(path), 'w': w, 'h': h, 'fov': fov, 'fog0': fog[0], 'fog1': fog[1]})
+        self.jobs.append({'file': fn, 'eye': list(map(float, eye)), 'at': list(map(float, at)), 'out': os.path.abspath(path), 'w': w, 'h': h, 'fov': fov, 'fog0': fog[0], 'fog1': fog[1], 'bg': bg})
 
     def run(self):
         jf = os.path.join(HERE, 'tmp', 'jobs.json'); json.dump(self.jobs, open(jf, 'w'))
