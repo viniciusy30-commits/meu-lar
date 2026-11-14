@@ -33,10 +33,10 @@ class Margens:
     def __init__(self, gr, geo, hf, orla, plan, seed=RNG + 5):
         self.g = gr; self.geo = geo; self.hf = hf; self.o = orla; self.P = plan; self.B = gr.B; self.c = gr.c
         self.rnd = random.Random(seed)
-        self.items = {'runs': [], 'lamps': [], 'benches': [], 'docks': [], 'boats': [], 'jetties': [], 'lighthouses': [], 'rocks': 0, 'trees': 0}
+        self.items = {'solids': [], 'runs': [], 'lamps': [], 'benches': [], 'docks': [], 'boats': [], 'jetties': [], 'lighthouses': [], 'rocks': 0, 'trees': 0}
         self.stats = {'rip_m': 0.0, 'prom_m': 0.0, 'rocks': 0}
         self.band_pts = []                                   # pontos (3 m) do calcadao: reserva para os lotes
-        self.plazas = list(orla.items.get('plazas', [])); self.dock_sites = []
+        self.plazas = list(orla.items.get('plazas', [])); self.dock_sites = []; self.solids = []
         self.occ = self.occupied(); self.dbg = {}
 
     # ------------------------------------------------------------------ base
@@ -211,17 +211,7 @@ class Margens:
         self.ribbon(seg, P1, P1 + 0.25, 0.05, PAVER, COLM['edge'], k0, k1)
         self.stats['prom_m'] += 3.0 * (k1 - k0)
         for k in range(k0, k1 + 1): self.band_pts.append((seg[k]['x'], seg[k]['z']))
-        # guarda-corpo (postes de 3 m em 3 m + corrimao)
-        step = 1 if (k1 - k0) < 400 else 1
-        for k in range(k0, k1, step):
-            a, b = seg[k], seg[k + 1]
-            xa, za = a['x'] + a['nx'] * (P0 - 0.5), a['z'] + a['nz'] * (P0 - 0.5); xb, zb = b['x'] + b['nx'] * (P0 - 0.5), b['z'] + b['nz'] * (P0 - 0.5)
-            if self.near_site(xa, za, 2.3, -9.0, 6.5) or self.near_site(xb, zb, 2.3, -9.0, 6.5): continue
-            ya, yb = self.sample(xa, za) + 0.04, self.sample(xb, zb) + 0.04
-            self.B.box(xa, za, 0.09, 0.09, ya, ya + 1.0, COLM['post'], METAL, True, False)
-            dx, dz = xb - xa, zb - za; L = math.hypot(dx, dz) or 1; px, pz = -dz / L * 0.04, dx / L * 0.04
-            for yy in (0.95, 0.5):
-                self.B.obox_pts([(xa - px, za - pz), (xb - px, zb - pz), (xb + px, zb + pz), (xa + px, za + pz)], min(ya, yb) + yy - 0.04 + (0 if yy > 0.9 else 0), max(ya, yb) + yy + 0.03 if yy > 0.9 else max(ya, yb) + yy, COLM['rail'], METAL, True, False)
+        self.rail(seg, k0, k1, P0 - 0.5)
         # postes (21 m), bancos (42 m, defasados), arvores (15 m)
         acc = 0.0; nl = 0
         for k in range(k0, k1 + 1):
@@ -238,6 +228,33 @@ class Margens:
                 if not self.blocked(x, z, 2) and self.sample(x, z) > 0.4:
                     self.P.trees.append([round(x, 1), round(z, 1), self.rnd.choice(TREE_SP), round(self.rnd.uniform(0.9, 1.3), 2), round(self.rnd.uniform(0, 6.28), 2), round(self.rnd.uniform(0, 1), 2)])
                     self.items['trees'] += 1
+
+    def rail(self, seg, k0, k1, o):
+        """guarda-corpo: poste a cada 3 m + 2 corrimaos; cada vao vira uma colisao (o jogador nao chega na agua)"""
+        for k in range(k0, k1):
+            a, b = seg[k], seg[k + 1]
+            xa, za = a['x'] + a['nx'] * o, a['z'] + a['nz'] * o; xb, zb = b['x'] + b['nx'] * o, b['z'] + b['nz'] * o
+            if self.near_site(xa, za, 2.3, -9.0, 6.5) or self.near_site(xb, zb, 2.3, -9.0, 6.5): continue
+            ya, yb = self.sample(xa, za) + 0.04, self.sample(xb, zb) + 0.04
+            self.B.box(xa, za, 0.09, 0.09, ya, ya + 1.0, COLM['post'], METAL, True, False)
+            dx, dz = xb - xa, zb - za; L = math.hypot(dx, dz) or 1; px, pz = -dz / L * 0.04, dx / L * 0.04
+            for yy in (0.95, 0.5):
+                self.B.obox_pts([(xa - px, za - pz), (xb - px, zb - pz), (xb + px, zb + pz), (xa + px, za + pz)], min(ya, yb) + yy - 0.04 + (0 if yy > 0.9 else 0), max(ya, yb) + yy + 0.03 if yy > 0.9 else max(ya, yb) + yy, COLM['rail'], METAL, True, False)
+            self.solids.append([round(min(xa, xb) - 0.3, 2), round(min(za, zb) - 0.3, 2), round(max(xa, xb) + 0.3, 2), round(max(za, zb) + 0.3, 2)])
+
+    def run_rail(self, fr, i0, i1):
+        """trechos so de pedra (cabeceiras de canal, pontas): guarda-corpo a 3,9 m da agua onde o chao e livre"""
+        seg = fr[i0:i1 + 1]; good = []
+        for f in seg:
+            x, z = f['x'] + f['nx'] * 3.9, f['z'] + f['nz'] * 3.9
+            good.append((not self.blocked(x, z, 0)) and self.sample(x, z) > 0.2)
+        k = 0
+        while k < len(seg):
+            if not good[k]: k += 1; continue
+            j = k
+            while j + 1 < len(seg) and good[j + 1]: j += 1
+            if j - k >= 3: self.rail(seg, k, j, 3.9)
+            k = j + 1
 
     # ------------------------------------------------------------------ docas e barcos
     def dock_geom(self, f, width=2.3):
@@ -413,9 +430,32 @@ class Margens:
             for (i0, i1, kind, prom) in runs:
                 self.run_stone(fr, i0, i1, kind)
                 if prom: self.run_prom(fr, i0, i1, kind)
+                else: self.run_rail(fr, i0, i1)
                 self.items['runs'].append({'kind': kind, 'len': round(3.0 * (i1 - i0), 1), 'x0': round(fr[i0]['x']), 'z0': round(fr[i0]['z']), 'x1': round(fr[i1]['x']), 'z1': round(fr[i1]['z'])})
         for d in self.dock_sites: self.draw_dock(d)
+        for fr, runs in plan: self.fringe(fr, runs)
+        self.items['solids'] = self.solids
         return self
+
+    def fringe(self, fr, runs):
+        """margem natural (resto do litoral das terras da cidade): faixa de blocos grandes de pedra, para a borda d'agua nunca ser so grama"""
+        if len(fr) < 600: return                                        # so os contornos grandes (terras da cidade); costas de fora nao sao alcancaveis
+        covered = np.zeros(len(fr), bool)
+        for (i0, i1, kind, prom) in runs: covered[max(i0 - 3, 0):i1 + 4] = True
+        ii = lambda x: int(min(max(round(x / CELL), 0), NX - 1)); jj = lambda z: int(min(max(round(z / CELL), 0), NZ - 1))
+        n = 0
+        for k in range(0, len(fr), 3):                                  # a cada ~9 m
+            if covered[k]: continue
+            f = fr[k]; x, z = f['x'], f['z']
+            if self.geo.beach_zone[jj(z), ii(x)] and self.geo.Dsea[jj(z), ii(x)] < 80: continue            # praia: areia, sem pedra
+            if self.rnd.random() < 0.1: continue
+            for _ in range(self.rnd.choice((2, 2, 3))):
+                o = self.rnd.uniform(-0.3, 3.0); s = self.rnd.uniform(0, 8.0)
+                px, pz = x + f['nx'] * o + f['tx'] * s, z + f['nz'] * o + f['tz'] * s
+                if self.blocked(px, pz, 0): continue
+                y = max(self.sample(px, pz), WATER_Y - 0.3)
+                self.rock(px, y, pz, self.rnd.uniform(1.0, 2.6), self.rnd.choice((COLM['rock1'], COLM['rock2'], COLM['rock3'], COLM['rock4'], COLM['rockd'])), 0.85); n += 1
+        self.stats['fringe'] = self.stats.get('fringe', 0) + n
 
     def sea_dir(self, x, z, r):
         """direcao (em graus de varredura de 4) para a agua funda mais proxima: distancia ate hf < -1.5"""
@@ -444,8 +484,9 @@ class Margens:
         return self
 
     # ------------------------------------------------------------------ lotes e validacao
-    def reserve_lots(self, clearance=14.0):
-        """lotes comuns que encostam no calcadao ribeirinho saem (viram parque/praca na Etapa F); casas do jogador nunca podem ficar na faixa"""
+    def reserve_lots(self, clearance=14.0, setback=45.0):
+        """REGRA DA BORDA D'AGUA: nenhum lote (casa ou predio da Etapa E) a menos de 'setback' m da agua (rio, lagoa, canais) nem encostado no calcadao ribeirinho;
+        esses lotes viram parque/praca/estacionamento (Etapa F). A frente de praia e a Av. Beira-Mar ja ficam a mais de 70 m do mar."""
         grid = {}
         for (x, z) in self.band_pts: grid.setdefault((int(x // 32), int(z // 32)), []).append((x, z))
         def near(x, z, r):
@@ -455,14 +496,21 @@ class Margens:
                     for (px, pz) in grid.get((i, j), ()):
                         if math.hypot(px - x, pz - z) < r: return True
             return False
-        keep = []; drop = 0
+        D = T._chamfer8(self.hf < WATER_Y)
+        def dwater(x, z): return float(D[min(max(int(round(z / 8.0)), 0), D.shape[0] - 1), min(max(int(round(x / 8.0)), 0), D.shape[1] - 1)])
+        keep = []; drop = 0; drop_w = 0
         for l in self.P.lots:
             r = l['rect']; pts = [(p[0], p[1]) for p in r] + [(sum(p[0] for p in r) / 4, sum(p[1] for p in r) / 4)]
             if any(near(x, z, clearance) for x, z in pts): drop += 1
+            elif any(dwater(x, z) < setback for x, z in pts): drop_w += 1
             else: keep.append(l)
-        self.P.lots = keep; self.stats['lots_dropped'] = drop
+        self.P.lots = keep; self.stats['lots_dropped'] = drop + drop_w; self.stats['lots_dropped_water'] = drop_w
         bad = [h['k'] + 1 for h in self.P.houses if any(near(p[0], p[1], 6.0) for p in h['lot']['rect'])]
         self.stats['houses_in_band'] = bad
+        self.stats['houses_water'] = [(h['k'] + 1, round(min(dwater(p[0], p[1]) for p in h['lot']['rect']))) for h in self.P.houses if min(dwater(p[0], p[1]) for p in h['lot']['rect']) < 30.0]
+        self.items['setback_m'] = setback
+        self.items['bordas_uso'] = {'rio': 'calcadao ribeirinho + docas; predios so a 45 m ou mais', 'lagoa': 'calcadao + parque', 'canal': 'enrocamento natural; sem construcao',
+                                    'pontas': 'Parque do Farol (praca, alameda, quadra, playground, quiosque, mirante)', 'praia': 'orla + Av. Beira-Mar; predios do outro lado da avenida'}
         return self
 
     def validate(self):
@@ -482,7 +530,7 @@ class Margens:
         bad = [d for d in self.items['docks'] if self.sample(d['x'] + d['dx'] * d['len'], d['z'] + d['dz'] * d['len']) > -0.6]
         good = not bad; ok &= good
         out.append(f'  docas terminam na agua: {len(self.items["docks"]) - len(bad)}/{len(self.items["docks"])}; barcos {len(self.items["boats"])} {"ok" if good else "RASAS"}')
-        good = not self.stats.get('houses_in_band'); ok &= good
-        out.append(f'  casas do jogador longe da margem urbana: {"ok" if good else "CONFLITO " + str(self.stats.get("houses_in_band"))}; lotes comuns retirados da margem: {self.stats.get("lots_dropped", 0)}')
+        good = not self.stats.get('houses_in_band') and not self.stats.get('houses_water'); ok &= good
+        out.append(f'  casas do jogador longe da margem urbana: {"ok" if good else "CONFLITO " + str(self.stats.get("houses_in_band"))}; lotes comuns retirados da margem: {self.stats.get("lots_dropped", 0)} ({self.stats.get("lots_dropped_water", 0)} por ficarem a menos de 45 m da agua); blocos de pedra natural: {self.stats.get("fringe", 0)}; colisoes de guarda-corpo: {len(self.solids)}')
         out.append(f'  enrocamento {self.stats["rip_m"]:.0f} m, calcadao {self.stats["prom_m"]:.0f} m, {self.stats["rocks"]} blocos de pedra, {len(self.items["lamps"])} postes, {len(self.items["benches"])} bancos, {self.items["trees"]} arvores')
         return ok, out

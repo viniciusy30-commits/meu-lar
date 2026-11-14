@@ -200,6 +200,22 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
             put(j0, j1, i0, i1, w, d, y)
     if geo is not None:
         for rt in (river_terrace(h0, X, Z, city) or []): put(0, N8Z, 0, N8X, rt[0], rt[1], rt[2])
+    # margem natural rochosa: nas margens que nao sao praia, rio urbano, lagoa nem pontas da orla o terreno ganha um barranco (berma) de ~3 m junto da agua:
+    # inclinacao forte (o app pinta de rocha) e barreira visual — ninguem entra na agua de bobeira e nenhuma margem e so grama descendo para o mar
+    if geo is not None:
+        water_ = h0 < -0.2
+        Dn = _chamfer8(water_)
+        Dr_, _t = G.poly_dist(X, Z, RIVER['pts'])
+        lx_, lz_, rx_, rz_ = LAGOON
+        ell_ = np.hypot((X - lx_) / (rx_ + 70), (Z - lz_) / (rz_ + 70)) < 1.0
+        ii_ = np.clip(np.round(X / CELL).astype(int), 0, NX - 1); jj_ = np.clip(np.round(Z / CELL).astype(int), 0, NZ - 1)
+        beach_ = geo.beach_zone[jj_, ii_] & (geo.Dsea[jj_, ii_] < 110.0)
+        urb_river = (Dr_ < 230) & (Z > 520) & (Z < 2700)
+        inside = (X > 700) & (X < 3700)
+        nat = (~water_) & inside & (~beach_) & (~ell_) & (~urb_river) & (Z < 2880)
+        bump = 3.0 * smooth(np.clip(Dn / 10.0, 0, 1)) * (1.0 - smooth(np.clip((Dn - 14.0) / 22.0, 0, 1)))
+        wn = np.where(nat & (Dn > 0) & (Dn < 40), 1.0, 0.0)
+        put(0, N8Z, 0, N8X, wn, 600.0 + Dn, h0 + bump)
     # pontas da orla: terreno plano (nivel do calcadao) em volta da Praca do Farol, para o parque nascer rente ao piso
     cnt = {}
     for e in city.edges:

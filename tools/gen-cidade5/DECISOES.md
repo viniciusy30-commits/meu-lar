@@ -137,3 +137,16 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - **Bug do tabuleiro sumido** (`gen-bairro/bake.py`): a malha assada guarda cada triângulo na célula de 64 m do centroide; o tabuleiro de 600 m da ponte vermelha ficava numa célula só e desaparecia quando ela saía de vista. `Bake.tri` agora divide triângulos maiores que 56 m (aresta mais longa) — vale para qualquer peça grande.
 - **Rua da ponte vermelha**: 55 m retos no eixo da ponte a partir do mirante e curva Bézier suave até o destino (`assemble.red_bridges`); a rua entra de frente no tabuleiro.
 - **Pontas da orla** (`orla.end_plaza` + `orla_fim.py`): praça de 13–16 m com anel vermelho de 3 m onde a ciclovia ENTRA e faz o retorno (tracejado, setas), rosa dos ventos no piso, canteiros, mastros com bandeiras, escada larga para a areia; terreno plano (2,55 m) em volta da ponta (`terrain_final`, só fora da areia); Parque do Farol: alameda de palmeiras com canteiros floridos até um mirante circular, quiosque redondo, ~70 árvores; molhe com farol saindo da praça, calçadão ribeirinho e enrocamento contornando a ponta.
+
+## REGRA DA BORDA D'ÁGUA (vale para as Etapas E, F, G, H)
+A cidade é cercada de água (mar ao sul, canais a oeste e leste, rio no meio, lagoa). Nenhuma construção encosta na água. Cada tipo de margem tem um uso e um acabamento fixos:
+| Margem | Acabamento | Uso permitido (o que vai ali) |
+|---|---|---|
+| Praia (orla) | calçadão + ciclovia + muro + escadas; Av. Beira-Mar | prédios/hotéis só do outro lado da avenida (a ≥ 70 m do mar) |
+| Rio urbano (z 600–2540) | terraço plano + enrocamento + calçadão ribeirinho com guarda-corpo (colisão) + docas/barcos | parques lineares, restaurantes de beira-rio (decor), marinas; prédios a ≥ 45 m |
+| Lagoa da Praça | banco baixo + enrocamento + calçadão em anel | praça/parque; sem lotes |
+| Pontas da orla | Praça do Farol + molhe/farol + Parque (alameda, mirante, quadra, playground, piquenique, quiosque) | só equipamentos públicos |
+| Canais e resto do litoral | barranco rochoso de 3 m no terreno (cor de rocha por inclinação) + faixa de blocos de pedra (3 mil blocos); a água continua bloqueando | reserva natural: sem construção |
+- **Lotes**: nenhum lote a menos de 45 m da água nem encostado no calçadão ribeirinho (38 lotes retirados; as 17 casas passam no validador). Esses espaços viram parque/praça/estacionamento na Etapa F.
+- **Barreira**: guarda-corpo do calçadão ribeirinho e das cabeceiras tem colisão (1.810 vãos em `margens.json → solids`, exportados em `c5.json → solid`).
+- **Etapa E**: ao colocar prédios, consultar `margens.json` (`setback_m`, `bordas_uso`) e o raster de água; nunca criar lote em margem.

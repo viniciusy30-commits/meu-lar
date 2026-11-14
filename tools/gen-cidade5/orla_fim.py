@@ -65,7 +65,7 @@ def extras(o, f, so, cx, cz, Rr, Y, ang_in, ang_sea, red0, red1):
             B.cyl(px + math.cos(aa) * 0.26, pz + math.sin(aa) * 0.26, 0.17, YP + 0.5, YP + 0.62, col if q % 2 == 0 else shade(col, -30), 6, PLAIN, True)
     # 4) mastros com bandeiras (Brasil / cidade) perto da entrada do mar
     for sg in (-1, 1):
-        a = ang_sea + sg * math.radians(26)
+        a = ang_sea + sg * math.radians(42)
         px, pz = cx + math.cos(a) * (Rr - 1.4), cz + math.sin(a) * (Rr - 1.4)
         B.cyl(px, pz, 0.07, YP, YP + 9.0, COL['rail'], 8, METAL, True)
         wx, wz = -math.sin(a), math.cos(a)
@@ -93,18 +93,28 @@ def _park(o, p, O):
     import validate_ground
     if not hasattr(o, '_street_occ'):
         M = validate_ground.raster(g, ['asphalt', 'sidewalk', 'curb', 'median', 'island']); o._street_occ = M['asphalt'] | M['sidewalk'] | M['curb'] | M['median'] | M['island']
-    occ = o._street_occ
+    from PIL import Image, ImageDraw, ImageFilter
+    import numpy as _np
+    if not hasattr(o, '_park_occ'):
+        im = Image.new('L', (int(WX), int(WZ)), 0); dr = ImageDraw.Draw(im)
+        for name, pts in o.polys:                                                   # toda a orla (calcadao, ciclovia, vagas, muro, escadas, pieres, pracas)
+            if len(pts) >= 3: dr.polygon([(q[0], q[1]) for q in pts], fill=255)
+        o._park_occ = o._street_occ | (_np.array(im.filter(ImageFilter.MaxFilter(7))) > 0)
+    occ = o._park_occ
     def used(x, z, pad=2):
         i, j = int(x), int(z)
         return j < pad or i < pad or j >= occ.shape[0] - pad or i >= occ.shape[1] - pad or bool(occ[j - pad:j + pad + 1, i - pad:i + pad + 1].any())
-    def land(x, z, lim=1.0): return o.sample(x, z) > lim
+    def beach(x, z):
+        i, j = int(min(max(round(x / CELL), 0), NX - 1)), int(min(max(round(z / CELL), 0), NZ - 1))
+        return bool(o.geo.beach_zone[j, i] and o.geo.Dsea[j, i] < 70.0)
+    def land(x, z, lim=1.0): return o.sample(x, z) > lim and not beach(x, z)
     # eixo da alameda: a direcao com mais terra livre a partir da praca (a ponta e uma faixa de terra entre a praia e o canal)
     best_ax = None
     for da in range(0, 360, 10):
-        an = math.radians(da); ux_, uz_ = math.cos(an), math.sin(an); d = R + 2.0
+        an = math.radians(da); ux_, uz_ = math.cos(an), math.sin(an); d = R + 11.0
         while d < 150:
             x, z = cx + ux_ * d, cz + uz_ * d
-            ok = land(x, z, 1.4) and not used(x, z, 5) and land(x + uz_ * 7, z - ux_ * 7, 1.2) and land(x - uz_ * 7, z + ux_ * 7, 1.2)
+            ok = land(x, z, 0.9) and not used(x, z, 2) and land(x + uz_ * 7, z - ux_ * 7, 0.8) and land(x - uz_ * 7, z + ux_ * 7, 0.8)
             if not ok: break
             d += 3.0
         if best_ax is None or d > best_ax[0] + 1e-6: best_ax = (d, ux_, uz_)
@@ -113,20 +123,29 @@ def _park(o, p, O):
         x, z = cx + ax * u + wx_ * w, cz + az * u + wz_ * w
         return (x, o.sample(x, z) + dy, z)
     def strip(u0, u1, w0, w1, col, mat=PAVER, dy=0.05, layer='prom', step=3.0):
+        if u1 - u0 < 2: return
         n = max(1, int(abs(u1 - u0) / step))
         for k in range(n):
             a, b = u0 + (u1 - u0) * k / n, u0 + (u1 - u0) * (k + 1) / n
             q = [pt(a, w0, dy), pt(b, w0, dy), pt(b, w1, dy), pt(a, w1, dy)]
             B.quad(mat, q, (0, 1, 0), col)
             if layer: g.polys.append((layer, [(v[0], v[2]) for v in q])) if hasattr(g, 'polys') else g.poly(layer, [(v[0], v[2]) for v in q])
+    def near_stairs(x, z):
+        for q in o.items.get('paths', []):
+            if math.hypot(x - q['x'] - q['sx'] * 17, z - q['z'] - q['sz'] * 17) < 5.5: return True
+        for st in o.items.get('stairs', []):
+            for q in range(0, 9):
+                if math.hypot(x - (st['x'] + st['dx'] * q), z - (st['z'] + st['dz'] * q)) < 5.5: return True
+        return False
     def lamp(u, w):
         x, y, z = pt(u, w, 0.05)
+        if near_stairs(x, z): return
         B.cyl(x, z, 0.09, y, y + 4.6, COL['lamp'], 8); B.cyl(x, z, 0.16, y, y + 0.4, COL['lamp'], 8)
         B.box(x, z, 0.7, 0.3, y + 4.5, y + 4.7, rgb('#FFF0B8'), PLAIN, True, False)
         o.items['lamps'].append({'x': round(x, 2), 'z': round(z, 2), 'y': round(y, 2)})
     def palm(u, w):
         x, y, z = pt(u, w, 0.0)
-        if used(x, z, 1) or not land(x, z): return
+        if used(x, z, 1) or not land(x, z) or near_stairs(x, z): return
         o.palm_at(x, z, y + 0.25, rnd.uniform(0.95, 1.25)); o.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': round(y + 0.3, 2), 'sp': 'palmeira', 'scale': 1.0, 'baked': True})
     def bench(u, w, face):
         x, y, z = pt(u, w, 0.05); fx, fz = (wx_, wz_) if face > 0 else (-wx_, -wz_); tx_, tz_ = -fz, fx
@@ -135,10 +154,11 @@ def _park(o, p, O):
         for sg in (-1, 1): B.box(x + tx_ * 0.7 * sg, z + tz_ * 0.7 * sg, 0.15, 0.4, y, y + 0.4, COL['iron'], PLAIN, True, False)
         o.items['benches'].append({'x': round(x, 2), 'z': round(z, 2), 'nx': round(-fx, 3), 'nz': round(-fz, 3)})
     # --- 1) alameda: da borda da praca ate o mirante
-    u0 = R + 1.0; u1 = u0
-    while u1 < 140 and land(*pt(u1 + 3, 0)[::2], lim=1.4) and not used(*pt(u1 + 3, 0)[::2], 4) and land(*pt(u1 + 3, 6)[::2], lim=1.0) and land(*pt(u1 + 3, -6)[::2], lim=1.0): u1 += 3.0
+    u0 = R + 3.0; u1 = R + 10.0
+    while u1 < 140 and land(*pt(u1 + 3, 0)[::2], lim=0.9) and not used(*pt(u1 + 3, 0)[::2], 2) and land(*pt(u1 + 3, 6)[::2], lim=0.8) and land(*pt(u1 + 3, -6)[::2], lim=0.8): u1 += 3.0
     u1 -= 9.0
-    if u1 - u0 < 12: return
+    has_al = (u1 - u0) >= 26
+    if not has_al: u1 = u0 - 12.0
     W = 5.2
     strip(u0, u1, -W / 2, W / 2, rgb('#D8D2C4'))
     strip(u0, u1, -W / 2 - 0.3, -W / 2, COL['wall2'], dy=0.06, layer='curb'); strip(u0, u1, W / 2, W / 2 + 0.3, COL['wall2'], dy=0.06, layer='curb')
@@ -174,7 +194,7 @@ def _park(o, p, O):
     # --- 2) mirante no fim da alameda
     mu = u1 + 7.0; mr = 7.5
     ring = [pt(mu + math.cos(2 * math.pi * k / 24) * mr, math.sin(2 * math.pi * k / 24) * mr, 0.05) for k in range(24)]
-    if sum(1 for v in ring if land(v[0], v[2], 0.6)) >= 22 and not any(used(v[0], v[2], 1) for v in ring):
+    if has_al and sum(1 for v in ring if land(v[0], v[2], 0.6)) >= 22 and not any(used(v[0], v[2], 1) for v in ring):
         for k in range(24):
             a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
             c0, c1 = pt(mu, 0, 0.05), None
@@ -219,7 +239,7 @@ def _park(o, p, O):
         for k, dd in enumerate(range(int(R + 5), int(d1 - 3), 14)):
             for sg in (-1, 1):
                 x, z = cx + dx_ * dd + px_ * sg * 3.6, cz + dz_ * dd + pz_ * sg * 3.6
-                if not used(x, z, 1) and land(x, z): o.palm_at(x, z, o.sample(x, z) + 0.25, 1.1); o.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': round(o.sample(x, z) + 0.3, 2), 'sp': 'palmeira', 'scale': 1.0, 'baked': True})
+                if not used(x, z, 1) and land(x, z) and not near_stairs(x, z): o.palm_at(x, z, o.sample(x, z) + 0.25, 1.1); o.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': round(o.sample(x, z) + 0.3, 2), 'sp': 'palmeira', 'scale': 1.0, 'baked': True})
             x, z = cx + dx_ * (dd + 7) + px_ * 3.0, cz + dz_ * (dd + 7) + pz_ * 3.0
             if not used(x, z, 1) and land(x, z):
                 y = o.sample(x, z) + 0.05; B.cyl(x, z, 0.09, y, y + 4.6, COL['lamp'], 8); B.box(x, z, 0.7, 0.3, y + 4.5, y + 4.7, rgb('#FFF0B8'), PLAIN, True, False); o.items['lamps'].append({'x': round(x, 2), 'z': round(z, 2), 'y': round(y, 2)})
@@ -227,7 +247,7 @@ def _park(o, p, O):
     for da in (35, -35, 55, -55):
         ang = math.radians(da); dx_ = lx * math.cos(ang) - lz * math.sin(ang); dz_ = lx * math.sin(ang) + lz * math.cos(ang)
         kx, kz = cx + dx_ * (R + 13.0), cz + dz_ * (R + 13.0)
-        if land(kx, kz, 1.6) and not used(kx, kz, 5):
+        if land(kx, kz, 1.0) and not used(kx, kz, 5):
             y = o.sample(kx, kz) + 0.05
             B.cyl(kx, kz, 3.4, y, y + 0.18, COL['wave1'], 14, PAVER, True)
             B.cyl(kx, kz, 1.9, y + 0.18, y + 2.5, rgb('#E8D9B5'), 12, PLAIN, False)
@@ -238,6 +258,101 @@ def _park(o, p, O):
                 if q % 2 == 0:
                     B.cyl(tx_, tz_, 0.55, y + 0.78, y + 0.82, COL['white'], 8, PLAIN, True); B.cyl(tx_, tz_, 0.05, y + 0.18, y + 0.78, COL['iron'], 6, METAL, True)
             break
+    # --- 4b) equipamentos do parque: quadra poliesportiva, playground e area de piquenique (cada um num trecho plano e livre)
+    taken = [(cx, cz, R + 6.0)]
+    for (ux_, uz_) in ((0, 0),):
+        pass
+    if has_al: taken.append((cx + ax * (u1 / 2 + R / 2), cz + az * (u1 / 2 + R / 2), max(u1 / 2 + 4.0, 12.0)))              # corredor da alameda
+    def spot(half_x, half_z, dmin=R + 10, dmax=95, prefer=None):
+        import itertools
+        angs = list(range(0, 360, 12)); rnd.shuffle(angs)
+        for d in range(int(dmin), int(dmax), 5):
+            for ang in angs:
+                a_ = math.radians(ang); x, z = cx + math.cos(a_) * d, cz + math.sin(a_) * d
+                rad = math.hypot(half_x, half_z) + 1.5
+                if any(math.hypot(x - tx, z - tz) < tr + rad for tx, tz, tr in taken): continue
+                hs = []; ok = True
+                for gx in (-1, -0.5, 0, 0.5, 1):
+                    for gz in (-1, -0.5, 0, 0.5, 1):
+                        px, pz = x + gx * half_x, z + gz * half_z
+                        if not land(px, pz, 1.0) or used(px, pz, 3): ok = False; break
+                        hs.append(o.sample(px, pz))
+                    if not ok: break
+                if ok and max(hs) - min(hs) < 0.5:
+                    taken.append((x, z, rad)); return x, z, a_
+        print('   spot nao achado', half_x, half_z)
+        return None
+    def box_(x, z, hx, hz, ang, y0, y1, col, mat=PLAIN):
+        ca, sa = math.cos(ang), math.sin(ang)
+        c4 = [(x + ca * dx_ - sa * dz_, z + sa * dx_ + ca * dz_) for dx_, dz_ in ((-hx, -hz), (hx, -hz), (hx, hz), (-hx, hz))]
+        B.obox_pts(c4, y0, y1, col, mat, True, False)
+        return c4
+    def floor_(x, z, hx, hz, ang, y, col, mat=PAVER, layer='prom'):
+        ca, sa = math.cos(ang), math.sin(ang)
+        q = [(x + ca * dx_ - sa * dz_, y, z + sa * dx_ + ca * dz_) for dx_, dz_ in ((-hx, -hz), (hx, -hz), (hx, hz), (-hx, hz))]
+        B.quad(mat, q, (0, 1, 0), col)
+        g.poly(layer, [(v[0], v[2]) for v in q])
+    def line_(x, z, hx, hz, ang, y, a0, b0, a1, b1, w=0.07):
+        ca, sa = math.cos(ang), math.sin(ang)
+        def P_(u, v): return (x + ca * u - sa * v, y, z + sa * u + ca * v)
+        dx_, dz_ = a1 - a0, b1 - b0; l = math.hypot(dx_, dz_) or 1; nx_, nz_ = -dz_ / l * w, dx_ / l * w
+        B.quad(PLAIN, [P_(a0 - nx_, b0 - nz_), P_(a1 - nx_, b1 - nz_), P_(a1 + nx_, b1 + nz_), P_(a0 + nx_, b0 + nz_)], (0, 1, 0), COL['white'], None, True)
+    # quadra poliesportiva 26 x 14
+    sp = spot(13.5, 7.5)
+    if sp:
+        x, z, a_ = sp; y = o.sample(x, z) + 0.06; ang = a_
+        floor_(x, z, 14.2, 8.2, ang, y - 0.02, rgb('#9C9486'))
+        floor_(x, z, 13.0, 7.0, ang, y, rgb('#3F6FA8'))
+        for (a0, b0, a1, b1) in ((-13, -7, 13, -7), (-13, 7, 13, 7), (-13, -7, -13, 7), (13, -7, 13, 7), (0, -7, 0, 7)):
+            line_(x, z, 13, 7, ang, y + 0.012, a0, b0, a1, b1)
+        for sgn in (-1, 1):                                                       # arcos de gol/cestas
+            ca, sa = math.cos(ang), math.sin(ang); hx_, hz_ = x + ca * 12.2 * sgn, z + sa * 12.2 * sgn
+            B.cyl(hx_, hz_, 0.08, y, y + 3.1, COL['lamp'], 8, METAL, True)
+            box_(hx_ - ca * 0.35 * sgn, hz_ - sa * 0.35 * sgn, 0.05, 0.9, ang, y + 2.6, y + 3.5, COL['white'])
+        for sgn in (-1, 1):                                                       # alambrado baixo nas laterais
+            for k in range(-6, 7):
+                ca, sa = math.cos(ang), math.sin(ang)
+                B.cyl(x + ca * k * 2.2 - sa * 8.0 * sgn, z + sa * k * 2.2 + ca * 8.0 * sgn, 0.05, y - 0.02, y + 1.6, COL['iron'], 6, METAL, True)
+        o.items['courts'].append({'x': round(x, 1), 'z': round(z, 1), 'tx': round(math.cos(ang), 3), 'tz': round(math.sin(ang), 3)})
+    # playground 14 x 12 (piso de borracha + balanco, escorregador, gangorra, caixa de areia)
+    sp = spot(7.5, 6.5)
+    if sp:
+        x, z, a_ = sp; y = o.sample(x, z) + 0.06; ang = a_
+        floor_(x, z, 7.6, 6.6, ang, y - 0.02, COL['wall2']); floor_(x, z, 7.0, 6.0, ang, y, rgb('#C0643C'))
+        ca, sa = math.cos(ang), math.sin(ang)
+        def L_(u, v): return (x + ca * u - sa * v, z + sa * u + ca * v)
+        for sgn in (-1, 1):                                                       # balanco
+            px, pz = L_(-4.5, 2.2 * sgn)
+            B.cyl(px, pz, 0.07, y, y + 2.6, rgb('#2E7D32'), 6, METAL, True)
+        for cz_ in (-1.4, 1.4):
+            a1_, b1_ = L_(-4.5, cz_ - 3.6), L_(-4.5, cz_ + 3.6)
+        px0, pz0 = L_(-4.5, -3.6); px1, pz1 = L_(-4.5, 3.6)
+        B.cyl(px0, pz0, 0.07, y, y + 2.6, rgb('#2E7D32'), 6, METAL, True); B.cyl(px1, pz1, 0.07, y, y + 2.6, rgb('#2E7D32'), 6, METAL, True)
+        box_(*L_(-4.5, 0.0), 0.05, 3.7, ang, y + 2.5, y + 2.62, rgb('#2E7D32'), METAL)
+        for v in (-1.8, 1.8):
+            sx_, sz_ = L_(-4.5, v); box_(sx_, sz_, 0.2, 0.22, ang, y + 0.5, y + 0.55, rgb('#D6402A'))
+            B.quad(PLAIN, [(sx_ + ca * 0.2, y + 2.5, sz_ + sa * 0.2), (sx_ - ca * 0.2, y + 2.5, sz_ - sa * 0.2), (sx_ - ca * 0.2, y + 0.55, sz_ - sa * 0.2), (sx_ + ca * 0.2, y + 0.55, sz_ + sa * 0.2)], (0, 0, 1), COL['iron'], None, True)
+        sx_, sz_ = L_(3.0, -3.0)                                                  # escorregador: torre + rampa
+        box_(sx_, sz_, 0.8, 0.8, ang, y, y + 2.2, rgb('#FDD835'))
+        ex, ez = L_(3.0 + 3.6, -3.0)
+        B.quad(PLAIN, [(sx_ + ca * 0.8 - sa * 0.35, y + 2.0, sz_ + sa * 0.8 + ca * 0.35), (sx_ + ca * 0.8 + sa * 0.35, y + 2.0, sz_ + sa * 0.8 - ca * 0.35), (ex + sa * 0.35, y + 0.2, ez - ca * 0.35), (ex - sa * 0.35, y + 0.2, ez + ca * 0.35)], (0, 1, 0), rgb('#1E88E5'), None, True)
+        gx_, gz_ = L_(3.0, 3.0); box_(gx_, gz_, 1.6, 1.6, ang, y, y + 0.35, rgb('#E8D9B5')); box_(gx_, gz_, 1.3, 1.3, ang, y + 0.3, y + 0.38, rgb('#D9B65B'))   # caixa de areia
+        o.items.setdefault('playgrounds', []).append({'x': round(x, 1), 'z': round(z, 1)})
+    # area de piquenique: cobertura quadrada + 3 mesas com bancos
+    sp = spot(6.0, 6.0)
+    if sp:
+        x, z, a_ = sp; y = o.sample(x, z) + 0.06; ang = a_
+        floor_(x, z, 6.2, 6.2, ang, y, rgb('#D8D2C4'))
+        ca, sa = math.cos(ang), math.sin(ang)
+        for (u, v) in ((-5, -5), (5, -5), (5, 5), (-5, 5)):
+            B.cyl(x + ca * u - sa * v, z + sa * u + ca * v, 0.14, y, y + 3.0, rgb('#7A5A3A'), 6, WOOD, True)
+        box_(x, z, 6.0, 6.0, ang, y + 3.0, y + 3.25, rgb('#8B6B47'), WOOD)
+        for (u, v) in ((-2.4, 0.0), (2.4, -2.6), (2.4, 2.6)):
+            tx_, tz_ = x + ca * u - sa * v, z + sa * u + ca * v
+            box_(tx_, tz_, 1.0, 0.45, ang, y + 0.72, y + 0.78, rgb('#8B6B47'), WOOD)
+            for sg in (-1, 1): box_(tx_ - sa * 0.95 * sg, tz_ + ca * 0.95 * sg, 1.0, 0.18, ang, y + 0.42, y + 0.47, rgb('#7A5A3A'), WOOD)
+            box_(tx_, tz_, 0.1, 0.1, ang, y, y + 0.72, COL['iron'])
+        o.items.setdefault('picnic', []).append({'x': round(x, 1), 'z': round(z, 1)})
     # --- 5) arvores e palmeiras no gramado em volta (nunca em cima de caminhos, ruas, mirante, praca)
     placed = 0; tries = 0
     while placed < 70 and tries < 1500:
@@ -246,7 +361,7 @@ def _park(o, p, O):
         x, z = cx + math.cos(ang) * d, cz + math.sin(ang) * d
         uu = (x - cx) * ax + (z - cz) * az; ww = (x - cx) * wx_ + (z - cz) * wz_
         if abs(ww) < W / 2 + 10 and -2 < uu < u1 + 16: continue
-        if not land(x, z, 1.5) or used(x, z, 4): continue
+        if not land(x, z, 1.2) or used(x, z, 4): continue
         if math.hypot(x - cx, z - cz) < R + 6: continue
         o.trees_extra = getattr(o, 'trees_extra', [])
         P.trees.append([round(x, 1), round(z, 1), rnd.choice((0, 1, 1, 3, 3)), round(rnd.uniform(1.0, 1.6), 2), round(rnd.uniform(0, 6.28), 2), round(rnd.uniform(0, 1), 2)]); placed += 1
