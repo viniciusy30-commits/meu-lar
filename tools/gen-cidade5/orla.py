@@ -214,6 +214,8 @@ class Orla:
         for sg in (-1, 1):
             px, pz = base[0] + rx_ * sg * (W / 2 + 0.05), base[1] + rz_ * sg * (W / 2 + 0.05)
             for i in range(0, n + 1, 3): self.B.cyl(px + sx_ * i * tread, pz + sz_ * i * tread, 0.04, YPf + 0.06 - i * rise, YPf + 0.06 - i * rise + 1.0, COL['iron'], 6)
+        for sg in (-1, 1):
+            self.cheek(base[0] - sx_ * 0.4, base[1] - sz_ * 0.4, sx_, sz_, n * tread + 1.2, sg * (W / 2 + 0.55), YPf + 0.55, yb + 0.55, min(yb, YPf - 1.5) - 0.8)
         self.items['stairs'].append({'x': round(base[0], 2), 'z': round(base[1], 2), 'dx': round(sx_, 3), 'dz': round(sz_, 3), 'steps': n, 'w': W, 'top': YPf, 'plaza': True})
         self.stats['stairs'] += 1
         # fonte central
@@ -367,6 +369,20 @@ class Orla:
         import terrain_final as T
         return T.sample8(self.hf, x, z)
 
+    def cheek(self, x0, z0, dx, dz, run, lat, ytop0, ytop1, ybot, th=0.4):
+        """muro lateral inclinado ao lado de uma escada: comeca em (x0,z0) e segue (dx,dz) por `run` m; `lat` = deslocamento lateral do eixo"""
+        rx, rz = -dz, dx
+        ax, az = x0 + rx * lat, z0 + rz * lat
+        bx, bz = ax + dx * run, az + dz * run
+        P = lambda x, z, o: (x + rx * o, z + rz * o)
+        for o_in, o_out, nrm in ((-th / 2, th / 2, 1.0),):
+            a_i, a_o = P(ax, az, -th / 2), P(ax, az, th / 2); b_i, b_o = P(bx, bz, -th / 2), P(bx, bz, th / 2)
+            self.B.quad(STONE, [(a_o[0], ybot, a_o[1]), (b_o[0], ybot, b_o[1]), (b_o[0], ytop1, b_o[1]), (a_o[0], ytop0, a_o[1])], (rx, 0, rz), COL['wall'], None, True)
+            self.B.quad(STONE, [(b_i[0], ybot, b_i[1]), (a_i[0], ybot, a_i[1]), (a_i[0], ytop0, a_i[1]), (b_i[0], ytop1, b_i[1])], (-rx, 0, -rz), COL['wall'], None, True)
+            self.B.quad(STONE, [(a_i[0], ytop0, a_i[1]), (a_o[0], ytop0, a_o[1]), (b_o[0], ytop1, b_o[1]), (b_i[0], ytop1, b_i[1])], (0, 1, 0), COL['wall2'], None, True)
+            self.B.quad(STONE, [(b_i[0], ybot, b_i[1]), (b_o[0], ybot, b_o[1]), (b_o[0], ytop1, b_o[1]), (b_i[0], ytop1, b_i[1])], (dx, 0, dz), COL['wall'], None, True)
+            self.B.quad(STONE, [(a_o[0], ybot, a_o[1]), (a_i[0], ybot, a_i[1]), (a_i[0], ytop0, a_i[1]), (a_o[0], ytop0, a_o[1])], (-dx, 0, -dz), COL['wall'], None, True)
+
     def stairs(self, fr_, s0):
         f = self.at(fr_, s0); YPf = f['yp']; W = 6.0; rise = 0.14
         x0, z0 = f['x'] + f['nx'] * (-HALF_W), f['z'] + f['nz'] * (-HALF_W)       # topo, na borda do mar do calcadao
@@ -388,6 +404,9 @@ class Orla:
             for i in range(0, n + 1, 3):
                 self.B.cyl(px + sx * i * tread, pz + sz * i * tread, 0.04, YPf - i * rise, YPf - i * rise + 1.0, COL['iron'], 6)
             self.B.quad(PLAIN, [(px, YPf + 0.95, pz), (px + sx * n * tread, YPf - n * rise + 0.95, pz + sz * n * tread), (px + sx * n * tread, YPf - n * rise + 1.02, pz + sz * n * tread), (px, YPf + 1.02, pz)], (-f['nx'] * 0 + f['tx'] * sg, 0, f['tz'] * sg), COL['iron'], None, True)
+        # muros laterais da escada (cobrem a quina do calcadao e o talude de terreno ao lado)
+        for sg in (-1, 1):
+            self.cheek(x0, z0, sx, sz, n * tread + 0.9, sg * (W / 2 + 0.55), YPf + 0.55, yb + 0.55, min(yb, YPf - 1.5) - 0.8)
         self.items['stairs'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'steps': n, 'w': W, 'top': YPf})
         self.stats['stairs'] += 1
 

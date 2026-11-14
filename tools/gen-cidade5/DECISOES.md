@@ -87,3 +87,10 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Ponte vermelha: sem retorno redondo. A rua termina reta no nó do mirante (corte 0) e o tabuleiro começa ali, com a MESMA seção da rua coletora (pista ±6, guia, calçada até ±10); cancela listrada + barreiras de concreto 4 m à frente (acesso continua fechado: cenário).
 - Orla: passagem elevada com a mesma largura da faixa de pedestre (3,5 m; antes 6,8 m).
 - Pontas do calçadão: praça-mirante circular (R até 13 m, reduz se faltar terra) com fonte central, piso em setores claro/escuro, anel vermelho (continua a ciclovia), bancos virados ao centro, postes e palmeiras em canteiros redondos, muro baixo e escada de 4,6 m até a areia. Se não cabe (rio/mar), só um muro de fechamento.
+
+## Revisão 4 (vídeos do jogo: bandas verdes e degraus nos cruzamentos)
+- CAUSA RAIZ: terrain_final.profile_pts só calculava a altura nos vértices ORIGINAIS da polilinha da rua; o platô plano dos cruzamentos (s <= corte) e a rampa viravam uma reta entre vértices que podem estar a dezenas de metros. Resultado: a rua começava no cruzamento até 1,5 m acima/abaixo da altura do cruzamento (563 de 676 braços com degrau > 3 cm, 389 > 20 cm). O degrau deixava uma abertura por onde o terreno aparecia (banda verde atravessando a rua) e criava "ruas levantadas que não se conectam". Agora o perfil insere vértices exatos em s = corte (cada ponta) e a altura no corte é igual à do cruzamento (0 braços com degrau > 3 cm).
+- Plátôs que se tocam (rotatórias vizinhas) -> nós com quase a mesma altura (degrau <= 10 cm).
+- Avenidas: canteiro de grama dentro da calçada parecia buraco; agora calçada larga até o fim (faixa de concreto junto à guia + calçada) com covas de árvore.
+- Escadas da orla (e da praça-mirante): muros laterais inclinados cobrem a quina do calçadão e o talude de terreno (antes aparecia uma cunha gigante de areia/grama ao lado dos degraus).
+- Tiras de asfalto do canteiro central das avenidas também entram 0,3 m no cruzamento.
