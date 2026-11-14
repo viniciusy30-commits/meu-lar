@@ -1118,7 +1118,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         cityGlass.clear()
         Matrix.setIdentityM(mdl, 0)
         val ib = inBld
-        for ((ci, c) in City.chunks.withIndex()) {
+        val chs = City.chunks
+        for (ci in 0 until chs.size) {
+            val c = chs[ci]
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
             val lim = if (c.terrain) (if (flying || landing) 520f else 420f) else 245f   // Etapa 178: terreno do relevo aparece de longe

@@ -94,6 +94,7 @@ def run(out, geo, hf, assets):
     W, wnx, wnz, wst = walk_raster(tris)
     write_walk(W, wnx, wnz, wst, os.path.join(assets, 'c5_walk.bin'))
     shutil.copy(os.path.join(out, 'city5_ground.bin'), os.path.join(assets, 'c5_mesh.bin'))
+    open(os.path.join(assets, 'c5_mesh.bin.len'), 'w').write(str(os.path.getsize(os.path.join(assets, 'c5_mesh.bin'))))   # o app copia a malha para a pasta de dados so quando o tamanho muda
     shutil.copy(os.path.join(out, 'signs_atlas.png'), os.path.join(assets, 'c5_signs.png'))
     print('  exportado para', assets)
 

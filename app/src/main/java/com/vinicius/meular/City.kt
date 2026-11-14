@@ -471,7 +471,9 @@ object City {
         if (HDS) Hds.gl()
         if (Relevo.on) Relevo.service(ex, ez)   // Etapa 183b: árvores modeladas só perto do jogador
         val now = System.currentTimeMillis()
-        for ((ci, c) in chunks.withIndex()) {
+        val chs = chunks
+        for (ci in 0 until chs.size) {
+            val c = chs[ci]
             c.pend?.let { fl -> val n = c.near; if (n != null) { c.near = Mesh(n.parts + fl.build()).gpuOnly() }; c.pend = null }
             val r = c.result
             if (r != null) {

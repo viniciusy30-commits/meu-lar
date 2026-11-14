@@ -109,3 +109,9 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - 1753 lotes comuns em lots.json (frente, retângulo, declive) prontos para a Etapa E (prédios decorativos).
 - Orçamento: palmeiras da orla ficaram 40% mais leves (9 folhas x 2 segmentos).
 - Validadores: 17 casas únicas; quintal dentro do lote; casa >= 3 m da divisa; frente voltada para a rua; casas >= 6 m uma da outra; lotes sem sobreposição (1 m2); lotes sem asfalto/calçada; platô nivelado; caminho/garagem.
+
+## Memória e FPS (o mapa não carregava por falta de memória)
+- Causa: o app montava a cidade INTEIRA de uma vez: terreno 4400x3600 m (~1,5 M de vértices x 48 B = 71 MB + água ~30 MB), 16 mil árvores leves (72 vértices cada = 55 MB), malha assada de 46 MB lida inteira (readBytes + FloatArray = ~92 MB de heap) => ~250 MB nativos + ~90 MB de heap. Celular fraco matava o app.
+- Solução (Relevo.kt): terreno EM FLUXO. build() só prepara pedaços vazios (128 m) e agrupa ruas/árvores/postes; cada pedaço é montado numa thread de fundo quando o jogador chega a 600 m e descartado além de 780 m (VBO liberado na thread do GL). Árvores em blocos de 64 m (a troca pelas árvores modeladas continua em blocos pequenos). Só os pedaços ao redor da partida (240 m) nascem prontos.
+- A malha assada (c5_mesh.bin) é copiada uma vez para filesDir (c5_mesh.bin.len guarda o tamanho esperado) e lida por RandomAccessFile: só os cabeçalhos ficam na memória (16 B por registro) e os vértices são lidos pedaço a pedaço. Plano B: lê tudo na memória se não conseguir gravar.
+- FPS: pedaços de 128 m (CS=16) => ~1/4 das chamadas de desenho do terreno e 1/4 dos pedaços para percorrer; loops por quadro sem alocação (City.service e drawCity). A imagem não muda (mesmos limites de desenho: 420 m, 520 m voando).
