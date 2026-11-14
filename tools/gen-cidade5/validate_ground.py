@@ -64,6 +64,7 @@ def v_ground(g):
             if s < ca + 2 or s > L - cb - 2: continue                    # dentro do cruzamento nao ha calcada ao lado da pista
             x, z, y, tx, tz = g.at(k, s)
             for sg in (1, -1):
+                if g.sea_sign(k) == sg: continue                       # lado do mar da Beira-Mar: vagas + orla
                 px, pz = x + (-tz) * sg * (asp + 1.6), z + tx * sg * (asp + 1.6); tot2 += 1
                 i, j = int(px), int(pz)
                 if 0 <= i < M['sidewalk'].shape[1] and 0 <= j < M['sidewalk'].shape[0] and not (M['sidewalk'][j, i] or M['verge'][j, i] or M['curb'][j, i]): nos += 1

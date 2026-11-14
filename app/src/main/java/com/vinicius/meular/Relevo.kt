@@ -47,6 +47,14 @@ object Relevo {
     private var subSol = FloatArray(0)
     /** Cidade 5: altura do chão pavimentado a cada [wst] m (asfalto, calçada, orla, ponte); -32768 = sem pavimento */
     private var walk = ShortArray(0)
+    /** Cidade 5: 1 = vértice de areia de praia (o resto, mesmo baixo, é grama: margens de rio/lagoa sem "degraus" de areia) */
+    private var sandMask = ByteArray(0)
+    private fun loadSand(am: AssetManager) {
+        val bb = ByteBuffer.wrap(am.open("hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        val sx = bb.getInt(); val sz = bb.getInt()
+        sandMask = if (sx == nx && sz == nz) ByteArray(sx * sz).also { bb.get(it) } else ByteArray(0)
+    }
+    private fun sandAt(i: Int, j: Int): Boolean = sandMask[j.coerceIn(0, nz - 1) * nx + i.coerceIn(0, nx - 1)].toInt() != 0
     private var wnx = 0
     private var wnz = 0
     private var wst = 2f
@@ -160,7 +168,7 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
-        sub = false; subCells.clear(); subSol = FloatArray(0); walk = ShortArray(0)
+        sub = false; subCells.clear(); subSol = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
@@ -248,6 +256,8 @@ object Relevo {
             }
             sub = wantSub
             hs = h
+            sandMask = ByteArray(0)
+            if (c5) try { loadSand(am) } catch (e: Throwable) { sandMask = ByteArray(0) }
             on = true
             liftRoads()
             indexRoads()
@@ -902,17 +912,28 @@ object Relevo {
                 val x0 = CX + i * g; val x1 = x0 + g; val z0 = CZ + j * g; val z1 = z0 + g
                 val avg = (h00 + h10 + h01 + h11) / 4f
                 val lo = min(min(h00, h10), min(h01, h11))
-                val steep = max(max(abs(h10 - h00), abs(h01 - h00)), max(abs(h11 - h10), abs(h11 - h01))) / g > 0.5f
-                val mode = if (avg < -0.1f) 0 else if (avg < 1.3f) 1 else 2
+                val mode = if (avg < -0.1f) 0 else if (sandMask.isNotEmpty()) {
+                    val ns = (if (sandAt(i, j)) 1 else 0) + (if (sandAt(i + 1, j)) 1 else 0) + (if (sandAt(i, j + 1)) 1 else 0) + (if (sandAt(i + 1, j + 1)) 1 else 0)
+                    if (ns >= 2 && avg < 1.6f) 1 else 2
+                } else if (avg < 1.3f) 1 else 2
                 if (mode == 2) b.m(Mt.GRASS, 0.3f) else b.m(Mt.PLAIN, 1f)
-                val c00 = if (mode == 0) bedCol(h00) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h00)
-                val c10 = if (mode == 0) bedCol(h10) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h10)
-                val c01 = if (mode == 0) bedCol(h01) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h01)
-                val c11 = if (mode == 0) bedCol(h11) else if (mode == 1) COL_SAND else if (steep) COL_ROCK else grassCol(h11)
+                // cor por vértice: na grama, a rocha entra aos poucos com a inclinação do PRÓPRIO vértice (sem quadrados de 8 m)
+                // no fundo, o vertice que fica ACIMA da agua na beira da praia e areia (senao aparece uma serra marrom na linha d'agua)
+                fun bc(ii: Int, jj: Int, h: Float): Int = if (h > -0.15f && sandMask.isNotEmpty() && (sandAt(ii, jj) || h > 0f)) COL_SAND else bedCol(h)
+                val c00 = if (mode == 0) bc(i, j, h00) else if (mode == 1) COL_SAND else 0
+                val c10 = if (mode == 0) bc(i + 1, j, h10) else if (mode == 1) COL_SAND else 0
+                val c01 = if (mode == 0) bc(i, j + 1, h01) else if (mode == 1) COL_SAND else 0
+                val c11 = if (mode == 0) bc(i + 1, j + 1, h11) else if (mode == 1) COL_SAND else 0
                 // normais por vértice (diferença central)
-                fun nv(ii: Int, jj: Int, h: Float, x: Float, z: Float, c: Int) {
+                fun nv(ii: Int, jj: Int, h: Float, x: Float, z: Float, c0: Int) {
                     val dx = (hh(ii + 1, jj) - hh(ii - 1, jj)) / (2f * g); val dz = (hh(ii, jj + 1) - hh(ii, jj - 1)) / (2f * g)
                     val l = sqrt(dx * dx + 1f + dz * dz)
+                    var c = c0
+                    if (mode == 2) {
+                        val rk = ((sqrt(dx * dx + dz * dz) - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                        c = mix(grassCol(h), COL_ROCK, rk * rk * 0.85f)
+                        if (h < 1.3f && sandMask.isEmpty()) c = mix(c, COL_SAND, 0.75f)
+                    }
                     b.v(x, h, z, -dx / l, 1f / l, -dz / l, c, x, z)
                 }
                 nv(i, j, h00, x0, z0, c00); nv(i + 1, j, h10, x1, z0, c10); nv(i + 1, j + 1, h11, x1, z1, c11)

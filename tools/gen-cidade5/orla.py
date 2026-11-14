@@ -2,12 +2,17 @@
 import math, random
 import numpy as np
 from bake import rgb, shade, PLAIN, STONE, WOOD, METAL, PAVER, ROOF, TILE
+ASPH = 15
 from plan import *
 import shore, scenery
 
 YP = 2.40           # nivel do calcadao (acima do mar)
 HALF_W = 7.0        # meia-largura do calcadao (de -7 mar a +7 avenida)
-COL = {'wave1': rgb('#EDE7DA'), 'wave2': rgb('#2F2F33'), 'wave3': rgb('#C9C3B5'), 'bike': rgb('#B8452F'), 'wall': rgb('#CFCABF'), 'wall2': rgb('#B3AD9F'), 'grass': rgb('#6FA84A'),
+GARDEN_O = 10.3     # jardim de palmeiras de +7 a +10,3; guia; vagas de +10,5 ate a pista (+16 = borda do asfalto da avenida)
+PARK_O1 = ORLA_CALC - 11.5
+XW_HALF = 3.2       # meia-largura da travessia de pedestres (patamar sem vagas)
+SW_Y = 0.27; ROADY = 0.12
+COL = {'asph': rgb('#4A4A4E'), 'curbP': rgb('#C9C4B8'), 'stall': rgb('#F2F2F2'), 'wave1': rgb('#EDE7DA'), 'wave2': rgb('#B4AC9C'), 'wave3': rgb('#D9D2C2'), 'bike': rgb('#B8452F'), 'wall': rgb('#CFCABF'), 'wall2': rgb('#B3AD9F'), 'grass': rgb('#6FA84A'),
        'wood': rgb('#8B6B47'), 'wood2': rgb('#6E5236'), 'rail': rgb('#E9E6DE'), 'lamp': rgb('#2B2E33'), 'bench': rgb('#7A5A3A'), 'iron': rgb('#2A2C30'), 'sand': rgb('#E4D4B4'),
        'roof': rgb('#B58A4A'), 'towerR': rgb('#D6402A'), 'towerW': rgb('#F2F2F2'), 'net': rgb('#E5E5E5'), 'step': rgb('#D8D3C7'), 'step2': rgb('#BEB8AA'), 'white': rgb('#F5F5F5'), 'water': rgb('#4F9BD0'),
        'trunk': rgb('#7A5A3A'), 'leaf': rgb('#3F8A3F'), 'shower': rgb('#A8B0B8')}
@@ -23,7 +28,7 @@ class Orla:
         self.gy, self.gx = np.gradient(geo.Dsea, CELL)
         self.items = {'palms': [], 'lamps': [], 'benches': [], 'kiosks': [], 'towers': [], 'showers': [], 'courts': [], 'umbrellas': [], 'stairs': [], 'piers': [], 'paths': [], 'bins': []}
         self.stats = {'prom_m': 0.0, 'wall_m': 0.0, 'stairs': 0, 'piers': 0}
-        self.lines = shore.beach_lines(geo, 31.0, 120.0)
+        self.lines = []
         self.polys = []          # (layer, pts) p/ validar
         self.frames_all = []
 
@@ -47,7 +52,7 @@ class Orla:
         return out
 
     def P(self, f, o, dy=0.0, s_off=0.0):
-        return (f['x'] + f['nx'] * o + f['tx'] * s_off, YP + dy, f['z'] + f['nz'] * o + f['tz'] * s_off)
+        return (f['x'] + f['nx'] * o + f['tx'] * s_off, f['yp'] + dy, f['z'] + f['nz'] * o + f['tz'] * s_off)
 
     def strip(self, fr, o0, o1, dy, mat, col, layer=None, i0=0, i1=None):
         i1 = len(fr) - 1 if i1 is None else i1
@@ -62,11 +67,103 @@ class Orla:
             if any(g0 <= a['s'] <= g1 or g0 <= b['s'] <= g1 for g0, g1 in gaps): continue
             pa, pb = self.P(a, o, y0), self.P(b, o, y0)
             nv = (a['nx'] * face, 0, a['nz'] * face)
-            self.B.quad(mat, [pa, pb, (pb[0], YP + y1, pb[2]), (pa[0], YP + y1, pa[2])], nv, col, None, True)
+            self.B.quad(mat, [pa, pb, (pb[0], b['yp'] + y1, pb[2]), (pa[0], a['yp'] + y1, pa[2])], nv, col, None, True)
+
+    # ---------------------------------------------------------- cadeia da Av. Beira-Mar -> quadros da orla
+    def chains(self):
+        g = self.g; c = g.c
+        ks = [k for k, e in enumerate(c.edges) if g.is_beach(k) and e['kind'] == 'n']
+        adj = {}
+        for k in ks:
+            e = c.edges[k]; adj.setdefault(e['a'], []).append(k); adj.setdefault(e['b'], []).append(k)
+        used = set(); out = []
+        starts = [n for n, l in adj.items() if len(l) == 1] + [n for n, l in adj.items() if len(l) != 1]
+        for n0 in starts:
+            for k0 in adj[n0]:
+                if k0 in used: continue
+                seq = []; n = n0; k = k0
+                while k is not None and k not in used:
+                    used.add(k); e = c.edges[k]; fwd = e['a'] == n; seq.append((k, fwd)); n = e['b'] if fwd else e['a']
+                    nxt = [q for q in adj.get(n, []) if q not in used]
+                    k = nxt[0] if len(adj.get(n, [])) == 2 and nxt else None
+                st = []
+                for k, fwd in seq:
+                    L = g.elen(k); sea = g.sea_sign(k); m = max(2, int(L / 4.0))
+                    for q in range(m + 1):
+                        if st and q == 0: continue
+                        sv = L * q / m if fwd else L * (1 - q / m)
+                        x, z, y, tx, tz = g.at(k, sv)
+                        xa, za, _, _, _ = g.at(k, max(sv - 3, 0)); xb, zb, _, _, _ = g.at(k, min(sv + 3, L)); tx, tz = norm(xb - xa, zb - za)
+                        nsx, nsz = -tz * sea, tx * sea                                  # normal para o MAR
+                        if not fwd: tx, tz = -tx, -tz
+                        st.append([x, z, y, tx, tz, nsx, nsz])
+                # suaviza as normais (emendas nos cruzamentos) e monta os quadros no eixo do calcadao
+                for _ in range(3):
+                    for i in range(1, len(st) - 1):
+                        st[i][5] = (st[i - 1][5] + 2 * st[i][5] + st[i + 1][5]) / 4; st[i][6] = (st[i - 1][6] + 2 * st[i][6] + st[i + 1][6]) / 4
+                fr = []
+                for x, z, y, tx, tz, nsx, nsz in st:
+                    l = math.hypot(nsx, nsz) or 1; nsx, nsz = nsx / l, nsz / l
+                    cx, cz = x + nsx * ORLA_CALC, z + nsz * ORLA_CALC
+                    ok = not self.geo.is_water(cx - nsx * (HALF_W + 2), cz - nsz * (HALF_W + 2)) and not self.geo.is_water(cx, cz)
+                    fr.append({'x': cx, 'z': cz, 'tx': -nsz, 'tz': nsx, 'nx': -nsx, 'nz': -nsz, 'yp': y + SW_Y - 0.06, 'ya': y, 'ok': ok, 's': 0.0})
+                # tangente coerente com a normal (t x n), e corta trechos sobre a agua
+                runs = []; cur = []
+                for f in fr:
+                    if f['ok']: cur.append(f)
+                    else:
+                        if len(cur) > 12: runs.append(cur)
+                        cur = []
+                if len(cur) > 12: runs.append(cur)
+                for r in runs:
+                    acc = 0.0
+                    for i in range(len(r)):
+                        if i: acc += math.hypot(r[i]['x'] - r[i - 1]['x'], r[i]['z'] - r[i - 1]['z'])
+                        r[i]['s'] = acc
+                    out.append(r)
+        return out
+
+    def sub_frames(self, fr, a, b):
+        return [self.at(fr, a)] + [f for f in fr if a < f['s'] < b] + [self.at(fr, b)]
+
+    def crossings(self, fr):
+        """posicoes (s) das faixas de pedestre que atravessam a Av. Beira-Mar e chegam neste trecho de orla"""
+        out = []
+        for (x, z) in getattr(self.g, 'xw_beach', []):
+            k = min(range(len(fr)), key=lambda q: (fr[q]['x'] - x) ** 2 + (fr[q]['z'] - z) ** 2)
+            if math.hypot(fr[k]['x'] - x, fr[k]['z'] - z) < ORLA_CALC + 6:
+                out.append(fr[k]['s'])
+        return sorted(out)
+
+    def parking(self, fr, xr):
+        """vagas inclinadas a 60 graus (2,6 m de largura): faixas brancas da guia ate a pista"""
+        L = fr[-1]['s']; s = 3.0; nst = 0
+        ang = math.radians(60.0); depth = PARK_O1 - (GARDEN_O + 0.2); sh = depth / math.tan(ang); pitch = 2.6 / math.sin(ang)
+        while s < L - 3.0 - sh:
+            if any(a - 1.0 <= s <= b + 1.0 + sh for a, b in xr): s += pitch; continue
+            f0 = self.at(fr, s); f1 = self.at(fr, s + sh)
+            p0 = self.P(f0, GARDEN_O + 0.2, -0.07); p1 = self.P(f1, PARK_O1 - 0.1, -0.07)
+            dx, dz = p1[0] - p0[0], p1[2] - p0[2]; l = math.hypot(dx, dz) or 1; ox, oz = -dz / l * 0.06, dx / l * 0.06
+            self.B.quad(PLAIN, [(p0[0] - ox, p0[1], p0[2] - oz), (p1[0] - ox, p1[1], p1[2] - oz), (p1[0] + ox, p1[1], p1[2] + oz), (p0[0] + ox, p0[1], p0[2] + oz)], (0, 1, 0), COL['stall'], None, True)
+            s += pitch; nst += 1
+        self.stats['vagas'] = self.stats.get('vagas', 0) + max(nst - 1, 0)
+
+    def landing(self, fr, c):
+        """patamar de pedestre: da faixa (no asfalto) ate o calcadao, cortando as vagas e o jardim; rampas nas pontas"""
+        i0 = None
+        a, b = c - XW_HALF, c + XW_HALF
+        ks = [k for k in range(len(fr) - 1) if fr[k + 1]['s'] >= a and fr[k]['s'] <= b]
+        if not ks: return
+        sub = self.sub_frames(fr, a, b)
+        for k in range(len(sub) - 1):
+            p, q = sub[k], sub[k + 1]
+            self.g.quad(PAVER, [self.P(p, HALF_W, 0.06), self.P(q, HALF_W, 0.06), self.P(q, PARK_O1 - 1.2, 0.06), self.P(p, PARK_O1 - 1.2, 0.06)], COL['wave1'], 'prom')
+            self.g.quad(PAVER, [self.P(p, PARK_O1 - 1.2, 0.06), self.P(q, PARK_O1 - 1.2, 0.06), self.P(q, PARK_O1, -0.08), self.P(p, PARK_O1, -0.08)], COL['wave3'], 'prom')
+        f = self.at(fr, c)
+        self.items['paths'].append({'x': round(f['x'] + f['nx'] * PARK_O1, 2), 'z': round(f['z'] + f['nz'] * PARK_O1, 2), 'sx': round(-f['nx'], 3), 'sz': round(-f['nz'], 3), 's': round(c, 1)})
 
     # ---------------------------------------------------------- construcao por segmento
-    def build_line(self, line, idx):
-        fr = self.frames(line)
+    def build_line(self, fr, idx):
         if len(fr) < 10: return
         L = fr[-1]['s']; self.stats['prom_m'] += L
         # posicoes de escada / pier
@@ -74,6 +171,7 @@ class Orla:
         while s < L - 30: stairs.append(s); s += 92.0 + self.rnd.uniform(-8, 8)
         piers = []
         if L > 500: piers.append(L * (0.42 if idx % 2 == 0 else 0.55))
+        if L > 1300: piers = [L * 0.27, L * 0.72]
         gaps = [(s_ - 3.4, s_ + 3.4) for s_ in stairs] + [(p_ - 4.8, p_ + 4.8) for p_ in piers]
         # --- piso com ondas: 7 faixas de 2 m, fase deslocada com a distancia (dai o desenho de onda)
         nb = 7
@@ -89,10 +187,25 @@ class Orla:
         # linhas da ciclovia
         self.strip(fr, 3.0 - 0.08, 3.0 + 0.08, 0.08, PLAIN, COL['white'], None)
         self.strip(fr, 6.0 - 0.08, 6.0 + 0.08, 0.08, PLAIN, COL['white'], None)
-        # --- meio-fio do lado da avenida + canteiro de palmeiras/gramado
-        self.strip(fr, HALF_W, HALF_W + 0.25, 0.20, PAVER, COL['wall'], 'curb')
-        self.vwall(fr, HALF_W, 0.06, 0.20, COL['wall'], 1)
-        self.strip(fr, HALF_W + 0.25, HALF_W + 2.7, 0.14, TILE if False else PAVER, COL['grass'], 'verge')
+        # --- jardim de palmeiras entre o calcadao e as vagas (mesmo nivel do calcadao) + guia + VAGAS a 60 graus junto a avenida
+        xs = self.crossings(fr)
+        xr = [(c - XW_HALF, c + XW_HALF) for c in xs]
+        L_ = fr[-1]['s']; free = []; cur = 0.0
+        for a, b in sorted(xr):
+            if a > cur: free.append((cur, a))
+            cur = max(cur, b)
+        if cur < L_: free.append((cur, L_))
+        for a, b in free:
+            if b - a < 0.5: continue
+            sf = self.sub_frames(fr, a, b)
+            self.strip(sf, HALF_W, GARDEN_O, 0.05, PAVER, COL['grass'], 'verge')
+            self.strip(sf, GARDEN_O, GARDEN_O + 0.2, 0.06, PAVER, COL['curbP'], 'curb')
+            self.vwall(sf, GARDEN_O + 0.2, -0.09, 0.06, COL['curbP'], 1, PLAIN)
+            # pista das vagas (asfalto no nivel da avenida, emenda com a pista)
+            self.strip(sf, GARDEN_O + 0.2, PARK_O1, -0.09, ASPH, COL['asph'], 'asphalt')
+        self.parking(fr, xr)
+        # travessias: patamar elevado do asfalto ate o calcadao (rampa acessivel), sem vagas
+        for c in xs: self.landing(fr, c)
         # --- muro de contencao/balaustrada do lado do mar, com vaos nas escadas e nos piers
         self.vwall(fr, -HALF_W, -1.5, 0.98, COL['wall'], -1, STONE, gaps)
         self.vwall(fr, -HALF_W - 0.35, 0.0, 0.98, COL['wall2'], 1, STONE, gaps)
@@ -108,15 +221,13 @@ class Orla:
         for s_ in piers: self.pier(fr, s_)
         # --- mobiliario: palmeiras, postes, bancos, lixeiras
         gp = gaps
-        pp_ = [(q['x'], q['z']) for q in self.items['paths']]
         def in_gap(s_, pad=0.0):
             if any(g0 - pad <= s_ <= g1 + pad for g0, g1 in gp): return True
-            f_ = self.at(fr, s_)
-            return any(math.hypot(f_['x'] + f_['nx'] * 9.0 - px, f_['z'] + f_['nz'] * 9.0 - pz) < 5.5 + pad for px, pz in pp_)
+            return any(abs(s_ - c) < XW_HALF + 1.0 + pad for c in xs)
         s_ = 6.0
         while s_ < L - 4:
             f = self.at(fr, s_)
-            if not in_gap(s_, 2.5): self.palm(f, HALF_W + 1.5)
+            if not in_gap(s_, 2.5): self.palm(f, (HALF_W + GARDEN_O) / 2)
             s_ += 15.0
         s_ = 12.0; alt = 1
         while s_ < L - 4:
@@ -136,16 +247,16 @@ class Orla:
             s_ += 148.0
         s_ = 110.0
         while s_ < L - 40:
-            if not in_gap(s_, 8.0): self.tower(self.at(fr, s_), -HALF_W - 17.0)
+            if not in_gap(s_, 8.0): self.tower(self.at(fr, s_), -HALF_W - 30.0)
             s_ += 236.0
         s_ = 175.0
         while s_ < L - 50:
-            if not in_gap(s_, 8.0): self.court(self.at(fr, s_), -HALF_W - 15.0)
+            if not in_gap(s_, 8.0): self.court(self.at(fr, s_), -HALF_W - 26.0)
             s_ += 205.0
-        for s_ in stairs: self.shower(self.at(fr, s_ + 5.5), -HALF_W - 4.0)
+        for s_ in stairs: self.shower(self.at(fr, s_ + 5.5), -HALF_W - 6.0)
         # guarda-sois em manchas
-        for _ in range(int(L / 9)):
-            s_ = self.rnd.uniform(10, L - 10); f = self.at(fr, s_); o = -HALF_W - self.rnd.uniform(9, 17)
+        for _ in range(int(L / 5)):
+            s_ = self.rnd.uniform(10, L - 10); f = self.at(fr, s_); o = -HALF_W - self.rnd.uniform(12, 46)
             if not in_gap(s_, 5.0): self.umbrella(f, o)
         # --- acessos da avenida ao calcadao (calcada cruzando a faixa de palmeiras) onde ha rua em T
         self.frames_all.append(fr)
@@ -157,7 +268,7 @@ class Orla:
             if fr[m]['s'] <= s: lo = m
             else: hi = m
         a, b = fr[lo], fr[hi]; t = (s - a['s']) / max(b['s'] - a['s'], 1e-6)
-        f = {k: a[k] + (b[k] - a[k]) * t for k in ('x', 'z', 'tx', 'tz', 'nx', 'nz', 's')}
+        f = {k: a[k] + (b[k] - a[k]) * t for k in ('x', 'z', 'tx', 'tz', 'nx', 'nz', 's', 'yp')}
         l = math.hypot(f['tx'], f['tz']) or 1; f['tx'] /= l; f['tz'] /= l; l = math.hypot(f['nx'], f['nz']) or 1; f['nx'] /= l; f['nz'] /= l
         return f
 
@@ -169,13 +280,13 @@ class Orla:
         return T.sample8(self.hf, x, z)
 
     def stairs(self, fr_, s0):
-        f = self.at(fr_, s0); W = 6.0; rise = 0.14
+        f = self.at(fr_, s0); YPf = f['yp']; W = 6.0; rise = 0.14
         x0, z0 = f['x'] + f['nx'] * (-HALF_W), f['z'] + f['nz'] * (-HALF_W)       # topo, na borda do mar do calcadao
         sx, sz = -f['nx'], -f['nz']                                                # sentido de descida (para o mar)
         yb = self.sample(x0 + sx * 3.4, z0 + sz * 3.4)
-        n = max(3, int(round((YP - yb) / rise))); rise = (YP - yb) / n; tread = 0.32
+        n = max(3, int(round((YPf - yb) / rise))); rise = (YPf - yb) / n; tread = 0.32
         for i in range(n):
-            yt = YP - (i + 1) * rise
+            yt = YPf - (i + 1) * rise
             c0 = (x0 + sx * (i * tread) - f['tx'] * W / 2, z0 + sz * (i * tread) - f['tz'] * W / 2); c1 = (x0 + sx * ((i + 1) * tread) - f['tx'] * W / 2, z0 + sz * ((i + 1) * tread) - f['tz'] * W / 2)
             c2 = (c1[0] + f['tx'] * W, c1[1] + f['tz'] * W); c3 = (c0[0] + f['tx'] * W, c0[1] + f['tz'] * W)
             col = COL['step'] if i % 2 == 0 else COL['step2']
@@ -187,15 +298,15 @@ class Orla:
         for sg in (-1, 1):
             px, pz = x0 - f['tx'] * (W / 2 + 0.05) * (-sg), z0 - f['tz'] * (W / 2 + 0.05) * (-sg)
             for i in range(0, n + 1, 3):
-                self.B.cyl(px + sx * i * tread, pz + sz * i * tread, 0.04, YP - i * rise, YP - i * rise + 1.0, COL['iron'], 6)
-            self.B.quad(PLAIN, [(px, YP + 0.95, pz), (px + sx * n * tread, YP - n * rise + 0.95, pz + sz * n * tread), (px + sx * n * tread, YP - n * rise + 1.02, pz + sz * n * tread), (px, YP + 1.02, pz)], (-f['nx'] * 0 + f['tx'] * sg, 0, f['tz'] * sg), COL['iron'], None, True)
-        self.items['stairs'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'steps': n, 'w': W, 'top': YP})
+                self.B.cyl(px + sx * i * tread, pz + sz * i * tread, 0.04, YPf - i * rise, YPf - i * rise + 1.0, COL['iron'], 6)
+            self.B.quad(PLAIN, [(px, YPf + 0.95, pz), (px + sx * n * tread, YPf - n * rise + 0.95, pz + sz * n * tread), (px + sx * n * tread, YPf - n * rise + 1.02, pz + sz * n * tread), (px, YPf + 1.02, pz)], (-f['nx'] * 0 + f['tx'] * sg, 0, f['tz'] * sg), COL['iron'], None, True)
+        self.items['stairs'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'steps': n, 'w': W, 'top': YPf})
         self.stats['stairs'] += 1
 
     def pier(self, fr_, s0):
-        f = self.at(fr_, s0); sx, sz = -f['nx'], -f['nz']                           # do calcadao para o mar
+        f = self.at(fr_, s0); YPf = f['yp']; sx, sz = -f['nx'], -f['nz']                           # do calcadao para o mar
         x0, z0 = f['x'] + f['nx'] * (-HALF_W - 0.3), f['z'] + f['nz'] * (-HALF_W - 0.3)
-        W = 7.0; deck = YP + 0.55
+        W = 7.0; deck = YPf + 0.55
         # comprimento ate encontrar agua >= 3,5 m + 20 m
         Lp = 0.0
         while Lp < 220:
@@ -256,27 +367,30 @@ class Orla:
             self.B.tri(ROOF, (cx + math.cos(ang0) * 4.2, deck + 3.1, cz + math.sin(ang0) * 4.2), (cx + math.cos(ang1) * 4.2, deck + 3.1, cz + math.sin(ang1) * 4.2), (cx, deck + 5.0, cz), (math.cos((ang0 + ang1) / 2), 0.6, math.sin((ang0 + ang1) / 2)), COL['roof'], None, True)
         # rampa de entrada (do calcadao ao deck): 6 m
         for i in range(6):
-            y0 = YP + 0.06 + (deck - YP - 0.06) * i / 6.0; y1 = YP + 0.06 + (deck - YP - 0.06) * (i + 1) / 6.0
+            y0 = YPf + 0.06 + (deck - YPf - 0.06) * i / 6.0; y1 = YPf + 0.06 + (deck - YPf - 0.06) * (i + 1) / 6.0
             self.g.quad(WOOD, [PP(-0.0 - 6 + i, -W / 2, y0), PP(-6 + i + 1, -W / 2, y1), PP(-6 + i + 1, W / 2, y1), PP(-6 + i, W / 2, y0)], COL['wood'], None)
         self.items['piers'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'len': round(Lp + 16.0, 1), 'w': W, 'deck': round(deck, 2)})
         self.stats['piers'] += 1
 
     def palm(self, f, o):
+        YPf = f['yp']
         x, z = f['x'] + f['nx'] * o, f['z'] + f['nz'] * o
-        self.B.cyl(x, z, 0.18, YP, YP + 0.2, COL['wall'], 8)
-        self.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YP + 0.1, 'sp': 'palmeira', 'scale': round(self.rnd.uniform(0.9, 1.2), 2)})
+        self.B.cyl(x, z, 0.18, YPf, YPf + 0.2, COL['wall'], 8)
+        self.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YPf + 0.1, 'sp': 'palmeira', 'scale': round(self.rnd.uniform(0.9, 1.2), 2)})
 
     def lamp(self, f, o):
+        YPf = f['yp']
         x, z = f['x'] + f['nx'] * o, f['z'] + f['nz'] * o
-        self.B.cyl(x, z, 0.08, YP + 0.06, YP + 4.6, COL['lamp'], 8); self.B.box(x, z, 0.7, 0.3, YP + 4.5, YP + 4.7, rgb('#FFF0B8'), PLAIN, True, False)
-        self.items['lamps'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YP + 0.06})
+        self.B.cyl(x, z, 0.08, YPf + 0.06, YPf + 4.6, COL['lamp'], 8); self.B.box(x, z, 0.7, 0.3, YPf + 4.5, YPf + 4.7, rgb('#FFF0B8'), PLAIN, True, False)
+        self.items['lamps'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YPf + 0.06})
 
     def bench(self, f, o):
+        YPf = f['yp']
         x, z = f['x'] + f['nx'] * o, f['z'] + f['nz'] * o
         t = (f['tx'], f['tz']); n = (f['nx'], f['nz'])
         c4 = [(x - t[0] * 0.9 - n[0] * 0.25, z - t[1] * 0.9 - n[1] * 0.25), (x + t[0] * 0.9 - n[0] * 0.25, z + t[1] * 0.9 - n[1] * 0.25), (x + t[0] * 0.9 + n[0] * 0.25, z + t[1] * 0.9 + n[1] * 0.25), (x - t[0] * 0.9 + n[0] * 0.25, z - t[1] * 0.9 + n[1] * 0.25)]
-        self.B.obox_pts(c4, YP + 0.4, YP + 0.52, COL['bench'], WOOD, True, False)
-        for sg in (-1, 1): self.B.box(x + t[0] * 0.7 * sg, z + t[1] * 0.7 * sg, 0.15, 0.4, YP + 0.06, YP + 0.4, COL['iron'], PLAIN, True, False)
+        self.B.obox_pts(c4, YPf + 0.4, YPf + 0.52, COL['bench'], WOOD, True, False)
+        for sg in (-1, 1): self.B.box(x + t[0] * 0.7 * sg, z + t[1] * 0.7 * sg, 0.15, 0.4, YPf + 0.06, YPf + 0.4, COL['iron'], PLAIN, True, False)
         self.items['benches'].append({'x': round(x, 2), 'z': round(z, 2), 'nx': round(-n[0], 3), 'nz': round(-n[1], 3)})
 
     def kiosk(self, f, o, idx):
@@ -352,7 +466,7 @@ class Orla:
         return out
 
     def build(self):
-        self.access_paths()
-        for i, ln in enumerate(self.lines): self.build_line(ln, i)
+        self.items['paths'] = []
+        for i, fr in enumerate(self.chains()): self.build_line(fr, i)
         self.g.layers.extend(self.polys)
         return self

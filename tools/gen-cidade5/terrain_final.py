@@ -23,7 +23,15 @@ def upsample(geo):
     det = (G.fbm(X, Z, 70.0, 3, 5) - 0.5) * 1.6 * np.clip(h / 30.0, 0.15, 1.0)
     bz = geo.beach_zone[np.ix_(np.clip(np.round(zs).astype(int), 0, NZ - 1), np.clip(np.round(xs).astype(int), 0, NX - 1))]
     det = np.where(bz, 0.0, det)
-    return np.where(land, h + det, h), X, Z
+    h = np.where(land, h + det, h)
+    # linha d'agua da praia SUAVE: perfil da areia/mar pela costa analitica (a mascara de 16 m deixava a beira em degraus)
+    jj = np.clip(np.round(zs).astype(int), 0, NZ - 1)[:, None]; ii = np.clip(np.round(xs).astype(int), 0, NX - 1)[None, :]
+    sea8 = geo.sea[jj, ii]; bz8 = geo.beach_zone[jj, ii]
+    dz8 = np.vectorize(coast)(X[0])[None, :] - Z
+    m = (X > 820) & (X < 3640) & (bz8 | sea8) & (dz8 > -140) & (dz8 < 56)
+    prof = np.where(dz8 > 0, np.interp(dz8, [0, 56, 61], [0.15, 0.98, 1.15]), np.maximum(-0.6 + dz8 * 0.045, -45.0))
+    h = np.where(m, prof, h)
+    return h, X, Z
 
 def elen(p): return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(p, p[1:]))
 
@@ -54,45 +62,59 @@ def profile_pts(e, ya, yb):
         return ya + (yb - ya) * (s - ca) / max(T - ca - cb, 1e-6)
     return [(p[0], p[1], y(s)) for p, s in zip(pts, Ls)]
 
-def carve(h, X, Z, city, ynode):
-    h0 = h.copy(); acc_y = np.zeros_like(h); acc_w = np.zeros_like(h)
-    # rotatorias: disco plano (anel + calcada) na altura do no
+FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m nao "morde" a borda)
+
+def carve(h, X, Z, city, ynode, geo=None):
+    """terraplenagem: cada vertice da grade de 8 m recebe a altura da rua MAIS PROXIMA no ponto projetado
+    (nao a do ultimo ponto amostrado), plano ate HALF+FLAT_EXTRA e talude suave depois."""
+    h0 = h.copy()
+    acc_w = np.zeros_like(h); acc_d = np.full_like(h, 1e9); acc_y = np.zeros_like(h)
+    def put(j0, j1, i0, i1, w, d, y):
+        sw = acc_w[j0:j1, i0:i1]; sd = acc_d[j0:j1, i0:i1]; sy = acc_y[j0:j1, i0:i1]
+        better = (w > sw + 1e-6) | ((np.abs(w - sw) <= 1e-6) & (d < sd) & (w > 0))
+        sw[better] = w[better]; sd[better] = d[better]; sy[better] = y[better] if np.ndim(y) else y
+    def smooth(w): return w * w * (3 - 2 * w)
     for rd in city.rounds:
-        y = ynode[rd['node']]; R = rd['r'] + 3.0
-        i0, i1 = int((rd['x'] - R - 14) / STEP), int((rd['x'] + R + 14) / STEP) + 1; j0, j1 = int((rd['z'] - R - 14) / STEP), int((rd['z'] + R + 14) / STEP) + 1
-        i0, j0 = max(i0, 0), max(j0, 0); i1, j1 = min(i1, N8X), min(j1, N8Z)
+        y = ynode[rd['node']]; R = rd['r'] + 3.0 + FLAT_EXTRA; SH = 14.0
+        i0, i1 = max(int((rd['x'] - R - SH) / STEP), 0), min(int((rd['x'] + R + SH) / STEP) + 2, N8X)
+        j0, j1 = max(int((rd['z'] - R - SH) / STEP), 0), min(int((rd['z'] + R + SH) / STEP) + 2, N8Z)
         d = np.hypot(X[j0:j1, i0:i1] - rd['x'], Z[j0:j1, i0:i1] - rd['z'])
-        w = np.clip(1.0 - np.clip(d - R, 0, None) / 14.0, 0, 1); w = w * w * (3 - 2 * w); w = np.where(d <= R, 1.0, w)
-        sub_w = acc_w[j0:j1, i0:i1]; sub_y = acc_y[j0:j1, i0:i1]; better = (w >= sub_w) & (w > 0)
-        sub_y[better] = y; sub_w[better] = w[better]
-    order = sorted(range(len(city.edges)), key=lambda k: -city.edges[k]['lvl'])    # ave por ultimo => prevalece
-    for k in order:
-        e = city.edges[k]
+        w = np.where(d <= R, 1.0, smooth(np.clip(1.0 - (d - R) / SH, 0, 1)))
+        put(j0, j1, i0, i1, w, np.maximum(d - R, 0), np.full_like(d, y))
+    for k, e in enumerate(city.edges):
         if e['kind'] in ('bridge', 'redbridge'): continue
-        half = HALF.get(e['lvl'], 7.5)
+        flat = HALF.get(e['lvl'], 7.5) + FLAT_EXTRA
+        beach = geo is not None and e.get('name') == 'Av. Beira-Mar'
         pp = profile_pts(e, ynode[e['a']], ynode[e['b']])
-        # amostras a cada ~4 m
-        smp = []
         for (ax, az, ay), (bx, bz, by) in zip(pp, pp[1:]):
-            L = math.hypot(bx - ax, bz - az); n = max(1, int(L / 4))
-            for t in range(n): smp.append((ax + (bx - ax) * t / n, az + (bz - az) * t / n, ay + (by - ay) * t / n))
-        smp.append(pp[-1])
-        for (x, z, y) in smp:
-            i = int(round(x / STEP)); j = int(round(z / STEP))
-            if not (0 <= i < N8X and 0 <= j < N8Z): continue
-            dh = abs(h0[j, i] - y); sh = min(34.0, max(7.0, 2.2 * dh))
-            R = half + sh; r = int(R / STEP) + 1
-            j0, j1, i0, i1 = max(j - r, 0), min(j + r + 1, N8Z), max(i - r, 0), min(i + r + 1, N8X)
-            d = np.hypot(X[j0:j1, i0:i1] - x, Z[j0:j1, i0:i1] - z)
-            w = np.clip(1.0 - np.clip(d - half, 0, None) / sh, 0, 1); w = w * w * (3 - 2 * w)
-            w = np.where(d <= half, 1.0, w)
-            m = w > 0
-            sub_w = acc_w[j0:j1, i0:i1]; sub_y = acc_y[j0:j1, i0:i1]
-            better = (w >= sub_w) & (w > 0)
-            sub_y[better] = (y * w)[better] / np.maximum(w[better], 1e-6) * 0 + y        # a rua mais "perto" decide a altura
-            sub_w[better] = w[better]
+            vx, vz = bx - ax, bz - az; L2 = vx * vx + vz * vz
+            if L2 < 1e-6: continue
+            if beach:
+                # lado do mar: plano ate a borda do calcadao (ORLA_CALC + HALF_W da orla) e depois a areia
+                L_ = math.sqrt(L2); nxs, nzs = -vz / L_, vx / L_; mx, mz = (ax + bx) / 2, (az + bz) / 2
+                sp = geo.Dsea[geo.idx(mx + nxs * 25, mz + nzs * 25)] < geo.Dsea[geo.idx(mx - nxs * 25, mz - nzs * 25)]
+                sgn = 1.0 if sp else -1.0
+                fs = ORLA_CALC + 7.0 + 0.6
+            M = flat + 72.0
+            i0, i1 = max(int((min(ax, bx) - M) / STEP), 0), min(int((max(ax, bx) + M) / STEP) + 2, N8X)
+            j0, j1 = max(int((min(az, bz) - M) / STEP), 0), min(int((max(az, bz) + M) / STEP) + 2, N8Z)
+            if i1 <= i0 or j1 <= j0: continue
+            XX = X[j0:j1, i0:i1]; ZZ = Z[j0:j1, i0:i1]
+            t = np.clip(((XX - ax) * vx + (ZZ - az) * vz) / L2, 0, 1)
+            d = np.hypot(XX - (ax + vx * t), ZZ - (az + vz * t))
+            y = ay + (by - ay) * t
+            dh = np.abs(h0[j0:j1, i0:i1] - y); sh = np.clip(3.6 * dh, 10.0, 70.0)
+            if beach:
+                side = ((XX - ax) * nxs + (ZZ - az) * nzs) * sgn > 0                 # True = lado do mar
+                fl = np.where(side, fs, flat); sh = np.where(side, 3.0, sh)
+                w = np.where(d <= fl, 1.0, smooth(np.clip(1.0 - (d - fl) / sh, 0, 1)))
+                # debaixo das vagas/jardim/calcadao (lajes da orla) o terreno fica no nivel da areia: o pe do muro e areia, nao grama
+                y = np.where(side & (d > 13.0), np.minimum(y, 1.05), y)
+            else:
+                w = np.where(d <= flat, 1.0, smooth(np.clip(1.0 - (d - flat) / sh, 0, 1)))
+            put(j0, j1, i0, i1, w, d, y)
     wgt = np.clip(acc_w, 0, 1)
-    return np.where(wgt > 0, h0 * (1 - wgt) + np.where(acc_w > 0, acc_y, h0) * wgt, h0)
+    return np.where(wgt > 0, h0 * (1 - wgt) + acc_y * wgt, h0)
 
 def set_plateaus(city, geo):
     import ground
@@ -109,7 +131,11 @@ def run(city, geo):
     set_plateaus(city, geo)
     h, X, Z = upsample(geo)
     ynode = node_profile(city, geo)
-    hf = carve(h, X, Z, city, ynode)
+    hf = carve(h, X, Z, city, ynode, geo)
+    # faixa de areia (entre o mar e o muro do calcadao): nunca acima de 1,2 m (senao o jogo pinta grama na praia)
+    ii = np.clip(np.round(X / CELL).astype(int), 0, NX - 1); jj = np.clip(np.round(Z / CELL).astype(int), 0, NZ - 1)
+    sand = geo.beach_zone[jj, ii] & (geo.Dsea[jj, ii] < 58.0) & ~geo.water[jj, ii]
+    hf = np.where(sand & (hf > 1.2), 1.2, hf)
     return hf, ynode, X, Z
 
 def sample8(h, x, z):

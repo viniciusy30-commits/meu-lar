@@ -69,6 +69,14 @@ class Furn:
             return x, z, y, dx, dz
         return f
 
+    def lat_for(self, k, side, lat):
+        """no lado do mar da Av. Beira-Mar o passeio vira vagas: postes vao para o jardim de palmeiras"""
+        sea = self.g.sea_sign(k)
+        return 18.9 if sea and side == sea else lat
+
+    @staticmethod
+    def rin_side(a): return 1 if a['end'] == 'b' else -1
+
     # --------------------------------------------------------- placas e semaforos
     def add_sign(self, kind, x, z, y, n, text='', shape='circle', size=0.38, key='stop', ph=2.4):
         for sh in [0.0] + [v * s for v in np.arange(1.2, 10.0, 1.2) for s in (1, -1)]:
@@ -83,7 +91,7 @@ class Furn:
         lvl = min(a['lvl'], 2); aa = a['a']; ins = TR.SEC_INS[lvl]
         x, z, y, dx, dz = arm_fn(8.0)
         rin = (dz, -dx)                                                   # direita de quem chega
-        lat = aa + 0.2 + 1.0
+        lat = self.lat_for(a['k'], self.rin_side(a), aa + 0.2 + 1.0)
         px, pz = x + rin[0] * lat, z + rin[1] * lat; yb = y + ROADY + CURB_H
         for sh in [0.0] + [v * s for v in np.arange(1.2, 10.0, 1.2) for s in (1, -1)]:
             if not any(math.hypot(px + dx * sh - qx, pz + dz * sh - qz) < 1.5 for qx, qz in self.pits) and not any(math.hypot(px + dx * sh - qx, pz + dz * sh - qz) < 3.0 for qx, qz in self.tact): px, pz = px + dx * sh, pz + dz * sh; break
@@ -147,7 +155,7 @@ class Furn:
         s_out = min(6.9, max(3.0, self.room(a) - 2.0))
         x, z, y, dx, dz = f(s_out); r = (dz, -dx)                       # r = direita de quem chega; -r = esquerda
         for side in (1, -1):
-            lat = side * (aa + 0.2 + 0.95)
+            lat = side * self.lat_for(a['k'], side * self.rin_side(a), aa + 0.2 + 0.95)
             px, pz = x + r[0] * lat, z + r[1] * lat; yb = y + ROADY + CURB_H
             for sh in [0.0] + [v * s for v in np.arange(1.2, 6.0, 1.2) for s in (1, -1)]:
                 qx, qz = px + dx * sh, pz + dz * sh
@@ -177,9 +185,7 @@ class Furn:
                 s_line = 5.2 if a.get('xw') else 1.8
                 x, z, y, dx, dz = f(s_line); d = (dx, dz)
                 lo = ins + 0.25; hi = aa - (2.0 if lvl == 2 else 2.5)
-                if ctl in ('signal', 'stop'):
-                    self.hline(x, z, y, d, lo, hi, -0.25, 0.25, C['white'])
-                elif ctl == 'yield':
+                if ctl == 'yield':
                     # dentes de tubarao
                     off = lo
                     while off < hi - 0.5:
@@ -191,11 +197,11 @@ class Furn:
                     xa, za, ya, dxa, dza = f(14.0)
                     rin = (dza, -dxa)
                     for u_, off in enumerate(TR.lane_offsets(lvl)):
-                        kinds = self.kinds_of(ni, a, u_)
-                        self.arrow(xa + rin[0] * off, za + rin[1] * off, ya, (-dxa, -dza), C['white'], kinds)
+                        # uma seta reta por faixa, so indicando o sentido da via (sem combinacoes de conversao)
+                        self.arrow(xa + rin[0] * off, za + rin[1] * off, ya, (-dxa, -dza), C['white'], ('straight',))
                 # sinalizacao vertical
                 xs, zs, ys, dxs, dzs = f(min(7.8, max(2.0, self.room(a) - 3.0)))
-                rin = (dzs, -dxs); lat = aa + 0.2 + 0.85
+                rin = (dzs, -dxs); lat = self.lat_for(a['k'], self.rin_side(a), aa + 0.2 + 0.85)
                 px, pz = xs + rin[0] * lat, zs + rin[1] * lat; yb = ys + ROADY + CURB_H
                 face = (dxs, dzs)
                 if ctl == 'signal':
@@ -230,8 +236,7 @@ class Furn:
                 n_f = (-tz, tx)                                   # direita do sentido a->b
                 if dirn == 'f': nxv = n_f; face = (-tx, -tz)    # placa no lado direito de quem anda a->b, voltada para quem chega (de tras)
                 else: nxv = (-n_f[0], -n_f[1]); face = (tx, tz)
-                lat = aa + 0.2 + 0.85
-                if g.zone(x, z) == 'ponte' and False: continue
+                lat = self.lat_for(k, 1 if dirn == 'f' else -1, aa + 0.2 + 0.85)
                 self.add_sign('velocidade', x + nxv[0] * lat, z + nxv[1] * lat, y + ROADY + CURB_H, face, str(sp), 'circle', 0.36, 'speed%d' % sp)
 
     # --------------------------------------------------------- lombadas
@@ -321,7 +326,7 @@ class Furn:
             if not pick: continue
             a = pick[0]; f = self.road_vec(a); lvl = min(a['lvl'], 2); aa = TR.SEC_A[lvl]
             s_out = min(11.0, max(3.0, self.room(a) - 3.0)); x, z, y, dx, dz = f(s_out); r = (dz, -dx)
-            lat = aa + 0.2 + 1.0
+            lat = self.lat_for(a['k'], self.rin_side(a), aa + 0.2 + 1.0)
             px, pz = x + r[0] * lat, z + r[1] * lat; yb = y + ROADY + CURB_H
             for sh in [0.0] + [v * s for v in np.arange(1.2, 8.0, 1.2) for s in (1, -1)]:
                 qx, qz = px + dx * sh, pz + dz * sh

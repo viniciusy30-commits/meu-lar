@@ -91,6 +91,15 @@ def run(out, geo, hf, assets):
     print(f'  vertices abaixados: {int((drop > 0.001).sum())} (max {drop.max():.2f} m); viraram areia/agua: {int(((hf >= 1.3) & (h2 < 1.3)).sum())}/{int(((hf >= -0.1) & (h2 < -0.1)).sum())}')
     import terrain_final as T
     T.write_bin(h2, os.path.join(assets, 'c5.bin'))
+    # mascara de AREIA (so a praia de verdade; margens de rio/lagoa ficam de grama)
+    from plan import CELL as _C, NX as _NX, NZ as _NZ
+    ny8, nx8 = h2.shape
+    X8 = np.arange(nx8) * 8.0; Z8 = np.arange(ny8) * 8.0
+    ii = np.clip(np.round(X8 / _C).astype(int), 0, _NX - 1)[None, :]; jj = np.clip(np.round(Z8 / _C).astype(int), 0, _NZ - 1)[:, None]
+    sand = geo.beach_zone[jj, ii] & (geo.Dsea[jj, ii] < 66.0) & (h2 < 1.6)
+    with open(os.path.join(assets, 'c5_sand.bin'), 'wb') as f:
+        f.write(struct.pack('<ii', nx8, ny8)); f.write(sand.astype(np.uint8).tobytes())
+    print(f'  areia: {int(sand.sum())} vertices')
     W, wnx, wnz, wst = walk_raster(tris)
     write_walk(W, wnx, wnz, wst, os.path.join(assets, 'c5_walk.bin'))
     shutil.copy(os.path.join(out, 'city5_ground.bin'), os.path.join(assets, 'c5_mesh.bin'))
@@ -141,10 +150,12 @@ def fit_terrain(hf, ground_path, g=8.0, margin=0.05, tunnel=3.0):
     S = np.concatenate([a, b_, c, (a + b_ + c) / 3, (a + b_) / 2, (b_ + c) / 2, (a + c) / 2, (2 * a + b_ + c) / 4, (a + 2 * b_ + c) / 4, (a + b_ + 2 * c) / 4])
     ny, nx = hf.shape
     h = hf.copy()
+    t0, _, _, _ = _terr(h, g, S[:, 0], S[:, 2])
+    act = (t0 - (S[:, 1] - margin)) < tunnel            # tunel/portal (terreno muito acima) fica de fora desde o inicio
     for it in range(8):
         t, i, j, up = _terr(h, g, S[:, 0], S[:, 2])
         viol = t - (S[:, 1] - margin)
-        bad = (viol > 0.005) & (viol < tunnel)
+        bad = (viol > 0.005) & act
         print(f'   passo {it}: {int(bad.sum())} amostras sob o terreno (max {viol[bad].max() if bad.any() else 0:.2f} m)')
         if not bad.any(): break
         i, j, up, v = i[bad], j[bad], up[bad], viol[bad]

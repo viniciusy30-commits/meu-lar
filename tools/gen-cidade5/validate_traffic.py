@@ -47,20 +47,23 @@ def run(g, tr, fu):
     Mz = validate_ground.raster(g, ['asphalt', 'zebra', 'tact', 'sidewalk', 'verge', 'curb'])
     er = lambda m: m & np.roll(m, 1, 0) & np.roll(m, -1, 0) & np.roll(m, 1, 1) & np.roll(m, -1, 1)
     Mz['asphalt'] = er(Mz['asphalt']); Mz['zebra'] = er(Mz['zebra'])
-    on_road = 0; near_x = 0
+    on_road = 0; near_x = 0; mid_walk = 0; bad_xy = []
     pits = [(f['pit'][0], f['pit'][1]) for f in g.fronts if 'pit' in f]
+    tags = {(round(x, 1), round(z, 1)): t for x, z, t in getattr(fu, 'pole_tags', [])}
+    H_, W_ = Mz['asphalt'].shape
+    def any_near(m, i, j, r):
+        j0, j1, i0, i1 = max(j - r, 0), min(j + r + 1, H_), max(i - r, 0), min(i + r + 1, W_)
+        return bool(m[j0:j1, i0:i1].any())
     for (x, z) in fu.poles:
         i, j = int(x), int(z)
-        if Mz['asphalt'][j, i] or Mz['zebra'][j, i]: on_road += 1
+        if Mz['asphalt'][j, i] or Mz['zebra'][j, i]: on_road += 1; bad_xy.append(('pista', round(x), round(z), tags.get((round(x, 1), round(z, 1)), '')))
         else:
-            for dj in (-1, 0, 1):
-                for di in (-1, 0, 1):
-                    if Mz['tact'][min(max(j + dj, 0), Mz['tact'].shape[0] - 1), min(max(i + di, 0), Mz['tact'].shape[1] - 1)]: near_x += 1; break
-                else: continue
-                break
+            if any_near(Mz['tact'], i, j, 1): near_x += 1; bad_xy.append(('rampa', round(x), round(z), ''))
+            # na calcada: o poste fica na faixa de servico junto a guia (nao no meio do passeio)
+            if tags.get((round(x, 1), round(z, 1))) != 'fim-de-via' and Mz['sidewalk'][j, i] and not Mz['verge'][j, i] and not any_near(Mz['curb'] | Mz['asphalt'], i, j, 3): mid_walk += 1; bad_xy.append(('meio da calcada', round(x), round(z), ''))
     near_pit = sum(1 for (x, z) in fu.poles if any(math.hypot(x - px, z - pz) < 0.9 for px, pz in pits))
-    good = on_road == 0 and near_x == 0 and near_pit == 0; ok &= good
-    out.append(f'  postes de semaforo/placas ({len(fu.poles)}): sobre a pista: {on_road}; atrapalhando a rampa da faixa: {near_x}; em cima de cova de arvore: {near_pit} {"ok" if good else "PROBLEMA"}')
+    good = on_road == 0 and near_x == 0 and near_pit == 0 and mid_walk == 0; ok &= good
+    out.append(f'  postes de semaforo/placas ({len(fu.poles)}): sobre a pista: {on_road}; atrapalhando a rampa da faixa: {near_x}; em cima de cova de arvore: {near_pit}; no meio da calcada: {mid_walk} {"ok" if good else "PROBLEMA"}' + ''.join(f'\n     {b}' for b in bad_xy[:12]))
     # 6) lombadas
     mb = validate_ground.raster  # reuse
     bump_out = 0

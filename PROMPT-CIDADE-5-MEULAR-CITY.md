@@ -730,3 +730,10 @@ Responda apenas com: (1) **fatos do repositório** que você confirmou (formatos
 ## PARTE 11C — ORLA DA PRAIA E SINALIZAÇÃO (adicionado na execução)
 - Nenhuma rua chega à areia: rua -> avenida beira-mar -> calçadão largo (com ciclovia) -> mureta/escadas -> areia. Píeres, quiosques, torres de salva-vidas, chuveiros, palmeiras, bancos e postes ao longo da orla.
 - Placas com texto real via atlas (Mt.SIGN), placas de nome de rua nos cruzamentos, setas de conversão pintadas, semáforos de pedestre, quebra-molas e lombadas sinalizadas.
+
+## PARTE 11D — REVISÃO APÓS TESTE NO JOGO (obrigatório)
+- ORLA no estilo de João Pessoa: praia longa e contínua, faixa de areia larga (~60 m), calçadão largo com ciclovia, jardim de palmeiras, vagas de estacionamento inclinadas ao longo da avenida beira-mar (dá para chegar de carro, estacionar e descer a pé), travessias de pedestre com patamar até o calçadão, escadas até a areia, píeres. Quarteirões de frente para o mar (prédios/casas) logo do outro lado da avenida, com ruas transversais chegando à orla.
+- AVENIDAS são só para carros: sem calçada (guia + canteiro gramado). RUAS têm calçada. Exceção: o lado da cidade da avenida beira-mar.
+- Sinalização horizontal: uma seta reta por faixa indicando o sentido; sem linha de retenção.
+- Postes e placas nunca no meio do passeio nem sobre a pista/vagas.
+- O terreno nunca pode cobrir nem deixar "flutuando" ruas e calçadas; nada de quadrados de cor no relevo.
