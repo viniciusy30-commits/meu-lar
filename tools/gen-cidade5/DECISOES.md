@@ -63,3 +63,14 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - App: City.C5 + Configurações > Mapa cicla 1→2→3→4→5. Relevo.load(c5) reutiliza o caminho "sub" da Cidade 3. Tex.refreshSign troca o atlas de placas ao mudar de mapa.
 - Ainda não há prédios, lotes nem as 17 casas (Etapa D em diante): só terreno, água, ruas, orla, pontes e árvores.
 - O APK é gerado pelo workflow Build APK na branch main.
+
+## Revisão pós-teste no jogo (ruas levantadas, quadrados verdes, orla João Pessoa)
+- Terraplenagem refeita: cada vértice do terreno recebe a altura da rua MAIS PRÓXIMA no ponto projetado (antes pegava a do último ponto amostrado, até 14 m adiante -> degraus de 0,7-1 m). Plano até a borda da calçada + 4 m; taludes 3,6x o desnível (10-70 m).
+- Bug antigo: o índice do nó das rotatórias ficava desatualizado após renumerar os nós (3 rotatórias no cruzamento errado). Agora reassocia pela posição.
+- Dedupe só remove arestas com o mesmo traçado (antes apagava meio anel da lagoa); anel e ligações da lagoa protegidos.
+- "Quadrados verdes": células de 8 m inteiras pintadas de rocha. App agora mistura rocha por vértice (inclinação) e usa máscara de areia (c5_sand.bin): só a praia é areia; margens de rio/lagoa ficam de grama.
+- ORLA estilo João Pessoa: costa longa e suave (~2,7 km, sem enseadas), planície costeira de ~300 m, areia de 60 m, calçadão 14 m com ciclovia, jardim de palmeiras, VAGAS a 60° ao longo da Av. Beira-Mar, patamar de pedestre em cada travessia, mureta com escadas a cada ~92 m, 3 píeres, quiosques/salva-vidas/chuveiros/vôlei/guarda-sóis. Tudo construído a partir do eixo da avenida (orla.py chains()).
+- Bairro da orla: ruas paralelas à praia a +110 e +220 m e travessas a cada ~110 m chegando na avenida (network.orla_grid). Ponte da Orla na foz do rio. Fins da avenida = retornos (bolsão).
+- Avenidas (lvl 0) SEM calçada: guia + canteiro de grama (só carros). Exceção: Av. Beira-Mar do lado da cidade (prédios de frente pro mar). Esquinas continuam com calçada (espera de pedestre).
+- Sinalização: uma seta reta por faixa (sem combinações de conversão) e SEM linha de retenção. Postes do lado do mar vão para o jardim; validador agora acusa poste no meio da calçada.
+- Ferramentas de QA: qa/qa3d.py + qa/shots.js (three.js no Chromium sem tela, igual ao jogo), qa/tour.py (fotos 3D de todos os ladrilhos), qa/overview.py, qa/trace_build.py, qa/mismatch.py.

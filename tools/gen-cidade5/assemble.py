@@ -13,7 +13,7 @@ class City:
         fld, nodes, edges, stats = N.generate(geo)
         self.fld = fld; self.stats = stats
         self.nodes = [list(n) for n in nodes]
-        self.edges = [{'a': e['a'], 'b': e['b'], 'p': [tuple(q) for q in e['p']], 'lvl': e['lvl'], 'kind': 'n', 'name': ''} for e in edges]
+        self.edges = [{'a': e['a'], 'b': e['b'], 'p': [tuple(q) for q in e['p']], 'lvl': e['lvl'], 'kind': 'n', 'name': e.get('name', ''), **({'protect': True} if e.get('protect') else {})} for e in edges]
         self.rounds = []
         self.noconnect = []
         self.red = []
@@ -63,7 +63,7 @@ class City:
         idx = [self.add_node(*pts[k]) for k in range(0, n, 3)]
         for q in range(len(idx)):
             k0 = q * 3; seg = [pts[(k0 + t) % n] for t in range(1, 3)]
-            self.add_edge(idx[q], idx[(q + 1) % len(idx)], seg, 0, 'n', 'Anel da Lagoa')
+            self.add_edge(idx[q], idx[(q + 1) % len(idx)], seg, 0, 'n', 'Anel da Lagoa'); self.edges[-1]['protect'] = True
         ring = set(idx); added = 0
         for k in range(0, len(idx), 3):          # 4 ligacoes: N, L, S, O
             r = idx[k]; x0, z0 = self.nodes[r]
@@ -72,7 +72,7 @@ class City:
                 tx, tz = self.nodes[tgt][:2]
                 path = [(x0, z0), ((x0 + tx) / 2, (z0 + tz) / 2), (tx, tz)]
                 if math.hypot(tx - x0, tz - z0) < 420 and not self.crosses(path, ()) and not self.too_close(path) and not any(self.geo.is_water(*q) for q in path):
-                    self.edges.append({'a': r, 'b': tgt, 'p': path, 'lvl': 0, 'kind': 'n', 'name': 'Av. da Lagoa'}); added += 1; break
+                    self.edges.append({'a': r, 'b': tgt, 'p': path, 'lvl': 0, 'kind': 'n', 'name': 'Av. da Lagoa', 'protect': True}); added += 1; break
         self.ring = idx
 
     def too_close(self, path, r=22.0, skip=38.0):
@@ -112,13 +112,22 @@ class City:
         """Av. Beira-Mar: contorno a 58 m do mar; ligada a rede por ruas coletoras a cada ~230 m"""
         import shore
         self.beach_nodes = []
-        lines = shore.beach_lines(self.geo, 58.0, 120.0)
-        made = 0
-        for ln in lines:
-            ln = [tuple(p) for p in ln]
-            na = self.add_node(*ln[0]); nb = self.add_node(*ln[-1])
-            self.edges.append({'a': na, 'b': nb, 'p': ln, 'lvl': 0, 'kind': 'n', 'name': 'Av. Beira-Mar', 'protect': True}); made += 1
+        made = sum(1 for e in self.edges if e.get('name') == 'Av. Beira-Mar')      # a avenida ja vem da rede (network.generate)
         self.beach_made = made
+        # Ponte da Orla: liga as duas metades da Av. Beira-Mar sobre a foz do rio
+        deg = defaultdict(int)
+        for e in self.edges: deg[e['a']] += 1; deg[e['b']] += 1
+        ends = sorted({n for e in self.edges if e.get('name') == 'Av. Beira-Mar' for n in (e['a'], e['b']) if deg[n] == 1})
+        best = None
+        for i in ends:
+            for j in ends:
+                if i >= j: continue
+                xi, zi = self.nodes[i][:2]; xj, zj = self.nodes[j][:2]
+                d = math.hypot(xi - xj, zi - zj)
+                if d < 380 and self.geo.is_water((xi + xj) / 2, (zi + zj) / 2) and (best is None or d < best[0]): best = (d, i, j)
+        if best:
+            d, i, j = best
+            self.add_edge(i, j, [], 0, 'bridge', 'Ponte da Orla'); self.edges[-1]['protect'] = True
         # conectores: amostra pontos da avenida e liga ao ponto mais proximo da rede
         for k0 in [k for k, e in enumerate(self.edges) if e.get('name') == 'Av. Beira-Mar']:
             pass
@@ -264,7 +273,7 @@ class City:
                 hx, hz = p[0][0] - p[1][0], p[0][1] - p[1][1]; hl = math.hypot(hx, hz) or 1; hx /= hl; hz /= hl
                 j_, i_ = self.geo.idx(x, z); dwater = float(self.geo.D[j_, i_])
                 # 1) cais / praia
-                if dwater < 70 and e['lvl'] >= 1:
+                if dwater < 35 and e['lvl'] >= 1:
                     self.legit_xy[(round(x, 2), round(z, 2))] = 'cais'; continue
                 # 2) tenta ligar a uma rua proxima (de preferencia a frente)
                 cands = []
@@ -292,7 +301,7 @@ class City:
                 if e['lvl'] == 2 and 60 <= L <= 320:
                     self.legit_xy[(round(x, 2), round(z, 2))] = 'bolsao'; continue
                 # 4) sem sentido: apaga o trecho (a Av. Beira-Mar e as ligacoes da orla nunca sao apagadas: terminam em cais/praia)
-                if e.get('protect'): self.legit_xy[(round(x, 2), round(z, 2))] = 'cais'; continue
+                if e.get('protect'): self.legit_xy[(round(x, 2), round(z, 2))] = 'bolsao' if e.get('name') == 'Av. Beira-Mar' else 'cais'; continue
                 self.edges.pop(k); changed = True; break
             if not changed: break
         self.drop_unused()
@@ -302,9 +311,11 @@ class City:
         n = 0
         for _ in range(500):
             deg, inc = self.degrees(); best = None
+            pn = {x for ed in self.edges if ed.get('protect') and ed.get('name') == 'Anel da Lagoa' for x in (ed['a'], ed['b'])}
             for k, e in enumerate(self.edges):
                 if e['kind'] != 'n' or e['a'] == e['b']: continue
                 if len(self.nodes[e['a']]) > 2 or len(self.nodes[e['b']]) > 2: continue
+                if e.get('protect') or ((e['a'] in pn or e['b'] in pn) and elen(e['p']) > 14.0): continue
                 L = elen(e['p'])
                 if L < min_len and (best is None or L < best[0]): best = (L, k)
             if not best: break
@@ -367,11 +378,21 @@ class City:
         self.drop_unused(); self.acute_removed = removed
 
     def dedupe(self):
-        seen = set(); out = []
+        """remove arestas REPETIDAS (mesmas pontas e mesmo tracado); dois caminhos diferentes entre os mesmos nos (ex.: as duas metades de um anel) ficam"""
+        def mid(e):
+            p = e['p']; L = elen(p) / 2; acc = 0.0
+            for u, v in zip(p, p[1:]):
+                s = math.hypot(v[0] - u[0], v[1] - u[1])
+                if acc + s >= L: f = (L - acc) / (s or 1); return (u[0] + (v[0] - u[0]) * f, u[1] + (v[1] - u[1]) * f)
+                acc += s
+            return p[-1][:2]
+        seen = {}; out = []
         for e in self.edges:
             k = frozenset((e['a'], e['b']))
-            if k in seen and e['a'] != e['b']: continue
-            seen.add(k); out.append(e)
+            if e['a'] != e['b'] and k in seen:
+                m = mid(e)
+                if any(math.hypot(m[0] - q[0], m[1] - q[1]) < 15.0 for q in seen[k]): continue
+            seen.setdefault(k, []).append(mid(e)); out.append(e)
         self.edges = out
 
     def clean_polylines(self):
@@ -770,4 +791,7 @@ class City:
 def build(geo):
     c = City(geo)
     c.add_beach_avenue(); c.lagoon_ring(); c.river_bridges(); c.connect_components(); c.red_bridges(); c.fix_dead_ends(); c.connect_components(); c.dedupe(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.contract_short(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.fix_close_parallel(); c.fix_dead_ends(); c.connect_components(); c.contract_short(); c.fix_acute(); c.fix_dead_ends(); c.connect_components(); c.merge_degree2(); c.clean_polylines(); c.simplify_polylines(); c.fillet_polylines(); c.make_rounds(); c.flags(); c.repair_overlaps(); c.fix_acute(); c.resolve_bulbs(); c.merge_degree2(); c.clean_polylines(); c.relax_tight_curves(); c.drop_tight_edges(); c.make_rounds(); c.flags()
+    # rotatorias: reassocia o no pela POSICAO (drop_unused renumera os nos depois de make_rounds)
+    for r in c.rounds:
+        r['node'] = min(range(len(c.nodes)), key=lambda i: math.hypot(c.nodes[i][0] - r['x'], c.nodes[i][1] - r['z']))
     return c

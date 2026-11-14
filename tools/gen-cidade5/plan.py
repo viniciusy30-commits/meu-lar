@@ -15,9 +15,14 @@ CHANNEL_E = {'pts': [(3740, 3500), (3780, 2700), (3850, 2100), (3870, 1500), (38
 RIVER = {'pts': [(2350, 0), (2330, 350), (2400, 700), (2330, 1050), (2420, 1400), (2340, 1760), (2470, 2100), (2400, 2450), (2460, 2880)], 'w0': 56.0, 'w1': 140.0}
 
 def coast(x):
-    """Z da linha da costa (mar para Z maior). Baia ao centro-leste, enseadas e pontas."""
-    return 2900.0 + 90 * math.sin(x / 260.0) + 55 * math.sin(x / 97.0 + 1.0) - 380.0 * math.exp(-((x - 2450.0) / 430.0) ** 2) \
-        + 120.0 * math.exp(-((x - 3150.0) / 160.0) ** 2)        # ponta de terra (Peninsula Real) a leste da baia
+    """Z da linha da costa (mar para Z maior): ORLA LONGA e suave (estilo Joao Pessoa), com uma baia rasa no centro (foz do rio)."""
+    return 2870.0 + 40 * math.sin(x / 430.0 + 0.6) + 18 * math.sin(x / 190.0 + 1.3) - 175.0 * math.exp(-((x - 2300.0) / 700.0) ** 2)
+
+# ORLA (distancias a partir do mar, em m): areia 0-60, muro/escadas 60-62.5, calcadao 62.5-76.5, jardim 76.5-79.8,
+# vagas a 60 graus 79.8-85.5, Av. Beira-Mar (eixo a 97 m, 2x2 faixas + canteiro), calcada do lado da cidade ate ~113 m
+ORLA_AXIS = 97.0
+ORLA_CALC = 27.5          # eixo do calcadao a 27,5 m do eixo da avenida (lado do mar)
+ORLA_URBAN_MIN = 116.0    # ruas da cidade so a partir daqui
 
 # colinas dentro da bacia: (x, z, altura, sigma)
 HILLS = [
@@ -40,9 +45,9 @@ RED_BRIDGE_E = {'z': 1500.0, 'x_a': 4100.0, 'x_b': 3640.0, 'towers': (3680.0, 40
 LEVELS = [('ave', 1, 28.0, 360.0, 0.09), ('col', 2, 20.0, 150.0, 0.11), ('loc', 3, 15.0, 80.0, 0.14)]
 
 # enseadas (x, z, rx, rz) que recortam a terra para um contorno irregular
-COVES = [(1500.0, 2790.0, 190.0, 330.0), (3300.0, 2900.0, 200.0, 420.0)]
+COVES = []          # (sem enseadas: a orla e uma praia longa e continua)
 
 # nomes para a previa/GPS (centros aproximados; os bairros definitivos saem do zoneamento da Etapa D)
-PLACES = {'Alto da Colina': (1550, 1050), 'Parque do Mirante': (2650, 1050), 'Centro / Praca da Lagoa': (2000, 1780), 'Recanto do Sul (praia)': (1700, 2780),
-          'Peninsula Real': (3150, 2420), 'Vila Esperanca': (1250, 1950), 'Colina Leste': (3150, 1400), 'Marina': (1500, 2790), 'Orla Leste': (3300, 2800),
+PLACES = {'Alto da Colina': (1550, 1050), 'Parque do Mirante': (2650, 1050), 'Centro / Praca da Lagoa': (2000, 1780), 'Orla Oeste (praia)': (1500, 2700),
+          'Peninsula Real': (3150, 2420), 'Vila Esperanca': (1250, 1950), 'Colina Leste': (3150, 1400), 'Orla Leste (praia)': (3100, 2760),
           'Ponte Vermelha Oeste': (540, 1420), 'Ponte Vermelha Leste': (3870, 1420)}

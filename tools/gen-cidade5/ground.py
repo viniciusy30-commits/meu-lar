@@ -76,7 +76,7 @@ class Ground:
     def zone(self, x, z):
         j, i = self.geo.idx(x, z)
         h = self.geo.height(x, z); D = float(self.geo.D[j, i]); sl = self.geo.slope_at(x, z)
-        if z > 2300 and D < 170: return 'orla'
+        if z > 2300 and float(self.geo.Dsea[j, i]) < 260: return 'orla'
         if math.hypot(x - LAGOON[0], z - LAGOON[1]) < 720 and h < 16: return 'centro'
         if sl > 0.12 or h > 38: return 'colina'
         return 'res'
@@ -248,9 +248,14 @@ class Ground:
             self.quad(ASPHALT, [(nx, yc, nz), (p[0], yc + 0.0, p[1]), (r[0], yc + 0.0, r[1]), (nx, yc, nz)], col, None)
         self.poly('asphalt', poly_a)
         # guia + calcada de cada canto
+        beach_node = any(self.is_beach(a['k']) for a in arms)
+        d0 = float(self.geo.Dsea[self.geo.idx(nx, nz)])
         for idx in range(n):
             res = info[idx]
             A, C, O = res['A'], res['C'], res['O']
+            if beach_node and self.is_beach(arms[idx]['k']) and self.is_beach(arms[(idx + 1) % n]['k']):
+                mo = O[len(O) // 2]
+                if float(self.geo.Dsea[self.geo.idx(*mo)]) < d0: continue        # canto voltado para o mar: a orla continua ali
             if len(A) == len(C):
                 for q in range(len(A) - 1):
                     self.quad(PAVER, [(A[q][0], yc + CURB_H, A[q][1]), (A[q + 1][0], yc + CURB_H, A[q + 1][1]), (C[q + 1][0], yc + CURB_H, C[q + 1][1]), (C[q][0], yc + CURB_H, C[q][1])], COL['curb'], 'curb')
@@ -420,6 +425,7 @@ class Ground:
         # rampas tateis nas pontas da faixa (calcada)
         for sg in (-1, 1):
             cx, cz = x + r[0] * (half + 1.0) * sg, z + r[1] * (half + 1.0) * sg
+            if self.is_beach(a['k']) and float(self.geo.Dsea[self.geo.idx(cx, cz)]) < float(self.geo.Dsea[self.geo.idx(x, z)]): continue   # lado do mar: patamar da orla
             hw = 0.75
             pp = [(cx - d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 - r[1] * hw), (cx + d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 - r[1] * hw),
                   (cx + d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 + r[1] * hw), (cx - d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 + r[1] * hw)]
@@ -505,11 +511,15 @@ class Ground:
                 self.vwall(stl_m, sgn * (ins - 0.2), ROADY, SW_Y, COL['curb'], sgn)
         # --- guias, verge e calcadas dos dois lados
         sw_col, sw_col2 = {'centro': (COL['brick'], COL['conc']), 'res': (COL['conc'], COL['conc2']), 'colina': (COL['conc2'], COL['conc']), 'orla': (COL['sand'], COL['sand2']), 'ponte': (COL['bridge'], COL['conc'])}[zone]
+        sea = self.sea_sign(k)
         for sgn in (1, -1):
+            if sea and sgn == sea: continue                                 # lado do mar da Beira-Mar: vagas, jardim e calcadao (orla.py)
             self.strip(PAVER, COL['curb'], stl, sgn * a_, sgn * (a_ + 0.2), SW_Y, 'curb')
             self.vwall(stl, sgn * a_, ROADY, SW_Y, COL['curb'], -sgn)
             o = a_ + 0.2
-            if zone == 'res' and lvl == 2:                                  # faixa-jardim com arvore + calcada
+            if lvl == 0 and not sea and not bridge:                          # AVENIDA: so carros -> sem calcada, canteiro de grama
+                self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * h_, VERGE_Y, 'verge')
+            elif zone == 'res' and lvl == 2:                                  # faixa-jardim com arvore + calcada
                 self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * (o + 1.2), VERGE_Y, 'verge'); o += 1.2
                 self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
             elif zone == 'centro' and lvl <= 1:                              # faixa de concreto junto a guia + tijolo
@@ -527,7 +537,7 @@ class Ground:
         if not bridge or True:
             self.markings(k, stl_m, lvl, sec, bridge)
         # --- covas de arvore (centro e avenidas) a cada 12 m
-        if zone in ('centro',) or (lvl == 0 and zone != 'ponte'):
+        if zone == 'centro' and lvl > 0:
             self.tree_pits(k, stl, sec, zone)
         # --- cercas, parapeitos, muros
         self.protections(k, stl, sec, bridge, zone)
@@ -589,7 +599,9 @@ class Ground:
                     if cur: runs[sgn].append((cur[0], cur[1], q)); cur = None
                 if kind and not cur: cur = (kind, q)
             if cur: runs[sgn].append((cur[0], cur[1], len(stl) - 1))
+        sea = self.sea_sign(k)
         for sgn in (1, -1):
+            if sea and sgn == sea: continue
             for kind, i0, i1 in runs[sgn]:
                 if i1 <= i0: continue
                 sub = stl[i0:i1 + 1]
@@ -673,7 +685,22 @@ class Ground:
             info = scenery.red_bridge(self.B, rb, self.hf, deck, lx)
             info['name'] = r['name']; self.red_info.append(info)
 
+    def is_beach(self, k): return self.c.edges[k].get('name') == 'Av. Beira-Mar'
+
+    def sea_sign(self, k):
+        """+1/-1: lado (normal da estacao) que da para o mar na Av. Beira-Mar; 0 nas outras ruas"""
+        if not self.is_beach(k): return 0
+        if k in self._sea: return self._sea[k]
+        L = self.elen(k); acc = 0.0; n = 0
+        for f in (0.25, 0.5, 0.75):
+            x, z, y, tx, tz = self.at(k, L * f); nx_, nz_ = -tz, tx
+            jp = self.geo.idx(x + nx_ * 25, z + nz_ * 25); jm = self.geo.idx(x - nx_ * 25, z - nz_ * 25)
+            acc += float(self.geo.Dsea[jm]) - float(self.geo.Dsea[jp])
+        self._sea[k] = 1 if acc > 0 else -1
+        return self._sea[k]
+
     def build(self):
+        self._sea = {}
         self.infos = {ni: self.compute_cuts(ni) for ni in self.arms}
         self.plan_crosswalks()
         for ni in self.arms: self.junction(ni)

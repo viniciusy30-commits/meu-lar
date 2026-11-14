@@ -91,6 +91,10 @@ def build():
     dz = cz - Z                                           # >0 em terra
     beach = np.minimum(h, 1.6 + np.maximum(dz, 0) * 0.014)
     h = np.where(dz > -1e9, np.where(dz > 0, np.minimum(h, np.where(dz < 260, beach + (dz / 260.0) ** 2 * 60, h)), -0.6 + dz * 0.045), h)
+    # planicie costeira da orla (estilo Joao Pessoa): ~300 m quase planos atras da praia, so no trecho da orla (montanhas nas pontas)
+    wx = smooth(700.0, 900.0, X) * smooth(3800.0, 3600.0, X)
+    cap = np.where(dz < 300, 2.0 + 0.010 * np.maximum(dz, 0), 5.0 + ((dz - 300.0) / 320.0) ** 2 * 60.0)
+    h = np.where((dz > 0) & (wx > 0), h * (1 - wx) + np.minimum(h, cap) * wx, h)
     h = np.where(dz < 0, np.maximum(-0.6 + dz * 0.045, -45.0), h)
     # canais, rio, lagoa
     for ch in (CHANNEL_W, CHANNEL_E):
@@ -112,16 +116,16 @@ def build():
     sea = water & (Z > 2000) & (dch[0] > CHANNEL_W['w'] / 2 + 70) & (dch[1] > CHANNEL_E['w'] / 2 + 70) & (drv > RIVER['w1'] / 2 + 80)
     Dsea = chamfer(sea) - CELL / 2
     Dsea = np.where(sea, 0.0, np.maximum(Dsea, 0.0))
-    ok = (~water) & (Dsea < 100) & (X > 820) & (X < 3640) & (h_pre < 9.0) & (Z > 1800)
+    ok = (~water) & (Dsea < 280) & (X > 820) & (X < 3640) & (h_pre < 14.0) & (Z > 1800)
     wz = ok.astype(float)
     for _ in range(3):
         wz = (wz + np.roll(wz, 1, 0) + np.roll(wz, -1, 0) + np.roll(wz, 1, 1) + np.roll(wz, -1, 1)) / 5.0
     wz = np.clip((wz - 0.35) / 0.4, 0, 1) * (~water)
-    hp = np.interp(Dsea, [0, 22, 25, 40, 46], [0.15, 1.0, 2.4, 2.4, 2.4])
-    b = smooth(46.0, 74.0, Dsea)
-    hnew = hp * (1 - b) + h_pre * b
-    h = np.where((~water) & (Dsea < 74), h_pre * (1 - wz) + hnew * wz, h)
-    beach_zone = (wz > 0.5) & (Dsea < 90)
+    hp = np.interp(Dsea, [0, 58, 61, 62.5, 170], [0.15, 1.0, 1.15, 2.4, 2.4])
+    b = smooth(170.0, 260.0, Dsea)
+    hnew = hp * (1 - b) + np.maximum(h_pre, 2.4) * b
+    h = np.where((~water) & (Dsea < 260), h_pre * (1 - wz) + hnew * wz, h)
+    beach_zone = (wz > 0.5) & (Dsea < 175)
     # inclinacao
     gz, gx = np.gradient(h, CELL)
     slope = np.hypot(gx, gz)
@@ -132,7 +136,7 @@ def build():
     for _ in range(1):
         wd = wd | np.roll(wd, 1, 0) | np.roll(wd, -1, 0) | np.roll(wd, 1, 1) | np.roll(wd, -1, 1)
     cand &= ~wd
-    cand &= ~(beach_zone & (Dsea < 62))          # entre a Av. Beira-Mar e o mar so ha orla (nenhuma rua)
+    cand &= ~(beach_zone & (Dsea < ORLA_URBAN_MIN))   # entre a Av. Beira-Mar e o mar so ha orla (nenhuma rua)
     lab = np.zeros(cand.shape, np.int32); n = 0; sizes = {}
     for j0 in range(NZ):
         for i0 in range(NX):

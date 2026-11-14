@@ -197,7 +197,7 @@ def planarize(lines, snap=7.0):
             cuts.add(len(poly) // 2)          # laco fechado (anel da lagoa): divide ao meio
         cs = sorted(cuts)
         for u, v in zip(cs, cs[1:]):
-            pieces.append({'pts': poly[u:v + 1], 'lvl': lines[li]['lvl']})
+            pieces.append({'pts': poly[u:v + 1], 'lvl': lines[li]['lvl'], 'name': lines[li].get('name', ''), 'protect': lines[li].get('protect', False)})
     return pieces
 
 def build_graph(pieces, merge=9.0):
@@ -218,7 +218,7 @@ def build_graph(pieces, merge=9.0):
         a = find(pc['pts'][0]); b = find(pc['pts'][-1])
         if a == b: continue
         p = [nodes[a]] + pc['pts'][1:-1] + [nodes[b]]
-        edges.append({'a': a, 'b': b, 'p': p, 'lvl': pc['lvl']})
+        edges.append({'a': a, 'b': b, 'p': p, 'lvl': pc['lvl'], 'name': pc.get('name', ''), 'protect': pc.get('protect', False)})
     return nodes, edges
 
 def clean(nodes, edges, min_dead=80.0):
@@ -238,7 +238,7 @@ def clean(nodes, edges, min_dead=80.0):
         for e in edges: deg[e['a']] += 1; deg[e['b']] += 1
         keep = []; ch = False
         for e in edges:
-            if (deg[e['a']] == 1 or deg[e['b']] == 1) and elen(e) < min_dead * (1.6 if e['lvl'] == 2 else 1.0): ch = True; continue
+            if not e.get('protect') and (deg[e['a']] == 1 or deg[e['b']] == 1) and elen(e) < min_dead * (1.6 if e['lvl'] == 2 else 1.0): ch = True; continue
             keep.append(e)
         edges = keep
         if not ch: break
@@ -259,15 +259,66 @@ def clean(nodes, edges, min_dead=80.0):
     edges = [e for e in edges if cnt[comp[e['a']]] >= 12]
     return nodes, edges
 
+def orla_grid(geo, runs, lines, occs):
+    """bairro da orla (estilo Joao Pessoa): ruas paralelas a praia a +110 m e +220 m da avenida e transversais a cada ~110 m
+    saindo da Av. Beira-Mar para dentro da cidade (os quarteiroes de frente para o mar ficam entre a avenida e a 1a paralela)"""
+    import shore
+    gz, gx = np.gradient(geo.Dsea, CELL)
+    def grad(x, z):
+        j, i = geo.idx(x, z); l = math.hypot(gx[j, i], gz[j, i]) or 1e-9
+        return gx[j, i] / l, gz[j, i] / l
+    lid = 90
+    for k, off in enumerate((ORLA_AXIS + 110.0, ORLA_AXIS + 220.0)):
+        msk = (~geo.water) & (geo.Z > 1800)
+        for r in shore.contour(geo.Dsea, off, msk):
+            if shore.length(r) < 160: continue
+            pts = shore.resample(shore.smooth_line(shore.resample(r, 12.0), 3), 8.0)
+            # corta trechos fora da zona urbana (morros, rio)
+            seg = []
+            for p in pts:
+                if geo.is_urban(*p) and not geo.is_water(*p): seg.append(p)
+                else:
+                    if len(seg) > 12: lines.append({'pts': seg, 'lvl': 1 if k == 0 else 2, 'id': lid, 'name': 'Rua Paralela da Orla'}); [occs[m].add(q[0], q[1], lid, 1 if k == 0 else 2) for q in seg for m in (False, True)]; lid += 1
+                    seg = []
+            if len(seg) > 12: lines.append({'pts': seg, 'lvl': 1 if k == 0 else 2, 'id': lid, 'name': 'Rua Paralela da Orla'}); [occs[m].add(q[0], q[1], lid, 1 if k == 0 else 2) for q in seg for m in (False, True)]; lid += 1
+    for r in runs:
+        L = 0.0; acc = [0.0]
+        for a, b in zip(r, r[1:]): acc.append(acc[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+        L = acc[-1]; s = 55.0; n = 0
+        while s < L - 50:
+            q = next(i for i in range(len(acc)) if acc[i] >= s) ; p = r[max(q, 1) - 1]; p2 = r[q]
+            f = (s - acc[max(q, 1) - 1]) / max(acc[q] - acc[max(q, 1) - 1], 1e-6); x, z = p[0] + (p2[0] - p[0]) * f, p[1] + (p2[1] - p[1]) * f
+            pts = [(x, z)]; lvl = 1 if n % 3 == 1 else 2
+            Lmax = 340.0 if lvl == 2 else 900.0
+            for it in range(int(Lmax / 9)):
+                dx, dz = grad(x, z)
+                nx_, nz_ = x + dx * 9.0, z + dz * 9.0
+                if geo.is_water(nx_, nz_): break
+                if it > 3 and not geo.is_urban(nx_, nz_): break
+                if abs(geo.height(nx_, nz_) - geo.height(x, z)) / 9.0 > 0.10: break
+                x, z = nx_, nz_; pts.append((x, z))
+            if len(pts) > 10:
+                lines.append({'pts': pts, 'lvl': lvl, 'id': lid, 'name': 'Travessa da Orla'})
+                for q_ in pts: occs[False].add(q_[0], q_[1], lid, lvl); occs[True].add(q_[0], q_[1], lid, lvl)
+                lid += 1
+            s += 110.0; n += 1
+
 def generate(geo, seed=RNG):
     rng = random.Random(seed)
     fld = Field(geo); occs = {False: Occ(), True: Occ()}; lines = []
     # Av. Beira-Mar: contorno a 58 m do mar (areia 0-22 m, muro/escadas, calcadao 25-40 m, faixa de palmeiras, avenida)
     import shore
-    runs = shore.beach_lines(geo, 58.0)
+    runs = []
+    for r in shore.beach_lines(geo, ORLA_AXIS):
+        wet = [geo.is_water(*p) or any(geo.is_water(p[0] + dx, p[1] + dz) for dx, dz in ((24, 0), (-24, 0), (0, 24), (0, -24))) for p in r]
+        i0 = 0; i1 = len(r)
+        while i0 < i1 and wet[i0]: i0 += 1
+        while i1 > i0 and wet[i1 - 1]: i1 -= 1
+        if i1 - i0 > 12: runs.append(r[i0:i1])
     for r in runs:
-        lines.append({'pts': r, 'lvl': 0, 'id': 1})
+        lines.append({'pts': r, 'lvl': 0, 'id': 1, 'name': 'Av. Beira-Mar', 'protect': True})
         for (px, pz) in r: occs[False].add(px, pz, 1, 0); occs[True].add(px, pz, 1, 0)
+    orla_grid(geo, runs, lines, occs)
     stats = []
     for lvl, (nm, c, w, dsep, ms) in enumerate(LEVELS):
         n = trace_level(geo, fld, occs, lvl, dsep, ms, 1.0 if lvl == 0 else 1.2, rng, lines)
