@@ -100,8 +100,7 @@ def run(gr, P, city, geo, hf):
         lot = h['lot']; yf = lot['yfront']; yp = h['y']
         v_door = (h['door'][0] - lot['F'][0]) * lot['N'][0] + (h['door'][1] - lot['F'][1]) * lot['N'][1]
         grade = abs(yp - yf) / max(v_door, 1.0)
-        if v_door < 3 or v_door > 12 or grade > 0.05: bad.append((h['k'] + 1, round(v_door, 1), round(grade * 100, 1)))
-        if 'drive_s' not in lot: bad.append((h['k'] + 1, 'sem garagem'))
+        if v_door < 1.5 or v_door > 12 or grade > 0.05: bad.append((h['k'] + 1, round(v_door, 1), round(grade * 100, 1)))
     good = not bad; ok &= good
     out.append(f'  caminho porta->calcada (<=5 %) e garagem: {len(bad)} problemas {"ok" if good else "PROBLEMA"}' + (' ' + str(bad[:4]) if bad else ''))
     # 9) cada casa com rua da frente e bairro certo

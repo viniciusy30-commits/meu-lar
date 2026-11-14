@@ -198,7 +198,7 @@ def place_houses(plan, geo, plots):
     for k in order:
         hp = plots[k]; bairro = HOUSE_BAIRRO[k]; ax, az = BAIRROS[bairro]
         estate = bairro in ESTATE
-        side_m = 4.0 if estate else 2.0; gap_front = 7.0 if estate else 6.0; rear_m = 5.0 if estate else 2.5
+        side_m = 4.0 if estate else 2.0; gap_front = 4.0 if estate else 3.0; rear_m = 5.0 if estate else 2.5
         slope_max = 0.16 if bairro == 'Alto da Colina' else 0.12
         best = None
         for radius in (420, 700, 1100, 2000):
@@ -209,7 +209,7 @@ def place_houses(plan, geo, plots):
                 for i in np.nonzero(d < radius)[0][::2]:
                     cands.append((float(d[i]) + (60.0 if fr['lvl'] == 1 else 0.0), fr, int(i)))
             cands.sort(key=lambda t: t[0])
-            for tol in (9, 14, 20):
+            for tol in (2.5, 5, 8, 12, 20):
                 tried = 0
                 for sc, fr, i in cands:
                     r = try_house(plan, geo, hp, fr, i, tol, side_m, gap_front, rear_m, slope_max)
@@ -297,7 +297,6 @@ def plan(city, geo, yn):
         cx, cz = F[0] + T_[0] * u, F[1] + T_[1] * u
         q = int(np.argmin((fr['X'] - cx) ** 2 + (fr['Z'] - cz) ** 2))
         sc = float(fr['S'][q])
-        P.driveways.setdefault((h['edge'], h['sgn']), []).append((sc - DRV_W / 2 - 0.9, sc + DRV_W / 2 + 0.9))
         lot['drive_s'] = sc
     fill_lots(P, geo)
     P.log.append(f'{len(P.houses)} casas; {len(P.lots)} lotes comuns; {len(P.fronts)} frentes de rua')
@@ -334,28 +333,8 @@ def build_ground(gr, P):
             g.quad(PAVER, [lp(u_door - SW / 2, v0, yat(v0)), lp(u_door + SW / 2, v0, yat(v0)), lp(u_door + SW / 2, v1, yat(v1)), lp(u_door - SW / 2, v1, yat(v1))], COLL['conc'], 'lotpath')
         # degrau/soleira na porta
         g.quad(PAVER, [lp(u_door - 1.3, v_door - 0.0, yp + 0.04), lp(u_door + 1.3, v_door - 0.0, yp + 0.04), lp(u_door + 1.3, v_door + 1.2, yp + 0.04), lp(u_door - 1.3, v_door + 1.2, yp + 0.04)], COLL['conc2'], 'lotpath')
-        # --- garagem com rebaixo da guia
-        ud = lot['drive_u']; hwd = DRV_W / 2
-        fr_obj = next(f for f in P.fronts if f['k'] == fr_k and f['sgn'] == sgn)
-        # trecho sobre a calcada (da guia ate a frente do lote): rampa do asfalto
-        sc = lot['drive_s']
-        a_ = ground.SEC[min(gr.c.edges[fr_k]['lvl'], 2)]['asph']; h_ = fr_obj['half']
-        x, z, yy, tx, tz = gr.at(fr_k, sc); nx_, nz_ = -tz * sgn, tx * sgn          # para fora da rua
-        def street(o, du, y):
-            return (x + nx_ * o + (-nz_ * -1) * 0 + tx * sgn * du, y, z + nz_ * o + tz * sgn * du)
-        yr = yy + ROADY + 0.02; ys = yy + SW_Y + 0.03
-        o_asp, o_curb, o_front = a_ - 0.5, a_ + 0.9, h_
-        for du0, du1, ww in ((-hwd, hwd, 1.0),):
-            g.quad(PAVER, [street(o_asp, du0 - 0.6, yr), street(o_curb, du0, ys), street(o_curb, du1, ys), street(o_asp, du1 + 0.6, yr)], COLL['conc2'], 'lotpath')
-            g.quad(PAVER, [street(o_curb, du0, ys), street(o_front + 0.05, du0, ys), street(o_front + 0.05, du1, ys), street(o_curb, du1, ys)], COLL['conc'], 'lotpath')
-        # alas laterais do rebaixo (triangulos inclinados)
-        for sg2 in (-1, 1):
-            B.tri(PAVER, street(o_asp, sg2 * (hwd + 0.6), yr), street(o_curb, sg2 * hwd, ys), street(o_asp, sg2 * hwd, yr), (0, 1, 0), COLL['conc2'], None, True)
-        # dentro do lote: da frente ate DRV_LEN, subindo ate o platô
-        steps = 4
-        for q in range(steps):
-            v0 = DRV_LEN * q / steps; v1 = DRV_LEN * (q + 1) / steps
-            g.quad(PAVER, [lp(ud - hwd, v0, yat(v0)), lp(ud + hwd, v0, yat(v0)), lp(ud + hwd, v1, yat(v1)), lp(ud - hwd, v1, yat(v1))], COLL['conc'], 'lotpath')
+        # (sem garagem/rampa: so o caminho da porta ate a calcada)
+        ud = lot['drive_u']
         # --- arvores no recuo da frente e nos fundos do lote (a cerca do quintal ja vem com a casa)
         rnd = random.Random(h['k'] * 31 + 7)
         yx0, yz0, yx1, yz1 = h['yard']
