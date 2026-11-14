@@ -221,3 +221,140 @@ def outcrop(m, x, z, n=12, rmax=3.4):
         if m.blocked(px, pz, 0): continue
         y = max(m.sample(px, pz), M.WATER_Y - 0.4) + (0.4 if d < 2 else 0.0)
         m.rock(px, y, pz, r, rnd.choice((M.COLM['rock1'], M.COLM['rock2'], M.COLM['rock3'], M.COLM['rock4'], M.COLM['rockd'])), 0.9)
+
+
+# ------------------------------------------------------------------------------------------------ forte do farol
+def _ring_wall(B, cx, cz, R, y0, y1, n, col, col2, nx_skip=None):
+    for k in range(n):
+        a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n; am = (a0 + a1) / 2
+        p0 = (cx + math.cos(a0) * R, cz + math.sin(a0) * R); p1 = (cx + math.cos(a1) * R, cz + math.sin(a1) * R)
+        h = (y1 - y0)
+        for (ya, yb, c) in ((y0, y0 + h * 0.5, col2), (y0 + h * 0.5, y1, col)):
+            B.quad(STONE, [(p0[0], ya, p0[1]), (p1[0], ya, p1[1]), (p1[0], yb, p1[1]), (p0[0], yb, p0[1])], (math.cos(am), 0, math.sin(am)), c if (k % 2 == 0) else shade(c, 7), None, True)
+
+
+def _annulus(B, g, cx, cz, r0, r1, y, n, cols):
+    for k in range(n):
+        a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        q = [(cx + math.cos(a0) * r0, y, cz + math.sin(a0) * r0), (cx + math.cos(a0) * r1, y, cz + math.sin(a0) * r1), (cx + math.cos(a1) * r1, y, cz + math.sin(a1) * r1), (cx + math.cos(a1) * r0, y, cz + math.sin(a1) * r0)]
+        B.quad(PAVER, q, (0, 1, 0), cols[k % len(cols)])
+        g.poly('mprom', [(p[0], p[2]) for p in q])
+
+
+def _stairs_radial(m, cx, cz, ang, R_up, y_low, y_up, W=3.2, rise=0.21, run=0.32):
+    B = m.B; n = max(2, int(round((y_up - y_low) / rise))); rise = (y_up - y_low) / n
+    ca, sa = math.cos(ang), math.sin(ang); ta, tb = -sa, ca
+    for i in range(n):
+        ro = R_up + (n - i) * run; ri = ro - run; y = y_low + (i + 1) * rise
+        P4 = [(cx + ca * ri - ta * W / 2, y, cz + sa * ri - tb * W / 2), (cx + ca * ro - ta * W / 2, y, cz + sa * ro - tb * W / 2), (cx + ca * ro + ta * W / 2, y, cz + sa * ro + tb * W / 2), (cx + ca * ri + ta * W / 2, y, cz + sa * ri + tb * W / 2)]
+        B.quad(PAVER, P4, (0, 1, 0), C['deck1'] if i % 2 == 0 else C['deck2']); m.g.poly('mprom', [(p[0], p[2]) for p in P4])
+        B.quad(STONE, [(P4[1][0], y - rise, P4[1][2]), (P4[2][0], y - rise, P4[2][2]), (P4[2][0], y, P4[2][2]), (P4[1][0], y, P4[1][2])], (ca, 0, sa), C['stone1'], None, True)
+    for sg in (-1, 1):                                                           # muretas laterais da escada (acompanham a altura)
+        for i in range(n):
+            ro = R_up + (n - i) * run; ri = ro - run; y = y_low + (i + 1) * rise
+            o = sg * (W / 2 + 0.17)
+            c4 = [(cx + ca * ri + ta * o - ta * 0.17, cz + sa * ri + tb * o - tb * 0.17), (cx + ca * ro + ta * o - ta * 0.17, cz + sa * ro + tb * o - tb * 0.17), (cx + ca * ro + ta * o + ta * 0.17, cz + sa * ro + tb * o + tb * 0.17), (cx + ca * ri + ta * o + ta * 0.17, cz + sa * ri + tb * o + tb * 0.17)]
+            B.obox_pts(c4, y_low - 0.3, y + 0.7, C['cope'], STONE, True, False)
+
+
+def lighthouse2(m, x, z, y0, scheme):
+    """farol alto: base de pedra, torre afunilada em 6 faixas, porta e frestas, galeria com guarda-corpo, lanterna de vidro com 8 paineis, telhado e para-raios"""
+    B = m.B; col = M.COLM[scheme]; white = M.COLM['white']; iron = M.COLM['iron']
+    B.cyl(x, z, 4.0, y0, y0 + 1.6, C['stone2'], 16, STONE, True, 3.6)
+    B.cyl(x, z, 3.7, y0 + 1.6, y0 + 1.9, C['cope'], 16, STONE, True)
+    h = y0 + 1.9; r = 3.1
+    for i in range(6):
+        r2 = r - 0.2; c = white if i % 2 == 0 else col
+        B.cyl(x, z, r, h, h + 3.6, c, 16, PLAIN, False, r2)
+        for q in range(8):                                                            # frestas de luz em espiral
+            a = 2 * math.pi * q / 8 + i * 0.9
+            ra = (r + r2) / 2 + 0.02
+            B.quad(PLAIN, [(x + math.cos(a - 0.04) * ra, h + 1.2, z + math.sin(a - 0.04) * ra), (x + math.cos(a + 0.04) * ra, h + 1.2, z + math.sin(a + 0.04) * ra), (x + math.cos(a + 0.04) * ra, h + 2.1, z + math.sin(a + 0.04) * ra), (x + math.cos(a - 0.04) * ra, h + 2.1, z + math.sin(a - 0.04) * ra)], (math.cos(a), 0, math.sin(a)), C['door'], None, True) if (q + i) % 3 == 0 else None
+        h += 3.6; r = r2
+    B.cyl(x, z, r + 1.15, h, h + 0.3, iron, 16, METAL, True)
+    for q in range(20):
+        a = 2 * math.pi * q / 20
+        B.box(x + math.cos(a) * (r + 1.1), z + math.sin(a) * (r + 1.1), 0.07, 0.07, h + 0.3, h + 1.3, iron, METAL, True, False)
+    B.cyl(x, z, r + 1.1, h + 1.22, h + 1.32, iron, 16, METAL, True)
+    B.cyl(x, z, r - 0.1, h + 0.3, h + 2.7, M.COLM['glass'], 8, PLAIN, False)
+    for q in range(8):
+        a = 2 * math.pi * q / 8 + math.pi / 8
+        B.box(x + math.cos(a) * (r - 0.05), z + math.sin(a) * (r - 0.05), 0.14, 0.14, h + 0.3, h + 2.75, iron, METAL, True, False)
+    B.cyl(x, z, r - 0.3, h + 0.5, h + 1.6, M.COLM['lantern'], 8, PLAIN, True)
+    B.cyl(x, z, r + 0.5, h + 2.7, h + 4.3, col, 16, PLAIN, False, 0.12)
+    B.cyl(x, z, 0.12, h + 4.3, h + 6.0, iron, 6, METAL, True)
+    # porta
+    B.quad(PLAIN, [(x + 3.02, y0 + 1.9, z - 0.7), (x + 3.02, y0 + 1.9, z + 0.7), (x + 3.02, y0 + 4.1, z + 0.7), (x + 3.02, y0 + 4.1, z - 0.7)], (1, 0, 0), C['door'], None, True)
+    m.items['lighthouses'].append({'x': round(x, 1), 'z': round(z, 1), 'y': round(y0, 2), 'h': round(h + 6.0 - y0, 1)})
+
+
+def forte(m, hx, hz, dx, dz, yd, scheme):
+    """Forte do Farol: tres patamares de pedra (raios 17, 10,5 e 6,2) em degraus, merlons, canhoes, casa do faroleiro e o farol alto no topo; entra pelo molhe"""
+    B = m.B; g = m.g; rnd = m.rnd
+    R1, R2, R3 = 17.0, 10.5, 6.2
+    y1, y2, y3 = yd + 1.7, yd + 5.7, yd + 9.5
+    cx, cz = hx + dx * (R1 - 1.0), hz + dz * (R1 - 1.0)
+    bot = min(m.sample(cx, cz), -2.5) - 0.6
+    ang_in = math.atan2(-dz, -dx)
+    # paredes (fiadas) e pisos
+    _ring_wall(B, cx, cz, R1, bot, y1, 40, C['stone1'], C['stone3'])
+    _ring_wall(B, cx, cz, R2, y1, y2, 32, C['stone1'], C['stone2'])
+    _ring_wall(B, cx, cz, R3, y2, y3, 24, C['stone1'], C['stone2'])
+    _annulus(B, g, cx, cz, R2, R1, y1, 40, [C['deck1'], C['deck2']])
+    _annulus(B, g, cx, cz, R3, R2, y2, 32, [C['deck2'], C['deck1']])
+    for k in range(24):
+        a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
+        B.tri(PAVER, (cx, y3, cz), (cx + math.cos(a1) * R3, y3, cz + math.sin(a1) * R3), (cx + math.cos(a0) * R3, y3, cz + math.sin(a0) * R3), (0, 1, 0), C['deck1'] if k % 2 == 0 else C['deck2'])
+    g.poly('mprom', [(cx + math.cos(2 * math.pi * k / 24) * R3, cz + math.sin(2 * math.pi * k / 24) * R3) for k in range(24)])
+    A1, A2, A3 = ang_in + math.pi / 2, ang_in - math.pi / 2, ang_in               # degraus 1->2, 2->3 e a entrada (molhe -> patamar 1)
+    def near(a, aa, w): return abs((a - aa + math.pi) % (2 * math.pi) - math.pi) < w
+    # coroamento + merlons (com vaos nas escadas/entrada); colisao por trecho
+    for (R, y, n, aa_list) in ((R1, y1, 40, (A1, A3)), (R2, y2, 32, (A2,))):
+        for k in range(n):
+            a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n; am = (a0 + a1) / 2
+            if any(near(am, aa, math.radians(14)) for aa in aa_list): continue
+            q = [(cx + math.cos(a0) * (R + 0.3), cz + math.sin(a0) * (R + 0.3)), (cx + math.cos(a1) * (R + 0.3), cz + math.sin(a1) * (R + 0.3)), (cx + math.cos(a1) * (R - 0.45), cz + math.sin(a1) * (R - 0.45)), (cx + math.cos(a0) * (R - 0.45), cz + math.sin(a0) * (R - 0.45))]
+            B.obox_pts(q, y - 0.02, y + 0.45, C['cope'], STONE, True, False)
+            if k % 2 == 0:
+                B.obox_pts([(cx + math.cos(a0) * (R + 0.25), cz + math.sin(a0) * (R + 0.25)), (cx + math.cos(am) * (R + 0.25), cz + math.sin(am) * (R + 0.25)), (cx + math.cos(am) * (R - 0.4), cz + math.sin(am) * (R - 0.4)), (cx + math.cos(a0) * (R - 0.4), cz + math.sin(a0) * (R - 0.4))], y + 0.45, y + 1.15, C['stone1'], STONE, True, False)
+            xs = [p[0] for p in q]; zs = [p[1] for p in q]
+            m.solids.append([round(min(xs) - 0.2, 2), round(min(zs) - 0.2, 2), round(max(xs) + 0.2, 2), round(max(zs) + 0.2, 2)])
+    # escadas
+    _stairs_radial(m, cx, cz, A1, R2, y1, y2, 3.4)
+    _stairs_radial(m, cx, cz, A2, R3, y2, y3, 3.0)
+    _stairs_radial(m, cx, cz, A3, R1, yd, y1, 4.0, 0.2, 0.34)                      # entrada: do molhe para o patamar 1
+    # casa do faroleiro (lado oposto a entrada) + canhoes + mastro
+    ah = ang_in + math.pi + 0.35; hxx, hzz = cx + math.cos(ah) * (R1 - 5.3), cz + math.sin(ah) * (R1 - 5.3)
+    ca, sa = math.cos(ah + math.pi / 2), math.sin(ah + math.pi / 2)
+    def Q(u, v, y): return (hxx + ca * u - sa * v, y, hzz + sa * u + ca * v)
+    hl, hw, hh = 4.2, 2.5, 3.0
+    B.obox_pts([(Q(-hl, -hw, 0)[0], Q(-hl, -hw, 0)[2]), (Q(hl, -hw, 0)[0], Q(hl, -hw, 0)[2]), (Q(hl, hw, 0)[0], Q(hl, hw, 0)[2]), (Q(-hl, hw, 0)[0], Q(-hl, hw, 0)[2])], y1, y1 + hh, C['shed'], PLAIN, False, False)
+    for sg in (-1, 1):
+        B.quad(ROOF, [Q(-hl - 0.3, sg * (hw + 0.4), y1 + hh - 0.1), Q(hl + 0.3, sg * (hw + 0.4), y1 + hh - 0.1), Q(hl + 0.3, 0, y1 + hh + 1.7), Q(-hl - 0.3, 0, y1 + hh + 1.7)], (-sa * sg * 0.7, 0.7, ca * sg * 0.7), C['shed2'], None, True)
+        B.quad(ROOF, [Q(-hl - 0.3, 0, y1 + hh + 1.7), Q(hl + 0.3, 0, y1 + hh + 1.7), Q(hl + 0.3, sg * (hw + 0.4), y1 + hh - 0.1), Q(-hl - 0.3, sg * (hw + 0.4), y1 + hh - 0.1)], (sa * sg * 0.7, -0.7, -ca * sg * 0.7), shade(C['shed2'], -30), None, True)
+        B.tri(PLAIN, Q(sg * hl, -hw, y1 + hh), Q(sg * hl, hw, y1 + hh), Q(sg * hl, 0, y1 + hh + 1.6), (ca * sg, 0, sa * sg), C['shed'], None, True)
+    for u in (-2.4, 0.0, 2.4):
+        B.quad(PLAIN, [Q(u - 0.5, hw + 0.02, y1 + 1.2), Q(u + 0.5, hw + 0.02, y1 + 1.2), Q(u + 0.5, hw + 0.02, y1 + 2.4), Q(u - 0.5, hw + 0.02, y1 + 2.4)], (-sa, 0, ca), C['win'], None, True)
+    B.quad(PLAIN, [Q(-0.6, -hw - 0.02, y1), Q(0.6, -hw - 0.02, y1), Q(0.6, -hw - 0.02, y1 + 2.2), Q(-0.6, -hw - 0.02, y1 + 2.2)], (sa, 0, -ca), C['door'], None, True)
+    cc = [(Q(-hl, -hw, 0)[0], Q(-hl, -hw, 0)[2]), (Q(hl, -hw, 0)[0], Q(hl, -hw, 0)[2]), (Q(hl, hw, 0)[0], Q(hl, hw, 0)[2]), (Q(-hl, hw, 0)[0], Q(-hl, hw, 0)[2])]
+    m.solids.append([round(min(p[0] for p in cc) - 0.3, 2), round(min(p[1] for p in cc) - 0.3, 2), round(max(p[0] for p in cc) + 0.3, 2), round(max(p[1] for p in cc) + 0.3, 2)])
+    for dda in (math.radians(55), -math.radians(55), math.radians(125), -math.radians(125)):                  # canhoes apontados para fora
+        a = ang_in + dda
+        if near(a, A1, math.radians(20)): continue
+        px, pz = cx + math.cos(a) * (R1 - 1.9), cz + math.sin(a) * (R1 - 1.9)
+        c4 = [(px - math.sin(a) * 0.3, pz + math.cos(a) * 0.3), (px + math.sin(a) * 0.3, pz - math.cos(a) * 0.3), (px + math.sin(a) * 0.3 + math.cos(a) * 2.0, pz - math.cos(a) * 0.3 + math.sin(a) * 2.0), (px - math.sin(a) * 0.3 + math.cos(a) * 2.0, pz + math.cos(a) * 0.3 + math.sin(a) * 2.0)]
+        B.obox_pts(c4, y1 + 0.35, y1 + 0.85, C['bollard'], METAL, True, False)
+        B.box(px, pz, 0.9, 0.9, y1, y1 + 0.35, C['stone3'], STONE, True, False)
+    B.cyl(cx + math.cos(ang_in + math.pi * 0.75) * (R2 - 1.6), cz + math.sin(ang_in + math.pi * 0.75) * (R2 - 1.6), 0.07, y2, y2 + 8.0, C['cope'], 8, METAL, True)
+    # 4 postes de luz no patamar 1
+    for dda in (math.radians(25), -math.radians(25), math.radians(155), -math.radians(155)):
+        a = ang_in + dda; px, pz = cx + math.cos(a) * (R1 - 1.2), cz + math.sin(a) * (R1 - 1.2)
+        if near(a, A1, math.radians(18)): continue
+        m.lamp(px, pz, y1)
+    lighthouse2(m, cx, cz, y3, scheme)
+    # rochas ao redor do pe do forte (na linha d'agua)
+    for k in range(34):
+        a = 2 * math.pi * k / 34 + rnd.uniform(-0.05, 0.05); rr = R1 + rnd.uniform(0.4, 2.8)
+        if near(a, ang_in, math.radians(18)): continue
+        m.rock(cx + math.cos(a) * rr, M.WATER_Y + rnd.uniform(-0.1, 0.3), cz + math.sin(a) * rr, rnd.uniform(1.0, 2.0), rnd.choice((M.COLM['rock1'], M.COLM['rock2'], M.COLM['rock3'], M.COLM['rock4'])), 0.8)
+    m.items.setdefault('fortes', []).append({'x': round(cx, 1), 'z': round(cz, 1)})

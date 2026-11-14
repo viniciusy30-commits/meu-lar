@@ -151,3 +151,8 @@ A cidade é cercada de água (mar ao sul, canais a oeste e leste, rio no meio, l
 - **Lotes**: nenhum lote a menos de 45 m da água nem encostado no calçadão ribeirinho (38 lotes retirados; as 17 casas passam no validador). Esses espaços viram parque/praça/estacionamento na Etapa F.
 - **Barreira**: guarda-corpo do calçadão ribeirinho e das cabeceiras tem colisão (1.810 vãos em `margens.json → solids`, exportados em `c5.json → solid`).
 - **Etapa E**: ao colocar prédios, consultar `margens.json` (`setback_m`, `bordas_uso`) e o raster de água; nunca criar lote em margem.
+
+## Revisão 8 — Forte do Farol, fundo raso e relevo nas pontas
+- **Forte do Farol** (`cais.forte`): no fim do molhe de 7 m, três patamares de pedra (raios 17 / 10,5 / 6,2 m, degraus de 1,7 / 4 / 3,8 m) com merlons, escadas largas, canhões, casa do faroleiro, 4 postes e o farol alto (`lighthouse2`: base de pedra, 6 faixas afuniladas, galeria, lanterna de 8 vidros, para-raios). Os patamares são andáveis (PAVER) e a muralha tem colisão.
+- **Fundo raso** (`terrain_final`): junto dos cais, do rio urbano e da lagoa o leito sobe para uma plataforma de ~7 % de declive; a água mostra o degradê turquesa e deixa de ficar "colada" no chão.
+- **Relevo**: colinas suaves (até ~3,5 m) em volta das pontas, fora do parque e a 26 m ou mais da água.

@@ -373,7 +373,7 @@ class Margens:
 
     def jetty_dir(self, px, pz, sx, sz, ytop, length, kind, scheme):
         rx, rz = -sz, sx
-        W = 4.6; yd = ytop
+        W = 7.0 if kind == 'farol' else 4.6; yd = ytop
         def PP(a, b, y): return (px + sx * a + rx * b, y, pz + sz * a + rz * b)
         n = int(length / 3.0)
         # profundidade: o corpo de pedra desce ate o fundo
@@ -405,21 +405,22 @@ class Margens:
                     o = sg * (W / 2 + 0.55 + run * t); yy = (yd - 0.35) + (bot - (yd - 0.35)) * t
                     p = PP(a_, o, 0)
                     self.rock(p[0], max(yy, WATER_Y - 0.1) - 0.1, p[2], self.rnd.uniform(0.7, 1.25), self.rnd.choice((COLM['rock1'], COLM['rock2'], COLM['rock3'], COLM['rock4'])), 0.75)
-        # cabeca do molhe: plataforma redonda
         hx, _, hz = PP(length, 0, 0)
-        self.B.cyl(hx, hz, 5.2, min(self.sample(hx, hz), -3.0) - 0.4, yd, COLM['rock2'], 14, STONE, False)
-        for k in range(14):
-            a0, a1 = 2 * math.pi * k / 14, 2 * math.pi * (k + 1) / 14
-            self.B.tri(PAVER, (hx, yd, hz), (hx + math.cos(a1) * 5.0, yd, hz + math.sin(a1) * 5.0), (hx + math.cos(a0) * 5.0, yd, hz + math.sin(a0) * 5.0), (0, 1, 0), COLM['path'])
-        self.g.poly('mprom', [(hx + math.cos(2 * math.pi * k / 14) * 5.0, hz + math.sin(2 * math.pi * k / 14) * 5.0) for k in range(14)])
-        for k in range(14):                                            # mureta redonda
-            a0, a1 = 2 * math.pi * k / 14, 2 * math.pi * (k + 1) / 14
-            self.B.obox_pts([(hx + math.cos(a0) * 5.1, hz + math.sin(a0) * 5.1), (hx + math.cos(a1) * 5.1, hz + math.sin(a1) * 5.1), (hx + math.cos(a1) * 4.7, hz + math.sin(a1) * 4.7), (hx + math.cos(a0) * 4.7, hz + math.sin(a0) * 4.7)], yd, yd + 0.5, COLM['conc'], STONE, True, False)
-        for k in range(10):
-            a = 2 * math.pi * k / 10 + 0.2
-            self.rock(hx + math.cos(a) * 6.4, WATER_Y + self.rnd.uniform(0, 0.25), hz + math.sin(a) * 6.4, self.rnd.uniform(0.8, 1.2), self.rnd.choice((COLM['rock1'], COLM['rock3'], COLM['rock2'])), 0.7)
-        if kind == 'farol': self.lighthouse(hx, hz, yd, scheme)
-        else: self.beacon(hx, hz, yd, scheme)
+        if kind == 'farol':
+            import cais; cais.forte(self, hx, hz, sx, sz, yd, scheme)
+        else:
+            self.B.cyl(hx, hz, 5.2, min(self.sample(hx, hz), -3.0) - 0.4, yd, COLM['rock2'], 14, STONE, False)
+            for k in range(14):
+                a0, a1 = 2 * math.pi * k / 14, 2 * math.pi * (k + 1) / 14
+                self.B.tri(PAVER, (hx, yd, hz), (hx + math.cos(a1) * 5.0, yd, hz + math.sin(a1) * 5.0), (hx + math.cos(a0) * 5.0, yd, hz + math.sin(a0) * 5.0), (0, 1, 0), COLM['path'])
+            self.g.poly('mprom', [(hx + math.cos(2 * math.pi * k / 14) * 5.0, hz + math.sin(2 * math.pi * k / 14) * 5.0) for k in range(14)])
+            for k in range(14):
+                a0, a1 = 2 * math.pi * k / 14, 2 * math.pi * (k + 1) / 14
+                self.B.obox_pts([(hx + math.cos(a0) * 5.1, hz + math.sin(a0) * 5.1), (hx + math.cos(a1) * 5.1, hz + math.sin(a1) * 5.1), (hx + math.cos(a1) * 4.7, hz + math.sin(a1) * 4.7), (hx + math.cos(a0) * 4.7, hz + math.sin(a0) * 4.7)], yd, yd + 0.5, COLM['conc'], STONE, True, False)
+            for k in range(10):
+                a = 2 * math.pi * k / 10 + 0.2
+                self.rock(hx + math.cos(a) * 6.4, WATER_Y + self.rnd.uniform(0, 0.25), hz + math.sin(a) * 6.4, self.rnd.uniform(0.8, 1.2), self.rnd.choice((COLM['rock1'], COLM['rock3'], COLM['rock2'])), 0.7)
+        if kind != 'farol': self.beacon(hx, hz, yd, scheme)
         # postes ao longo do molhe
         for a in np.arange(14.0, length - 8.0, 22.0):
             p = PP(a, W / 2 - 0.55, 0); self.lamp(p[0], p[2], yd)
