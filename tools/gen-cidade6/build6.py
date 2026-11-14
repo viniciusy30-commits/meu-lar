@@ -71,5 +71,14 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
 if __name__ == '__main__':
     P, G, L, M = build()
     print(M.stats())
+    import numpy as np
+    bad = {}; tot = 0
+    for (ti, tj, lay, mat), lst in M.data.items():
+        for c in lst:
+            pn = np.frombuffer(c.pn.tobytes(), np.float32).reshape(-1, 6); idx = np.frombuffer(c.idx.tobytes(), np.uint16).reshape(-1, 3)
+            p = pn[:, :3]; g = np.cross(p[idx[:, 1]] - p[idx[:, 0]], p[idx[:, 2]] - p[idx[:, 0]]); nm = pn[:, 3:][idx].mean(1)
+            k = int(((g * nm).sum(1) < -1e-9).sum()); tot += len(idx)
+            if k: bad[lay] = bad.get(lay, 0) + k
+    print('faces invertidas (normal x ordem dos vertices):', bad or 0, 'de', tot)
     export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
 

@@ -177,20 +177,57 @@ class Mesh:
             else: self.quad((a0[0], y0, a0[1]), (b0[0], y0, b0[1]), (b1[0], y1, b1[1]), (a1[0], y1, a1[1]), col, nrm, [(uu0, -y0), (uu1, -y0), (uu1, -y1), (uu0, -y1)])
         if top and r1 > 1e-4: self.poly([(p[0], y1, p[1]) for p in pts1], colt or col, (0, 1, 0))
 
+    def indexed(self, P, N, UV, C, T):
+        """grupo indexado com vertices compartilhados (normais suaves): P/N lista (x,y,z), UV (u,v), C (r,g,b), T triangulos (i,j,k)"""
+        if self.anchor is not None: cx, cz = self.anchor
+        else: cx = sum(p[0] for p in P) / len(P); cz = sum(p[2] for p in P) / len(P)
+        t = self.tile_of(cx, cz)
+        c = self._chunk((t[0], t[1], self.layer, self.mat), len(P))
+        base = c.nv
+        for i, p in enumerate(P):
+            n = N[i]; L = math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) or 1.0
+            c.pn.extend((p[0], p[1], p[2], n[0] / L, n[1] / L, n[2] / L)); c.uv.extend(UV[i]); c.col.extend((C[i][0], C[i][1], C[i][2], 255))
+        c.nv += len(P)
+        for (a, b, d) in T: c.idx.extend((base + a, base + b, base + d))
+        self.ntri += len(T)
+
     def sphere(self, cx, cy, cz, r, col, seg=6, rings=4, sy=1.0):
-        P = []
-        for j in range(rings + 1):
-            th = math.pi * j / rings
-            P.append([(cx + math.sin(th) * math.cos(2 * math.pi * i / seg) * r, cy + math.cos(th) * r * sy, cz + math.sin(th) * math.sin(2 * math.pi * i / seg) * r) for i in range(seg)])
-        for j in range(rings):
+        """esfera com vertices compartilhados e normais suaves (copa de arvore)"""
+        P, N, UV, C, T = [], [], [], [], []
+        P.append((cx, cy + r * sy, cz)); N.append((0, 1, 0)); UV.append((0.5, 0)); C.append(shade(col, 14))
+        for j in range(1, rings):
+            th = math.pi * j / rings; y = math.cos(th)
+            cc = shade(col, int(-22 + 36 * (y + 1) / 2))
             for i in range(seg):
-                a, b = P[j][i], P[j][(i + 1) % seg]; c, d = P[j + 1][(i + 1) % seg], P[j + 1][i]
-                mx = (a[0] + b[0] + c[0] + d[0]) / 4 - cx; my = (a[1] + b[1] + c[1] + d[1]) / 4 - cy; mz = (a[2] + b[2] + c[2] + d[2]) / 4 - cz
-                cc = shade(col, int(-22 + 36 * (my / max(r * sy, 0.01) + 1) / 2))
-                uv = [(i * 0.5, j * 0.5), ((i + 1) * 0.5, j * 0.5), ((i + 1) * 0.5, (j + 1) * 0.5), (i * 0.5, (j + 1) * 0.5)]
-                if j == 0: self.tri(a, c, d, cc, (mx, my, mz), [uv[0], uv[2], uv[3]])
-                elif j == rings - 1: self.tri(a, b, d, cc, (mx, my, mz), [uv[0], uv[1], uv[3]])
-                else: self.quad(a, b, c, d, cc, (mx, my, mz), uv)
+                ph = 2 * math.pi * i / seg + (0.5 if j % 2 else 0) * 2 * math.pi / seg
+                nx, nz = math.sin(th) * math.cos(ph), math.sin(th) * math.sin(ph)
+                P.append((cx + nx * r, cy + y * r * sy, cz + nz * r)); N.append((nx, y, nz)); UV.append((i * 0.6, j * 0.6)); C.append(cc)
+        P.append((cx, cy - r * sy, cz)); N.append((0, -1, 0)); UV.append((0.5, rings * 0.6)); C.append(shade(col, -26))
+        bot = len(P) - 1
+        ring = lambda j, i: 1 + (j - 1) * seg + (i % seg)
+        for i in range(seg):
+            T.append((0, ring(1, i + 1), ring(1, i)))
+            T.append((bot, ring(rings - 1, i), ring(rings - 1, i + 1)))
+        for j in range(1, rings - 1):
+            for i in range(seg):
+                a, b = ring(j, i), ring(j, i + 1); c2, d = ring(j + 1, i), ring(j + 1, i + 1)
+                if j % 2: T.append((a, b, d)); T.append((a, d, c2))
+                else: T.append((a, b, c2)); T.append((b, d, c2))
+        self.indexed(P, N, UV, C, T)
+
+    def smooth_cyl(self, cx, cz, r, y0, y1, col, seg=6, r1=None):
+        """tronco/cone com normais suaves e vertices compartilhados (sem tampa)"""
+        r1 = r if r1 is None else r1
+        P, N, UV, C, T = [], [], [], [], []
+        slope = (r - r1) / max(0.01, y1 - y0)
+        for i in range(seg + 1):
+            a = 2 * math.pi * i / seg; ca, sa = math.cos(a), math.sin(a)
+            P.append((cx + ca * r, y0, cz + sa * r)); N.append((ca, slope, sa)); UV.append((i / seg, -y0)); C.append(col)
+            P.append((cx + ca * max(r1, 0.0), y1, cz + sa * max(r1, 0.0))); N.append((ca, slope, sa)); UV.append((i / seg, -y1)); C.append(shade(col, 10))
+        for i in range(seg):
+            a, b, c2, d = 2 * i, 2 * i + 2, 2 * i + 3, 2 * i + 1
+            T.append((a, d, c2)); T.append((a, c2, b))
+        self.indexed(P, N, UV, C, T)
 
     def flat(self, poly, y, col, holes=None, n=(0, 1, 0)):
         """poligono qualquer (com buracos) plano em y, triangulado (earcut)"""

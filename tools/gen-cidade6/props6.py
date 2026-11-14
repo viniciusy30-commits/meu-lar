@@ -21,7 +21,7 @@ class Props:
     # ------------------------------------------------------------ arvores
     def tree(self, x, z, kind='folhosa', sc=1.0, y=Y_LAWN):
         M = self.M; r = self.rnd
-        M.at(x, z, 'vegetacao')
+        M.at(x, z, getattr(self, 'layer_tree', None) or 'vegetacao')
         if kind == 'palmeira':
             h = 7.5 * sc; lean = r.uniform(-0.6, 0.6); seg = 4
             pts = [(x + lean * (k / seg) ** 2, y + h * k / seg, z + lean * 0.5 * (k / seg) ** 2) for k in range(seg + 1)]
@@ -45,13 +45,13 @@ class Props:
             M.m('folhagem'); M.sphere(tx, ty - 0.2, tz, 0.45, rgb('#6B5A3A'), 5, 3)
         elif kind == 'conifera':
             h = r.uniform(8, 12) * sc
-            M.m('casca'); M.cyl(x, z, 0.22 * sc, y, y + 1.6 * sc, (220, 200, 180), 4, False)
+            M.m('casca'); M.smooth_cyl(x, z, 0.22 * sc, y, y + 1.8 * sc, (220, 200, 180), 5)
             M.m('folhagem'); col = r.choice((rgb('#3F6E3A'), rgb('#355E33'), rgb('#4A7A42')))
             for k, (rr, y0, y1) in enumerate(((2.4, 1.2, 5.0), (1.9, 3.6, 7.6), (1.3, 6.0, 10.0))):
-                M.cyl(x, z, rr * sc, y + y0 * sc * h / 10, y + y1 * sc * h / 10, shade(col, k * 6), 6, False, 0.0)
+                M.smooth_cyl(x, z, rr * sc, y + y0 * sc * h / 10, y + y1 * sc * h / 10, shade(col, k * 6), 7, 0.0)
         else:
             h = r.uniform(2.6, 3.6) * sc
-            M.m('casca'); M.cyl(x, z, 0.2 * sc, y, y + h, (230, 210, 190), 5, False, 0.15 * sc)
+            M.m('casca'); M.smooth_cyl(x, z, 0.2 * sc, y, y + h + 0.6, (230, 210, 190), 5, 0.14 * sc)
             M.m('folhagem'); col = r.choice(LEAF[:7]) if r.random() > 0.04 else LEAF[7]
             R = r.uniform(2.3, 3.0) * sc
             M.sphere(x, y + h + R * 0.7, z, R, col, 6, 4, 0.85)
@@ -412,7 +412,7 @@ class Props:
             h = G.h_at(x, z)
             if h < 1.2: continue
             if self.P.row.buffer(8).contains(Point(x, z)): continue
-            self.tree(x, z, r.choice(('conifera', 'folhosa', 'folhosa')), r.uniform(1.0, 1.5), h - 0.3)
+            self.layer_tree = 'mata'; self.tree(x, z, r.choice(('conifera', 'folhosa', 'folhosa')), r.uniform(1.0, 1.5), h - 0.3); self.layer_tree = None
 
     def build(self):
         self.streets()
