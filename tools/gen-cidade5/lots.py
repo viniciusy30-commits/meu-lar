@@ -297,61 +297,238 @@ def place_houses(plan, geo, plots):
 
 
 # ---------------------------------------------------------------------------------------------------- lotes comuns (dados para a Etapa E)
-def fill_lots(plan, geo, seed=RNG):
+# ---------------------------------------------------------------------------------------------------- loteamento por quadra (v3)
+# Cada lado de rua ("frente") e dono da faixa de terreno mais proxima dele (Voronoi das frentes): os lotes de frentes opostas
+# encostam os fundos no meio da quadra, como numa cidade de verdade. Cada frente tem um CARATER (largura do lote, recuo,
+# familia de construcoes) igual de ponta a ponta: rua de casas iguais, rua comercial, quadra do centro com predios colados.
+CHAR = {   # largura (min, max), profundidade (min, max), largura fixa na rua?
+    'centro':    ((16, 30), (16, 46), False),
+    'centro2':   ((12, 20), (14, 36), False),
+    'orla':      ((26, 38), (20, 46), False),
+    'avenida':   ((18, 28), (16, 42), False),
+    'misto':     ((14, 20), (14, 36), False),
+    'suburbio':  ((14.5, 17.5), (15, 36), True),
+    'nobre':     ((21, 26), (20, 42), True),
+}
+
+
+def front_char(fr, geo, rnd):
+    i = len(fr['X']) // 2; cx, cz = float(fr['X'][i]), float(fr['Z'][i])
+    j, ii = geo.idx(cx, cz); Ds = float(geo.Dsea[j, ii]); h = geo.height(cx, cz); sl = geo.slope_at(cx, cz)
+    lv = fr['lvl']
+    if math.hypot((cx - LAGOON[0]) / 1.15, cz - LAGOON[1]) < 640 and h < 18:
+        return 'centro' if lv <= 1 else 'centro2'
+    if cz > 2300 and Ds < 300:
+        return 'orla' if lv <= 1 else 'suburbio'
+    if sl > 0.16 or h > 62: return 'nobre'
+    if lv == 0: return 'avenida'
+    if lv == 1: return 'misto'
+    return 'suburbio'
+
+
+def block_axes(plan):
+    """eixo comprido de cada quadra (componente do terreno livre): so os lados compridos recebem lotes"""
+    from scipy import ndimage
+    free = ~plan.block & ~plan.occ
+    lab, n = ndimage.label(free)
+    info = {}
+    for k, sl in enumerate(ndimage.find_objects(lab)):
+        if sl is None: continue
+        sub = lab[sl] == (k + 1); area = int(sub.sum())
+        if area < 400: continue
+        zz, xx = np.nonzero(sub)
+        if area > 20000:
+            sel = np.random.RandomState(k).choice(len(xx), 20000, replace=False); zz, xx = zz[sel], xx[sel]
+        xx = xx + sl[1].start + 0.5; zz = zz + sl[0].start + 0.5
+        mx, mz = xx.mean(), zz.mean()
+        ev, evec = np.linalg.eigh(np.cov(np.stack([xx - mx, zz - mz])))
+        U = evec[:, 1]; V = np.array([-U[1], U[0]])
+        pu = (xx - mx) * U[0] + (zz - mz) * U[1]; pv = (xx - mx) * V[0] + (zz - mz) * V[1]
+        Lu = np.percentile(pu, 99) - np.percentile(pu, 1); Lv = np.percentile(pv, 99) - np.percentile(pv, 1)
+        info[k + 1] = (U, Lu, Lv, area)
+    return lab, info
+
+def fill_condos(plan, geo, rnd):
+    """miolo de superquadra sem rua: condominio. Vielas internas de bloquete (7 m) a cada duas fileiras de lotes,
+    lotes de frente para a viela, mesma familia de casa (ou predios, no centro) no condominio inteiro."""
+    from scipy import ndimage
+    H, W = plan.block.shape
+    free = ~plan.block & ~plan.occ
+    free = ndimage.binary_erosion(free, iterations=2)
+    lab, n = ndimage.label(free)
+    plan.lanes = getattr(plan, 'lanes', [])
+    ncond = 0; nlot = 0
+    for k, sl in enumerate(ndimage.find_objects(lab)):
+        if sl is None: continue
+        sub = lab[sl] == (k + 1); area = int(sub.sum())
+        if area < 5000: continue
+        zz, xx = np.nonzero(sub)
+        if len(xx) > 30000:
+            sel = np.random.RandomState(k).choice(len(xx), 30000, replace=False); zz, xx = zz[sel], xx[sel]
+        xx = xx + sl[1].start + 0.5; zz = zz + sl[0].start + 0.5
+        mx, mz = float(xx.mean()), float(zz.mean())
+        ev, evec = np.linalg.eigh(np.cov(np.stack([xx - mx, zz - mz])))
+        U = evec[:, 1]; V = np.array([-U[1], U[0]])
+        pu = (xx - mx) * U[0] + (zz - mz) * U[1]; pv = (xx - mx) * V[0] + (zz - mz) * V[1]
+        u0, u1 = float(pu.min()), float(pu.max()); v0, v1 = float(pv.min()), float(pv.max())
+        if u1 - u0 < 45 or v1 - v0 < 30: continue
+        cx, cz = mx, mz
+        j, i = geo.idx(cx, cz)
+        centro = math.hypot((cx - LAGOON[0]) / 1.15, cz - LAGOON[1]) < 700 and geo.height(cx, cz) < 22
+        if geo.slope_at(cx, cz) > 0.2: continue
+        if centro: Wl, Dl, ch = rnd.choice((26.0, 30.0)), 30.0, 'condo_predio'
+        else: Wl, Dl, ch = rnd.choice((15.0, 16.0, 17.0)), rnd.choice((24.0, 26.0, 28.0)), 'condo'
+        LANE = 7.0
+        style = rnd.random(); fcol = rnd.random()
+        period = 2 * Dl + LANE + 0.6
+        # posicao das vielas: centralizadas na faixa disponivel
+        nper = max(1, int((v1 - v0) / period))
+        vstart = v0 + ((v1 - v0) - nper * period) / 2
+        placed_c = 0
+        for p in range(nper):
+            vl0 = vstart + p * period + Dl + 0.3                 # viela entre vl0 e vl0+LANE
+            vl1 = vl0 + LANE
+            span = []
+            for (sd, vf) in ((-1, vl0), (+1, vl1)):           # sd=-1: lote acima da viela (fundo para -V)
+                Nn = (float(V[0] * sd), float(V[1] * sd))
+                Tn = (float(U[0]), float(U[1]))
+                nl = int((u1 - u0 - 4) / Wl)
+                us = u0 + ((u1 - u0) - nl * Wl) / 2
+                for q in range(nl):
+                    uc = us + Wl * (q + 0.5)
+                    P = np.array([mx, mz]) + U * uc + V * vf
+                    F = (float(P[0]), float(P[1]))
+                    cor = rect_corners(F, Tn, Nn, Wl - 0.4, Dl)
+                    if poly_mask(plan.block, cor): continue
+                    if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 1.0, Dl - 1.0, inset=0.5), 0.0): continue
+                    if not all(free[min(H - 1, max(0, int(c[1]))), min(W - 1, max(0, int(c[0])))] for c in cor): continue
+                    hm, slp = terrain_stats(geo, cor)
+                    if slp > 0.09: continue
+                    draw_poly(plan.occ, cor, True)
+                    plan.lots.append({'id': len(plan.lots), 'edge': -1, 'sgn': 1, 'lvl': 2, 'street': '', 'rect': [[round(c[0], 2), round(c[1], 2)] for c in cor],
+                                      'w': round(Wl - 0.4, 1), 'd': Dl, 'y': round(hm, 2), 'slope': round(slp, 3), 'kind': 'livre', 'char': ch,
+                                      'front': 100000 + k, 'setback': 4.5, 'style': round(style, 3), 'pos': q, 'inner': True, 'fcol': round(fcol, 3)})
+                    span.append(q); placed_c += 1
+            # viela so entre lotes vizinhos (trechos continuos), e so onde o chao e livre
+            qs = sorted(set(span)); runs = []
+            for q in qs:
+                if runs and q == runs[-1][1] + 1: runs[-1][1] = q
+                else: runs.append([q, q])
+            for (qa, qb) in runs:
+                if qb - qa < 1: continue
+                a_, b_ = us + Wl * qa, us + Wl * (qb + 1)
+                ca = [np.array([mx, mz]) + U * uu + V * vv for (uu, vv) in ((a_, vl0), (b_, vl0), (b_, vl1), (a_, vl1))]
+                cc = [(float(c[0]), float(c[1])) for c in ca]
+                if poly_mask(plan.block, cc): continue
+                if terrain_stats(geo, cc)[1] > 0.09: continue                 # viela em ladeira: nao (os lotes ficam com acesso pelo gramado)
+                plan.lanes.append([list(c) for c in cc])
+                draw_poly(plan.occ, cc, True)
+        if placed_c:
+            ncond += 1; nlot += placed_c
+    plan.log.append(f'condominios no miolo das superquadras: {ncond} ({nlot} lotes, {len(plan.lanes)} vielas)')
+
+
+def subdivide(plan, geo, seed=RNG + 3):
+    from scipy.spatial import cKDTree
     rnd = random.Random(seed)
+    H, W = plan.block.shape
+    G = 2                                                     # raster de dono a cada 2 m
+    PX = []; FI = []
+    for fi, fr in enumerate(plan.fronts):
+        for i in range(len(fr['S'])):
+            PX.append((fr['X'][i], fr['Z'][i])); FI.append(fi)
+    PX = np.array(PX); FI = np.array(FI)
+    tree = cKDTree(PX)
+    gz, gx = np.mgrid[0:H:G, 0:W:G]
+    free = ~plan.block[::G, ::G]
+    q = np.stack([gx[free] + 0.5, gz[free] + 0.5], 1)
+    dist, idx = tree.query(q, distance_upper_bound=60.0)
+    owner = np.full(free.shape, -1, np.int32)
+    ok = np.isfinite(dist)
+    tmp = np.full(len(q), -1, np.int32); tmp[ok] = FI[idx[ok]]
+    owner[free] = tmp
+    plan.owner = owner
+    # largura da quadra em cada ponto da frente: anda pela normal ate bater na rua do outro lado (mascara de bloqueio)
+    blk = plan.block
+    for fi, fr in enumerate(plan.fronts):
+        across = np.zeros(len(fr['S']))
+        for i in range(len(fr['S'])):
+            x0, z0, nx, nz = fr['X'][i], fr['Z'][i], fr['NX'][i], fr['NZ'][i]
+            t = 1.5
+            while t < 130.0:
+                x, z = int(x0 + nx * t), int(z0 + nz * t)
+                if x < 0 or z < 0 or x >= W or z >= H or blk[z, x]: break
+                t += 1.0
+            across[i] = t - 1.5
+        fr['across'] = across
+        fr['char'] = front_char(fr, geo, rnd)
+        fr['len'] = float(fr['S'][-1] - fr['S'][0])
+    # ---- quadras regulares: duas fileiras de lotes iguais, fundos encostados no eixo da quadra
     for fr in plan.fronts:
-        S = fr['S']; s = S[0]
-        wmin, wmax = {0: (28, 44), 1: (20, 30), 2: (15, 22)}[fr['lvl']]
-        while s < S[-1] - 10:
-            Wl = rnd.uniform(wmin, wmax)
-            i = int(np.searchsorted(S, s + Wl / 2))
-            if i >= len(S) or s + Wl > S[-1]: break
-            F = (float(fr['X'][i]), float(fr['Z'][i])); Tn = (float(fr['TX'][i]), float(fr['TZ'][i])); Nn = (float(fr['NX'][i]), float(fr['NZ'][i]))
-            ia = int(np.searchsorted(S, s)); ib = int(np.searchsorted(S, s + Wl))
-            A = (fr['X'][ia], fr['Z'][ia]); B = (fr['X'][min(ib, len(S) - 1)], fr['Z'][min(ib, len(S) - 1)])
+        (wmin, wmax), _, fixed = CHAR[fr['char']]
+        fr['Wf'] = rnd.uniform(wmin, wmax)
+        fr['setback'] = {'suburbio': rnd.choice((5.0, 5.5, 6.0, 6.5)), 'nobre': rnd.choice((7.5, 8.5, 9.5)), 'misto': rnd.choice((3.0, 4.0, 5.0))}.get(fr['char'], 0.0)
+        fr['style'] = rnd.random()
+    lab, binfo = block_axes(plan)
+    nskip = 0
+    for fr in plan.fronts:
+        i = len(fr['X']) // 2
+        x, z = int(fr['X'][i] + fr['NX'][i] * 4), int(fr['Z'][i] + fr['NZ'][i] * 4)
+        fr['skip'] = False
+        if not (0 <= x < W and 0 <= z < H): continue
+        c = int(lab[z, x]); bi = binfo.get(c)
+        if not bi: continue
+        U, Lu, Lv, area = bi
+        fr['comp'] = c
+        if Lu > 170 or area > 16000: continue                       # quadra grande/irregular: todos os lados sao frente
+        tdot = abs(fr['TX'][i] * U[0] + fr['TZ'][i] * U[1])
+        if tdot < 0.6: fr['skip'] = True; nskip += 1                  # lado curto da quadra: esquina vira jardim
+    plan.log.append(f'lados curtos de quadra sem lote: {nskip}')
+    for fi in sorted(range(len(plan.fronts)), key=lambda q: (plan.fronts[q].get('skip', False), -plan.fronts[q]['len'])):
+        fr = plan.fronts[fi]
+        ch = fr['char']; (wmin, wmax), (dmin, dmax), fixed = CHAR[ch]
+        S = fr['S']
+        Wf = fr['Wf']
+        s = S[0] + 0.5
+        while s < S[-1] - 6:
+            Wl = Wf + rnd.uniform(-0.25, 0.25) if fixed else rnd.uniform(wmin, wmax)
+            if s + Wl > S[-1]:
+                Wl = S[-1] - s                                   # ultimo lote da frente: o que sobrar (se der)
+                if Wl < wmin * 0.8: break
+            ia = int(np.searchsorted(S, s)); ib = min(int(np.searchsorted(S, s + Wl)), len(S) - 1)
+            A = (fr['X'][ia], fr['Z'][ia]); B = (fr['X'][ib], fr['Z'][ib])
             dxx, dzz = B[0] - A[0], B[1] - A[1]; ll = math.hypot(dxx, dzz) or 1
-            Tn = (dxx / ll * (1 if (dxx * Tn[0] + dzz * Tn[1]) >= 0 else -1), dzz / ll * (1 if (dxx * Tn[0] + dzz * Tn[1]) >= 0 else -1))
-            Nn2 = (-Tn[1], Tn[0])
-            if Nn2[0] * Nn[0] + Nn2[1] * Nn[1] < 0: Nn2 = (-Nn2[0], -Nn2[1])
-            Nn = Nn2
+            Tn = (dxx / ll, dzz / ll); Nn = (-Tn[1], Tn[0])
+            im = (ia + ib) // 2
+            if Nn[0] * fr['NX'][im] + Nn[1] * fr['NZ'][im] < 0: Nn = (-Nn[0], -Nn[1])
             F = ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2)
-            ok = None
-            for D in ((34, 30, 28, 26, 24, 22, 20, 18, 16, 14) if fr['lvl'] > 0 else (42, 38, 34, 30, 26, 22, 18)):
-                cor = rect_corners(F, Tn, Nn, Wl, D)
-                if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): plan.rej['block'] = plan.rej.get('block', 0) + 1; continue
-                if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): plan.rej['occ'] = plan.rej.get('occ', 0) + 1; continue
+            A = float(np.min(fr['across'][ia:ib + 1]))
+            Dav = (A - 0.6) if A < 2 * dmin + 1.0 else (A / 2.0 - 0.4)       # quadra estreita: lote de rua a rua; senao fundos no meio
+            D = min(dmax, Dav)
+            placed = False
+            while D >= dmin:
+                cor = rect_corners(F, Tn, Nn, ll, D)
+                if poly_mask(plan.block, rect_corners(F, Tn, Nn, ll, D, inset=0.6)): plan.rej['block'] = plan.rej.get('block', 0) + 1; D -= 2; continue
+                if poly_mask(plan.occ, rect_corners(F, Tn, Nn, ll - 1.6, D - 1.2, inset=0.8), 0.0): plan.rej['occ'] = plan.rej.get('occ', 0) + 1; D -= 2; continue
                 hm, sl = terrain_stats(geo, cor)
-                if sl > 0.22: plan.rej['slope'] = plan.rej.get('slope', 0) + 1; continue
-                ok = (cor, D, hm, sl); break
-            if ok:
-                cor, D, hm, sl = ok
+                if sl > 0.22: plan.rej['slope'] = plan.rej.get('slope', 0) + 1; break
                 draw_poly(plan.occ, cor, True)
                 plan.lots.append({'id': len(plan.lots), 'edge': fr['k'], 'sgn': fr['sgn'], 'lvl': fr['lvl'], 'street': fr['name'], 'rect': [[round(p[0], 2), round(p[1], 2)] for p in cor],
-                                  'w': round(Wl, 1), 'd': D, 'y': round(float(np.interp(s + Wl / 2, S, fr['Y'])), 2), 'slope': round(sl, 3), 'kind': 'livre'})
-                s += Wl + 0.3
-            else:
-                s += 3.0
-    # segunda fileira (miolo de quadra): atras de cada lote da frente, ate 30 m de fundo, se houver espaco (sem rua propria: condominios/fundos)
-    base = list(plan.lots)
-    for _pass in range(7):
-      newl = []
-      for l in base:
-          a, b, c, d = [tuple(p) for p in l['rect']]
-          Wl = math.hypot(b[0] - a[0], b[1] - a[1]); Dl = math.hypot(d[0] - a[0], d[1] - a[1])
-          Tn = ((b[0] - a[0]) / Wl, (b[1] - a[1]) / Wl); Nn = ((d[0] - a[0]) / Dl, (d[1] - a[1]) / Dl)
-          F = ((a[0] + b[0]) / 2 + Nn[0] * (Dl + 0.5), (a[1] + b[1]) / 2 + Nn[1] * (Dl + 0.5))
-          for D in (34, 30, 26, 22, 18, 14):
-              cor = rect_corners(F, Tn, Nn, Wl, D)
-              if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): plan.rej['i_block'] = plan.rej.get('i_block', 0) + 1; continue
-              if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): plan.rej['i_occ'] = plan.rej.get('i_occ', 0) + 1; continue
-              hm, sl = terrain_stats(geo, cor)
-              if sl > 0.20: plan.rej['i_slope'] = plan.rej.get('i_slope', 0) + 1; continue
-              draw_poly(plan.occ, cor, True)
-              plan.lots.append({'id': len(plan.lots), 'edge': l['edge'], 'sgn': l['sgn'], 'lvl': 2, 'street': l['street'], 'rect': [[round(p[0], 2), round(p[1], 2)] for p in cor],
-                                'w': round(Wl, 1), 'd': D, 'y': round(hm, 2), 'slope': round(sl, 3), 'kind': 'livre', 'inner': True}); newl.append(plan.lots[-1])
-              break
+                                  'w': round(ll, 1), 'd': round(D, 1), 'y': round(float(np.interp(s + Wl / 2, S, fr['Y'])), 2), 'slope': round(sl, 3), 'kind': 'livre',
+                                  'char': ch, 'front': fi, 'setback': fr['setback'], 'style': round(fr['style'], 3), 'pos': fr.setdefault('nlot', 0)}); fr['nlot'] += 1
+                placed = True; break
+            s += (Wl + 0.4) if placed else 2.0
+    fill_condos(plan, geo, rnd)
+    # miolo fundo (mais de 60 m de qualquer rua) ou sobra entre lotes: mata/bosque
+    deep = free & (owner < 0)
+    jj, ii = np.nonzero(deep[::6, ::6])
+    nw = 0
+    for j, i in zip(jj, ii):
+        x = i * 6 * G + rnd.uniform(0, 6 * G); z = j * 6 * G + rnd.uniform(0, 6 * G)
+        if 0 <= int(z) < H and 0 <= int(x) < W and not plan.occ[int(z), int(x)] and not plan.block[int(z), int(x)] and not geo.is_water(x, z) and geo.slope_at(x, z) < 0.5:
+            plan.trees.append([round(x, 1), round(z, 1), rnd.choice((0, 1, 1, 3, 3)), round(rnd.uniform(0.9, 1.35), 2), round(rnd.uniform(0, 6.28), 2), round(rnd.uniform(0, 1), 2)]); nw += 1
+    plan.log.append(f'loteamento v3: {len(plan.lots)} lotes; mata no miolo: {nw} arvores')
 
-      base = newl
 
 def fill_gaps(plan, geo, seed=RNG + 7):
     """preenche o miolo das quadras: grade de candidatos do mais proximo da rua para dentro; cada lote alinhado a rua mais proxima"""
@@ -414,8 +591,7 @@ def plan(city, geo, yn):
         q = int(np.argmin((fr['X'] - cx) ** 2 + (fr['Z'] - cz) ** 2))
         sc = float(fr['S'][q])
         lot['drive_s'] = sc
-    fill_lots(P, geo)
-    fill_gaps(P, geo)
+    subdivide(P, geo)
     P.log.append(f'rejeicoes de lote: {P.rej}')
     P.log.append(f'{len(P.houses)} casas; {len(P.lots)} lotes comuns; {len(P.fronts)} frentes de rua')
     return P
@@ -540,5 +716,5 @@ def export(P, path):
     out = {'houses': [{'k': h['k'], 'name': h['name'], 'bairro': h['bairro'], 'x': round(h['cx'], 3), 'z': round(h['cz'], 3), 'lvl': round(h['y'], 3), 'yaw': round(h['yaw'], 5), 'box': [round(v, 2) for v in h['box']], 'boxq': [[round(p[0], 2), round(p[1], 2)] for p in h['boxq']], 'yardq': [[round(p[0], 2), round(p[1], 2)] for p in h['yardq']],
                        'face': 'sul' if h['face'] > 0 else 'norte', 'street': h['street'], 'edge': h['edge'], 'lot': [[round(p[0], 2), round(p[1], 2)] for p in h['lot']['rect']],
                        'lot_w': round(h['lot']['W'], 1), 'lot_d': round(h['lot']['D'], 1), 'door': [round(h['door'][0], 2), round(h['door'][1], 2)], 'yfront': round(h['lot']['yfront'], 2)} for h in P.houses],
-           'lots': P.lots, 'solids': P.solids, 'trees': P.trees, 'log': P.log}
+           'lots': P.lots, 'solids': P.solids, 'trees': P.trees, 'lanes': getattr(P, 'lanes', []), 'log': P.log}
     json.dump(out, open(path, 'w'), separators=(',', ':'))

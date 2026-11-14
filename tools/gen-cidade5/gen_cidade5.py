@@ -47,7 +47,7 @@ print(f'ETAPA E0: margens - enrocamento {mg.stats["rip_m"]:.0f} m, calcadao {mg.
 # ---- ETAPA E: construcoes nos lotes comuns
 import buildings
 bg = buildings.Gen(c.lotplan, hf, geo).run()
-nb = bg.B.write(os.path.join(out, 'city5_bld.bin'))
+nb = buildings.write_sub2(bg.B, os.path.join(out, 'city5_bld.bin'))
 json.dump({'solidr': bg.solids, 'trees': bg.trees, 'kinds': bg.kinds}, open(os.path.join(out, 'buildings.json'), 'w'), separators=(',', ':'))
 print(f'ETAPA E: {len(bg.items)} lotes -> {sum(bg.kinds.values())} construcoes; {bg.B.ntri} triangulos; {len(bg.solids)} colisoes; {len(bg.trees)} arvores')
 print('   falhas:', bg.stats)

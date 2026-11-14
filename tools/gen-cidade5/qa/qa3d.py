@@ -22,9 +22,17 @@ class Scene:
             self.recs.append((cell % 1000 * 64.0, cell // 1000 * 64.0, mat, a))
         try:
             b = open(os.path.join(assets, 'c5_bld.bin'), 'rb').read(); n = struct.unpack_from('<i', b, 4)[0]; o = 8
+            s2 = b[:4] == b'SUB2'
+            d2 = np.dtype([('p', '<i2', 3), ('n', 'i1', 3), ('uv', '<f4', 2), ('c', 'u1', 3)])
             for _ in range(n):
                 cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16
-                a = np.frombuffer(b, dt, nv, o); o += nv * 35
+                if s2:
+                    q = np.frombuffer(b, d2, nv, o); o += nv * 20
+                    a = np.zeros(nv, dt); ox, oz = cell % 1000 * 64.0, cell // 1000 * 64.0
+                    a['f'][:, 0] = q['p'][:, 0] / 50.0 + ox; a['f'][:, 1] = q['p'][:, 1] / 50.0; a['f'][:, 2] = q['p'][:, 2] / 50.0 + oz
+                    a['f'][:, 3:6] = q['n'] / 127.0; a['f'][:, 6:8] = q['uv']; a['c'] = q['c']
+                else:
+                    a = np.frombuffer(b, dt, nv, o); o += nv * 35
                 self.recs.append((cell % 1000 * 64.0, cell // 1000 * 64.0, mat, a))
         except OSError: pass
         self.assets = assets
