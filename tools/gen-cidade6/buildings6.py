@@ -406,11 +406,11 @@ class Builder:
         # campo de futebol + pista
         fu0, fu1 = 10 + bw, w - 8; fv0, fv1 = 8, d - 8
         if fu1 - fu0 > 50:
-            M.m('quadra'); M.poly([F.p(fu0, fv0, Y0 + 0.03), F.p(fu1, fv0, Y0 + 0.03), F.p(fu1, fv1, Y0 + 0.03), F.p(fu0, fv1, Y0 + 0.03)], (200, 120, 90), (0, 1, 0))
-            M.m('grama'); M.poly([F.p(fu0 + 6, fv0 + 6, Y0 + 0.05), F.p(fu1 - 6, fv0 + 6, Y0 + 0.05), F.p(fu1 - 6, fv1 - 6, Y0 + 0.05), F.p(fu0 + 6, fv1 - 6, Y0 + 0.05)], (230, 255, 220), (0, 1, 0))
+            M.m('quadra'); M.poly([F.p(fu0, fv0, Y0 + 0.06), F.p(fu1, fv0, Y0 + 0.06), F.p(fu1, fv1, Y0 + 0.06), F.p(fu0, fv1, Y0 + 0.06)], (200, 120, 90), (0, 1, 0))
+            M.m('grama'); M.poly([F.p(fu0 + 6, fv0 + 6, Y0 + 0.16), F.p(fu1 - 6, fv0 + 6, Y0 + 0.16), F.p(fu1 - 6, fv1 - 6, Y0 + 0.16), F.p(fu0 + 6, fv1 - 6, Y0 + 0.16)], (230, 255, 220), (0, 1, 0))
             M.m('liso'); um = (fu0 + fu1) / 2
             for (a, b, c, e) in ((um - 0.06, um + 0.06, fv0 + 6, fv1 - 6), (fu0 + 6, fu1 - 6, fv0 + 6, fv0 + 6.12), (fu0 + 6, fu1 - 6, fv1 - 6.12, fv1 - 6)):
-                M.poly([F.p(a, c, Y0 + 0.07), F.p(b, c, Y0 + 0.07), F.p(b, e, Y0 + 0.07), F.p(a, e, Y0 + 0.07)], (250, 250, 248), (0, 1, 0))
+                M.poly([F.p(a, c, Y0 + 0.2), F.p(b, c, Y0 + 0.2), F.p(b, e, Y0 + 0.2), F.p(a, e, Y0 + 0.2)], (250, 250, 248), (0, 1, 0))
             for uu in (fu0 + 6.5, fu1 - 6.5):
                 vm = (fv0 + fv1) / 2
                 self.box(F, uu - 0.06, uu + 0.06, vm - 3.7, vm - 3.6, Y0, Y0 + 2.4, (250, 250, 250), 'liso'); self.box(F, uu - 0.06, uu + 0.06, vm + 3.6, vm + 3.7, Y0, Y0 + 2.4, (250, 250, 250), 'liso')

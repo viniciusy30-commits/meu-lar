@@ -184,15 +184,15 @@ class Plan:
         for r in self.roads:
             p = PROFILE[r['kind']]; L = LineString(r['pts'])
             r['line'] = L; r['path'] = Path(r['pts'])
-            roads.append(L.buffer(p['road'], cap_style='flat', join_style='mitre'))
-            rows.append(L.buffer(half_row(r['kind']), cap_style='flat', join_style='mitre'))
+            roads.append(L.buffer(p['road'], cap_style='flat', join_style='mitre', quad_segs=4))
+            rows.append(L.buffer(half_row(r['kind']), cap_style='flat', join_style='mitre', quad_segs=4))
         from shapely.geometry import Point as _P
         for (bx, bz, br) in getattr(self, 'bulbs', []):
-            roads.append(_P(bx, bz).buffer(br, 24)); rows.append(_P(bx, bz).buffer(br + PROFILE['rua']['verge'] + PROFILE['rua']['walk'], 24))
+            roads.append(_P(bx, bz).buffer(br, 6)); rows.append(_P(bx, bz).buffer(br + PROFILE['rua']['verge'] + PROFILE['rua']['walk'], 6))
         self.asphalt_raw = unary_union(roads)
         # esquinas arredondadas: guia com raio ~6 m (pista) e calcada acompanhando
-        self.asphalt = self.asphalt_raw.buffer(6.0, join_style='round').buffer(-6.0, join_style='round')
-        self.row = unary_union(rows).buffer(4.0, join_style='round').buffer(-4.0, join_style='round')
+        self.asphalt = self.asphalt_raw.buffer(6.0, join_style='round', quad_segs=4).buffer(-6.0, join_style='round', quad_segs=4).simplify(0.25)
+        self.row = unary_union(rows).buffer(4.0, join_style='round', quad_segs=4).buffer(-4.0, join_style='round', quad_segs=4).simplify(0.25)
         land = sbox(0, 0, W, H).difference(self.water.buffer(RIVER_WALL))
         self.land = land
         self.blocks_geom = land.difference(self.row)

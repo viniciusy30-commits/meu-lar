@@ -371,6 +371,14 @@ class Lots:
                 mx, mz = P.roads[f[1]]['path'].pt((f[3] + f[4]) / 2)
                 if x0 <= mx <= x1 and z0 <= mz <= z1: cands.append(fi)
             r.shuffle(cands)
+            if len(cands) < len(ks):                      # bairro com poucas ruas longas: usa as mais proximas do bairro
+                cx_, cz_ = (x0 + x1) / 2, (z0 + z1) / 2
+                extra = []
+                for fi, f in enumerate(fronts):
+                    if f[0] != 'rua' or P.roads[f[1]]['kind'] != 'rua' or f[5] < 90 or fi in cands or fi in reserve: continue
+                    mx, mz = P.roads[f[1]]['path'].pt((f[3] + f[4]) / 2)
+                    extra.append((math.hypot(mx - cx_, mz - cz_), fi))
+                cands += [fi for _, fi in sorted(extra)[:len(ks) - len(cands)]]
             for j, k in enumerate(ks):
                 if j < len(cands): reserve.setdefault(cands[j], []).append(k)
         order = sorted(range(len(fronts)), key=lambda q: (q not in reserve, -fronts[q][5]))
@@ -378,6 +386,7 @@ class Lots:
             f = fronts[fi]
             if f[0] == 'bulb': self.bulb_lots(f[1])
             else: self.front_lots(f, reserve.get(fi, []))
+        self.pocket_parks()
         print(f'  casas do jogador reservadas: {len(self.player)}/17')
 
     def front_lots(self, f, res):
@@ -409,7 +418,7 @@ class Lots:
             mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
             D, A = self._depth_to_middle(mx, mz, inx, inz, 60 if avenue else 44)
             placed = False
-            for Dq in (D, D * 0.85, D * 0.7):
+            for Dq in (D, D * 0.93, D * 0.86, D * 0.78, D * 0.7):
                 if Dq < (24 if avenue else 15): break
                 if kres is not None and Dq < FRONT_SB + hd + 3: break
                 poly = Polygon(F.rect(0, cl, 0, Dq))
@@ -450,6 +459,38 @@ class Lots:
                 self.yard_plants(F, cl, Dq, info)
                 break
 
+    def pocket_parks(self):
+        """sobras no miolo das quadras: pracinhas de bairro (caminho, bancos, playground ou quadra, arvores)"""
+        from shapely.ops import unary_union
+        taken = unary_union([q for lst in self.occ.values() for q in lst]).buffer(0.5)
+        left = self.sub_free.difference(taken).buffer(-2.0)
+        r = self.rnd; n = 0
+        for g in getattr(left, 'geoms', [left]):
+            if g.geom_type != 'Polygon' or g.area < 500: continue
+            g = g.buffer(1.0)
+            n += 1
+            self.M.free('parques'); self.M.m('grama'); self.M.shp(g, Y_LAWN + 0.05, (225, 245, 215))
+            c = g.representative_point()
+            # caminho em cruz e mobiliario
+            mnx, mnz, mxx, mxz = g.bounds
+            from shapely.geometry import LineString as _L
+            pth = unary_union([_L([(mnx, c.y), (mxx, c.y)]).buffer(1.2), _L([(c.x, mnz), (c.x, mxz)]).buffer(1.2)]).intersection(g.buffer(-1))
+            self.M.m('paver'); self.M.shp(pth, Y_LAWN + 0.09, WHITE)
+            if g.area > 1200:
+                px, pz = c.x + 8, c.y + 8
+                if g.contains(Point(px, pz).buffer(6)):
+                    self.M.at(px, pz); self.M.m('areia'); self.M.prism([(px - 5, pz - 4), (px + 5, pz - 4), (px + 5, pz + 4), (px - 5, pz + 4)], Y_LAWN, Y_LAWN + 0.12, WHITE)
+                    self.M.m('liso'); col = r.choice(((220, 60, 50), (40, 120, 200), (240, 190, 40)))
+                    self.M.box(px - 1.4, px + 1.4, Y_LAWN, Y_LAWN + 2.2, pz - 1.4, pz + 1.4, col); self.M.box(px - 1.6, px + 1.6, Y_LAWN + 2.2, Y_LAWN + 2.5, pz - 1.6, pz + 1.6, shade(col, -40))
+                    self.M.quad((px + 1.4, Y_LAWN + 2.0, pz - 0.7), (px + 4.4, Y_LAWN + 0.2, pz - 0.7), (px + 4.4, Y_LAWN + 0.2, pz + 0.7), (px + 1.4, Y_LAWN + 2.0, pz + 0.7), (240, 200, 40), (0.5, 1, 0))
+                    self.M.free()
+            for _ in range(int(g.area / 110)):
+                x, z = r.uniform(mnx, mxx), r.uniform(mnz, mxz)
+                if g.buffer(-2).contains(Point(x, z)) and not pth.buffer(2).contains(Point(x, z)):
+                    self.trees.append((x, z, r.choice(('folhosa', 'folhosa', 'oval', 'conifera', 'arbusto')), r.uniform(0.9, 1.3)))
+            self.benches.append((c.x + 3, c.y + 2.2, 0, -1)); self.benches.append((c.x - 3, c.y - 2.2, 0, 1))
+        print(f'  pracinhas no miolo das quadras: {n}')
+
     def yard_plants(self, F, w, d, info):
         r = self.rnd
         for (tu, tv) in info['trees_front']: self.trees.append((*F.xz(tu, tv), r.choice(('folhosa', 'oval', 'folhosa')), r.uniform(0.8, 1.1)))
@@ -475,7 +516,7 @@ class Lots:
 
     # ------------------------------------------------------------ geral
     def build(self):
-        self.parked = []
+        self.parked = []; self.benches = []
         self.find_specials()
         for bi, blk in enumerate(self.P.blocks):
             z = blk['zone']

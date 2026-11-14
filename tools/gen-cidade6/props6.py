@@ -71,9 +71,9 @@ class Props:
             M.m('folhagem'); col = r.choice(LEAF[:7]) if r.random() > 0.05 else LEAF[7]
             R = r.uniform(2.2, 2.9) * sc; syc = 1.25 if oval else 0.82
             M.sphere(x, y + h + R * 0.75 * syc, z, R, col, 7, 4, syc, 0.16, r)
-            for _ in range(1 if oval else r.choice((2, 3))):
+            for _ in range(1 if oval else r.choice((1, 2))):
                 a = r.uniform(0, 6.28); rr = R * r.uniform(0.5, 0.7)
-                M.sphere(x + math.cos(a) * R * 0.55, y + h + R * r.uniform(0.35, 0.9) * syc, z + math.sin(a) * R * 0.55, rr, shade(col, r.randint(-14, 10)), 6, 3, syc, 0.18, r)
+                M.sphere(x + math.cos(a) * R * 0.55, y + h + R * r.uniform(0.35, 0.9) * syc, z + math.sin(a) * R * 0.55, rr, shade(col, r.randint(-14, 10)), 5, 3, syc, 0.18, r)
         self.ntrees += 1
         M.free()
 
@@ -427,7 +427,7 @@ class Props:
         """mata fechada nos morros das bordas"""
         r = self.rnd; G = self.G
         n = 0; tries = 0
-        while n < 3600 and tries < 60000:
+        while n < 2600 and tries < 60000:
             tries += 1
             side = r.random()
             if side < 0.5: x, z = r.uniform(0, W), r.uniform(0, 150)
@@ -443,6 +443,7 @@ class Props:
         self.streets()
         for (x, z, k, sc) in self.L.trees: self.tree(x, z, k, sc)
         for (x, z, dx, dz) in self.L.parked: self.car(x, z, dx, dz, None, Y_LAWN + 0.04)
+        for (x, z, fx, fz) in self.L.benches: self.bench(x, z, fx, fz, Y_LAWN + 0.09)
         for blk in self.P.blocks:
             if blk['zone'] == 'parque': self.central_park(blk)
             elif blk['zone'] == 'ribeirinho': self.riverside(blk)
