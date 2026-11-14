@@ -43,9 +43,11 @@ object Relevo {
     /** Etapa 185: Cidade 3 (bairro americano): lê sub.bin + sub.json + sub_mesh.bin (casas, cercas, carros... já montados) */
     @Volatile var sub = false
     /** registro da malha assada: onde estão os vértices no arquivo (nada é guardado na memória até o pedaço ser montado) */
-    private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float)
+    private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
     private val subIdx = HashMap<Int, ArrayList<SubRec>>()
     private var subFile: java.io.RandomAccessFile? = null
+    private var subFile2: java.io.RandomAccessFile? = null     // Etapa E: malha das construções
+    private var subSolR = FloatArray(0)                         // colisões girados das construções: cx, cz, cos, sen, x0, z0, x1, z1
     private var subMem: ByteArray? = null          // plano B: se não der para gravar o arquivo, mantém tudo na memória
     private val subLock = Any()
     private var subSol = FloatArray(0)
@@ -102,6 +104,17 @@ object Relevo {
         return l
     }
 
+    /** Etapa E: colisões girados das construções (retângulo local x0, z0, x1, z1 + centro cx, cz + cos, sen), já em coordenadas do mundo */
+    fun subSolidsR(): List<FloatArray> {
+        val l = ArrayList<FloatArray>()
+        var i = 0
+        while (i + 7 < subSolR.size) {
+            val cx = subSolR[i] + CX; val cz = subSolR[i + 1] + CZ
+            l.add(floatArrayOf(cx + subSolR[i + 4], cz + subSolR[i + 5], cx + subSolR[i + 6], cz + subSolR[i + 7], cx, cz, subSolR[i + 2], subSolR[i + 3])); i += 8
+        }
+        return l
+    }
+
     /** copia o asset para a pasta do app (só se mudou) e devolve o arquivo; null se não der */
     private fun ensureSubFile(am: AssetManager, name: String): java.io.File? {
         val dir = dataDir ?: return null
@@ -119,7 +132,7 @@ object Relevo {
 
     /** lê só os cabeçalhos (16 bytes por registro) e guarda onde estão os vértices de cada pedaço de 64 m */
     private fun loadSubMesh(am: AssetManager, name: String) {
-        subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null
+        subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; try { subFile2?.close() } catch (e: Throwable) { }; subFile2 = null
         val f = ensureSubFile(am, name)
         val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
         if (f != null) {
@@ -150,12 +163,33 @@ object Relevo {
 
     private const val SUB_VB = 35   // bytes por vértice no arquivo (8 floats + 3 bytes de cor)
 
+    /** Etapa E: segunda malha (construções dos lotes), mesmo formato SUB1; os registros entram no mesmo índice de células */
+    private fun loadExtraSub(am: AssetManager, name: String) {
+        try {
+            val f = ensureSubFile(am, name) ?: return
+            val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            val raf = java.io.RandomAccessFile(f, "r")
+            try {
+                hd.clear(); raf.readFully(hd.array(), 0, 8); hd.position(4)
+                val n = hd.getInt()
+                var pos = 8L
+                for (r in 0 until n) {
+                    raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
+                    val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, 1))
+                    pos += 16L + nv.toLong() * SUB_VB
+                }
+                subFile2 = raf
+            } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e") }
+    }
+
     private fun readSub(rc: SubRec): ByteBuffer {
         val n = rc.nv * SUB_VB
         val mem = subMem
         val bytes = if (mem != null) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
             val b = ByteArray(n)
-            synchronized(subLock) { val raf = subFile ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            synchronized(subLock) { val raf = (if (rc.src == 1) subFile2 else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
             b
         }
         return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
@@ -232,7 +266,7 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
-        sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; subSol = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
+        sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; try { subFile2?.close() } catch (e: Throwable) { }; subFile2 = null; subSol = FloatArray(0); subSolR = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
         gen++; readyQ.clear(); loadedCells.clear(); lazyOf.clear(); cellsT = arrayOfNulls(0); cellsR = arrayOfNulls(0); cellState = ByteArray(0); lazyTrees.clear()
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
@@ -310,6 +344,7 @@ object Relevo {
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
+                if (c5) loadExtraSub(am, "hds/c5_bld.bin")
                 if (c5) loadWalk(am) else walk = ShortArray(0)
                 val sa = js.optJSONArray("solid")
                 val so = ArrayList<Float>()
@@ -318,6 +353,9 @@ object Relevo {
                     if (q is org.json.JSONArray) for (k in 0 until q.length()) so.add(q.getDouble(k).toFloat()) else so.add((q as Number).toFloat())
                 }
                 subSol = so.toFloatArray()
+                val sr = js.optJSONArray("solidr"); val rl = ArrayList<Float>()
+                if (sr != null) for (i in 0 until sr.length()) rl.add(sr.getDouble(i).toFloat())
+                subSolR = rl.toFloatArray()
             }
             sub = wantSub
             hs = h

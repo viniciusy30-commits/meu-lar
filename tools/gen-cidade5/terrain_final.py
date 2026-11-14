@@ -88,6 +88,7 @@ FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m n
 
 
 ORLA_END_Y = 2.55    # nivel do terreno nas pontas da orla (calcadao 2,4 / praca 2,61)
+LOT_SLOPE_MAX = 0.20   # lotes comuns acima disso nao recebem construcao (ficam naturais)
 YB_RIVER = 1.25     # banco (terraco) do calcadao ribeirinho: 1,45 m acima do espelho d'agua (-0.2)
 
 def _chamfer8(src):
@@ -198,6 +199,21 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
             else:
                 w = np.where(d <= flat, 1.0, smooth(np.clip(1.0 - (d - flat) / sh, 0, 1)))
             put(j0, j1, i0, i1, w, d, y)
+    # plats dos LOTES COMUNS (Etapa E): cada lote com declive <= 14 % e nivelado na altura da rua (+12 cm); talude 1:3 no maximo em volta; os mais inclinados ficam naturais (jardim/mata)
+    if geo is not None and getattr(city, 'lotplan', None) is not None:
+        import lots as _lots2
+        for l in city.lotplan.lots:
+            if l['slope'] > LOT_SLOPE_MAX: continue
+            a_, b_, c_, d_ = l['rect']; w_ = math.hypot(b_[0] - a_[0], b_[1] - a_[1]); dd_ = math.hypot(d_[0] - a_[0], d_[1] - a_[1])
+            pl = {'cx': (a_[0] + c_[0]) / 2, 'cz': (a_[1] + c_[1]) / 2, 'tx': (b_[0] - a_[0]) / w_, 'tz': (b_[1] - a_[1]) / w_, 'hw': w_ / 2, 'hd': dd_ / 2}
+            R_ = max(w_, dd_) / 2 + 22
+            i0, i1 = max(int((pl['cx'] - R_) / STEP), 0), min(int((pl['cx'] + R_) / STEP) + 2, N8X); j0, j1 = max(int((pl['cz'] - R_) / STEP), 0), min(int((pl['cz'] + R_) / STEP) + 2, N8Z)
+            if i1 <= i0 or j1 <= j0: continue
+            dd2 = _lots2.plateau_weight(X[j0:j1, i0:i1], Z[j0:j1, i0:i1], pl)
+            yl = l['y'] + 0.12
+            sh2 = np.clip(3.0 * np.abs(h0[j0:j1, i0:i1] - yl), 5.0, 18.0)
+            w2 = np.where(dd2 <= 0.5, 1.0, smooth(np.clip(1.0 - (dd2 - 0.5) / sh2, 0, 1)))
+            put(j0, j1, i0, i1, w2, 520.0 + dd2, np.full_like(dd2, yl))
     if geo is not None:
         for rt in (river_terrace(h0, X, Z, city) or []): put(0, N8Z, 0, N8X, rt[0], rt[1], rt[2])
     # margem natural rochosa: nas margens que nao sao praia, rio urbano, lagoa nem pontas da orla o terreno ganha um barranco (berma) de ~3 m junto da agua:

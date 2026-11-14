@@ -72,9 +72,12 @@ def run(out, geo, hf, assets):
         idx = rng.choice(len(trees), cap, replace=False); trees = [trees[k] for k in sorted(idx)]
     print(f'  {len(trees)} arvores')
     trees += L.get('trees', [])
+    try: BG = json.load(open(os.path.join(out, 'buildings.json')))
+    except OSError: BG = {}
+    trees += BG.get('trees', [])
     flat = [v for t in trees for v in t]
     js = {'world': roads['world'], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses,
-          'bld': [], 'lamp': [], 'hyd': [], 'tree': flat, 'solid': [v for sl in (L.get('solids', []) + MG.get('solids', [])) for v in sl]}
+          'bld': [], 'lamp': [], 'hyd': [], 'tree': flat, 'solid': [v for sl in (L.get('solids', []) + MG.get('solids', [])) for v in sl], 'solidr': [v for sl in BG.get('solidr', []) for v in sl]}
     os.makedirs(assets, exist_ok=True)
     json.dump(js, open(os.path.join(assets, 'c5.json'), 'w'), separators=(',', ':'))
     # terreno abaixo da malha + mapa de altura de caminhada
@@ -97,6 +100,9 @@ def run(out, geo, hf, assets):
     write_walk(W, wnx, wnz, wst, os.path.join(assets, 'c5_walk.bin'))
     shutil.copy(os.path.join(out, 'city5_ground.bin'), os.path.join(assets, 'c5_mesh.bin'))
     open(os.path.join(assets, 'c5_mesh.bin.len'), 'w').write(str(os.path.getsize(os.path.join(assets, 'c5_mesh.bin'))))   # o app copia a malha para a pasta de dados so quando o tamanho muda
+    if os.path.exists(os.path.join(out, 'city5_bld.bin')):
+        shutil.copy(os.path.join(out, 'city5_bld.bin'), os.path.join(assets, 'c5_bld.bin'))
+        open(os.path.join(assets, 'c5_bld.bin.len'), 'w').write(str(os.path.getsize(os.path.join(assets, 'c5_bld.bin'))))
     shutil.copy(os.path.join(out, 'signs_atlas.png'), os.path.join(assets, 'c5_signs.png'))
     print('  exportado para', assets)
 

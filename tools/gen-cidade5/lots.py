@@ -34,7 +34,7 @@ FENCE = {'Vila Esperança': 'bloco', 'Parque das Flores': 'estacas', 'Jardim Cen
 
 class Plan:
     def __init__(self):
-        self.fronts = []; self.lots = []; self.houses = []; self.plateaus = []; self.driveways = {}; self.solids = []; self.trees = []
+        self.rej = {}; self.fronts = []; self.lots = []; self.houses = []; self.plateaus = []; self.driveways = {}; self.solids = []; self.trees = []
         self.block = None; self.occ = None; self.log = []
 
 
@@ -316,12 +316,12 @@ def fill_lots(plan, geo, seed=RNG):
             Nn = Nn2
             F = ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2)
             ok = None
-            for D in ((42, 34, 28, 22) if fr['lvl'] > 0 else (50, 40, 30)):
+            for D in ((30, 28, 26, 24, 22, 20, 18, 16, 14) if fr['lvl'] > 0 else (42, 38, 34, 30, 26, 22, 18)):
                 cor = rect_corners(F, Tn, Nn, Wl, D)
-                if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): continue
-                if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): continue
+                if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): plan.rej['block'] = plan.rej.get('block', 0) + 1; continue
+                if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): plan.rej['occ'] = plan.rej.get('occ', 0) + 1; continue
                 hm, sl = terrain_stats(geo, cor)
-                if sl > 0.22: continue
+                if sl > 0.22: plan.rej['slope'] = plan.rej.get('slope', 0) + 1; continue
                 ok = (cor, D, hm, sl); break
             if ok:
                 cor, D, hm, sl = ok
@@ -330,8 +330,28 @@ def fill_lots(plan, geo, seed=RNG):
                                   'w': round(Wl, 1), 'd': D, 'y': round(float(np.interp(s + Wl / 2, S, fr['Y'])), 2), 'slope': round(sl, 3), 'kind': 'livre'})
                 s += Wl + 0.3
             else:
-                s += 5.0
+                s += 3.0
+    # segunda fileira (miolo de quadra): atras de cada lote da frente, ate 30 m de fundo, se houver espaco (sem rua propria: condominios/fundos)
+    base = list(plan.lots)
+    for _pass in range(4):
+      newl = []
+      for l in base:
+          a, b, c, d = [tuple(p) for p in l['rect']]
+          Wl = math.hypot(b[0] - a[0], b[1] - a[1]); Dl = math.hypot(d[0] - a[0], d[1] - a[1])
+          Tn = ((b[0] - a[0]) / Wl, (b[1] - a[1]) / Wl); Nn = ((d[0] - a[0]) / Dl, (d[1] - a[1]) / Dl)
+          F = ((a[0] + b[0]) / 2 + Nn[0] * (Dl + 0.5), (a[1] + b[1]) / 2 + Nn[1] * (Dl + 0.5))
+          for D in (34, 30, 26, 22, 18, 14):
+              cor = rect_corners(F, Tn, Nn, Wl, D)
+              if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): continue
+              if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): continue
+              hm, sl = terrain_stats(geo, cor)
+              if sl > 0.20: continue
+              draw_poly(plan.occ, cor, True)
+              plan.lots.append({'id': len(plan.lots), 'edge': l['edge'], 'sgn': l['sgn'], 'lvl': 2, 'street': l['street'], 'rect': [[round(p[0], 2), round(p[1], 2)] for p in cor],
+                                'w': round(Wl, 1), 'd': D, 'y': round(hm, 2), 'slope': round(sl, 3), 'kind': 'livre', 'inner': True}); newl.append(plan.lots[-1])
+              break
 
+      base = newl
 
 # ---------------------------------------------------------------------------------------------------- planejamento
 def plan(city, geo, yn):
@@ -356,6 +376,7 @@ def plan(city, geo, yn):
         sc = float(fr['S'][q])
         lot['drive_s'] = sc
     fill_lots(P, geo)
+    P.log.append(f'rejeicoes de lote: {P.rej}')
     P.log.append(f'{len(P.houses)} casas; {len(P.lots)} lotes comuns; {len(P.fronts)} frentes de rua')
     return P
 

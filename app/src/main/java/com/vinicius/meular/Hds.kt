@@ -507,6 +507,7 @@ object Hds {
         }
 
         if (rel && Relevo.sub) for (r in Relevo.subSolids()) City.addSolid(r)   // Etapa 185: casas, cercas, postes e carros do bairro
+        if (rel && Relevo.sub) for (r in Relevo.subSolidsR()) City.addSolidRot(floatArrayOf(r[0], r[1], r[2], r[3]), r[4], r[5], r[6], r[7])   // Etapa E: construções dos lotes (retângulos girados)
 
         // Etapa 166: chão e paredes por andar (escadas, andar de cima, porão)
         try {

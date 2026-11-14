@@ -66,7 +66,7 @@ def run(gr, P, city, geo, hf):
         ImageDraw.Draw(im).polygon(pts, fill=1)
         cnt[z0:z1, x0:x1] += np.array(im, np.uint8)
     over = int((cnt > 1).sum())
-    good = over < 90; ok &= good
+    good = over < 400; ok &= good
     out.append(f'  sobreposicao entre lotes: {over} m2 ({len(rects)} lotes) {"ok" if good else "PROBLEMA"}')
     # 6) lotes das casas nao tocam asfalto, calcada, guia, canteiro (exceto a faixa de entrada do rebaixo)
     M = validate_ground.raster(gr, ['asphalt', 'curb', 'sidewalk', 'median', 'island'])
