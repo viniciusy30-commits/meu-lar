@@ -17,6 +17,7 @@ COLL = {'conc': rgb('#CFCBC2'), 'conc2': rgb('#BDB8AD'), 'white': rgb('#F4F1EA')
 SW = 1.4                                   # largura do caminho da porta
 DRV_W = 3.0                                # largura da garagem
 DRV_LEN = 5.6
+MIN_HOUSE_GAP = 22.0                         # distancia minima entre quintais de casas do jogador
 
 # casas (indice k = "Casa k+1" do HdsEstate): nome, bairro, ancora (x, z), frente norte(-1)/sul(+1), margens (frente, lateral, fundo), pode ter frente na Av. Beira-Mar
 BAIRROS = {'Vila Esperança': (1250, 1950), 'Parque das Flores': (1300, 1600), 'Jardim Central': (3000, 1900), 'Recanto do Sul': (1500, 2690),
@@ -201,20 +202,29 @@ def place_houses(plan, geo, plots):
         side_m = 4.0 if estate else 2.0; gap_front = 4.0 if estate else 3.0; rear_m = 5.0 if estate else 2.5
         slope_max = 0.16 if bairro == 'Alto da Colina' else 0.12
         best = None
-        for radius in (420, 700, 1100, 2000):
-            cands = []
-            for fr in plan.fronts:
-                if fr['lvl'] == 0 and k not in BEACH_HOUSES: continue
-                d = np.hypot(fr['X'] - ax, fr['Z'] - az)
-                for i in np.nonzero(d < radius)[0][::2]:
-                    cands.append((float(d[i]) + (60.0 if fr['lvl'] == 1 else 0.0), fr, int(i)))
-            cands.sort(key=lambda t: t[0])
-            for tol in (2.5, 5, 8, 12, 20):
+        def far_enough(r):
+            C_ = r['C']; yx0, yx1, yz0, yz1 = hp['yard']
+            a = (C_[0] + yx0, C_[1] + yz0, C_[0] + yx1, C_[1] + yz1)
+            for o in placed.values():
+                b = o['yard']
+                dx = max(a[0] - b[2], b[0] - a[2], 0); dz = max(a[1] - b[3], b[1] - a[3], 0)
+                if math.hypot(dx, dz) < MIN_HOUSE_GAP: return False
+            return True
+        best = None
+        for tol in (2.0, 3.0, 5.0, 8.0, 12.0, 20.0):                  # a casa nao gira: so vale rua quase alinhada com os eixos
+            for radius in (420, 700, 1100, 2000):
+                cands = []
+                for fr in plan.fronts:
+                    if fr['lvl'] == 0 and k not in BEACH_HOUSES: continue
+                    d = np.hypot(fr['X'] - ax, fr['Z'] - az)
+                    for i in np.nonzero(d < radius)[0][::2]:
+                        cands.append((float(d[i]) + (60.0 if fr['lvl'] == 1 else 0.0), fr, int(i)))
+                cands.sort(key=lambda t: t[0])
                 tried = 0
                 for sc, fr, i in cands:
                     r = try_house(plan, geo, hp, fr, i, tol, side_m, gap_front, rear_m, slope_max)
                     tried += 1
-                    if r:
+                    if r and far_enough(r):
                         r['score'] = sc; r['fr'] = fr; best = r; break
                     if tried > 6000: break
                 if best: break

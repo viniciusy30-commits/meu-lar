@@ -550,8 +550,7 @@ class Ground:
             if lvl == 0 and not bridge:                                      # AVENIDA: calcada larga ate o fim (com covas de arvore), sem canteiros de grama que parecem buracos
                 self.strip(PAVER, sw_col2, stl, sgn * o, sgn * (o + 0.6), SW_Y, 'sidewalk'); self.strip(PAVER, sw_col, stl, sgn * (o + 0.6), sgn * h_, SW_Y, 'sidewalk')
             elif zone == 'res' and lvl == 2:                                  # faixa-jardim com arvore + calcada
-                self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * (o + 1.2), VERGE_Y, 'verge'); o += 1.2
-                self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
+                self.strip(PAVER, sw_col2, stl, sgn * o, sgn * (o + 0.6), SW_Y, 'sidewalk'); self.strip(PAVER, sw_col, stl, sgn * (o + 0.6), sgn * h_, SW_Y, 'sidewalk')   # calcada de concreto continua, sem faixa de grama
             elif zone == 'centro' and lvl <= 1:                              # faixa de concreto junto a guia + tijolo
                 self.strip(PAVER, sw_col2, stl, sgn * o, sgn * (o + 0.6), SW_Y, 'sidewalk'); self.strip(PAVER, sw_col, stl, sgn * (o + 0.6), sgn * h_, SW_Y, 'sidewalk')
             elif zone == 'orla':                                             # calcadao: listras alternadas
