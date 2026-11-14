@@ -132,3 +132,8 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - **Pisos caminháveis sobre a água**: pieres da orla e docas agora entram no mapa de caminhada (`decks.json` → `app_export.deck_tris`). Antes os pieres NÃO eram caminháveis.
 - Lotes comuns a menos de 14 m do calçadão ribeirinho foram retirados (9); as 17 casas nunca ficam na faixa (validador).
 - Orçamento de triângulos subiu para 650 mil / 85 MB (a malha é lida do arquivo por pedaços; só o primeiro uso copia ~57 MB).
+
+## Revisão 7 — pontes vermelhas e pontas da orla
+- **Bug do tabuleiro sumido** (`gen-bairro/bake.py`): a malha assada guarda cada triângulo na célula de 64 m do centroide; o tabuleiro de 600 m da ponte vermelha ficava numa célula só e desaparecia quando ela saía de vista. `Bake.tri` agora divide triângulos maiores que 56 m (aresta mais longa) — vale para qualquer peça grande.
+- **Rua da ponte vermelha**: 55 m retos no eixo da ponte a partir do mirante e curva Bézier suave até o destino (`assemble.red_bridges`); a rua entra de frente no tabuleiro.
+- **Pontas da orla** (`orla.end_plaza` + `orla_fim.py`): praça de 13–16 m com anel vermelho de 3 m onde a ciclovia ENTRA e faz o retorno (tracejado, setas), rosa dos ventos no piso, canteiros, mastros com bandeiras, escada larga para a areia; terreno plano (2,55 m) em volta da ponta (`terrain_final`, só fora da areia); Parque do Farol: alameda de palmeiras com canteiros floridos até um mirante circular, quiosque redondo, ~70 árvores; molhe com farol saindo da praça, calçadão ribeirinho e enrocamento contornando a ponta.

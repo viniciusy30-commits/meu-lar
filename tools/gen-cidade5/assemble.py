@@ -249,8 +249,10 @@ class City:
                            key=lambda i: math.hypot(self.nodes[i][0] - lx - sgn * 260, self.nodes[i][1] - z - 60))
             for tgt in cands[:60]:
                 tx, tz = self.nodes[tgt][:2]
-                mid = [((lx * 2 + tx) / 3, z + (tz - z) * 0.25 + 18), ((lx + tx * 2) / 3, z + (tz - z) * 0.75 - 18)]
-                path = [(lx, z)] + mid + [(tx, tz)]
+                # 55 m retos no eixo da ponte (a rua entra de frente no tabuleiro) e depois uma curva suave (Bezier quadratica) ate o destino
+                lead = (lx + sgn * 55.0, z); ctrl = (lead[0] + sgn * 75.0, z)
+                curve = [((1 - t) ** 2 * lead[0] + 2 * (1 - t) * t * ctrl[0] + t * t * tx, (1 - t) ** 2 * lead[1] + 2 * (1 - t) * t * ctrl[1] + t * t * tz) for t in (0.2, 0.4, 0.6, 0.8)]
+                path = [(lx, z), lead] + curve + [(tx, tz)]
                 if not self.crosses(path, ()) and not self.too_close(path) and not any(self.geo.is_water(*q) for q in path[1:]):
                     self.edges.append({'a': lk, 'b': tgt, 'p': path, 'lvl': 1, 'kind': 'n', 'name': 'Estrada da ' + name}); break
 

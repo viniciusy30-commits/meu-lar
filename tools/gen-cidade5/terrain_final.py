@@ -87,6 +87,7 @@ def profile_pts(e, ya, yb):
 FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m nao "morde" a borda)
 
 
+ORLA_END_Y = 2.55    # nivel do terreno nas pontas da orla (calcadao 2,4 / praca 2,61)
 YB_RIVER = 1.25     # banco (terraco) do calcadao ribeirinho: 1,45 m acima do espelho d'agua (-0.2)
 
 def _chamfer8(src):
@@ -199,6 +200,22 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
             put(j0, j1, i0, i1, w, d, y)
     if geo is not None:
         for rt in (river_terrace(h0, X, Z, city) or []): put(0, N8Z, 0, N8X, rt[0], rt[1], rt[2])
+    # pontas da orla: terreno plano (nivel do calcadao) em volta da Praca do Farol, para o parque nascer rente ao piso
+    cnt = {}
+    for e in city.edges:
+        if e.get('name') == 'Av. Beira-Mar':
+            for q in (e['a'], e['b']): cnt[q] = cnt.get(q, 0) + 1
+    ends = [(city.nodes[q][0], city.nodes[q][1] + 34.0) for q, c_ in cnt.items() if c_ == 1]       # as duas pontas da Av. Beira-Mar (bolsao de retorno)
+    for (ex, ez) in ends:
+        R_ = 48.0 + 70.0
+        i0, i1 = max(int((ex - R_) / STEP), 0), min(int((ex + R_) / STEP) + 2, N8X); j0, j1 = max(int((ez - R_) / STEP), 0), min(int((ez + R_) / STEP) + 2, N8Z)
+        d = np.hypot(X[j0:j1, i0:i1] - ex, Z[j0:j1, i0:i1] - ez); hh = h0[j0:j1, i0:i1]
+        wet = hh < -0.2
+        sh = np.clip(4.0 * np.abs(hh - ORLA_END_Y), 14.0, 60.0)
+        ii_ = np.clip(np.round(X[j0:j1, i0:i1] / CELL).astype(int), 0, NX - 1); jj_ = np.clip(np.round(Z[j0:j1, i0:i1] / CELL).astype(int), 0, NZ - 1)
+        beach_ = geo.beach_zone[jj_, ii_] & (geo.Dsea[jj_, ii_] < 72.0)                  # a areia continua areia (o terreno plano e so da ponta de terra)
+        w = np.where(d <= 48.0, 1.0, smooth(np.clip(1.0 - (d - 48.0) / sh, 0, 1))) * (~wet) * (~beach_)
+        put(j0, j1, i0, i1, w, 500.0 + d, np.full_like(d, ORLA_END_Y))
     # platos dos lotes das casas (Etapa D): plano dentro do lote, talude suave fora
     if plateaus:
         import lots as _lots

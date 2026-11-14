@@ -151,7 +151,7 @@ class Margens:
             if kd == 'rio' and 560 < z < 2700: ok = True; prom = True
             elif kd == 'lagoa': ok = True; prom = True
             elif kd == 'canal' and any(math.hypot(x - a, z - b) < 190 for a, b in looks): ok = True
-            elif kd == 'mar' and any(math.hypot(x - a, z - b) < 230 for a, b in plz): ok = True
+            elif kd == 'mar' and any(math.hypot(x - a, z - b) < 230 for a, b in plz): ok = True; prom = any(math.hypot(x - a, z - b) < 140 for a, b in plz)
             elif kd == 'rio' and any(math.hypot(x - a, z - b) < 120 for a, b in plz): ok = True
             if ok and self.blocked(x + f['nx'] * 1.0, z + f['nz'] * 1.0, 1): ok = False
             if ok:                                                           # a faixa de pedra tem que estar livre de ruas, calcadas, orla e lotes
