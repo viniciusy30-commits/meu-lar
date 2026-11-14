@@ -1138,7 +1138,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val rm = rf.mesh ?: continue
             val dx = max(0f, max(rf.x0 - ex, ex - rf.x1)); val dz = max(0f, max(rf.z0 - ez, ez - rf.z1))
             if (dx * dx + dz * dz > 245f * 245f) continue
-            if (mode == 1 && !driving && px > rf.x0 && px < rf.x1 && pz > rf.z0 && pz < rf.z1) continue
+            if (mode == 1 && !driving && rf.contains(px, pz)) continue
             if (!boxVisible(rf.x0, -0.6f, rf.z0, rf.x1, 12f, rf.z1)) continue
             draw(rm, mdl, 1f)
         }

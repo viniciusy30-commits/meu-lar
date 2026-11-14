@@ -115,6 +115,20 @@ object City {
         for (i in a..b) for (j in c..d) solidsBy.getOrPut((i + 1000) * 4096 + (j + 1000)) { ArrayList() }.add(r)
     }
 
+    /** Casa girada: retângulo (x0, z0, x1, z1) no referencial da casa, que gira [yaw] (cos/sin) em volta de (cx, cz). Guarda 8 números: retângulo + centro + cos + sin. */
+    @Synchronized fun addSolidRot(r: FloatArray, cx: Float, cz: Float, cs: Float, sn: Float) {
+        val q = floatArrayOf(r[0], r[1], r[2], r[3], cx, cz, cs, sn)
+        var x0 = 1e9f; var x1 = -1e9f; var z0 = 1e9f; var z1 = -1e9f
+        for (k in 0 until 4) {
+            val px = if (k == 0 || k == 3) r[0] else r[2]; val pz = if (k < 2) r[1] else r[3]
+            val wx = cx + cs * (px - cx) - sn * (pz - cz); val wz = cz + sn * (px - cx) + cs * (pz - cz)
+            if (wx < x0) x0 = wx; if (wx > x1) x1 = wx; if (wz < z0) z0 = wz; if (wz > z1) z1 = wz
+        }
+        val a = Math.floor(x0 / 32.0).toInt(); val b = Math.floor(x1 / 32.0).toInt()
+        val c2 = Math.floor(z0 / 32.0).toInt(); val d = Math.floor(z1 / 32.0).toInt()
+        for (i in a..b) for (j in c2..d) solidsBy.getOrPut((i + 1000) * 4096 + (j + 1000)) { ArrayList() }.add(q)
+    }
+
     @Synchronized fun addBld(bd: Bld) {
         blds.add(bd)
         val a = Math.floor(bd.x0 / 32.0).toInt(); val b = Math.floor(bd.x1 / 32.0).toInt()
@@ -570,7 +584,14 @@ object City {
         val up = if (HDS) Hds.upper(x, z) else -1   // Etapa 166: andar de cima/escada/porão usam as paredes daquele andar
         if (up == 1) return true
         val l = solidsBy[cell(x, z)]
-        if (up < 0 && l != null) for (r in l) if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true
+        if (up < 0 && l != null) for (r in l) {
+            if (r.size == 4) { if (x > r[0] && x < r[2] && z > r[1] && z < r[3]) return true }
+            else {   // casa girada: leva o ponto para o referencial da casa
+                val dx = x - r[4]; val dz = z - r[5]
+                val u = r[4] + r[6] * dx + r[7] * dz; val v = r[5] - r[7] * dx + r[6] * dz
+                if (u > r[0] && u < r[2] && v > r[1] && v < r[3]) return true
+            }
+        }
         for (c in cars) {
             val dx = x - c.x; val dz = z - c.z
             if (dx * dx + dz * dz > 16f) continue

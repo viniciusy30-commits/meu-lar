@@ -74,9 +74,13 @@ class Scene:
             bx0, bz0, bx1, bz1 = h['box']
             if bx1 < x0 or bx0 > x1 or bz1 < z0 or bz0 > z1: continue
             y = h['lvl'] + 0.08; hh = 6.0; col = (0.93, 0.62, 0.52)
-            quad([(bx0, y, bz0), (bx1, y, bz0), (bx1, y + hh, bz0), (bx0, y + hh, bz0)], (0, 0, -1), col); quad([(bx1, y, bz1), (bx0, y, bz1), (bx0, y + hh, bz1), (bx1, y + hh, bz1)], (0, 0, 1), col)
-            quad([(bx0, y, bz1), (bx0, y, bz0), (bx0, y + hh, bz0), (bx0, y + hh, bz1)], (-1, 0, 0), col); quad([(bx1, y, bz0), (bx1, y, bz1), (bx1, y + hh, bz1), (bx1, y + hh, bz0)], (1, 0, 0), col)
-            quad([(bx0, y + hh, bz0), (bx1, y + hh, bz0), (bx1, y + hh, bz1), (bx0, y + hh, bz1)], (0, 1, 0), (0.55, 0.25, 0.2))
+            q = h.get('boxq') or [(bx0, bz0), (bx1, bz0), (bx1, bz1), (bx0, bz1)]
+            for p, r in zip(q, q[1:] + q[:1]):
+                ex, ez = r[0] - p[0], r[1] - p[1]; L_ = math.hypot(ex, ez) or 1
+                nrm = (ez / L_, 0, -ex / L_)
+                quad([(p[0], y, p[1]), (r[0], y, r[1]), (r[0], y + hh, r[1]), (p[0], y + hh, p[1])], nrm, col)
+                quad([(r[0], y, r[1]), (p[0], y, p[1]), (p[0], y + hh, p[1]), (r[0], y + hh, r[1])], (-nrm[0], 0, -nrm[2]), col)
+            quad([(p[0], y + hh, p[1]) for p in q], (0, 1, 0), (0.55, 0.25, 0.2))
             # porta (faixa verde) e contorno do quintal
             dx, dz = h['door']; quad([(dx - 0.8, y + 0.05, dz - 0.3), (dx + 0.8, y + 0.05, dz - 0.3), (dx + 0.8, y + 0.05, dz + 0.3), (dx - 0.8, y + 0.05, dz + 0.3)], (0, 1, 0), (0.1, 0.8, 0.2))
             lr = h['lot']

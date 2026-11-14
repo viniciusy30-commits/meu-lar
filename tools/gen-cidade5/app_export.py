@@ -48,7 +48,7 @@ def run(out, geo, hf, assets):
     ny, nx = hf.shape
     # as 17 casas (Etapa D): posicoes/platos vindos de lots.json (caixa da casa = centro + plots da Cidade 2; o app soma CX/CZ)
     L = json.load(open(os.path.join(out, 'lots.json')))
-    houses = [{'k': h['k'], 'x': h['x'], 'z': h['z'], 'lvl': h['lvl']} for h in L['houses']]
+    houses = [{'k': h['k'], 'x': h['x'], 'z': h['z'], 'lvl': h['lvl'], 'yaw': h.get('yaw', 0.0)} for h in L['houses']]
     print(f'  {len(houses)} casas exportadas')
     # arvores: fora de ruas (>30 m), fora da zona urbana e das praias, acima da praia
     rng = np.random.default_rng(5)
