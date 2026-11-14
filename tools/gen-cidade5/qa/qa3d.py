@@ -110,7 +110,7 @@ class Viewer:
     def shot(self, path, eye, at, R=None, w=1280, h=720, fov=60, fog=(300, 900), terrain=True, bg=None):
         cx, cz = at[0], at[2]; R = R or max(200.0, math.hypot(eye[0] - at[0], eye[2] - at[2]) * 2.0)
         x0, z0, x1, z1 = cx - R, cz - R, cx + R, cz + R
-        parts = ([self.S.terrain(x0, z0, x1, z1)] if terrain else []) + [self.S.mesh(x0, z0, x1, z1), self.S.houses_mesh(x0, z0, x1, z1)]
+        parts = ([self.S.terrain(x0, z0, x1, z1)] if terrain else []) + [self.S.mesh(x0, z0, x1, z1), (real_houses_mesh(x0, z0, x1, z1) if os.environ.get('REALH') else self.S.houses_mesh(x0, z0, x1, z1))]
         data = np.vstack(parts)
         fn = f'tmp/s{len(self.jobs)}.bin'; data.tofile(os.path.join(HERE, fn))
         self.jobs.append({'file': fn, 'eye': list(map(float, eye)), 'at': list(map(float, at)), 'out': os.path.abspath(path), 'w': w, 'h': h, 'fov': fov, 'fog0': fog[0], 'fog1': fog[1], 'bg': bg})
@@ -133,3 +133,48 @@ if __name__ == '__main__':
     x, z = float(sys.argv[1]), float(sys.argv[2]); y = v.ground_y(x, z)
     v.shot(sys.argv[3], (x - 40, y + 25, z + 40), (x, y, z))
     v.run()
+
+
+def real_houses_mesh(x0, z0, x1, z1, assets=None):
+    """as casas REAIS (malhas do city2.glb) com a mesma transformacao do app (Hds.kt addInst): translada o centro para a posicao do c5.json e gira por 'yaw'"""
+    import struct
+    assets = assets or os.path.join(HERE, '..', '..', '..', 'app', 'src', 'main', 'assets', 'hds')
+    raw = open(os.path.join(assets, 'city2.glb'), 'rb').read(); jl = struct.unpack_from('<I', raw, 12)[0]; g = json.loads(raw[20:20 + jl])
+    bo = 20 + jl + 8; bin_ = raw[bo:]
+    d = json.load(open(os.path.join(assets, 'city2.json'))); c5 = json.load(open(os.path.join(assets, 'c5.json')))
+    cache = {}
+    def prims(ni):
+        if ni in cache: return cache[ni]
+        n = g['nodes'][ni]; out = []
+        if 'mesh' in n:
+            for p in g['meshes'][n['mesh']]['primitives']:
+                ac = g['accessors'][p['attributes']['POSITION']]; bv = g['bufferViews'][ac['bufferView']]
+                pos = np.frombuffer(bin_, np.float32, ac['count'] * 3, bv.get('byteOffset', 0) + ac.get('byteOffset', 0)).reshape(-1, 3)
+                ia = g['accessors'][p['indices']]; iv = g['bufferViews'][ia['bufferView']]
+                dt = {5123: np.uint16, 5125: np.uint32, 5121: np.uint8}[ia['componentType']]
+                idx = np.frombuffer(bin_, dt, ia['count'], iv.get('byteOffset', 0) + ia.get('byteOffset', 0)).astype(np.int64)
+                out.append((pos, idx))
+        cache[ni] = out; return out
+    out = []
+    for h in c5['houses']:
+        k = h['k']; pl = d['plots'][k]; cxs = (pl['x0'] + pl['x1']) / 2; czs = (pl['z0'] + pl['z1']) / 2
+        cx, cz = h['x'], h['z']
+        if cx < x0 - 60 or cx > x1 + 60 or cz < z0 - 60 or cz > z1 + 60: continue
+        yaw = h.get('yaw', 0.0); cs, sn = math.cos(yaw), math.sin(yaw)
+        pdx, pdz = cx - cxs, cz - czs
+        for a in d['inst']:
+            if a[14] != k: continue
+            kind = a[13]
+            m = np.array(a[1:13], np.float64).reshape(3, 4)
+            for pos, idx in prims(a[0]):
+                w = pos @ m[:, :3].T + m[:, 3]
+                wx = w[:, 0] + pdx; wz = w[:, 2] + pdz
+                rx = cx + cs * (wx - cx) - sn * (wz - cz); rz = cz + sn * (wx - cx) + cs * (wz - cz)
+                wy = w[:, 1] + h['lvl'] + 0.08
+                P = np.stack([rx, wy, rz], 1)
+                t = P[idx].reshape(-1, 3, 3); nrm = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]); l = np.linalg.norm(nrm, axis=1, keepdims=True); nrm = nrm / np.maximum(l, 1e-9)
+                col = {0: (0.45, 0.62, 0.35), 1: (0.9, 0.85, 0.78), 2: (0.7, 0.3, 0.25)}.get(kind, (0.8, 0.8, 0.8))
+                n = t.shape[0]
+                rec = np.zeros((n, 3, 12), np.float32); rec[:, :, 0:3] = t; rec[:, :, 3:6] = nrm[:, None, :]; rec[:, :, 6:9] = col
+                out.append(rec.reshape(-1, 12))
+    return np.vstack(out).astype(np.float32) if out else np.zeros((0, 12), np.float32)

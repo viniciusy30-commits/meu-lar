@@ -12,7 +12,7 @@ ASPHALT = 15
 ROADY = 0.12; CURB_H = 0.15; SW_Y = ROADY + CURB_H; VERGE_Y = SW_Y - 0.05; MARK_Y = ROADY + 0.02
 SEC = {0: dict(inner=2.0, asph=11.5, half=15.8, R=8.0), 1: dict(inner=0.0, asph=6.0, half=10.0, R=6.0), 2: dict(inner=0.0, asph=5.0, half=7.5, R=5.0)}
 COL = {'asph': rgb('#4A4B50'), 'asph2': rgb('#55565B'), 'curb': rgb('#B8B5AD'), 'white': rgb('#F2F2F2'), 'yellow': rgb('#F5C518'), 'grass': rgb('#6FA84A'),
-       'brick': rgb('#9C4A35'), 'brick2': rgb('#B56B4A'), 'conc': rgb('#C9C6BE'), 'conc2': rgb('#BDB9B0'), 'sand': rgb('#E4D4B4'), 'sand2': rgb('#D6C39C'), 'tact': rgb('#C9A24A'),
+       'brick': rgb('#9C4A35'), 'brick2': rgb('#B56B4A'), 'conc': rgb('#C9C6BE'), 'conc2': rgb('#BDB9B0'), 'sand': rgb('#E4D4B4'), 'sand2': rgb('#D6C39C'), 'tact': rgb('#E3BE3C'), 'tact2': rgb('#B8922A'),
        'soil': rgb('#5A4332'), 'iron': rgb('#2A2C30'), 'rail': rgb('#9AA0A6'), 'wall': rgb('#A29B8D'), 'wall2': rgb('#8F887A'), 'bridge': rgb('#C4BFB6'), 'under': rgb('#8A8580'),
        'lamp': rgb('#2B2E33'), 'orange': rgb('#C0361B'), 'orange2': rgb('#A82B14'), 'tunnel': rgb('#2A2A2E'), 'conc3': rgb('#D2CEC4')}
 
@@ -269,7 +269,7 @@ class Ground:
             zone = self.zone(nx, nz)
             sc = {'centro': COL['brick'], 'res': COL['conc'], 'colina': COL['conc2'], 'orla': COL['sand']}[zone]
             for q in range(m - 1):
-                self.quad(PAVER, [(C[q][0], yc + CURB_H, C[q][1]), (C[q + 1][0], yc + CURB_H, C[q + 1][1]), (O[q + 1][0], yc + CURB_H, O[q + 1][1]), (O[q][0], yc + CURB_H, O[q][1])], sc, 'sidewalk')
+                self.quad(PAVER, [(C[q][0], yc + CURB_H - 0.02, C[q][1]), (C[q + 1][0], yc + CURB_H - 0.02, C[q + 1][1]), (O[q + 1][0], yc + CURB_H - 0.02, O[q + 1][1]), (O[q][0], yc + CURB_H - 0.02, O[q][1])], sc, 'sidewalk')   # 2 cm abaixo da calcada da rua: onde se sobrepoem so a da rua aparece (sem piscar)
             # saia externa (esconde o degrau ate o terreno)
             for q in range(m - 1):
                 self.B.quad(PLAIN, [(O[q][0], yc + CURB_H - 0.45, O[q][1]), (O[q + 1][0], yc + CURB_H - 0.45, O[q + 1][1]), (O[q + 1][0], yc + CURB_H, O[q + 1][1]), (O[q][0], yc + CURB_H, O[q][1])],
@@ -452,10 +452,12 @@ class Ground:
         for sg in (-1, 1):
             cx, cz = x + r[0] * (half + 1.0) * sg, z + r[1] * (half + 1.0) * sg
             if self.is_beach(a['k']) and float(self.geo.Dsea[self.geo.idx(cx, cz)]) < float(self.geo.Dsea[self.geo.idx(x, z)]): continue   # lado do mar: patamar da orla
-            hw = 0.75
-            pp = [(cx - d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 - r[1] * hw), (cx + d[0] * 1.5 - r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 - r[1] * hw),
-                  (cx + d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz + d[1] * 1.5 + r[1] * hw), (cx - d[0] * 1.5 + r[0] * hw, yy + CURB_H + 0.02, cz - d[1] * 1.5 + r[1] * hw)]
-            self.quad(PAVER, pp, COL['tact'], 'tact')
+            # piso tatil: faixa fina amarela rente a guia (3 m x 0,5 m) com 4 filetes escuros, no lugar do bloco grande de tijolo
+            c0 = (half + 0.28) * sg; c1 = (half + 0.78) * sg
+            def tp(o, e, yoff): return (x + r[0] * o + d[0] * e, yy + CURB_H + yoff, z + r[1] * o + d[1] * e)
+            self.quad(PLAIN, [tp(c0, -1.5, 0.02), tp(c0, 1.5, 0.02), tp(c1, 1.5, 0.02), tp(c1, -1.5, 0.02)], COL['tact'], 'tact')
+            for e0 in (-1.2, -0.4, 0.4, 1.2):
+                self.quad(PLAIN, [tp(c0, e0 - 0.05, 0.03), tp(c0, e0 + 0.05, 0.03), tp(c1, e0 + 0.05, 0.03), tp(c1, e0 - 0.05, 0.03)], COL['tact2'], 'tact')
 
     # ------------------------------------------------------------ corpo das ruas
     def stations(self, k, s0, s1):
