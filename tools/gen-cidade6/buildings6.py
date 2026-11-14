@@ -235,7 +235,7 @@ class Builder:
             if r.random() < 0.28 and w > 15 and d - v1 > 13:
                 pu0, pu1 = hu0 + 1.5, min(hu0 + 9, w - 2.5); pv0, pv1 = v1 + 4.5, min(v1 + 9.5, d - 2.5)
                 self.box(F, pu0 - 0.6, pu1 + 0.6, pv0 - 0.6, pv1 + 0.6, Y0, Y0 + 0.12, WHITE, 'concreto')
-                M.m('agua'); M.poly([F.p(pu0, pv0, Y0 + 0.14), F.p(pu1, pv0, Y0 + 0.14), F.p(pu1, pv1, Y0 + 0.14), F.p(pu0, pv1, Y0 + 0.14)], (150, 230, 240), (0, 1, 0))
+                M.m('agua'); M.poly([F.p(pu0, pv0, Y0 + 0.2), F.p(pu1, pv0, Y0 + 0.2), F.p(pu1, pv1, Y0 + 0.2), F.p(pu0, pv1, Y0 + 0.2)], (150, 230, 240), (0, 1, 0))
             elif r.random() < 0.4:
                 su = w - 4.5 if garage_side < 0 else 1.0
                 self.box(F, su, su + 3.2, d - 4.0, d - 1.2, Y0, Y0 + 2.3, wall, 'madeira', top=False)

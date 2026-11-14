@@ -307,7 +307,7 @@ class Lots:
             pu0, pu1 = 6, w - 6; pv0, pv1 = min(18, d - 6) + 4, d - 6
             if pv1 - pv0 > 6:
                 B.box(F, pu0, pu1, pv0, pv1, Y_WALK, Y_WALK + 0.15, WHITE, 'madeira')
-                self.M.m('agua'); self.M.poly([F.p(pu0 + 3, pv0 + 2, Y_WALK + 0.17), F.p(pu1 - 3, pv0 + 2, Y_WALK + 0.17), F.p(pu1 - 3, pv1 - 2, Y_WALK + 0.17), F.p(pu0 + 3, pv1 - 2, Y_WALK + 0.17)], (150, 230, 240), (0, 1, 0))
+                self.M.m('agua'); self.M.poly([F.p(pu0 + 3, pv0 + 2, Y_WALK + 0.26), F.p(pu1 - 3, pv0 + 2, Y_WALK + 0.26), F.p(pu1 - 3, pv1 - 2, Y_WALK + 0.26), F.p(pu0 + 3, pv1 - 2, Y_WALK + 0.26)], (150, 230, 240), (0, 1, 0))
                 for _ in range(4): self.trees.append((*F.xz(r.uniform(pu0, pu1), r.choice((pv0 - 1, pv1 + 1))), 'palmeira', r.uniform(0.9, 1.2)))
         else:
             self.centro(bi, blk)
