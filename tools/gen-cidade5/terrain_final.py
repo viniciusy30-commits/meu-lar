@@ -235,6 +235,31 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
             sand_q = geo.beach_zone[jj_, ii_] & (geo.Dsea[jj_, ii_] < 66.0) & (h0 < 1.6)
             wq = np.where(Dq <= 18.0, 1.0, smooth(np.clip(1.0 - (Dq - 18.0) / shq, 0, 1))) * (~water_) * (~sand_q) * fade * near
             put(0, N8Z, 0, N8X, wq, 520.0 + Dq, np.full_like(h0, ORLA_END_Y))
+    # FUNDO RASO junto das margens tratadas (cais das pontas, rio urbano, lagoa): a agua ganha uma plataforma rasa de ~6 % de declive em vez de despencar do chao,
+    # entao o app mostra o degrade turquesa da agua rasa e a agua deixa de parecer 'colada' no chao
+    if geo is not None:
+        wat = h0 < -0.2
+        zones = np.zeros_like(wat)
+        for (ex_, ez_) in qends: zones |= np.hypot(X - ex_, Z - ez_) < 600.0
+        Dr2, _t2 = G.poly_dist(X, Z, RIVER['pts']); zones |= (Dr2 < 230) & (Z > 520) & (Z < 2560)
+        zones |= np.hypot((X - lx_) / (rx_ + 90), (Z - lz_) / (rz_ + 90)) < 1.0
+        if zones.any():
+            Dl = _chamfer8(~wat)                                   # distancia da agua ate a terra
+            shelf = -(0.30 + 0.07 * Dl)
+            wsh = np.where(wat & zones & (shelf > h0), smooth(np.clip((130.0 - Dl) / 60.0, 0, 1)), 0.0)
+            put(0, N8Z, 0, N8X, wsh, 430.0 + Dl, shelf)
+    # RELEVO das pontas: o campo plano em volta da praca ganha colinas suaves (ate ~3,5 m) a partir de 90 m da praca (o parque fica plano), com os morros mais altos para o lado da terra
+    if geo is not None:
+        for (ex_, ez_) in qends:
+            dd = np.hypot(X - ex_, Z - ez_)
+            near_ = (dd > 80.0) & (dd < 330.0)
+            fb = (G.fbm(X, Z, 150.0, 3, 1) - 0.5) * 2.0 + 0.35 * (G.fbm(X, Z, 60.0, 2, 3) - 0.5) * 2.0
+            fall = smooth(np.clip((dd - 80.0) / 70.0, 0, 1)) * (1.0 - smooth(np.clip((dd - 240.0) / 90.0, 0, 1)))
+            Dw = _chamfer8(h0 < -0.2)
+            keep_water = smooth(np.clip((Dw - 26.0) / 30.0, 0, 1))                    # junto da agua o cais manda; o relevo so comeca a 26 m dela
+            rel = 3.6 * fb * fall * keep_water
+            wr = np.where(near_ & (~(h0 < -0.2)) & (np.abs(rel) > 0.05), 0.96, 0.0)
+            put(0, N8Z, 0, N8X, wr, 560.0 + dd, np.maximum(h0 + rel, 0.4))
     # pontas da orla: terreno plano (nivel do calcadao) em volta da Praca do Farol, para o parque nascer rente ao piso
     cnt = {}
     for e in city.edges:
