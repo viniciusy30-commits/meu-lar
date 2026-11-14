@@ -139,13 +139,14 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
     if plateaus:
         import lots as _lots
         for pl in plateaus:
-            R_ = max(pl['hw'], pl['hd']) + pl['blend'] + 4
+            R_ = max(pl['hw'], pl['hd']) + 64 + 4
             i0, i1 = max(int((pl['cx'] - R_) / STEP), 0), min(int((pl['cx'] + R_) / STEP) + 2, N8X)
             j0, j1 = max(int((pl['cz'] - R_) / STEP), 0), min(int((pl['cz'] + R_) / STEP) + 2, N8Z)
             if i1 <= i0 or j1 <= j0: continue
             d = _lots.plateau_weight(X[j0:j1, i0:i1], Z[j0:j1, i0:i1], pl)
             FL = 7.0                                  # alem do lote o terreno continua plano (a grade de 8 m nao pode "morder" o quintal), mas perde o empate para as ruas
-            w = np.where(d <= FL, 1.0, smooth(np.clip(1.0 - (d - FL) / pl['blend'], 0, 1)))
+            dh = np.abs(h0[j0:j1, i0:i1] - pl['y']); sh = np.clip(4.0 * dh, pl['blend'], 60.0)      # talude 1:4 no maximo: o morro desce suave em volta do terraco, sem barranco
+            w = np.where(d <= FL, 1.0, smooth(np.clip(1.0 - (d - FL) / sh, 0, 1)))
             put(j0, j1, i0, i1, np.maximum(w, 0), np.where(d <= 0.3, -1.0, 500.0 + d), np.full_like(d, pl['y']))
     wgt = np.clip(acc_w, 0, 1)
     return np.where(wgt > 0, h0 * (1 - wgt) + acc_y * wgt, h0)

@@ -17,7 +17,16 @@ import kotlin.math.sqrt
  * As casas não têm compra por enquanto: aparecem só marcadas nos mapas.
  */
 object Hds {
-    class Roof(val x0: Float, val z0: Float, val x1: Float, val z1: Float) { @Volatile var mesh: Mesh? = null }
+    class Roof(val x0: Float, val z0: Float, val x1: Float, val z1: Float, val cx: Float = 0f, val cz: Float = 0f, val cs: Float = 1f, val sn: Float = 0f, val hw: Float = -1f, val hd: Float = 0f) {
+        @Volatile var mesh: Mesh? = null
+        /** (x0..z1 = caixa que envolve a casa, girada ou não); contains testa o retângulo girado de verdade */
+        fun contains(x: Float, z: Float): Boolean {
+            if (hw < 0f) return x > x0 && x < x1 && z > z0 && z < z1
+            val dx = x - cx; val dz = z - cz
+            val u = cs * dx + sn * dz; val v = -sn * dx + cs * dz
+            return kotlin.math.abs(u) < hw && kotlin.math.abs(v) < hd
+        }
+    }
 
     private class Acc { var v = FloatArray(STRIDE * 2048); var nv = 0; var idx = ShortArray(3072); var ni = 0 }
     private class Pend(val img: Int, val cut: Boolean, val mat: Int, val a: Acc)
@@ -26,21 +35,25 @@ object Hds {
     private class Job(val chunk: City.Chunk?, val roof: Roof?, val pends: List<Pend>)
 
     /** Etapa 166: grade de 25 cm de uma casa: máscara de paredes por faixa de 50 cm de altura e alturas de chão (andares, escadas, porão). */
-    private class WG(val x0: Float, val z0: Float, val nx: Int, val nz: Int, val wall: IntArray, val off: IntArray, val fl: ShortArray, val dy: Float = 0f)
+    private class WG(val x0: Float, val z0: Float, val nx: Int, val nz: Int, val wall: IntArray, val off: IntArray, val fl: ShortArray, val dy: Float = 0f,
+                     val rot: Boolean = false, val cx: Float = 0f, val cz: Float = 0f, val cs: Float = 1f, val sn: Float = 0f)
+    /** coordenadas no referencial da casa (a casa pode estar girada no mapa) */
+    private fun lx(g: WG, x: Float, z: Float): Float = if (g.rot) g.cx + g.cs * (x - g.cx) + g.sn * (z - g.cz) else x
+    private fun lz(g: WG, x: Float, z: Float): Float = if (g.rot) g.cz - g.sn * (x - g.cx) + g.cs * (z - g.cz) else z
     @Volatile private var walk: List<WG> = emptyList()
     private const val WCS = 0.25f
     /** altura dos pés do jogador (a Renderer3D atualiza a cada quadro) */
     @Volatile var refY = 0f
 
     private fun wgAt(x: Float, z: Float): WG? {
-        for (g in walk) if (x >= g.x0 && z >= g.z0 && x < g.x0 + g.nx * WCS && z < g.z0 + g.nz * WCS) return g
+        for (g in walk) { val a = lx(g, x, z); val b = lz(g, x, z); if (a >= g.x0 && b >= g.z0 && a < g.x0 + g.nx * WCS && b < g.z0 + g.nz * WCS) return g }
         return null
     }
 
     /** Chão sob (x, z) para quem está com os pés em [ref]: o mais alto que dê para subir (degrau até 55 cm); NaN se não há piso de casa ali. */
     fun surface(x: Float, z: Float, ref: Float): Float {
         val g = wgAt(x, z) ?: return Float.NaN
-        val i = ((x - g.x0) / WCS).toInt(); val j = ((z - g.z0) / WCS).toInt()
+        val i = ((lx(g, x, z) - g.x0) / WCS).toInt(); val j = ((lz(g, x, z) - g.z0) / WCS).toInt()
         val c = j * g.nx + i
         var best = Float.NaN
         for (k in g.off[c] until g.off[c + 1]) {
@@ -62,7 +75,7 @@ object Hds {
         for (k in 0 until 5) {
             val px = x + (if (k == 1) 0.15f else if (k == 2) -0.15f else 0f)
             val pz = z + (if (k == 3) 0.15f else if (k == 4) -0.15f else 0f)
-            val i = Math.floor(((px - g.x0) / WCS).toDouble()).toInt(); val j = Math.floor(((pz - g.z0) / WCS).toDouble()).toInt()
+            val i = Math.floor(((lx(g, px, pz) - g.x0) / WCS).toDouble()).toInt(); val j = Math.floor(((lz(g, px, pz) - g.z0) / WCS).toDouble()).toInt()
             if (i < 0 || j < 0 || i >= g.nx || j >= g.nz) continue
             if (g.wall[j * g.nx + i] and mask != 0) return 1
         }
@@ -80,7 +93,9 @@ object Hds {
     // dados do mapa (já deslocados para a posição do lote do jogador)
     @Volatile private var mxr = FloatArray(0)
     @Volatile private var mzr = FloatArray(0)
-    @Volatile private var mplots: List<FloatArray> = emptyList()
+    @Volatile private var mplots: List<FloatArray> = emptyList()   // caixa que envolve cada casa (já girada): mapa, compra, lista
+    @Volatile private var mrect: List<FloatArray> = emptyList()    // retângulo da casa no referencial dela (sem girar)
+    @Volatile private var rotC = FloatArray(0); @Volatile private var rotS = FloatArray(0)
     @Volatile var offX = 0f; @Volatile var offZ = 0f
     /** Etapa 178: altura do térreo de cada casa no relevo (nível do platô + 8 cm, para a grama da casa não brigar com o terreno) */
     @Volatile private var plotY = FloatArray(0)
@@ -97,17 +112,23 @@ object Hds {
     private const val PAD = 0.15f
 
     /** jogador dentro da caixa de alguma casa? (câmera usa plano próximo menor) */
-    fun inside(x: Float, z: Float): Boolean { for (r in roofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false }
+    fun inside(x: Float, z: Float): Boolean { for (r in roofs) if (r.contains(x, z)) return true; return false }
 
     /** Altura real de caminhada da Cidade 2: pisos internos, asfalto e calçadas. */
     fun groundH(x: Float, z: Float): Float {
         if (Relevo.on) {   // Etapa 178: cidade com relevo
             val py = plotY
+            val rc = rotC; val rs = rotS
             for (i in mplots.indices) {
                 if (i >= py.size) break
-                val p = mplots[i]
-                if (x > p[0] + 0.05f && x < p[2] - 0.05f && z > p[1] + 0.05f && z < p[3] - 0.05f) return City.FLOOR + py[i]
-                if (x > p[0] - 4f && x < p[2] + 4f && z > p[1] - 4f && z < p[3] + 4f) return py[i]   // quintal plano em volta da casa
+                val p = mrect.getOrNull(i) ?: continue
+                var qx = x; var qz = z
+                if (i < rc.size && (rs[i] != 0f || rc[i] != 1f)) {   // casa girada: ponto no referencial da casa
+                    val dx = x - (p[0] + p[2]) / 2f; val dz = z - (p[1] + p[3]) / 2f
+                    qx = (p[0] + p[2]) / 2f + rc[i] * dx + rs[i] * dz; qz = (p[1] + p[3]) / 2f - rs[i] * dx + rc[i] * dz
+                }
+                if (qx > p[0] + 0.05f && qx < p[2] - 0.05f && qz > p[1] + 0.05f && qz < p[3] - 0.05f) return City.FLOOR + py[i]
+                if (qx > p[0] - 4f && qx < p[2] + 4f && qz > p[1] - 4f && qz < p[3] + 4f) return py[i]   // quintal plano em volta da casa
             }
             return Relevo.groundH(x, z)
         }
@@ -128,7 +149,7 @@ object Hds {
         model = null
         if (texIds.any { it != 0 }) { try { GLES20.glDeleteTextures(texIds.size, texIds, 0) } catch (e: Throwable) { } }
         texIds = IntArray(0)
-        mxr = FloatArray(0); mzr = FloatArray(0); mplots = emptyList()
+        mxr = FloatArray(0); mzr = FloatArray(0); mplots = emptyList(); mrect = emptyList(); rotC = FloatArray(0); rotS = FloatArray(0)
         walk = emptyList(); refY = 0f
         plotY = FloatArray(0); spY = 0f
         Relevo.clear()
@@ -318,6 +339,9 @@ object Hds {
         val dst = ArrayList<Dst>()
         val pdx = FloatArray(np0); val pdz = FloatArray(np0)
         val py = FloatArray(np0)
+        val hcx = FloatArray(np0); val hcz = FloatArray(np0)                 // centro da casa no mundo (a casa gira em volta dele)
+        val hcs = FloatArray(np0) { 1f }; val hsn = FloatArray(np0)          // cos/sen do giro
+        val hrot = BooleanArray(np0)
         if (rel) {
             // Etapa 178: cada casa vai para a posição dela no mapa novo e sobe/desce para o platô do terreno
             for (k in 0 until np) {
@@ -327,6 +351,8 @@ object Hds {
                 val czs = (pb.getDouble("z0") + pb.getDouble("z1")).toFloat() / 2f
                 pdx[k] = Relevo.CX + hs.x - cxs; pdz[k] = Relevo.CZ + hs.z - czs
                 py[k] = hs.lvl + HOUSE_UP
+                hcx[k] = Relevo.CX + hs.x; hcz[k] = Relevo.CZ + hs.z
+                if (hs.yaw != 0f) { hrot[k] = true; hcs[k] = kotlin.math.cos(hs.yaw); hsn[k] = kotlin.math.sin(hs.yaw) }   // Casas giradas: retas com a calçada
             }
         } else {
             val host = js.getJSONArray("host")
@@ -354,7 +380,14 @@ object Hds {
             val kind = a.getInt(13); val plot = a.getInt(14)
             val node = gm.nodes.getOrNull(pi) ?: return
             if (node.prims.isEmpty()) return
-            val ox2 = ox + dx; val oz2 = oz + dz
+            var ox2 = ox + dx; var oz2 = oz + dz
+            if (plot in 0 until np && hrot[plot]) {   // gira a peça em volta do centro da casa (a translação já vai dentro da matriz)
+                val cs = hcs[plot]; val sn = hsn[plot]; val cx = hcx[plot]; val cz = hcz[plot]
+                val tx = m[3] + ox2 - cx; val tz = m[11] + oz2 - cz
+                for (c in 0..2) { val a0 = m[c]; val b0 = m[8 + c]; m[c] = cs * a0 - sn * b0; m[8 + c] = sn * a0 + cs * b0 }
+                m[3] = cs * tx - sn * tz + cx; m[11] = sn * tx + cs * tz + cz
+                ox2 = 0f; oz2 = 0f
+            }
             if (kind == 2 && plot in 0 until np) {
                 for (p in node.prims) addPrim(roofG[plot], p, m, ox2, oz2, null)
             } else {
@@ -419,20 +452,38 @@ object Hds {
         }
         val rl = ArrayList<Roof>()
         val pl = ArrayList<FloatArray>()
+        val prect = ArrayList<FloatArray>()
         for (k in 0 until np) {
             if (rel && !Relevo.has(k)) {   // Etapa 187: retângulo vazio, longe do mapa, para manter os índices
-                pl.add(floatArrayOf(-1e5f, -1e5f, -1e5f, -1e5f)); rl.add(Roof(-1e5f, -1e5f, -1e5f, -1e5f)); continue
+                pl.add(floatArrayOf(-1e5f, -1e5f, -1e5f, -1e5f)); prect.add(floatArrayOf(-1e5f, -1e5f, -1e5f, -1e5f)); rl.add(Roof(-1e5f, -1e5f, -1e5f, -1e5f)); continue
             }
             val b = plots.getJSONObject(k)
             val x0 = b.getDouble("x0").toFloat() + ox + pdx[k]; val z0 = b.getDouble("z0").toFloat() + oz + pdz[k]
             val x1 = b.getDouble("x1").toFloat() + ox + pdx[k]; val z1 = b.getDouble("z1").toFloat() + oz + pdz[k]
-            pl.add(floatArrayOf(x0, z0, x1, z1))
-            val r = Roof(x0 - 0.3f, z0 - 0.3f, x1 + 0.3f, z1 + 0.3f)
+            prect.add(floatArrayOf(x0, z0, x1, z1))
+            // caixa que envolve a casa girada (para mapa, compra, árvores e culling)
+            var bx0 = x0; var bz0 = z0; var bx1 = x1; var bz1 = z1
+            if (hrot[k]) {
+                bx0 = 1e9f; bz0 = 1e9f; bx1 = -1e9f; bz1 = -1e9f
+                for (q in 0 until 4) {
+                    val px = if (q == 0 || q == 3) x0 else x1; val pz = if (q < 2) z0 else z1
+                    val wx = hcx[k] + hcs[k] * (px - hcx[k]) - hsn[k] * (pz - hcz[k]); val wz = hcz[k] + hsn[k] * (px - hcx[k]) + hcs[k] * (pz - hcz[k])
+                    if (wx < bx0) bx0 = wx; if (wx > bx1) bx1 = wx; if (wz < bz0) bz0 = wz; if (wz > bz1) bz1 = wz
+                }
+            }
+            pl.add(floatArrayOf(bx0, bz0, bx1, bz1))
+            val r = if (hrot[k]) Roof(bx0 - 0.3f, bz0 - 0.3f, bx1 + 0.3f, bz1 + 0.3f, hcx[k], hcz[k], hcs[k], hsn[k], (x1 - x0) / 2f + 0.3f, (z1 - z0) / 2f + 0.3f)
+                    else Roof(x0 - 0.3f, z0 - 0.3f, x1 + 0.3f, z1 + 0.3f)
             rl.add(r)
             if (roofG[k].all.isNotEmpty()) jobs.add(Job(null, r, roofG[k].all))
             City.addPlace(City.Place(HdsEstate.label(k), (x0 + x1) / 2f, (z0 + z1) / 2f, 0xFFFF7043.toInt(), 'C'))
         }
         spX = 47.84f + ox + pdx[0]; spZ = 19.9f + oz + pdz[0]; spY = py[0] + City.FLOOR
+        if (rel && hrot[0]) {   // o ponto de partida gira junto com a Casa 1
+            val dx = spX - hcx[0]; val dz = spZ - hcz[0]
+            spX = hcx[0] + hcs[0] * dx - hsn[0] * dz; spZ = hcz[0] + hsn[0] * dx + hcs[0] * dz
+        }
+        mrect = prect; rotC = FloatArray(np) { if (it < hcs.size) hcs[it] else 1f }; rotS = FloatArray(np) { if (it < hsn.size) hsn[it] else 0f }
         if (rel) Relevo.build(out, pl)   // Etapa 178: terreno, água, ruas curvas, rotatórias, pontes e árvores
 
         // colisões (paredes e cercas, já com os vãos de porta); as das casas vão com a casa, as de árvores/ruas repetem em cada quarteirão
@@ -443,7 +494,8 @@ object Hds {
             val sx0 = so.getDouble(i).toFloat(); val sz0 = so.getDouble(i + 1).toFloat(); val sx1 = so.getDouble(i + 2).toFloat(); val sz1 = so.getDouble(i + 3).toFloat()
             if (rel && v >= 0 && !Relevo.has(v)) { i += 4; continue }   // Etapas 185/187: casas que não existem neste mapa
             if (v >= 0) {
-                City.addSolid(floatArrayOf(sx0 + ox + pdx[v] - PAD, sz0 + oz + pdz[v] - PAD, sx1 + ox + pdx[v] + PAD, sz1 + oz + pdz[v] + PAD))
+                val sr = floatArrayOf(sx0 + ox + pdx[v] - PAD, sz0 + oz + pdz[v] - PAD, sx1 + ox + pdx[v] + PAD, sz1 + oz + pdz[v] + PAD)
+                if (rel && hrot[v]) City.addSolidRot(sr, hcx[v], hcz[v], hcs[v], hsn[v]) else City.addSolid(sr)
             } else if (v != -99) {
                 val c = -1 - v
                 for (d in dst) if (d.sx + d.sz * 8 == c) {
@@ -475,7 +527,7 @@ object Hds {
                     for (q in 0 until cnt) fl[n++] = bb.getShort()
                 }
                 off[nx * nz] = n
-                if ((!rel || Relevo.has(pk)) && pk < np) wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))   // Etapa 185: Cidade 3 só tem a Casa 1; Cidade 5 tem as 17
+                if ((!rel || Relevo.has(pk)) && pk < np) wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk], rel && hrot[pk], hcx[pk], hcz[pk], hcs[pk], hsn[pk]))   // Etapa 185: Cidade 3 só tem a Casa 1; Cidade 5 tem as 17
             }
             walk = wl
         } catch (e: Throwable) { android.util.Log.w("Hds", "city2walk.bin: $e") }

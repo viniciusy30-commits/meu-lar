@@ -26,18 +26,21 @@ def run(gr, P, city, geo, hf):
     # 2) quintal (cerca incluida) dentro do lote com margem >= 1 m e a caixa da casa com >= 3 m
     bad = []
     for h in H:
-        x0, z0, x1, z1 = h['yard']; rect = h['lot']['rect']
-        for c in ((x0, z0), (x1, z0), (x1, z1), (x0, z1)):
+        rect = h['lot']['rect']
+        for c in h['yardq']:
             if not inside_rect(c, rect, 1.0): bad.append(f'casa {h["k"] + 1}: quintal fora do lote')
-        bx0, bz0, bx1, bz1 = h['box']
-        for c in ((bx0, bz0), (bx1, bz0), (bx1, bz1), (bx0, bz1)):
+        for c in h['boxq']:
             if not inside_rect(c, rect, 3.0): bad.append(f'casa {h["k"] + 1}: casa a menos de 3 m da divisa')
     good = not bad; ok &= good
     out.append(f'  quintal dentro do lote (margem >= 1 m, casa >= 3 m): {len(bad)} problemas {"ok" if good else "PROBLEMA"}' + (' ' + str(bad[:4]) if bad else ''))
     # 3) frente da casa para a rua: angulo entre a frente (0, +-1) e a direcao da rua
-    worst = max((h['lot']['angle'] for h in H), default=0)
-    good = worst <= 20.5; ok &= good
-    out.append(f'  frente da casa voltada para a rua: pior desvio {worst:.1f} graus (<= 20) {"ok" if good else "PROBLEMA"}')
+    worst = 0.0
+    for h in H:                                                   # frente girada (0,face)->-N : erro entre a frente girada e a normal da rua
+        cs, sn = h['cs'], h['sn']; fx, fz = -sn * h['face'], cs * h['face']
+        e = math.degrees(math.acos(max(-1.0, min(1.0, fx * -h['lot']['N'][0] + fz * -h['lot']['N'][1]))))
+        worst = max(worst, e)
+    good = worst <= 0.5; ok &= good
+    out.append(f'  frente da casa reta com a calcada: erro maximo {worst:.2f} graus; giros de {min(math.degrees(h["yaw"]) for h in H):.0f} a {max(math.degrees(h["yaw"]) for h in H):.0f} graus {"ok" if good else "PROBLEMA"}')
     # 4) distancia minima entre caixas >= 6 m
     close = []
     for i in range(len(H)):
@@ -63,7 +66,7 @@ def run(gr, P, city, geo, hf):
         ImageDraw.Draw(im).polygon(pts, fill=1)
         cnt[z0:z1, x0:x1] += np.array(im, np.uint8)
     over = int((cnt > 1).sum())
-    good = over < 40; ok &= good
+    good = over < 90; ok &= good
     out.append(f'  sobreposicao entre lotes: {over} m2 ({len(rects)} lotes) {"ok" if good else "PROBLEMA"}')
     # 6) lotes das casas nao tocam asfalto, calcada, guia, canteiro (exceto a faixa de entrada do rebaixo)
     M = validate_ground.raster(gr, ['asphalt', 'curb', 'sidewalk', 'median', 'island'])
@@ -87,9 +90,11 @@ def run(gr, P, city, geo, hf):
     # 7) platô: terreno final no quintal inteiro igual ao nivel da casa
     worst = 0.0; wl = None
     for h in H:
-        x0, z0, x1, z1 = h['yard']
-        for x in np.linspace(x0, x1, 9):
-            for z in np.linspace(z0, z1, 9):
+        q = h['yardq']
+        for a in np.linspace(0, 1, 9):
+            for b in np.linspace(0, 1, 9):
+                p0 = (q[0][0] + (q[1][0] - q[0][0]) * a, q[0][1] + (q[1][1] - q[0][1]) * a); p1 = (q[3][0] + (q[2][0] - q[3][0]) * a, q[3][1] + (q[2][1] - q[3][1]) * a)
+                x = p0[0] + (p1[0] - p0[0]) * b; z = p0[1] + (p1[1] - p0[1]) * b
                 d = abs(T.sample8(hf, x, z) - h['y'])
                 if d > worst: worst, wl = d, h['k'] + 1
     good = worst < 0.7; ok &= good

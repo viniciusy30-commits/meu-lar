@@ -30,7 +30,7 @@ object Relevo {
     private const val ROADY = 0.12f
     private const val CS = 16   // células de terreno por pedaço (16 x 8 m = 128 m): metade das chamadas de desenho por quadro e menos pedaços para controlar
 
-    class House(val k: Int, val x: Float, val z: Float, val lvl: Float)
+    class House(val k: Int, val x: Float, val z: Float, val lvl: Float, val yaw: Float = 0f)
     /** Etapa 180b: [cs] = distância acumulada de cada ponto; [ta]/[tb] = quanto da faixa central some junto aos cruzamentos; [gl]/[gr] = "bocas" do meio-fio (pares início/fim) nos lados +n e -n */
     private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray, val keep: BooleanArray,
                        val cs: FloatArray, val ta: Float, val tb: Float, val gl: FloatArray, val gr: FloatArray)
@@ -304,7 +304,7 @@ object Relevo {
             val ha = js.getJSONArray("houses")
             for (i in 0 until ha.length()) {
                 val o = ha.getJSONObject(i); val k = o.getInt("k")
-                houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat())
+                houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat(), o.optDouble("yaw", 0.0).toFloat())
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)

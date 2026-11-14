@@ -164,11 +164,17 @@ def try_house(plan, geo, hp, fr, i, tol_deg, side_m, gap_front, rear_m, slope_ma
     Sistema do lote: u = ao longo da rua (T), v = para dentro do lote (N); a frente do quintal (porta/portao) fica a gap_front m da calcada."""
     nx, nz = fr['NX'][i], fr['NZ'][i]
     face = 1.0 if hp['fz'] > 0 else -1.0
-    cosang = (-nz) * face                                         # frente da casa = -N precisa apontar ~ (0, face)
-    if cosang < math.cos(math.radians(tol_deg)): return None
+    # a casa GIRA: R(yaw) leva a frente (0, face) para -N (frente voltada para a rua). R(yaw)(x, z) = (c x - s z, s x + c z)
+    cy, sy = -nz * face, nx * face
+    yaw = math.atan2(sy, cy)
+    if abs(math.degrees(yaw)) > tol_deg and tol_deg < 180: return None
     tx, tz = fr['TX'][i], fr['TZ'][i]
     x0, x1, z0, z1 = hp['yard']
-    cu = [((x - 0.0) * tx + (z - 0.0) * tz, (x - 0.0) * nx + (z - 0.0) * nz) for x in (x0, x1) for z in (z0, z1)]        # cantos do quintal relativos ao centro da casa
+    rot = lambda x, z: (cy * x - sy * z, sy * x + cy * z)
+    cu = []
+    for x in (x0, x1):
+        for z in (z0, z1):
+            rx, rz = rot(x, z); cu.append((rx * tx + rz * tz, rx * nx + rz * nz))        # cantos do quintal (girado) relativos ao centro da casa
     umin = min(c[0] for c in cu); umax = max(c[0] for c in cu); vmin = min(c[1] for c in cu); vmax = max(c[1] for c in cu)
     Wl = (umax - umin) + 2 * side_m; Dl = gap_front + (vmax - vmin) + rear_m
     u_c = -(umin + umax) / 2                                       # casa deslocada para o quintal ficar centrado no lote
@@ -189,8 +195,21 @@ def try_house(plan, geo, hp, fr, i, tol_deg, side_m, gap_front, rear_m, slope_ma
     yfront = float(np.interp(S[i], S, fr['Y']))
     if abs(hm - yfront) > 2.6: return None
     C = (F[0] + Tn[0] * u_c + Nn[0] * v_c, F[1] + Tn[1] * u_c + Nn[1] * v_c)
-    return {'rect': cor, 'F': F, 'T': Tn, 'N': Nn, 'W': Wl, 'D': Dl, 'C': C, 'yfront': yfront, 'angle': math.degrees(math.acos(min(1.0, cosang))), 'terr': hm, 'slope': sl, 'S': float(S[i]),
+    return {'rect': cor, 'F': F, 'T': Tn, 'N': Nn, 'W': Wl, 'D': Dl, 'C': C, 'yfront': yfront, 'angle': 0.0, 'yaw': yaw, 'cs': cy, 'sn': sy, 'terr': hm, 'slope': sl, 'S': float(S[i]),
             'gap': gap_front}
+
+
+def rot_pts(pts, C, cs, sn):
+    return [(C[0] + cs * x - sn * z, C[1] + sn * x + cs * z) for x, z in pts]
+
+
+def aabb(q):
+    return (min(p[0] for p in q), min(p[1] for p in q), max(p[0] for p in q), max(p[1] for p in q))
+
+
+def yard_aabb(hp, C, cs, sn):
+    x0, x1, z0, z1 = hp['yard']
+    return aabb(rot_pts([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], C, cs, sn))
 
 
 def place_houses(plan, geo, plots):
@@ -203,15 +222,14 @@ def place_houses(plan, geo, plots):
         slope_max = 0.16 if bairro == 'Alto da Colina' else 0.12
         best = None
         def far_enough(r):
-            C_ = r['C']; yx0, yx1, yz0, yz1 = hp['yard']
-            a = (C_[0] + yx0, C_[1] + yz0, C_[0] + yx1, C_[1] + yz1)
+            a = yard_aabb(hp, r['C'], r['cs'], r['sn'])
             for o in placed.values():
                 b = o['yard']
                 dx = max(a[0] - b[2], b[0] - a[2], 0); dz = max(a[1] - b[3], b[1] - a[3], 0)
                 if math.hypot(dx, dz) < MIN_HOUSE_GAP: return False
             return True
         best = None
-        for tol in (2.0, 3.0, 5.0, 8.0, 12.0, 20.0):                  # a casa nao gira: so vale rua quase alinhada com os eixos
+        for tol in (180.0,):                                          # a casa gira para ficar reta com a calcada (qualquer rua)
             for radius in (420, 700, 1100, 2000):
                 cands = []
                 for fr in plan.fronts:
@@ -234,14 +252,18 @@ def place_houses(plan, geo, plots):
         fr = best['fr']; plat = best['yfront'] + HOUSE_UP
         face = 1.0 if hp['fz'] > 0 else -1.0
         C = best['C']
-        box = (C[0] - hp['bw'] / 2, C[1] - hp['bd'] / 2, C[0] + hp['bw'] / 2, C[1] + hp['bd'] / 2)
-        yard = (C[0] + hp['yard'][0], C[1] + hp['yard'][2], C[0] + hp['yard'][1], C[1] + hp['yard'][3])
+        cs, sn = best['cs'], best['sn']
+        hw_, hd_ = hp['bw'] / 2, hp['bd'] / 2
+        boxq = rot_pts([(-hw_, -hd_), (hw_, -hd_), (hw_, hd_), (-hw_, hd_)], C, cs, sn)
+        yx0, yx1, yz0, yz1 = hp['yard']
+        yardq = rot_pts([(yx0, yz0), (yx1, yz0), (yx1, yz1), (yx0, yz1)], C, cs, sn)
+        box = aabb(boxq); yard = aabb(yardq)
         draw_poly(plan.occ, best['rect'], True)
-        door = (C[0] + hp['fx'], C[1] + hp['fz'])
+        door = rot_pts([(hp['fx'], hp['fz'])], C, cs, sn)[0]
         placed[k] = {'k': k, 'name': hp['name'], 'bairro': bairro, 'lot': {kk: best[kk] for kk in ('rect', 'F', 'T', 'N', 'W', 'D', 'yfront', 'angle', 'slope', 'gap')},
-                     'cx': C[0], 'cz': C[1], 'y': plat, 'box': box, 'yard': yard, 'bw': hp['bw'], 'bd': hp['bd'], 'face': face, 'door': door, 'edge': fr['k'], 'sgn': fr['sgn'],
+                     'cx': C[0], 'cz': C[1], 'y': plat, 'box': box, 'yard': yard, 'boxq': boxq, 'yardq': yardq, 'yaw': best['yaw'], 'cs': cs, 'sn': sn, 'bw': hp['bw'], 'bd': hp['bd'], 'face': face, 'door': door, 'edge': fr['k'], 'sgn': fr['sgn'],
                      's': best['S'], 'street': fr['name'], 'lvl': fr['lvl']}
-        plan.log.append(f'casa {k + 1} ({bairro}): lote {best["W"]:.0f}x{best["D"]:.0f} m em ({C[0]:.0f},{C[1]:.0f}) frente {"sul" if face > 0 else "norte"} desvio {best["angle"]:.1f} graus declive {best["slope"]*100:.1f}%')
+        plan.log.append(f'casa {k + 1} ({bairro}): lote {best["W"]:.0f}x{best["D"]:.0f} m em ({C[0]:.0f},{C[1]:.0f}) girada {math.degrees(best["yaw"]):.1f} graus declive {best["slope"]*100:.1f}%')
     plan.houses = [placed[k] for k in sorted(placed)]
     for h in plan.houses:
         r = h['lot']['rect']
@@ -429,7 +451,7 @@ def fence_poly(P, B, h, lot, style, gaps_front, yp):
 
 
 def export(P, path):
-    out = {'houses': [{'k': h['k'], 'name': h['name'], 'bairro': h['bairro'], 'x': round(h['cx'], 3), 'z': round(h['cz'], 3), 'lvl': round(h['y'], 3), 'box': [round(v, 2) for v in h['box']],
+    out = {'houses': [{'k': h['k'], 'name': h['name'], 'bairro': h['bairro'], 'x': round(h['cx'], 3), 'z': round(h['cz'], 3), 'lvl': round(h['y'], 3), 'yaw': round(h['yaw'], 5), 'box': [round(v, 2) for v in h['box']], 'boxq': [[round(p[0], 2), round(p[1], 2)] for p in h['boxq']], 'yardq': [[round(p[0], 2), round(p[1], 2)] for p in h['yardq']],
                        'face': 'sul' if h['face'] > 0 else 'norte', 'street': h['street'], 'edge': h['edge'], 'lot': [[round(p[0], 2), round(p[1], 2)] for p in h['lot']['rect']],
                        'lot_w': round(h['lot']['W'], 1), 'lot_d': round(h['lot']['D'], 1), 'door': [round(h['door'][0], 2), round(h['door'][1], 2)], 'yfront': round(h['lot']['yfront'], 2)} for h in P.houses],
            'lots': P.lots, 'solids': P.solids, 'trees': P.trees, 'log': P.log}
