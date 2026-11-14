@@ -63,7 +63,7 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
                 spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), math.radians(h['yaw_graus'])) for h in L.player]
         fn = os.path.join(out, 'cidade6_completa.glb')
-        n = write_glb(fn, spec, tdir, embed=True, markers=mk)
+        n = write_glb(fn, spec, tdir, embed=True, markers=mk, quant=True)
         print(f'GLB unico: {n} triangulos, {os.path.getsize(fn) / 1e6:.1f} MB')
     return man
 

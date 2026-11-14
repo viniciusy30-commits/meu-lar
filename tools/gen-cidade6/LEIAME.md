@@ -7,7 +7,7 @@ Saída em `cidade6/` na raiz do repositório.
 
 | Arquivo | O que é |
 |---|---|
-| `cidade6/cidade6_completa.glb` | A cidade inteira num GLB só, **texturas embutidas** (abre direto no Blender / visualizador). Sem carros e sem mobiliário miúdo, para caber em < 100 MB. |
+| `cidade6/cidade6_completa.glb` | A cidade inteira num GLB só, **texturas embutidas** (abre direto no Blender / visualizador). Sem carros e sem mobiliário miúdo, e com normais compactadas (extensão padrão `KHR_mesh_quantization`, que Blender e three.js leem), para caber em < 100 MB. |
 | `cidade6/tiles/tile_II_JJ.glb` | A cidade em pedaços de 250 × 250 m, **com tudo** (carros, postes, placas...). Cada tile tem um nó por camada (`ruas_…`, `lotes_…`, `vegetacao_…`, `carros_…` etc.). |
 | `cidade6/tiles/texturas/*.jpg` | Texturas compartilhadas pelos tiles (uri relativa `texturas/x.jpg`). |
 | `cidade6/cidade6.json` | Manifesto: lista de tiles (origem, triângulos), **casas do jogador**, colisões, ponto de nascimento. |

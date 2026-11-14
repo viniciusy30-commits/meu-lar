@@ -311,7 +311,7 @@ def _pad4(b, fill=b'\x00'):
     return b + fill * ((4 - len(b) % 4) % 4)
 
 
-def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/', extras=None, markers=None):
+def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/', extras=None, markers=None, quant=False):
     """nodes_spec: lista de (nome, translacao, {material: [chunks]}).
     Texturas: embed=True embute os JPEG no GLB; senao referencia arquivos externos (uri = prefixo + nome.jpg)."""
     bin_ = bytearray(); bviews = []; accs = []; meshes = []; nodes = []
@@ -322,12 +322,13 @@ def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/',
     mats_used.sort()
     mid = {m: i for i, m in enumerate(mats_used)}
 
-    def add_view(data, target=None):
+    def add_view(data, target=None, stride=None):
         nonlocal bin_
         off = len(bin_); bin_ += data
         while len(bin_) % 4: bin_ += b'\x00'
         bv = {'buffer': 0, 'byteOffset': off, 'byteLength': len(data)}
         if target: bv['target'] = target
+        if stride: bv['byteStride'] = stride
         bviews.append(bv); return len(bviews) - 1
 
     images = []; textures = []; materials = []
@@ -360,7 +361,11 @@ def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/',
                 idx = inv.reshape(-1)[idx].astype(np.uint16)
                 nv = len(pos)
                 ap = len(accs); accs.append({'bufferView': add_view(pos.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC3', 'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()})
-                an = len(accs); accs.append({'bufferView': add_view(nrm.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC3'})
+                if quant:      # KHR_mesh_quantization: normal em int8 normalizado (4 bytes por vertice)
+                    q = np.zeros((nv, 4), np.int8); q[:, :3] = np.round(np.clip(nrm, -1, 1) * 127).astype(np.int8)
+                    an = len(accs); accs.append({'bufferView': add_view(q.tobytes(), 34962, 4), 'componentType': 5120, 'normalized': True, 'count': nv, 'type': 'VEC3'})
+                else:
+                    an = len(accs); accs.append({'bufferView': add_view(nrm.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC3'})
                 au = len(accs); accs.append({'bufferView': add_view(uv.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC2'})
                 ac = len(accs); accs.append({'bufferView': add_view(col.tobytes(), 34962), 'componentType': 5121, 'normalized': True, 'count': nv, 'type': 'VEC4'})
                 ai = len(accs); accs.append({'bufferView': add_view(idx.tobytes(), 34963), 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'})
@@ -377,6 +382,7 @@ def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/',
           'samplers': [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 10497, 'wrapT': 10497}],
           'accessors': accs, 'bufferViews': bviews, 'buffers': [{'byteLength': len(bin_)}]}
     if extras: gl['extras'] = extras
+    if quant: gl['extensionsUsed'] = ['KHR_mesh_quantization']; gl['extensionsRequired'] = ['KHR_mesh_quantization']
     js = _pad4(json.dumps(gl, separators=(',', ':')).encode(), b' ')
     bb = _pad4(bytes(bin_))
     with open(path, 'wb') as f:
@@ -400,6 +406,12 @@ def read_glb(path):
         t = np.array(nd.get('translation', [0, 0, 0]), np.float32)
         for p in g['meshes'][nd['mesh']]['primitives']:
             at = p['attributes']
-            out.append((nd['name'], g['materials'][p['material']]['name'], acc(at['POSITION'], np.float32, 3) + t, acc(at['NORMAL'], np.float32, 3),
+            na = g['accessors'][at['NORMAL']]
+            if na['componentType'] == 5120:
+                v = g['bufferViews'][na['bufferView']]; st = v.get('byteStride', 3)
+                raw8 = np.frombuffer(b, np.int8, na['count'] * st, v.get('byteOffset', 0) + na.get('byteOffset', 0)).reshape(na['count'], st)[:, :3]
+                nrm_ = raw8.astype(np.float32) / 127.0
+            else: nrm_ = acc(at['NORMAL'], np.float32, 3)
+            out.append((nd['name'], g['materials'][p['material']]['name'], acc(at['POSITION'], np.float32, 3) + t, nrm_,
                         acc(at['TEXCOORD_0'], np.float32, 2), acc(at['COLOR_0'], np.uint8, 4)[:, :3] / 255.0, acc(p['indices'], np.uint16, 1).astype(np.int64)))
     return out, g
