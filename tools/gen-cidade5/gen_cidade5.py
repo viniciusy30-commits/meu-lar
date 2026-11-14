@@ -44,6 +44,14 @@ for m in msg_m: print(m)
 allok &= ok_m
 json.dump(mg.items, open(os.path.join(out, 'margens.json'), 'w'), separators=(',', ':'))
 print(f'ETAPA E0: margens - enrocamento {mg.stats["rip_m"]:.0f} m, calcadao {mg.stats["prom_m"]:.0f} m, {mg.stats["rocks"]} blocos, {len(mg.items["docks"])} docas, {len(mg.items["boats"])} barcos, {len(mg.items["jetties"])} molhes')
+# ---- ETAPA E: construcoes nos lotes comuns
+import buildings
+bg = buildings.Gen(c.lotplan, hf, geo).run()
+nb = bg.B.write(os.path.join(out, 'city5_bld.bin'))
+json.dump({'solidr': bg.solids, 'trees': bg.trees, 'kinds': bg.kinds}, open(os.path.join(out, 'buildings.json'), 'w'), separators=(',', ':'))
+print(f'ETAPA E: {len(bg.items)} lotes -> {sum(bg.kinds.values())} construcoes; {bg.B.ntri} triangulos; {len(bg.solids)} colisoes; {len(bg.trees)} arvores')
+print('   falhas:', bg.stats)
+print('   tipos:', dict(sorted(bg.kinds.items(), key=lambda kv: -kv[1])))
 # pisos caminhaveis sobre a agua (pieres da orla e docas): o app usa para andar em cima
 json.dump({'piers': o.items['piers'], 'docks': mg.items['docks']}, open(os.path.join(out, 'decks.json'), 'w'), separators=(',', ':'))
 import validate_lots

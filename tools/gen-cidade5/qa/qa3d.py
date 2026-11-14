@@ -20,6 +20,13 @@ class Scene:
             cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16
             a = np.frombuffer(b, dt, nv, o); o += nv * 35
             self.recs.append((cell % 1000 * 64.0, cell // 1000 * 64.0, mat, a))
+        try:
+            b = open(os.path.join(assets, 'c5_bld.bin'), 'rb').read(); n = struct.unpack_from('<i', b, 4)[0]; o = 8
+            for _ in range(n):
+                cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16
+                a = np.frombuffer(b, dt, nv, o); o += nv * 35
+                self.recs.append((cell % 1000 * 64.0, cell // 1000 * 64.0, mat, a))
+        except OSError: pass
         self.assets = assets
         try:
             b = open(os.path.join(assets, 'c5_sand.bin'), 'rb').read(); sx, sz = struct.unpack_from('<ii', b, 0)
