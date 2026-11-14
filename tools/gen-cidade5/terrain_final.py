@@ -39,7 +39,12 @@ def node_profile(city, geo, iters=900):
     """altura de cada no = terreno, depois relaxa ate todas as ruas respeitarem o declive maximo"""
     y = [geo.height(n[0], n[1]) for n in city.nodes]
     y = [max(v, 1.2) for v in y]                              # nunca abaixo do nivel do mar + calcada
-    E = [(e['a'], e['b'], max(elen(e['p']) - e.get('_ca', 0) - e.get('_cb', 0), 0.3 * elen(e['p'])), GRADE.get(e['lvl'], 0.065) if e['kind'] != 'bridge' else 0.07) for e in city.edges]
+    E = []
+    for e in city.edges:
+        T_ = elen(e['p']); Le = T_ - e.get('_ca', 0) - e.get('_cb', 0); lim = GRADE.get(e['lvl'], 0.065) if e['kind'] != 'bridge' else 0.07
+        if e['kind'] != 'bridge' and Le < 0.1 * T_: Le, lim = 1.0, 0.10        # plato de um no encosta no do outro: quase mesma altura (degrau <= 10 cm)
+        else: Le = max(Le, 0.3 * T_)
+        E.append((e['a'], e['b'], Le, lim))
     for it in range(iters):
         worst = 0.0
         for a, b, L, lim in E:
@@ -51,16 +56,33 @@ def node_profile(city, geo, iters=900):
     return y
 
 def profile_pts(e, ya, yb):
-    """perfil de altura da rua: PLATO plano junto a cada cruzamento (cruzamentos planos) e rampa linear no meio"""
+    """perfil de altura da rua: PLATO plano junto a cada cruzamento (cruzamentos planos) e rampa linear no meio.
+    IMPORTANTE: os pontos de quebra do plato (s=ca e s=T-cb) viram vertices da polilinha; sem isso a altura era
+    interpolada entre os vertices originais (as vezes a dezenas de metros) e a rua nao encontrava o cruzamento (degraus de ate 1,5 m)."""
     pts = e['p']; Ls = [0.0]
     for a, b in zip(pts, pts[1:]): Ls.append(Ls[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
     T = Ls[-1] or 1.0
-    ca = min(e.get('_ca', 0.0), T * 0.45); cb = min(e.get('_cb', 0.0), T * 0.45)
+    ca = e.get('_ca', 0.0); cb = e.get('_cb', 0.0)
+    if ca + cb > T - 0.6: k_ = (T - 0.6) / max(ca + cb, 1e-6); ca *= k_; cb *= k_
     def y(s):
         if s <= ca: return ya
         if s >= T - cb: return yb
         return ya + (yb - ya) * (s - ca) / max(T - ca - cb, 1e-6)
-    return [(p[0], p[1], y(s)) for p, s in zip(pts, Ls)]
+    def at(s):
+        for i in range(len(Ls) - 1):
+            if Ls[i + 1] >= s or i == len(Ls) - 2:
+                f = (s - Ls[i]) / max(Ls[i + 1] - Ls[i], 1e-9); f = min(max(f, 0.0), 1.0)
+                return (pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f)
+    extra = [q for q in (ca, T - cb) if 0.5 < q < T - 0.5]
+    # tambem um vertice de ~14 m em 14 m nos trechos longos da rampa (declive uniforme e terreno acompanhando)
+    allS = sorted(set([round(v, 4) for v in Ls] + [round(v, 4) for v in extra]))
+    out = []
+    for sv in allS:
+        if out and sv - out[-1][3] < 0.05: continue
+        if sv in Ls: p = pts[Ls.index(sv)] if sv in Ls else at(sv)
+        else: p = at(sv)
+        out.append((p[0], p[1], y(sv), sv))
+    return [(p[0], p[1], p[2]) for p in out]
 
 FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m nao "morde" a borda)
 

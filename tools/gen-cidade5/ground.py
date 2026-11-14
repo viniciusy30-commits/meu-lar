@@ -521,8 +521,8 @@ class Ground:
         # --- canteiro central (avenida): termina antes da faixa de pedestre (passagem de pedestres)
         if ins > 0:
             if stl_m is not stl:
-                if ea: self.strip(ASPHALT, COL['asph'], self.stations(k, la, la + ea), -ins, ins, ROADY, 'asphalt')
-                if eb: self.strip(ASPHALT, COL['asph'], self.stations(k, L - lb - eb, L - lb), -ins, ins, ROADY, 'asphalt')
+                if ea: self.strip(ASPHALT, COL['asph'], self.stations(k, max(la - OV, 0.0), la + ea), -ins, ins, ROADY, 'asphalt')
+                if eb: self.strip(ASPHALT, COL['asph'], self.stations(k, L - lb - eb, min(L - lb + OV, L)), -ins, ins, ROADY, 'asphalt')
             self.strip(GRASS, COL['grass'], stl_m, -ins + 0.2, ins - 0.2, VERGE_Y - 0.0, 'median')
             for sgn in (1, -1):
                 self.strip(PAVER, COL['curb'], stl_m, sgn * (ins - 0.2), sgn * ins, SW_Y, 'curb')
@@ -536,26 +536,8 @@ class Ground:
             self.strip(PAVER, COL['curb'], stl, sgn * a_, sgn * (a_ + 0.2), SW_Y, 'curb')
             self.vwall(stl, sgn * a_, ROADY, SW_Y, COL['curb'], -sgn)
             o = a_ + 0.2
-            if lvl == 0 and not bridge:                                      # AVENIDA (como na vida real): guia, faixa de plantio com arvores e calcada mais estreita atras
-                xa_ = any(x_.get('xw') for x_ in self.arms.get(e['a'], []) if x_['k'] == k and x_['end'] == 'a')
-                xb_ = any(x_.get('xw') for x_ in self.arms.get(e['b'], []) if x_['k'] == k and x_['end'] == 'b')
-                sA = stl[0]['s'] + (9.0 if xa_ else 0.0); sB = stl[-1]['s'] - (9.0 if xb_ else 0.0)
-                mid = [q for q in stl if sA <= q['s'] <= sB]
-                if len(mid) >= 2:
-                    self.strip(GRASS, COL['grass'], mid, sgn * o, sgn * (o + 1.6), VERGE_Y, 'verge')
-                    if zone == 'centro': self.strip(PAVER, sw_col, stl, sgn * (o + 1.6), sgn * h_, SW_Y, 'sidewalk')
-                    else: self.strip(PAVER, sw_col, stl, sgn * (o + 1.6), sgn * h_, SW_Y, 'sidewalk')
-                    # faixa pavimentada entre a guia e a calcada nas pontas (pouso das faixas de pedestre)
-                    for sub, lo_, hi_ in ((stl, 0, 0),):
-                        pass
-                    ends = [q for q in stl if q['s'] < sA] if xa_ else []
-                    ends2 = [q for q in stl if q['s'] > sB] if xb_ else []
-                    for part in (ends, ends2):
-                        if len(part) >= 1:
-                            idx = [stl.index(q) for q in part]; i0, i1 = max(min(idx) - 1, 0), min(max(idx) + 1, len(stl) - 1)
-                            if i1 > i0: self.strip(PAVER, sw_col, stl[i0:i1 + 1], sgn * o, sgn * (o + 1.6), SW_Y, 'sidewalk')
-                else:
-                    self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
+            if lvl == 0 and not bridge:                                      # AVENIDA: calcada larga ate o fim (com covas de arvore), sem canteiros de grama que parecem buracos
+                self.strip(PAVER, sw_col2, stl, sgn * o, sgn * (o + 0.6), SW_Y, 'sidewalk'); self.strip(PAVER, sw_col, stl, sgn * (o + 0.6), sgn * h_, SW_Y, 'sidewalk')
             elif zone == 'res' and lvl == 2:                                  # faixa-jardim com arvore + calcada
                 self.strip(GRASS, COL['grass'], stl, sgn * o, sgn * (o + 1.2), VERGE_Y, 'verge'); o += 1.2
                 self.strip(PAVER, sw_col, stl, sgn * o, sgn * h_, SW_Y, 'sidewalk')
@@ -616,7 +598,7 @@ class Ground:
             if self.c.edges[k]['lvl'] == 0 and (s - stl[0]['s'] < 11.0 or stl[-1]['s'] - s < 11.0): continue
             for sgn in (1, -1):
                 if self.sea_sign(k) == sgn: continue
-                o = (sec['asph'] + 1.0) if self.c.edges[k]['lvl'] == 0 else sec['asph'] + 0.2 + (1.3 if zone == 'centro' else 1.6)
+                o = (sec['asph'] + 1.7) if self.c.edges[k]['lvl'] == 0 else sec['asph'] + 0.2 + (1.3 if zone == 'centro' else 1.6)
                 cx, cz = x + nx_ * o * sgn, z + nz_ * o * sgn
                 hw = 0.65
                 p = [(cx - tx * hw - nx_ * hw, y + SW_Y + 0.02, cz - tz * hw - nz_ * hw), (cx + tx * hw - nx_ * hw, y + SW_Y + 0.02, cz + tz * hw - nz_ * hw),
