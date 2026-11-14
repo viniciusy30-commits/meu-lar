@@ -112,7 +112,7 @@ def _read_ground(path):
     for _ in range(n):
         cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16
         arr = np.frombuffer(b, dtype=dt, count=nv, offset=o); o += nv * 35
-        if mat in PAVED:
+        if mat in PAVED or mat == 6:                       # 6 = madeira: so conta (docas/pieres) onde esta sobre a agua
             out.setdefault(mat, []).append(arr['f'][:, :6].copy())
     return {m: np.concatenate(v) for m, v in out.items()}
 
@@ -126,17 +126,42 @@ def _terr(hf, g, x, z):
     return np.where(up, h00 + (h10 - h00) * tx + (h11 - h10) * tz, h00 + (h11 - h01) * tx + (h01 - h00) * tz), i, j, up
 
 
+def deck_tris(path):
+    """pisos de madeira sobre a agua (pieres e docas) como triangulos caminhaveis"""
+    import json as _j
+    try: d = _j.load(open(path))
+    except OSError: return []
+    out = []
+    def rect(P, a0, a1, b0, b1, y0, y1):
+        x0, z0, dx, dz = P['x'], P['z'], P['dx'], P['dz']; rx, rz = -dz, dx
+        def pt(a, b, y): return [x0 + dx * a + rx * b, y, z0 + dz * a + rz * b]
+        A, B, C, D = pt(a0, b0, y0), pt(a1, b0, y1), pt(a1, b1, y1), pt(a0, b1, y0)
+        out.append(np.array([A, B, C], np.float32)[None]); out.append(np.array([A, C, D], np.float32)[None])
+    for P in d.get('piers', []):
+        lp = P['lp']; W = P['w']
+        for i in range(6): rect(P, -6 + i, -5 + i, -W / 2, W / 2, P['y0'] + (P['deck'] - P['y0']) * i / 6.0, P['y0'] + (P['deck'] - P['y0']) * (i + 1) / 6.0)
+        rect(P, 0.0, lp, -W / 2, W / 2, P['deck'], P['deck'])
+        rect(P, lp, lp + 16.0, -11.0, 11.0, P['deck'], P['deck'])
+    for P in d.get('docks', []):
+        rect(P, 0.0, P['len'], -P['w'] / 2, P['w'] / 2, P['deck'], P['deck'])
+    return out
+
+
 def fit_terrain(hf, ground_path, g=8.0, margin=0.05, tunnel=3.0):
     """abaixa os vertices do terreno onde ele cobriria a malha; devolve (hf novo, amostras pavimentadas x,z,y)"""
     G = _read_ground(ground_path)
     pts = []
     tris = []
     for m, V in G.items():
-        if m != 15 and m != 9 and m != 3 and m != 8: continue
+        if m != 15 and m != 9 and m != 3 and m != 8 and m != 6: continue
         T = V.reshape(-1, 3, 6)
         up = T[:, :, 4].mean(1) > 0.5
         T = T[up]
+        if m == 6:                                            # madeira sobre agua funda (piers, docas): vira piso; bancos/cercas em terra ficam de fora
+            cen = T[:, :, :3].mean(1); tc, _, _, _ = _terr(hf, g, cen[:, 0], cen[:, 2]); T = T[tc < -0.3]
+            if len(T) == 0: continue
         tris.append(T[:, :, [0, 1, 2]])
+    tris = tris + deck_tris(os.path.join(os.path.dirname(ground_path), 'decks.json'))
     tris = np.concatenate(tris)                       # (n, 3, xyz)
     a, b_, c = tris[:, 0], tris[:, 1], tris[:, 2]
     S = np.concatenate([a, b_, c, (a + b_ + c) / 3, (a + b_) / 2, (b_ + c) / 2, (a + c) / 2, (2 * a + b_ + c) / 4, (a + 2 * b_ + c) / 4, (a + b_ + 2 * c) / 4])

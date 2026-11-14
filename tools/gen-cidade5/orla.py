@@ -514,7 +514,7 @@ class Orla:
             self.g.quad(WOOD, [PP(A0, -W / 2, y0), PP(A1, -W / 2, y1), PP(A1, W / 2, y1), PP(A0, W / 2, y0)], COL['wood'], None)
             for sg in (-1, 1):
                 self.B.quad(WOOD, [PP(A0, sg * W / 2, y0 - TH), PP(A1, sg * W / 2, y1 - TH), PP(A1, sg * W / 2, y1), PP(A0, sg * W / 2, y0)], (rx * sg, 0, rz * sg), COL['wood2'], None, True)
-        self.items['piers'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'len': round(Lp + 16.0, 1), 'w': W, 'deck': round(deck, 2)})
+        self.items['piers'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'len': round(Lp + 16.0, 1), 'w': W, 'deck': round(deck, 2), 'lp': round(Lp, 2), 'y0': round(YPf + 0.06, 3)})
         self.stats['piers'] += 1
 
     def palm(self, f, o):

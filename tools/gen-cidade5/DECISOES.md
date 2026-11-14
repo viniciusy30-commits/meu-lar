@@ -122,3 +122,13 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Calçada de esquina 2 cm abaixo da calçada da rua (sem piscar na emenda vermelha/bege).
 - Piso tátil: faixa fina amarela rente à guia com 4 filetes (antes bloco de tijolo 3×1,5 m).
 - QA: `qa3d.real_houses_mesh` (REALH=1) desenha as casas reais do city2.glb com a mesma transformação do app.
+
+## Etapa E0 — Margens e bordas da cidade (`margens.py`)
+- **Terraço ribeirinho** (`terrain_final.river_terrace`): no rio urbano (z 600–2540, fora das pontes) e na lagoa o terreno vira um banco plano de 15 m ao longo da água (rio 1,25 m / lagoa 0,95 m) e sobe em talude ≤ 1:4.
+- **Enrocamento**: faixa de pedra (PAVER cinza) do espelho d'água até 3 m para dentro + blocos de pedra (10 triângulos, 2–3 por 3 m). Em toda margem urbana: rio, lagoa, pontas das orlas e cabeceiras dos canais (190 m em volta de cada ponte vermelha).
+- **Calçadão ribeirinho** (rio e lagoa): caminho de 3,4 m a 5,4–8,8 m da margem, guarda-corpo na beira, postes a cada 21 m, bancos a cada 42 m, árvores a cada 15 m. Só onde livre (nada sobre ruas/calçadas/orla/lotes de casas) e com inclinação transversal < 16 %.
+- **Docas e barcos**: doca de madeira a cada ~135 m (60 m de distância mínima entre elas), com acesso em pavimento desde o calçadão e um barco atracado.
+- **Molhes**: ponta oeste e ponta leste da orla recebem molhe de pedra com farol (branco/vermelho e branco/azul); a foz do rio recebe dois molhes curtos com balizas (vermelha a oeste, verde a leste). Direção do molhe = caminho mais curto até água funda (< -1,5 m).
+- **Pisos caminháveis sobre a água**: pieres da orla e docas agora entram no mapa de caminhada (`decks.json` → `app_export.deck_tris`). Antes os pieres NÃO eram caminháveis.
+- Lotes comuns a menos de 14 m do calçadão ribeirinho foram retirados (9); as 17 casas nunca ficam na faixa (validador).
+- Orçamento de triângulos subiu para 650 mil / 85 MB (a malha é lida do arquivo por pedaços; só o primeiro uso copia ~57 MB).
