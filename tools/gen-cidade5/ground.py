@@ -614,7 +614,6 @@ class Ground:
                 hw = 0.65
                 p = [(cx - tx * hw - nx_ * hw, y + SW_Y + 0.02, cz - tz * hw - nz_ * hw), (cx + tx * hw - nx_ * hw, y + SW_Y + 0.02, cz + tz * hw - nz_ * hw),
                      (cx + tx * hw + nx_ * hw, y + SW_Y + 0.02, cz + tz * hw + nz_ * hw), (cx - tx * hw + nx_ * hw, y + SW_Y + 0.02, cz - tz * hw + nz_ * hw)]
-                self.quad(PLAIN, p, COL['soil'], None)
                 self.fronts.append({'pit': [round(cx, 2), round(cz, 2), round(y + SW_Y, 2)], 'edge': k})
 
     def protections(self, k, stl, sec, bridge, zone):
