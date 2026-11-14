@@ -86,6 +86,68 @@ def profile_pts(e, ya, yb):
 
 FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m nao "morde" a borda)
 
+
+YB_RIVER = 1.25     # banco (terraco) do calcadao ribeirinho: 1,45 m acima do espelho d'agua (-0.2)
+
+def _chamfer8(src):
+    nz_, nx_ = src.shape; D = np.where(src, 0.0, 1e9); r2 = STEP * 1.41421356
+    for j in range(nz_):
+        Dj = D[j]; Dp = D[j - 1] if j > 0 else None
+        for i in range(nx_):
+            v = Dj[i]
+            if v == 0: continue
+            if i > 0: v = min(v, Dj[i - 1] + STEP)
+            if Dp is not None:
+                v = min(v, Dp[i] + STEP)
+                if i > 0: v = min(v, Dp[i - 1] + r2)
+                if i < nx_ - 1: v = min(v, Dp[i + 1] + r2)
+            Dj[i] = v
+    for j in range(nz_ - 1, -1, -1):
+        Dj = D[j]; Dn = D[j + 1] if j < nz_ - 1 else None
+        for i in range(nx_ - 1, -1, -1):
+            v = Dj[i]
+            if v == 0: continue
+            if i < nx_ - 1: v = min(v, Dj[i + 1] + STEP)
+            if Dn is not None:
+                v = min(v, Dn[i] + STEP)
+                if i < nx_ - 1: v = min(v, Dn[i + 1] + r2)
+                if i > 0: v = min(v, Dn[i - 1] + r2)
+            Dj[i] = v
+    return D
+
+
+def river_terrace(h0, X, Z, city):
+    """Etapa E0: nas margens do rio urbano o terreno vira um banco plano (terraco) de 15 m ao longo da agua, para o calcadao ribeirinho; depois sobe em talude suave"""
+    smooth = lambda w: w * w * (3 - 2 * w)
+    Dr, _ = G.poly_dist(X, Z, RIVER['pts'])
+    water = h0 < -0.2
+    src = water & (Dr < 200) & (Z > 520) & (Z < 2620)
+    if not src.any(): return None
+    D = _chamfer8(src)
+    zone = (Z > 600) & (Z < 2540)
+    fz = smooth(np.clip((Z - 600) / 70.0, 0, 1)) * smooth(np.clip((2540 - Z) / 80.0, 0, 1))
+    fac = np.ones_like(h0)
+    for e in city.edges:
+        if e['kind'] != 'bridge': continue
+        P = e['p']
+        for a, b in zip(P, P[1:]):
+            d, _ = G.seg_dist(X, Z, a, b)
+            fac = np.minimum(fac, smooth(np.clip((d - 34.0) / 40.0, 0, 1)))
+    dh = np.abs(h0 - YB_RIVER); sh = np.clip(4.0 * dh, 12.0, 70.0)
+    FL = 15.0
+    w = np.where(D <= FL, 1.0, smooth(np.clip(1.0 - (D - FL) / sh, 0, 1))) * (~water) * zone * fz * fac
+    out = [(w, 500.0 + D, np.full_like(h0, YB_RIVER))]
+    # lagoa (Praca da Lagoa): banco baixo (0,95 m) de 14 m em volta da agua
+    lx, lz, rx, rz = LAGOON
+    ell = np.hypot((X - lx) / (rx + 60), (Z - lz) / (rz + 60)) < 1.0
+    srcl = water & ell
+    if srcl.any():
+        Dl = _chamfer8(srcl); YL = 0.95
+        shl = np.clip(4.0 * np.abs(h0 - YL), 12.0, 40.0)
+        wl = np.where(Dl <= FL, 1.0, smooth(np.clip(1.0 - (Dl - FL) / shl, 0, 1))) * (~water) * ell
+        out.append((wl, 500.0 + Dl, np.full_like(h0, YL)))
+    return out
+
 def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
     """terraplenagem: cada vertice da grade de 8 m recebe a altura da rua MAIS PROXIMA no ponto projetado
     (nao a do ultimo ponto amostrado), plano ate HALF+FLAT_EXTRA e talude suave depois."""
@@ -135,6 +197,8 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
             else:
                 w = np.where(d <= flat, 1.0, smooth(np.clip(1.0 - (d - flat) / sh, 0, 1)))
             put(j0, j1, i0, i1, w, d, y)
+    if geo is not None:
+        for rt in (river_terrace(h0, X, Z, city) or []): put(0, N8Z, 0, N8X, rt[0], rt[1], rt[2])
     # platos dos lotes das casas (Etapa D): plano dentro do lote, talude suave fora
     if plateaus:
         import lots as _lots

@@ -35,6 +35,17 @@ ok_o, msg_o = validate_orla.run(gr, o, geo, hf)
 print(('PASSOU ' if ok_o else 'FALHOU ') + 'ETAPA C3: orla das praias (calcadao, escadas, pieres)')
 for m in msg_o: print(m)
 allok &= ok_o
+# ---- ETAPA E0: margens e bordas (enrocamento, calcadao ribeirinho, docas, molhes, farois)
+import margens
+mg = margens.Margens(gr, geo, hf, o, c.lotplan).build().jetties().reserve_lots()
+ok_m, msg_m = mg.validate()
+print(('PASSOU ' if ok_m else 'FALHOU ') + 'ETAPA E0: margens e bordas')
+for m in msg_m: print(m)
+allok &= ok_m
+json.dump(mg.items, open(os.path.join(out, 'margens.json'), 'w'), separators=(',', ':'))
+print(f'ETAPA E0: margens - enrocamento {mg.stats["rip_m"]:.0f} m, calcadao {mg.stats["prom_m"]:.0f} m, {mg.stats["rocks"]} blocos, {len(mg.items["docks"])} docas, {len(mg.items["boats"])} barcos, {len(mg.items["jetties"])} molhes')
+# pisos caminhaveis sobre a agua (pieres da orla e docas): o app usa para andar em cima
+json.dump({'piers': o.items['piers'], 'docks': mg.items['docks']}, open(os.path.join(out, 'decks.json'), 'w'), separators=(',', ':'))
 import validate_lots
 ok_l, msg_l = validate_lots.run(gr, c.lotplan, c, geo, hf)
 print(('PASSOU ' if ok_l else 'FALHOU ') + 'ETAPA D: lotes e as 17 casas')
