@@ -44,9 +44,9 @@ def run(gr, P, city, geo, hf):
         for j in range(i + 1, len(H)):
             a, b = H[i]['box'], H[j]['box']
             dx = max(a[0] - b[2], b[0] - a[2], 0); dz = max(a[1] - b[3], b[1] - a[3], 0); d = math.hypot(dx, dz)
-            if d < 6.0: close.append((H[i]['k'] + 1, H[j]['k'] + 1, round(d, 1)))
+            if d < 20.0: close.append((H[i]['k'] + 1, H[j]['k'] + 1, round(d, 1)))
     good = not close; ok &= good
-    out.append(f'  distancia minima entre casas >= 6 m: {len(close)} pares perto {"ok" if good else "PROBLEMA"}' + (' ' + str(close[:4]) if close else ''))
+    out.append(f'  distancia minima entre casas >= 20 m: {len(close)} pares perto {"ok" if good else "PROBLEMA"}' + (' ' + str(close[:4]) if close else ''))
     # 5) lotes (casas e comuns) nao se sobrepoem entre si
     W_, H_ = 4400, 3600
     cnt = np.zeros((H_, W_), np.uint8)
