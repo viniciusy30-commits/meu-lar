@@ -94,3 +94,9 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Avenidas: canteiro de grama dentro da calçada parecia buraco; agora calçada larga até o fim (faixa de concreto junto à guia + calçada) com covas de árvore.
 - Escadas da orla (e da praça-mirante): muros laterais inclinados cobrem a quina do calçadão e o talude de terreno (antes aparecia uma cunha gigante de areia/grama ao lado dos degraus).
 - Tiras de asfalto do canteiro central das avenidas também entram 0,3 m no cruzamento.
+
+## Revisão 5 (prints: travessia torta, lado verde, ciclovia cortada, poste/placa no piso)
+- Travessia da orla: construída como retângulo reto, perpendicular EXATA à avenida no centro da faixa de pedestre (antes usava a normal suavizada do calçadão: até 5° e 1,1 m de desvio em curvas). Largura = largura da faixa (3,5 m).
+- Lado "verde" da faixa: o jardim de grama entre a ciclovia e as vagas virou calçada contínua de concreto claro (mesmo nível do calçadão); a grama sumiu dali.
+- Ciclovia de MÃO DUPLA toda vermelha (3 a 7 m): linhas de borda brancas, tracejado central e setas de sentido (uma em cada faixa, a cada 55 m). A travessia de pedestres cruza por cima com barras brancas (zebra); a passagem NÃO corta mais a ciclovia.
+- Palmeiras com tronco curvo e folhas arqueadas direto no mesh (substituem os "toquinhos" cinza), em canteiro redondo na calçada (o = 8,3); postes de luz em o = 9,0; a orla desvia de postes/placas de trânsito (validado: 0 sobre a ciclovia, 0 colados).
