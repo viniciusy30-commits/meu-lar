@@ -384,9 +384,11 @@ class Ground:
             self.quad(ASPHALT, [(v[0], yc, v[1]) for v in p], COL['asph'], 'asphalt')
             # ilha central: grama + guia
             c0, c1 = P(Ri - 0.2, a0), P(Ri - 0.2, a1)
-            self.quad(PAVER, [(P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], COL['curb'], 'island')
+            o0, o1 = P(Ri + 0.06, a0), P(Ri + 0.06, a1)                 # a guia entra 6 cm no asfalto: sem fresta entre ilha e anel
+            self.quad(PAVER, [(o0[0], yc + CURB_H, o0[1]), (o1[0], yc + CURB_H, o1[1]), (c1[0], yc + CURB_H, c1[1]), (c0[0], yc + CURB_H, c0[1])], COL['curb'], 'island')
             self.B.quad(PLAIN, [(P(Ri, a0)[0], yc, P(Ri, a0)[1]), (P(Ri, a1)[0], yc, P(Ri, a1)[1]), (P(Ri, a1)[0], yc + CURB_H, P(Ri, a1)[1]), (P(Ri, a0)[0], yc + CURB_H, P(Ri, a0)[1])], (-math.cos((a0 + a1) / 2), 0, -math.sin((a0 + a1) / 2)), COL['curb'], None, True)
-            self.B.tri(GRASS, (nx, yc + CURB_H - 0.05, nz), (c0[0], yc + CURB_H - 0.05, c0[1]), (c1[0], yc + CURB_H - 0.05, c1[1]), (0, 1, 0), COL['grass'], None, True)
+            c0g, c1g = P(Ri - 0.1, a0), P(Ri - 0.1, a1)
+            self.B.tri(GRASS, (nx, yc + CURB_H - 0.05, nz), (c0g[0], yc + CURB_H - 0.05, c0g[1]), (c1g[0], yc + CURB_H - 0.05, c1g[1]), (0, 1, 0), COL['grass'], None, True)
             self.poly('island', [(nx, nz), c0, c1])
             # linha tracejada no meio do anel
             if q % 2 == 0:
@@ -410,6 +412,12 @@ class Ground:
                 self.quad(PAVER, [(Q0[0], yc + CURB_H, Q0[1]), (Q1[0], yc + CURB_H, Q1[1]), (S1[0], yc + CURB_H, S1[1]), (S0[0], yc + CURB_H, S0[1])], sc, 'sidewalk')
                 self.B.quad(PLAIN, [(S0[0], yc + CURB_H - 0.45, S0[1]), (S1[0], yc + CURB_H - 0.45, S1[1]), (S1[0], yc + CURB_H, S1[1]), (S0[0], yc + CURB_H, S0[1])], (math.cos((a0 + a1) / 2), 0, math.sin((a0 + a1) / 2)), COL['conc2'], None, True)
             self.fronts.append({'node': ni, 'zone': zone, 'kind': 'round', 'pts': [[round(v[0], 2), round(v[1], 2)] for v in [P(Ro + 0.2 + sw, g0 + (g1 - g0) * t / 8) for t in range(9)]], 'y': round(ny + SW_Y, 2)})
+        # remendo de asfalto sob a boca de cada braco: cobre a fresta fina entre o anel e o inicio do braco (o corte do braco fica como esta: o terreno usa ele)
+        for a in arms:
+            dx_, dz_ = a['d']; l_ = math.hypot(dx_, dz_) or 1.0; dx_ /= l_; dz_ /= l_; px_, pz_ = -dz_, dx_
+            r1 = Ro - 1.5; r2 = a['cut'] + 1.2; w_ = a['a']
+            self.quad(ASPHALT, [(nx + dx_ * r1 + px_ * w_, yc, nz + dz_ * r1 + pz_ * w_), (nx + dx_ * r2 + px_ * w_, yc, nz + dz_ * r2 + pz_ * w_),
+                                (nx + dx_ * r2 - px_ * w_, yc, nz + dz_ * r2 - pz_ * w_), (nx + dx_ * r1 - px_ * w_, yc, nz + dz_ * r1 - pz_ * w_)], COL['asph'], 'asphalt')
         self.round_info = getattr(self, 'round_info', []) + [{'node': ni, 'x': nx, 'z': nz, 'Ro': Ro, 'Ri': Ri, 'y': ny}]
         for a in arms:
             if a.get('xw'): self.crosswalk(ni, a, nx, nz, yc)
