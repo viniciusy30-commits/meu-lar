@@ -65,17 +65,20 @@ def red_bridge(B, rb, hf, deck_y, lookout_x):
         if abs(xp - xa) > 260: break
     xl, xr = (min(xa, xb), max(xa, xb))
     # --- tabuleiro: de lookout_x ate o portal
-    xs = sorted([lookout_x - sgn * 14.4, xp]); x0, x1 = xs          # o tabuleiro comeca na borda do mirante (nao dentro do retorno)
+    xs = sorted([lookout_x + sgn * 0.15, xp]); x0, x1 = xs          # o tabuleiro comeca exatamente onde a rua termina (no do mirante)
     yd = deck_y + 0.12
     W2 = 10.0
-    slab(B, x0, x1, zc - W2, zc + W2, yd - 0.4, yd, rgb('#3D3E42'), ASPHALT)                 # laje + asfalto (topo)
-    for off, col in ((-0.2, YEL), (0.2, YEL)):
-        slab(B, x0, x1, zc + off - 0.06, zc + off + 0.06, yd, yd + 0.02, col)
-    for off in (-3.5, 3.5):
-        n = int((x1 - x0) // 9)
-        for q in range(n): slab(B, x0 + q * 9 + 1, x0 + q * 9 + 4, zc + off - 0.06, zc + off + 0.06, yd, yd + 0.02, WHITE)
+    # secao igual a da rua que chega (coletora): pista +-6 m, guia, calcada ate +-10 m
+    slab(B, x0, x1, zc - W2, zc + W2, yd - 0.4, yd - 0.15, rgb('#8E8C86'), PAVER)                  # laje de concreto
+    slab(B, x0, x1, zc - 6.0, zc + 6.0, yd - 0.15, yd, rgb('#4A4A4E'), ASPHALT)                    # pista (mesma cor do asfalto da cidade)
+    for off in (-0.2, 0.2):
+        slab(B, x0, x1, zc + off - 0.06, zc + off + 0.06, yd, yd + 0.02, YEL)
+    for off in (-5.6, 5.6):
+        slab(B, x0, x1, zc + off - 0.06, zc + off + 0.06, yd, yd + 0.02, WHITE)
     for sg in (-1, 1):
-        slab(B, x0, x1, zc + sg * 7.2, zc + sg * 10.0, yd, yd + 0.15, CONC, PAVER)                  # calcada
+        slab(B, x0, x1, zc + sg * 6.0 - 0.1 if sg > 0 else zc - 6.2, zc + sg * 6.2 if sg > 0 else zc - 6.0 + 0.1, yd, yd + 0.15, CONC2, PAVER)   # guia
+        lo, hi = (zc + 6.2, zc + 10.0) if sg > 0 else (zc - 10.0, zc - 6.2)
+        slab(B, x0, x1, lo, hi, yd, yd + 0.15, CONC, PAVER)                                                              # calcada
         slab(B, x0, x1, zc + sg * 10.0 - 0.25, zc + sg * 10.0 + 0.25, yd, yd + 1.15, CONC2, PAVER)  # mureta
         bar(B, (x0, yd + 1.3, zc + sg * 10.0), (x1, yd + 1.3, zc + sg * 10.0), 0.12, OR1)             # corrimao
         for xx in range(int(x0), int(x1), 3):
