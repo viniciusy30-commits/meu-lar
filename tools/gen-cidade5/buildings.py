@@ -216,6 +216,18 @@ class Gen:
     def garden_common(self, F, yb, sf, ss, trees=2, gate_u=None):
         """muro frontal baixo + arvores"""
         w = F.w
+        sp = getattr(self, 'cur', None) or {}
+        if sp.get('yard'):
+            self.yard_fence(F, yb, sp, sf)
+            if sp.get('front') == 'picket':
+                g0 = gate_u if gate_u is not None else w * 0.3
+                for (a, b) in ((0.3, g0 - 0.7), (g0 + 0.7, w - 0.3)):
+                    if b - a > 0.3:
+                        self.box(F, a, b, 0.35, 0.45, yb + 0.25, yb + 0.85, TRIM, WOOD)
+                        self.box(F, a, b, 0.33, 0.47, yb - 0.05, yb + 0.12, TRIM, WOOD)
+            for _ in range(trees):
+                self.tree(F, self.rnd.uniform(1.5, w - 1.5), self.rnd.uniform(1.2, max(1.6, sf - 1.0)) if self.rnd.random() < 0.5 else self.rnd.uniform(F.d - 6, F.d - 2))
+            return
         wc = self.rnd.choice((TRIM, rgb('#E6D5C3'), rgb('#B8B2A6'), rgb('#C9B79C')))
         if self.rnd.random() < 0.7:
             g0 = gate_u if gate_u is not None else w / 2
@@ -224,6 +236,23 @@ class Gen:
             side = self.rnd.choice((0, 1))
             self.tree(F, self.rnd.uniform(1.0, w - 1.0), self.rnd.uniform(1.5, max(2.0, sf - 0.5)) if side == 0 else self.rnd.uniform(F.d - 5, F.d - 1.5))
 
+    def yard_fence(self, F, yb, sp, sf):
+        """quintal cercado (bairro americano): cerca alta de madeira nas laterais (do meio da casa para tras) e no fundo"""
+        w, d = F.w, F.d; col = sp.get('fcol', rgb('#B08A5E')); h = 1.8
+        v0 = min(d - 4.0, sf + 6.0)
+        if d - v0 < 3: return
+        back = d - (sf + 13.0)
+        if back > 7.5 and w > 11 and self.rnd.random() < 0.6:                                     # edicula / garagem de fundo
+            eu0 = self.rnd.choice((0.8, w - 0.8 - 5.0)); ev1 = d - 0.9; ev0 = ev1 - min(5.5, back - 2.0)
+            wc = self.rnd.choice((rgb('#E9E4D8'), rgb('#D8CBB4'), rgb('#C9B79C'), rgb('#B5654A')))
+            self.box(F, eu0, eu0 + 5.0, ev0, ev1, yb, yb + 2.7, wc, PLASTER, False)
+            self.gable_roof(F, eu0, eu0 + 5.0, ev0, ev1, yb + 2.7, 1.1, self.rnd.choice(ROOFS), ridge_u=False, over=0.3)
+            self.solid_rect(F, eu0, eu0 + 5.0, ev0, ev1)
+        self.box(F, w - 0.18, w - 0.04, v0, d - 0.1, yb - 0.05, yb + h, col, WOOD)                 # lateral direita
+        if sp.get('first'): self.box(F, 0.04, 0.18, v0, d - 0.1, yb - 0.05, yb + h, col, WOOD)     # primeira do quarteirao: esquerda tambem
+        self.box(F, 0.04, w - 0.04, d - 0.24, d - 0.1, yb - 0.05, yb + h, col, WOOD)              # fundo
+        self.box(F, 0.04, w - 0.04, d - 0.27, d - 0.23, yb + h - 0.12, yb + h - 0.02, shade(col, -25), WOOD, False)
+
     def drive(self, F, u, w, vlen, y):
         B = self.B
         q = [F.pt(u - w / 2, 0.0, y + 0.03), F.pt(u + w / 2, 0.0, y + 0.03), F.pt(u + w / 2, vlen, y + 0.03), F.pt(u - w / 2, vlen, y + 0.03)]
@@ -231,7 +260,7 @@ class Gen:
 
     def casa_terrea(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(1.8, 3.0); sf = rnd.uniform(4.0, 6.5); df = min(rnd.uniform(8.5, 12.0), d - sf - 3.0)
+        ss = sp.get('ss') or rnd.uniform(1.8, 3.0); sf = sp.get('sf') or rnd.uniform(4.0, 6.5); df = min(rnd.uniform(11.0, 14.5), d - sf - 6.0 if d > sf + 18 else d - sf - 3.0)
         if df < 6: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
         gar = rnd.random() < 0.8 and (u1 - u0) > 9
@@ -259,7 +288,7 @@ class Gen:
 
     def sobrado(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(1.5, 2.6); sf = rnd.uniform(3.5, 5.5); df = min(rnd.uniform(9.0, 13.0), d - sf - 3.0)
+        ss = sp.get('ss') or rnd.uniform(1.5, 2.6); sf = sp.get('sf') or rnd.uniform(3.5, 5.5); df = min(rnd.uniform(11.0, 14.5), d - sf - 6.0 if d > sf + 18 else d - sf - 3.0)
         if df < 7: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
         self.foundation(F, u0, u1, v0, v1, yb, yb + 0.25)
@@ -283,7 +312,7 @@ class Gen:
 
     def casa_moderna(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(2.0, 3.2); sf = rnd.uniform(5.0, 7.5); df = min(rnd.uniform(10.0, 14.0), d - sf - 3.5)
+        ss = sp.get('ss') or rnd.uniform(2.0, 3.2); sf = sp.get('sf') or rnd.uniform(5.0, 7.5); df = min(rnd.uniform(10.0, 14.0), d - sf - 3.5)
         if df < 8: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
         wall = rnd.choice((rgb('#F4F4F2'), rgb('#E7E5DF'), rgb('#CFCFCB'), rgb('#3F4247'), rgb('#D8CBB4')))
@@ -315,7 +344,7 @@ class Gen:
 
     def colonial(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(2.0, 3.0); sf = rnd.uniform(5.0, 7.0); df = min(rnd.uniform(10.0, 13.0), d - sf - 3.0)
+        ss = sp.get('ss') or rnd.uniform(2.0, 3.0); sf = sp.get('sf') or rnd.uniform(5.0, 7.0); df = min(rnd.uniform(10.0, 13.0), d - sf - 3.0)
         if df < 8: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
         floors = rnd.choice((1, 2)); fh = 3.0
@@ -346,7 +375,7 @@ class Gen:
 
     def geminadas(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        n = 2 if w < 20 else rnd.choice((2, 3)); ss = 0.6; sf = rnd.uniform(2.5, 4.0); df = min(rnd.uniform(9.0, 12.0), d - sf - 2.5)
+        n = 2 if w < 20 else rnd.choice((2, 3)); ss = 0.6; sf = sp.get('sf') or rnd.uniform(2.5, 4.0); df = min(rnd.uniform(9.0, 12.0), d - sf - 2.5)
         if df < 7: return False
         uw = (w - 2 * ss) / n
         cols = rnd.sample(WALLS_BRIGHT + WALLS_WARM, min(3, n)) if rnd.random() < 0.8 else [sp['wall']] * n
@@ -368,7 +397,7 @@ class Gen:
 
     def mansao(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(3.5, 5.5); sf = rnd.uniform(7.0, 10.0)
+        ss = sp.get('ss') or rnd.uniform(3.5, 5.5); sf = sp.get('sf') or rnd.uniform(7.0, 10.0)
         df = min(rnd.uniform(11.0, 15.0), d - sf - 4.0)
         if df < 9 or w < 18: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
@@ -402,7 +431,7 @@ class Gen:
 
     def predio_apto(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
-        ss = rnd.uniform(2.2, 3.5); sf = rnd.uniform(5.0, 8.0); df = min(rnd.uniform(14.0, 20.0), d - sf - 3.0)
+        ss = sp.get('ss') or rnd.uniform(2.2, 3.5); sf = sp.get('sf') or rnd.uniform(5.0, 8.0); df = min(rnd.uniform(14.0, 20.0), d - sf - 3.0)
         if df < 10 or w < 14: return False
         u0, u1 = ss, w - ss; v0, v1 = sf, sf + df
         fl = sp['floors']; fh = 3.0; yb0 = yb + 0.6
@@ -429,7 +458,7 @@ class Gen:
     def torre(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
         fl = sp['floors']; fh = 3.2
-        ss = rnd.uniform(1.0, 2.2); sf = rnd.uniform(1.5, 3.5)
+        ss = sp.get('ss') or rnd.uniform(1.0, 2.2); sf = sp.get('sf') or rnd.uniform(1.5, 3.5)
         pv1 = min(d - 2.0, sf + rnd.uniform(26.0, 34.0))
         if pv1 - sf < 16 or w < 20: return False
         u0, u1 = ss, w - ss; v0 = sf
@@ -473,7 +502,7 @@ class Gen:
     def comercial(self, F, yb, sp):
         rnd = self.rnd; w, d = F.w, F.d
         fl = sp['floors']; fh = 3.1
-        sf = rnd.choice((0.5, 0.5, 1.5)); df = min(rnd.uniform(14.0, 22.0), d - sf - 2.5)
+        sf = sp.get('sf') or rnd.choice((0.5, 0.5, 1.5)); df = min(rnd.uniform(14.0, 22.0), d - sf - 2.5)
         if df < 9: return False
         u0, u1 = 0.4, w - 0.4; v0, v1 = sf, sf + df
         yb0 = yb + 0.25
@@ -654,6 +683,55 @@ class Gen:
             if r <= acc: return k
         return 'vago'
 
+    FAMILIAS = (('terrea', 'sobrado'), ('sobrado', 'colonial'), ('moderna', 'sobrado'), ('colonial', 'terrea'), ('terrea', 'moderna'), ('sobrado', 'terrea'))
+    FENCE_COLS = [rgb(c) for c in ('#B08A5E', '#9C7A55', '#C4A27A', '#8C6B4A', '#E9E4D8', '#7E6A58')]
+
+    def pick_char(self, l, ch, bairro):
+        """construcao conforme o carater da rua: a mesma familia de construcoes e o mesmo recuo de ponta a ponta"""
+        rf = random.Random(l['front'] * 7919 + 17); st = l.get('style', 0.5); rnd = self.rnd
+        w, d = l['w'], l['d']
+        def roll(t):
+            r = rnd.random() * sum(t.values()); a = 0.0
+            for k, v in t.items():
+                a += v
+                if r <= a: return k
+            return k
+        ex = {}
+        if ch == 'centro':
+            if w >= 22 and d >= 26: k = roll({'torre': .45, 'apto': .25, 'comercial': .25, 'hotel': .05})
+            else: k = roll({'apto': .5, 'comercial': .5})
+            ex['sf'] = 0.6; ex['ss'] = 0.4
+        elif ch == 'centro2':
+            k = roll({'apto': .45, 'comercial': .35, 'geminadas': .2}); ex['sf'] = 1.0; ex['ss'] = 0.5
+        elif ch == 'orla':
+            k = roll({'hotel': .35, 'torre': .35, 'apto': .3}) if w >= 22 and d >= 26 else 'apto'
+        elif ch == 'avenida':
+            k = roll({'comercial': .45, 'apto': .25, 'mercado': .1, 'posto': .06, 'galpao': .07, 'igreja': .03, 'escola': .04}); ex['sf'] = 1.0 if k == 'comercial' else None
+        elif ch == 'misto':
+            fam = rf.choice((('apto', 'sobrado'), ('sobrado', 'geminadas'), ('apto', 'comercial'), ('geminadas', 'comercial')))
+            k = fam[0] if rnd.random() < 0.65 else fam[1]
+            ex['sf'] = l.get('setback') or None
+        elif ch == 'nobre':
+            k = roll({'mansao': .45, 'moderna': .35, 'colonial': .2}) if w >= 23 else roll({'moderna': .6, 'colonial': .4})
+            ex['sf'] = l.get('setback') or None; ex['yard'] = True; ex['fcol'] = rf.choice(self.FENCE_COLS)
+        elif ch == 'condo_predio':
+            k = 'apto'; ex['sf'] = 3.0
+        elif ch == 'condo':
+            fam = self.FAMILIAS[int(st * len(self.FAMILIAS)) % len(self.FAMILIAS)]
+            k = fam[0] if rnd.random() < 0.8 else fam[1]
+            ex['sf'] = 4.5; ex['ss'] = 1.6; ex['yard'] = True; ex['front'] = 'aberto'
+            ex['fcol'] = self.FENCE_COLS[int(l.get('fcol', 0.5) * len(self.FENCE_COLS)) % len(self.FENCE_COLS)]; ex['first'] = l.get('pos', 0) == 0
+        else:   # suburbio: rua de casas, mesma familia e mesmo recuo, quintal cercado
+            fam = self.FAMILIAS[int(st * len(self.FAMILIAS)) % len(self.FAMILIAS)]
+            if bairro == 'Vila Esperança': fam = ('terrea', 'geminadas')
+            if bairro in ('Alto da Colina', 'Península Real'): fam = ('moderna', 'colonial')
+            k = fam[0] if rnd.random() < 0.7 else fam[1]
+            if rnd.random() < 0.012: k = 'pracinha'
+            ex['sf'] = l.get('setback') or 5.5; ex['ss'] = rf.choice((1.5, 1.8, 2.1)); ex['yard'] = True
+            ex['front'] = 'picket' if rf.random() < 0.35 else 'aberto'; ex['fcol'] = rf.choice(self.FENCE_COLS)
+            ex['first'] = l.get('pos', 0) == 0
+        return k, {a: b for a, b in ex.items() if b is not None}
+
     def spec(self, kind, zone, bairro):
         rnd = self.rnd
         if zone == 'orla': walls = WALLS_BRIGHT + WALLS_WARM[:3]
@@ -680,8 +758,10 @@ class Gen:
             rect = l['rect']; F = Frame(rect)
             cx, cz = F.xz(F.w / 2, F.d / 2)
             zone = self.zone(cx, cz); br = self.bairro(cx, cz)
-            kind = self.pick(1 if (l.get('inner') and zone == 'centro') else l['lvl'], zone, br)
-            if l.get('inner') and zone != 'centro' and kind in ('torre', 'hotel', 'comercial', 'mercado', 'posto', 'galpao', 'igreja', 'escola', 'mansao'): kind = self.rnd.choice(('apto', 'sobrado', 'terrea', 'moderna', 'geminadas', 'colonial'))
+            ch = l.get('char')
+            if ch: kind, extra = self.pick_char(l, ch, br)
+            else:
+                kind = self.pick(l['lvl'], zone, br); extra = {}
             # altura da base: media do terreno no miolo do lote; muito inclinado vira jardim
             hs = [self.sample(*F.xz(u * F.w, v * F.d)) for u in (0.2, 0.5, 0.8) for v in (0.2, 0.5, 0.8)]
             level = l['slope'] <= T.LOT_SLOPE_MAX
@@ -690,6 +770,7 @@ class Gen:
                 self.stats['v_slope'] = self.stats.get('v_slope', 0) + 1; kind = 'vago'
             sp = self.spec('torre' if kind == 'hotel' else kind, zone, br)
             if kind == 'hotel': sp['hotel'] = True
+            sp.update(extra); self.cur = sp
             fn = {'terrea': self.casa_terrea, 'sobrado': self.sobrado, 'moderna': self.casa_moderna, 'colonial': self.colonial, 'geminadas': self.geminadas, 'mansao': self.mansao,
                   'apto': self.predio_apto, 'torre': self.torre, 'hotel': self.torre, 'comercial': self.comercial, 'igreja': self.igreja, 'escola': self.escola, 'posto': self.posto,
                   'mercado': self.mercado, 'galpao': self.galpao, 'pracinha': self.pracinha, 'vago': self.vago}[kind]
@@ -698,7 +779,8 @@ class Gen:
                 altk = {'torre': 'apto', 'hotel': 'apto', 'apto': 'sobrado', 'mansao': 'moderna', 'comercial': 'sobrado', 'igreja': 'sobrado', 'escola': 'sobrado',
                         'posto': 'comercial', 'mercado': 'comercial', 'galpao': 'comercial', 'moderna': 'terrea', 'colonial': 'terrea', 'sobrado': 'terrea'}.get(kind, 'terrea')
                 fn2 = {'terrea': self.casa_terrea, 'sobrado': self.sobrado, 'moderna': self.casa_moderna, 'apto': self.predio_apto, 'comercial': self.comercial}[altk]
-                ok = fn2(F, yb, self.spec(altk, zone, br))
+                sp2 = self.spec(altk, zone, br); sp2.update(extra); self.cur = sp2
+                ok = fn2(F, yb, sp2)
                 if not ok and altk != 'terrea': ok = self.casa_terrea(F, yb, self.spec('terrea', zone, br)); altk = 'terrea'
                 if not ok: self.vago(F, yb, sp); kind = 'vago'; self.stats['v_fail'] = self.stats.get('v_fail', 0) + 1
                 else: kind = 'alt_' + kind
@@ -706,4 +788,50 @@ class Gen:
             if kind == 'vago' and ok is True and self.stats.get('v_pick') is not None: pass
             self.items.append({'id': l['id'], 'kind': kind, 'zone': zone, 'bairro': br})
         self.kinds = counts
+        # vielas dos condominios (bloquete), em pedacos de ~8 m acompanhando o terreno
+        for q in getattr(P, 'lanes', []):
+            a, b, c, d = q
+            L = math.hypot(b[0] - a[0], b[1] - a[1]); n = max(1, int(L / 3.0)); m = 3
+            def P_(t, s_):
+                x0, z0 = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t; x1, z1 = d[0] + (c[0] - d[0]) * t, d[1] + (c[1] - d[1]) * t
+                x, z = x0 + (x1 - x0) * s_, z0 + (z1 - z0) * s_
+                return (x, self.sample(x, z) + 0.28, z)
+            for k in range(n):
+                for j in range(m):
+                    t0, t1, s0, s1 = k / n, (k + 1) / n, j / m, (j + 1) / m
+                    self.B.quad(PAVER, [P_(t0, s0), P_(t1, s0), P_(t1, s1), P_(t0, s1)], (0, 1, 0), rgb('#BDB6A8'), None, True)
+            # meio-fio das vielas
+            for (p0, p1) in ((a, b), (d, c)):
+                for k in range(n):
+                    t0, t1 = k / n, (k + 1) / n
+                    x0, z0 = p0[0] + (p1[0] - p0[0]) * t0, p0[1] + (p1[1] - p0[1]) * t0; x1, z1 = p0[0] + (p1[0] - p0[0]) * t1, p0[1] + (p1[1] - p0[1]) * t1
+                    y = min(self.sample(x0, z0), self.sample(x1, z1))
+                    dx, dz = x1 - x0, z1 - z0; ll = math.hypot(dx, dz) or 1; nx, nz = -dz / ll * 0.12, dx / ll * 0.12
+                    self.B.obox_pts([(x0 - nx, z0 - nz), (x1 - nx, z1 - nz), (x1 + nx, z1 + nz), (x0 + nx, z0 + nz)], y - 0.1, y + 0.22, rgb('#D9D4C8'), STONE, True, False)
         return self
+
+
+def write_sub2(B, path):
+    """SUB2: mesmo cabecalho do SUB1, vertice compacto de 20 bytes:
+    posicao int16 x3 (unidade 2 cm, relativa ao canto da celula de 64 m), normal int8 x3 (*127), uv float32 x2, cor uint8 x3"""
+    import struct
+    dt = np.dtype([('p', '<i2', 3), ('n', 'i1', 3), ('uv', '<f4', 2), ('c', 'u1', 3)])
+    assert dt.itemsize == 20
+    recs = [(cell, mat, v) for (cell, mat), v in sorted(B.tris.items()) if v]
+    with open(path, 'wb') as f:
+        f.write(b'SUB2'); f.write(struct.pack('<i', len(recs)))
+        for cell, mat, verts in recs:
+            a = np.array(verts, dtype=np.float64)
+            ox, oz = (cell % 1000) * 64.0, (cell // 1000) * 64.0
+            rel = np.stack([a[:, 0] - ox, a[:, 1], a[:, 2] - oz], 1) * 50.0
+            if np.abs(rel).max() >= 32760:
+                bad = np.nonzero(np.abs(rel).max(1) >= 32760)[0]; print('SUB2: vertices fora da faixa', cell, mat, len(bad), a[bad[:3], :3].tolist())
+                keep = np.ones(len(a), bool)
+                for t in set((bad // 3).tolist()): keep[t * 3:t * 3 + 3] = False
+                a = a[keep]; rel = rel[keep]
+                if not len(a): continue
+            o = np.zeros(len(a), dt)
+            o['p'] = np.round(rel).astype('<i2'); o['n'] = np.round(np.clip(a[:, 3:6], -1, 1) * 127).astype('i1')
+            o['uv'] = a[:, 6:8].astype('<f4'); o['c'] = a[:, 8:11].astype('u1')
+            f.write(struct.pack('<iiif', cell, mat, len(a), float(a[:, 1].max()))); f.write(o.tobytes())
+    return len(recs)

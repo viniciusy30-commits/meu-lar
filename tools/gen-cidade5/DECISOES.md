@@ -156,3 +156,9 @@ A cidade é cercada de água (mar ao sul, canais a oeste e leste, rio no meio, l
 - **Forte do Farol** (`cais.forte`): no fim do molhe de 7 m, três patamares de pedra (raios 17 / 10,5 / 6,2 m, degraus de 1,7 / 4 / 3,8 m) com merlons, escadas largas, canhões, casa do faroleiro, 4 postes e o farol alto (`lighthouse2`: base de pedra, 6 faixas afuniladas, galeria, lanterna de 8 vidros, para-raios). Os patamares são andáveis (PAVER) e a muralha tem colisão.
 - **Fundo raso** (`terrain_final`): junto dos cais, do rio urbano e da lagoa o leito sobe para uma plataforma de ~7 % de declive; a água mostra o degradê turquesa e deixa de ficar "colada" no chão.
 - **Relevo**: colinas suaves (até ~3,5 m) em volta das pontas, fora do parque e a 26 m ou mais da água.
+
+## Revisão 9 — Etapa E refeita (loteamento por quadra)
+- Lotes por lado de rua com o MESMO caráter de ponta a ponta (largura, recuo, família de casas): subúrbio (14,5–17,5 m, quintal cercado, cerca de madeira, às vezes cerquinha branca na frente), misto, avenida comercial, centro (prédios colados), orla (hotéis/torres), nobre (só no alto dos morros).
+- Fundos encostados no meio da quadra (profundidade = metade da largura da quadra); nas quadras pequenas só os lados compridos recebem lote primeiro, as pontas completam onde couber.
+- Miolo de superquadra plano vira condomínio (vielas de bloquete + casas iguais; prédios no centro); miolo em morro vira mata.
+- c5_bld.bin em formato SUB2 (vértice de 20 bytes: posição int16 em 2 cm relativa à célula, normal int8, uv float, cor) — o app expande para o layout SUB1 ao ler.

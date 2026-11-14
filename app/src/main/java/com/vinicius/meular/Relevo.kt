@@ -43,7 +43,7 @@ object Relevo {
     /** Etapa 185: Cidade 3 (bairro americano): lê sub.bin + sub.json + sub_mesh.bin (casas, cercas, carros... já montados) */
     @Volatile var sub = false
     /** registro da malha assada: onde estão os vértices no arquivo (nada é guardado na memória até o pedaço ser montado) */
-    private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
+    private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0, val vb: Int = 35, val cell: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
     private val subIdx = HashMap<Int, ArrayList<SubRec>>()
     private var subFile: java.io.RandomAccessFile? = null
     private var subFile2: java.io.RandomAccessFile? = null     // Etapa E: malha das construções
@@ -170,28 +170,48 @@ object Relevo {
             val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
             val raf = java.io.RandomAccessFile(f, "r")
             try {
-                hd.clear(); raf.readFully(hd.array(), 0, 8); hd.position(4)
+                hd.clear(); raf.readFully(hd.array(), 0, 8)
+                val vb = if (hd.get(0) == 'S'.code.toByte() && hd.get(3) == '2'.code.toByte()) SUB2_VB else SUB_VB   // SUB2: vértice compacto
+                hd.position(4)
                 val n = hd.getInt()
                 var pos = 8L
                 for (r in 0 until n) {
                     raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
                     val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
-                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, 1))
-                    pos += 16L + nv.toLong() * SUB_VB
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, 1, vb, cell))
+                    pos += 16L + nv.toLong() * vb
                 }
                 subFile2 = raf
             } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
         } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e") }
     }
 
+    private const val SUB2_VB = 20  // SUB2: posição int16 x3 (2 cm, relativa ao canto da célula), normal int8 x3, uv 2 floats, cor 3 bytes
+
+    /** SUB2 -> layout SUB1 (8 floats + 3 bytes por vértice), para o resto do código não mudar */
+    private fun expandSub2(src: ByteArray, nv: Int, cell: Int): ByteArray {
+        val i = ByteBuffer.wrap(src).order(ByteOrder.LITTLE_ENDIAN)
+        val out = ByteArray(nv * SUB_VB); val o = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN)
+        val ox = (cell % 1000) * 64f; val oz = (cell / 1000) * 64f
+        for (k in 0 until nv) {
+            val a = k * SUB2_VB; val b = k * SUB_VB
+            o.putFloat(b, i.getShort(a) / 50f + ox); o.putFloat(b + 4, i.getShort(a + 2) / 50f); o.putFloat(b + 8, i.getShort(a + 4) / 50f + oz)
+            o.putFloat(b + 12, i.get(a + 6) / 127f); o.putFloat(b + 16, i.get(a + 7) / 127f); o.putFloat(b + 20, i.get(a + 8) / 127f)
+            o.putFloat(b + 24, i.getFloat(a + 9)); o.putFloat(b + 28, i.getFloat(a + 13))
+            out[b + 32] = src[a + 17]; out[b + 33] = src[a + 18]; out[b + 34] = src[a + 19]
+        }
+        return out
+    }
+
     private fun readSub(rc: SubRec): ByteBuffer {
-        val n = rc.nv * SUB_VB
+        val n = rc.nv * (if (rc.src == 1) rc.vb else SUB_VB)
         val mem = subMem
-        val bytes = if (mem != null) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
+        val bytes0 = if (mem != null && rc.src == 0) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
             val b = ByteArray(n)
             synchronized(subLock) { val raf = (if (rc.src == 1) subFile2 else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
             b
         }
+        val bytes = if (rc.src == 1 && rc.vb == SUB2_VB) expandSub2(bytes0, rc.nv, rc.cell) else bytes0
         return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     }
     @Volatile var worldW = 3200f
