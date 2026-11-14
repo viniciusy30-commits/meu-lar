@@ -52,6 +52,48 @@ object Relevo {
     /** pasta de dados do app (MainActivity): a malha assada é copiada para lá uma vez e lida por pedaços */
     @JvmField @Volatile var dataDir: java.io.File? = null
 
+    /** Cidade 5: altura do chão pavimentado a cada [wst] m (asfalto, calçada, orla, ponte); -32768 = sem pavimento */
+    private var walk = ShortArray(0)
+    /** Cidade 5: 1 = vértice de areia de praia (o resto, mesmo baixo, é grama: margens de rio/lagoa sem "degraus" de areia) */
+    private var sandMask = ByteArray(0)
+    private fun loadSand(am: AssetManager) {
+        val bb = ByteBuffer.wrap(am.open("hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        val sx = bb.getInt(); val sz = bb.getInt()
+        sandMask = if (sx == nx && sz == nz) ByteArray(sx * sz).also { bb.get(it) } else ByteArray(0)
+    }
+    private fun sandAt(i: Int, j: Int): Boolean = sandMask[j.coerceIn(0, nz - 1) * nx + i.coerceIn(0, nx - 1)].toInt() != 0
+    private var wnx = 0
+    private var wnz = 0
+    private var wst = 2f
+    /** lê o mapa de altura de caminhada em blocos (sem ler os 8 MB inteiros de uma vez para a memória) */
+    private fun loadWalk(am: AssetManager) {
+        am.open("hds/c5_walk.bin").use { raw ->
+            val ins = java.io.BufferedInputStream(raw, 1 shl 16)
+            val hd = ByteArray(12); var got = 0
+            while (got < 12) { val n = ins.read(hd, got, 12 - got); if (n < 0) throw java.io.EOFException(); got += n }
+            val hb = ByteBuffer.wrap(hd).order(ByteOrder.LITTLE_ENDIAN)
+            wnx = hb.getInt(); wnz = hb.getInt(); wst = hb.getFloat()
+            val w = ShortArray(wnx * wnz)
+            val buf = ByteArray(1 shl 16); var k = 0
+            while (k < w.size) {
+                val want = minOf(buf.size, (w.size - k) * 2)
+                var r = 0
+                while (r < want) { val n = ins.read(buf, r, want - r); if (n < 0) throw java.io.EOFException(); r += n }
+                val bb = ByteBuffer.wrap(buf, 0, want).order(ByteOrder.LITTLE_ENDIAN)
+                var q = 0
+                while (q < want) { w[k++] = bb.getShort(q); q += 2 }
+            }
+            walk = w
+        }
+    }
+    private fun walkAt(x: Float, z: Float): Float {
+        if (walk.isEmpty()) return Float.NaN
+        val i = Math.round((x - CX) / wst); val j = Math.round((z - CZ) / wst)
+        if (i < 0 || j < 0 || i >= wnx || j >= wnz) return Float.NaN
+        val v = walk[j * wnx + i].toInt()
+        return if (v == -32768) Float.NaN else v / 100f
+    }
+
     /** colisões do bairro (x0, z0, x1, z1) já em coordenadas do mundo */
     fun subSolids(): List<FloatArray> {
         val l = ArrayList<FloatArray>()
