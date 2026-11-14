@@ -29,7 +29,20 @@ class Bake:
         self.ntri = 0
 
     # ---- primitivas -----------------------------------------------------------------------------
-    def tri(self, mat, p0, p1, p2, n, col, uv=None, lit=True):
+    def tri(self, mat, p0, p1, p2, n, col, uv=None, lit=True, _depth=0):
+        # triangulo maior que 56 m e dividido (borda mais longa): o app so guarda/desenha por celula de 64 m pelo centroide;
+        # um tabuleiro de 600 m numa unica celula some quando essa celula sai da vista
+        if _depth < 14:
+            xs = (p0[0], p1[0], p2[0]); zs = (p0[2], p1[2], p2[2])
+            if max(xs) - min(xs) > 56.0 or max(zs) - min(zs) > 56.0:
+                u = uv if uv is not None else ((p0[0], p0[2]), (p1[0], p1[2]), (p2[0], p2[2]))
+                P = (p0, p1, p2)
+                lens = [((P[i][0] - P[(i + 1) % 3][0]) ** 2 + (P[i][1] - P[(i + 1) % 3][1]) ** 2 + (P[i][2] - P[(i + 1) % 3][2]) ** 2) for i in range(3)]
+                i = lens.index(max(lens)); j = (i + 1) % 3; k = (i + 2) % 3
+                m = tuple((P[i][q] + P[j][q]) / 2.0 for q in range(3)); mu = ((u[i][0] + u[j][0]) / 2.0, (u[i][1] + u[j][1]) / 2.0)
+                self.tri(mat, P[i], m, P[k], n, col, (u[i], mu, u[k]), lit, _depth + 1)
+                self.tri(mat, m, P[j], P[k], n, col, (mu, u[j], u[k]), lit, _depth + 1)
+                return
         ax, ay, az = p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]
         bx, by, bz = p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]
         gx, gy, gz = ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx

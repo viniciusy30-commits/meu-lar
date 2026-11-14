@@ -180,24 +180,45 @@ class Orla:
         tdx, tdz = f['tx'] * so, f['tz'] * so                      # sentido para fora da ponta
         sea = (-f['nx'], -f['nz'])
         def dry(x, z, pad=0.0): return self.sample(x, z) > -0.05 and not self.geo.is_water(x, z)
+        def shallow(x, z): return self.sample(x, z) > -2.2
         Rr = None
-        for cand in (13.0, 11.5, 10.0, 8.5, 7.0):
-            cx = f['x'] + tdx * cand * 0.85; cz = f['z'] + tdz * cand * 0.85
-            ok = all(dry(cx + math.cos(a_ * math.pi / 8) * (cand + 2.5), cz + math.sin(a_ * math.pi / 8) * (cand + 2.5)) for a_ in range(16)) and dry(cx, cz)
+        if not hasattr(self, '_street_occ'):
+            import validate_ground
+            from PIL import ImageFilter
+            M = validate_ground.raster(self.g, ['asphalt', 'sidewalk', 'curb', 'median', 'island'])
+            m = M['asphalt'] | M['sidewalk'] | M['curb'] | M['median'] | M['island']
+            self._street_occ = m
+        occ = self._street_occ
+        def free(cx, cz, R):
+            for a_ in range(0, 72):
+                for rr_ in (R, R * 0.7, R * 0.4):
+                    x, z = int(cx + math.cos(a_ * math.pi / 36) * rr_), int(cz + math.sin(a_ * math.pi / 36) * rr_)
+                    if 0 <= z < occ.shape[0] and 0 <= x < occ.shape[1] and occ[z, x]: return False
+            return True
+        for cand in (16.5, 15.5, 14.5, 13.0, 11.5, 10.0, 8.5, 7.0):
+            off = cand * 0.85
+            cx = f['x'] + tdx * off; cz = f['z'] + tdz * off
+            chk = shallow if cand >= 14 else dry
+            ok = all(chk(cx + math.cos(a_ * math.pi / 8) * (cand + 2.5), cz + math.sin(a_ * math.pi / 8) * (cand + 2.5)) for a_ in range(16)) and chk(cx, cz)
+            if ok and cand >= 14 and not free(cx, cz, cand + 1.0): ok = False
             if ok: Rr = cand; break
         if Rr is None:                                              # sem espaco (rio/mar): so um murinho de fechamento
             c4 = [(self.P(f, o, 0, 0.0)[0], self.P(f, o, 0, 0.0)[2]) for o in (-HALF_W - 0.35, GARDEN_O + 0.2)] + [(self.P(f, o, 0, 0.45 * so)[0], self.P(f, o, 0, 0.45 * so)[2]) for o in (GARDEN_O + 0.2, -HALF_W - 0.35)]
             self.B.obox_pts(c4, YPf - 1.6, YPf + 1.0, COL['wall'], STONE, True, False); return
-        cx = f['x'] + tdx * Rr * 0.85; cz = f['z'] + tdz * Rr * 0.85
+        off = Rr * 0.85
+        cx = f['x'] + tdx * off; cz = f['z'] + tdz * off
         ring = [(cx + math.cos(a_ * math.pi / 18) * Rr, cz + math.sin(a_ * math.pi / 18) * Rr) for a_ in range(36)]
         ground_lo = min(min(self.sample(x, z) for x, z in ring), self.sample(cx, cz)) - 0.4
         ang_in = math.atan2(-tdz, -tdx); ang_sea = math.atan2(sea[1], sea[0])
         def angdiff(a, b): return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
         # piso: setores de 10 graus em aneis, padrao radial claro/escuro + anel vermelho (continua a ciclovia)
-        NSEG = 36
+        NSEG = 48 if Rr >= 13 else 36
+        big = Rr >= 13
+        red0, red1 = (Rr - 5.6, Rr - 2.6) if big else (Rr - 3.2, Rr - 2.2)
+        fr0 = 3.1 if big else 2.7
         for k in range(NSEG):
             a0 = 2 * math.pi * k / NSEG; a1 = 2 * math.pi * (k + 1) / NSEG
-            for (r0, r1, kind) in ((2.7, Rr - 3.2, 'pizza'), (Rr - 3.2, Rr - 2.2, 'red'), (Rr - 2.2, Rr, 'edge')):
+            for (r0, r1, kind) in ((fr0 + 0.5, red0, 'pizza'), (red0, red1, 'red'), (red1, Rr, 'edge')):
                 col = (COL['wave1'] if k % 2 == 0 else COL['wave3']) if kind == 'pizza' else (COL['bike'] if kind == 'red' else COL['wave1'])
                 q = [(cx + math.cos(a0) * r0, YPf + 0.06, cz + math.sin(a0) * r0), (cx + math.cos(a0) * r1, YPf + 0.06, cz + math.sin(a0) * r1),
                      (cx + math.cos(a1) * r1, YPf + 0.06, cz + math.sin(a1) * r1), (cx + math.cos(a1) * r0, YPf + 0.06, cz + math.sin(a1) * r0)]
@@ -217,7 +238,7 @@ class Orla:
         # escada para a areia no lado do mar (4,6 m de largura)
         sx_, sz_ = math.cos(ang_sea), math.sin(ang_sea); rx_, rz_ = -sz_, sx_
         base = (cx + sx_ * Rr, cz + sz_ * Rr); yb = max(self.sample(base[0] + sx_ * 2.6, base[1] + sz_ * 2.6), 0.2)
-        n = max(3, int(round((YPf + 0.06 - yb) / 0.15))); rise = (YPf + 0.06 - yb) / n; tread = 0.34; W = 4.6
+        n = max(3, int(round((YPf + 0.06 - yb) / 0.15))); rise = (YPf + 0.06 - yb) / n; tread = 0.34; W = 9.0 if big else 4.6
         for i in range(n):
             yt = YPf + 0.06 - (i + 1) * rise
             c0 = (base[0] + sx_ * i * tread - rx_ * W / 2, base[1] + sz_ * i * tread - rz_ * W / 2); c1 = (base[0] + sx_ * (i + 1) * tread - rx_ * W / 2, base[1] + sz_ * (i + 1) * tread - rz_ * W / 2)
@@ -232,11 +253,12 @@ class Orla:
         self.items['stairs'].append({'x': round(base[0], 2), 'z': round(base[1], 2), 'dx': round(sx_, 3), 'dz': round(sz_, 3), 'steps': n, 'w': W, 'top': YPf, 'plaza': True})
         self.stats['stairs'] += 1
         # fonte central
-        self.B.cyl(cx, cz, 2.6, YPf + 0.06, YPf + 0.62, COL['wall'], 28, STONE, False)
-        self.B.cyl(cx, cz, 2.6, YPf + 0.62, YPf + 0.66, COL['wall2'], 28, STONE, True, 2.2)
+        fR = fr0 - 0.1 if big else 2.6
+        self.B.cyl(cx, cz, fR, YPf + 0.06, YPf + 0.62, COL['wall'], 28, STONE, False)
+        self.B.cyl(cx, cz, fR, YPf + 0.62, YPf + 0.66, COL['wall2'], 28, STONE, True, fR - 0.4)
         for k in range(24):
             a0 = 2 * math.pi * k / 24; a1 = 2 * math.pi * (k + 1) / 24
-            self.B.tri(PLAIN, (cx, YPf + 0.5, cz), (cx + math.cos(a0) * 2.2, YPf + 0.5, cz + math.sin(a0) * 2.2), (cx + math.cos(a1) * 2.2, YPf + 0.5, cz + math.sin(a1) * 2.2), (0, 1, 0), COL['water'], None, True)
+            self.B.tri(PLAIN, (cx, YPf + 0.5, cz), (cx + math.cos(a0) * (fR - 0.4), YPf + 0.5, cz + math.sin(a0) * (fR - 0.4)), (cx + math.cos(a1) * (fR - 0.4), YPf + 0.5, cz + math.sin(a1) * (fR - 0.4)), (0, 1, 0), COL['water'], None, True)
         self.B.cyl(cx, cz, 0.45, YPf + 0.5, YPf + 1.3, COL['wall'], 12, STONE, True)
         self.B.cyl(cx, cz, 0.08, YPf + 1.3, YPf + 3.0, rgb('#CFE9F5'), 8, PLAIN, True, 0.03)
         self.B.cyl(cx, cz, 0.55, YPf + 3.0, YPf + 3.06, rgb('#CFE9F5'), 12, PLAIN, True)
@@ -244,7 +266,7 @@ class Orla:
         for k in range(12):
             a_ = 2 * math.pi * k / 12 + math.pi / 12
             if angdiff(a_, ang_in) < math.radians(42) or angdiff(a_, ang_sea) < math.radians(30): continue
-            rr = Rr - 4.4; bx, bz = cx + math.cos(a_) * rr, cz + math.sin(a_) * rr
+            rr = (Rr - 1.7) if big else (Rr - 4.4); bx, bz = cx + math.cos(a_) * rr, cz + math.sin(a_) * rr
             tt = (-math.sin(a_), math.cos(a_)); nn = (math.cos(a_), math.sin(a_))
             c4 = [(bx - tt[0] * 0.9 - nn[0] * 0.25, bz - tt[1] * 0.9 - nn[1] * 0.25), (bx + tt[0] * 0.9 - nn[0] * 0.25, bz + tt[1] * 0.9 - nn[1] * 0.25), (bx + tt[0] * 0.9 + nn[0] * 0.25, bz + tt[1] * 0.9 + nn[1] * 0.25), (bx - tt[0] * 0.9 + nn[0] * 0.25, bz - tt[1] * 0.9 + nn[1] * 0.25)]
             self.B.obox_pts(c4, YPf + 0.5, YPf + 0.62, COL['bench'], WOOD, True, False)
@@ -260,7 +282,10 @@ class Orla:
             else:
                 self.palm_at(px, pz, YPf + 0.3, 1.0)
                 self.items['palms'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.5, 'sp': 'palmeira', 'scale': 1.0, 'baked': True})
-        self.items.setdefault('plazas', []).append({'x': round(cx, 2), 'z': round(cz, 2), 'r': Rr, 'y': round(YPf, 2)})
+        if big:
+            import orla_fim
+            orla_fim.extras(self, f, so, cx, cz, Rr, YPf, ang_in, ang_sea, red0, red1)
+        self.items.setdefault('plazas', []).append({'x': round(cx, 2), 'z': round(cz, 2), 'r': Rr, 'y': round(YPf, 2), 'ax': round(tdx, 4), 'az': round(tdz, 4), 'sx': round(sea[0], 4), 'sz': round(sea[1], 4)})
 
     # ---------------------------------------------------------- construcao por segmento
     def build_line(self, fr, idx):
@@ -645,5 +670,7 @@ class Orla:
     def build(self):
         self.items['paths'] = []
         for i, fr in enumerate(self.chains()): self.build_line(fr, i)
+        import orla_fim
+        orla_fim.parks(self)
         self.g.layers.extend(self.polys)
         return self
