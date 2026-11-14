@@ -5,7 +5,7 @@ window.render = async function(opt){
   const W=opt.w||1280,H=opt.h||720;
   const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(W,H); r.setPixelRatio(1);
   document.body.innerHTML=''; document.body.appendChild(r.domElement);
-  const sc=new THREE.Scene(); sc.background=new THREE.Color(0x9cc3e6); sc.fog=new THREE.Fog(0xb7d3ea, opt.fog0||250, opt.fog1||700);
+  const sc=new THREE.Scene(); sc.background=new THREE.Color(opt.bg||0x9cc3e6); if(!opt.bg) sc.fog=new THREE.Fog(0xb7d3ea, opt.fog0||250, opt.fog1||700);
   sc.add(new THREE.AmbientLight(0xffffff,1.25)); const dl=new THREE.DirectionalLight(0xffffff,1.9); dl.position.set(-0.4,1,-0.3); sc.add(dl);
   const buf=await (await fetch(opt.file)).arrayBuffer(); const f=new Float32Array(buf);
   // registro: x y z nx ny nz r g b u v sign

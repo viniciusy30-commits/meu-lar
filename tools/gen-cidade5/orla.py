@@ -8,11 +8,11 @@ import shore, scenery
 
 YP = 2.40           # nivel do calcadao (acima do mar)
 HALF_W = 7.0        # meia-largura do calcadao (de -7 mar a +7 avenida)
-GARDEN_O = 10.3     # jardim de palmeiras de +7 a +10,3; guia; vagas de +10,5 ate a pista (+16 = borda do asfalto da avenida)
+GARDEN_O = 9.4      # jardim de palmeiras de +7 a +10,3; guia; vagas de +10,5 ate a pista (+16 = borda do asfalto da avenida)
 PARK_O1 = ORLA_CALC - 11.5
-XW_HALF = 3.2       # meia-largura da travessia de pedestres (patamar sem vagas)
+XW_HALF = 3.4       # meia-largura da travessia de pedestres (patamar sem vagas)
 SW_Y = 0.27; ROADY = 0.12
-COL = {'asph': rgb('#4A4A4E'), 'curbP': rgb('#C9C4B8'), 'stall': rgb('#F2F2F2'), 'wave1': rgb('#EDE7DA'), 'wave2': rgb('#B4AC9C'), 'wave3': rgb('#D9D2C2'), 'bike': rgb('#B8452F'), 'wall': rgb('#CFCABF'), 'wall2': rgb('#B3AD9F'), 'grass': rgb('#6FA84A'),
+COL = {'asph': rgb('#4A4A4E'), 'bay': rgb('#A7A59C'), 'curbP': rgb('#C9C4B8'), 'stall': rgb('#F2F2F2'), 'wave1': rgb('#EDE7DA'), 'wave2': rgb('#B4AC9C'), 'wave3': rgb('#D9D2C2'), 'bike': rgb('#B8452F'), 'wall': rgb('#CFCABF'), 'wall2': rgb('#B3AD9F'), 'grass': rgb('#6FA84A'),
        'wood': rgb('#8B6B47'), 'wood2': rgb('#6E5236'), 'rail': rgb('#E9E6DE'), 'lamp': rgb('#2B2E33'), 'bench': rgb('#7A5A3A'), 'iron': rgb('#2A2C30'), 'sand': rgb('#E4D4B4'),
        'roof': rgb('#B58A4A'), 'towerR': rgb('#D6402A'), 'towerW': rgb('#F2F2F2'), 'net': rgb('#E5E5E5'), 'step': rgb('#D8D3C7'), 'step2': rgb('#BEB8AA'), 'white': rgb('#F5F5F5'), 'water': rgb('#4F9BD0'),
        'trunk': rgb('#7A5A3A'), 'leaf': rgb('#3F8A3F'), 'shower': rgb('#A8B0B8')}
@@ -106,7 +106,7 @@ class Orla:
                     l = math.hypot(nsx, nsz) or 1; nsx, nsz = nsx / l, nsz / l
                     cx, cz = x + nsx * ORLA_CALC, z + nsz * ORLA_CALC
                     ok = not self.geo.is_water(cx - nsx * (HALF_W + 2), cz - nsz * (HALF_W + 2)) and not self.geo.is_water(cx, cz)
-                    fr.append({'x': cx, 'z': cz, 'tx': -nsz, 'tz': nsx, 'nx': -nsx, 'nz': -nsz, 'yp': y + SW_Y - 0.06, 'ya': y, 'ok': ok, 's': 0.0})
+                    fr.append({'x': cx, 'z': cz, 'ax': x, 'az': z, 'tx': -nsz, 'tz': nsx, 'nx': -nsx, 'nz': -nsz, 'yp': y + SW_Y - 0.06, 'ya': y, 'ok': ok, 's': 0.0})
                 # tangente coerente com a normal (t x n), e corta trechos sobre a agua
                 runs = []; cur = []
                 for f in fr:
@@ -130,20 +130,20 @@ class Orla:
         """posicoes (s) das faixas de pedestre que atravessam a Av. Beira-Mar e chegam neste trecho de orla"""
         out = []
         for (x, z) in getattr(self.g, 'xw_beach', []):
-            k = min(range(len(fr)), key=lambda q: (fr[q]['x'] - x) ** 2 + (fr[q]['z'] - z) ** 2)
-            if math.hypot(fr[k]['x'] - x, fr[k]['z'] - z) < ORLA_CALC + 6:
+            k = min(range(len(fr)), key=lambda q: (fr[q]['ax'] - x) ** 2 + (fr[q]['az'] - z) ** 2)
+            if math.hypot(fr[k]['ax'] - x, fr[k]['az'] - z) < 4.0:           # a travessia esta mesmo sobre ESTE trecho da avenida
                 out.append(fr[k]['s'])
         return sorted(out)
 
     def parking(self, fr, xr):
         """vagas inclinadas a 60 graus (2,6 m de largura): faixas brancas da guia ate a pista"""
         L = fr[-1]['s']; s = 3.0; nst = 0
-        ang = math.radians(60.0); depth = PARK_O1 - (GARDEN_O + 0.2); sh = depth / math.tan(ang); pitch = 2.6 / math.sin(ang)
+        ang = math.radians(60.0); depth = PARK_O1 - (GARDEN_O + 0.2); sh = depth / math.tan(ang); pitch = 2.8 / math.sin(ang)
         while s < L - 3.0 - sh:
             if any(a - 1.0 <= s <= b + 1.0 + sh for a, b in xr): s += pitch; continue
             f0 = self.at(fr, s); f1 = self.at(fr, s + sh)
             p0 = self.P(f0, GARDEN_O + 0.2, -0.07); p1 = self.P(f1, PARK_O1 - 0.1, -0.07)
-            dx, dz = p1[0] - p0[0], p1[2] - p0[2]; l = math.hypot(dx, dz) or 1; ox, oz = -dz / l * 0.06, dx / l * 0.06
+            dx, dz = p1[0] - p0[0], p1[2] - p0[2]; l = math.hypot(dx, dz) or 1; ox, oz = -dz / l * 0.08, dx / l * 0.08
             self.B.quad(PLAIN, [(p0[0] - ox, p0[1], p0[2] - oz), (p1[0] - ox, p1[1], p1[2] - oz), (p1[0] + ox, p1[1], p1[2] + oz), (p0[0] + ox, p0[1], p0[2] + oz)], (0, 1, 0), COL['stall'], None, True)
             s += pitch; nst += 1
         self.stats['vagas'] = self.stats.get('vagas', 0) + max(nst - 1, 0)
@@ -202,7 +202,7 @@ class Orla:
             self.strip(sf, GARDEN_O, GARDEN_O + 0.2, 0.06, PAVER, COL['curbP'], 'curb')
             self.vwall(sf, GARDEN_O + 0.2, -0.09, 0.06, COL['curbP'], 1, PLAIN)
             # pista das vagas (asfalto no nivel da avenida, emenda com a pista)
-            self.strip(sf, GARDEN_O + 0.2, PARK_O1, -0.09, ASPH, COL['asph'], 'asphalt')
+            self.strip(sf, GARDEN_O + 0.2, PARK_O1 + 0.35, -0.115, PAVER, COL['bay'], 'asphalt')
         self.parking(fr, xr)
         # travessias: patamar elevado do asfalto ate o calcadao (rampa acessivel), sem vagas
         for c in xs: self.landing(fr, c)
@@ -215,6 +215,16 @@ class Orla:
             q = [self.P(a_, -HALF_W - 0.35, 0.98), self.P(b_, -HALF_W - 0.35, 0.98), self.P(b_, -HALF_W + 0.05, 0.98), self.P(a_, -HALF_W + 0.05, 0.98)]
             self.B.quad(STONE, q, (0, 1, 0), COL['wall'], None, True); self.stats['wall_m'] += 4.0
             self.polys.append(('wall', [(p[0], p[2]) for p in q]))
+        # --- fechamento das pontas do calcadao (muro baixo + poste + banco): nada de borda aberta
+        for end, so in ((0, -1.0), (len(fr) - 1, 1.0)):
+            f = fr[end]; sa, sb = (0.0, 0.5 * so) if so > 0 else (-0.5, 0.0)
+            if so < 0: sa, sb = -0.5, 0.0
+            c4 = [(self.P(f, -HALF_W - 0.35, 0, sa)[0], self.P(f, -HALF_W - 0.35, 0, sa)[2]), (self.P(f, GARDEN_O + 0.2, 0, sa)[0], self.P(f, GARDEN_O + 0.2, 0, sa)[2]),
+                  (self.P(f, GARDEN_O + 0.2, 0, sb)[0], self.P(f, GARDEN_O + 0.2, 0, sb)[2]), (self.P(f, -HALF_W - 0.35, 0, sb)[0], self.P(f, -HALF_W - 0.35, 0, sb)[2])]
+            if so > 0: c4 = [(self.P(f, -HALF_W - 0.35, 0, 0.0)[0], self.P(f, -HALF_W - 0.35, 0, 0.0)[2]), (self.P(f, GARDEN_O + 0.2, 0, 0.0)[0], self.P(f, GARDEN_O + 0.2, 0, 0.0)[2]),
+                            (self.P(f, GARDEN_O + 0.2, 0, 0.5)[0], self.P(f, GARDEN_O + 0.2, 0, 0.5)[2]), (self.P(f, -HALF_W - 0.35, 0, 0.5)[0], self.P(f, -HALF_W - 0.35, 0, 0.5)[2])]
+            self.B.obox_pts(c4, f['yp'] - 1.6, f['yp'] + 1.0, COL['wall'], STONE, True, False)
+            self.lamp(f, 0.0); self.bench(self.at(fr, min(max(fr[end]['s'] - so * 3.0, 0.0), L)), -HALF_W + 1.6)
         # --- escadas
         for s_ in stairs: self.stairs(fr, s_)
         # --- piers
@@ -268,7 +278,7 @@ class Orla:
             if fr[m]['s'] <= s: lo = m
             else: hi = m
         a, b = fr[lo], fr[hi]; t = (s - a['s']) / max(b['s'] - a['s'], 1e-6)
-        f = {k: a[k] + (b[k] - a[k]) * t for k in ('x', 'z', 'tx', 'tz', 'nx', 'nz', 's', 'yp')}
+        f = {k: a[k] + (b[k] - a[k]) * t for k in ('x', 'z', 'tx', 'tz', 'nx', 'nz', 's', 'yp', 'ax', 'az')}
         l = math.hypot(f['tx'], f['tz']) or 1; f['tx'] /= l; f['tz'] /= l; l = math.hypot(f['nx'], f['nz']) or 1; f['nx'] /= l; f['nz'] /= l
         return f
 
@@ -316,27 +326,32 @@ class Orla:
         Lp = max(110.0, Lp + 24.0)
         rx, rz = -sz, sx                                       # lateral do pier
         def PP(a, b, y): return (x0 + sx * a + rx * b, y, z0 + sz * a + rz * b)
+        TH = 0.42                                              # espessura do deck (fachada de madeira) - nao e mais uma folha de papel
         n = int(Lp / 3.0)
+        def slab(a0, a1, b0, b1, col, top_col=None):
+            self.B.obox_pts([PP(a0, b0, 0)[0::2], PP(a1, b0, 0)[0::2], PP(a1, b1, 0)[0::2], PP(a0, b1, 0)[0::2]], deck - TH, deck, col, WOOD, True, True, 0.5)
         for i in range(n):
             a0, a1 = i * 3.0, (i + 1) * 3.0
-            for k in range(4):                                 # tabuas: 4 faixas de 1,75 m, tons alternados
-                b0, b1 = -W / 2 + k * (W / 4), -W / 2 + (k + 1) * (W / 4)
-                col = COL['wood'] if (i + k) % 2 == 0 else COL['wood2']
-                q = [PP(a0, b0, deck), PP(a1, b0, deck), PP(a1, b1, deck), PP(a0, b1, deck)]
-                self.g.quad(WOOD, q, col, None); 
+            # tres tabuas longitudinais largas, tons proximos (sem xadrez) + juntas finas transversais a cada 0,6 m
+            for k in range(3):
+                b0, b1 = -W / 2 + k * (W / 3), -W / 2 + (k + 1) * (W / 3)
+                self.B.obox_pts([PP(a0, b0, 0)[0::2], PP(a1, b0, 0)[0::2], PP(a1, b1, 0)[0::2], PP(a0, b1, 0)[0::2]], deck - TH, deck, COL['wood'] if k != 1 else rgb('#977650'), WOOD, True, False, 0.5)
+            for j in range(1, 5):
+                aj = a0 + j * 0.6
+                self.B.quad(PLAIN, [PP(aj - 0.02, -W / 2, deck + 0.004), PP(aj + 0.02, -W / 2, deck + 0.004), PP(aj + 0.02, W / 2, deck + 0.004), PP(aj - 0.02, W / 2, deck + 0.004)], (0, 1, 0), COL['wood2'], None, True)
             self.polys.append(('pier', [(PP(a0, -W / 2, 0)[0], PP(a0, -W / 2, 0)[2]), (PP(a1, -W / 2, 0)[0], PP(a1, -W / 2, 0)[2]), (PP(a1, W / 2, 0)[0], PP(a1, W / 2, 0)[2]), (PP(a0, W / 2, 0)[0], PP(a0, W / 2, 0)[2])]))
-            # vigas sob o deck e corrimao
-            if i % 2 == 0:
-                for sg in (-1, 1):
-                    scenery.bar(self.B, PP(a0, sg * (W / 2 - 0.05), deck + 1.0), PP(a1 + 3.0, sg * (W / 2 - 0.05), deck + 1.0), 0.08, COL['rail'], METAL)
-        for i in range(0, int(Lp / 4.5) + 1):
-            a = i * 4.5
+            # travessa sob o deck + par de estacas de madeira ate o fundo
+            self.B.obox_pts([PP(a0 + 1.2, -W / 2 - 0.25, 0)[0::2], PP(a0 + 1.5, -W / 2 - 0.25, 0)[0::2], PP(a0 + 1.5, W / 2 + 0.25, 0)[0::2], PP(a0 + 1.2, W / 2 + 0.25, 0)[0::2]], deck - TH - 0.38, deck - TH, COL['wood2'], WOOD, False, False, 0.5)
             for sg in (-1, 1):
-                px, pz = PP(a, sg * (W / 2 - 0.05), 0)[0], PP(a, sg * (W / 2 - 0.05), 0)[2]
-                self.B.cyl(px, pz, 0.05, deck, deck + 1.05, COL['rail'], 6)
-                # estacas de madeira ate o fundo
-                bot = min(self.sample(px, pz), -0.5) - 1.0
-                self.B.box(px, pz, 0.45, 0.45, bot, deck - 0.05, COL['wood2'], WOOD, False, False)
+                px, pz = PP(a0 + 1.35, sg * (W / 2 - 0.2), 0)[0], PP(a0 + 1.35, sg * (W / 2 - 0.2), 0)[2]
+                bot = min(self.sample(px, pz), -0.5) - 1.2
+                self.B.box(px, pz, 0.42, 0.42, bot, deck - TH, COL['wood2'], WOOD, False, False, 0.5)
+            # guarda-corpo: poste a cada 3 m + corrimao superior e intermediario
+            for sg in (-1, 1):
+                px, pz = PP(a0, sg * (W / 2 - 0.1), 0)[0], PP(a0, sg * (W / 2 - 0.1), 0)[2]
+                self.B.box(px, pz, 0.12, 0.12, deck, deck + 1.05, COL['rail'], METAL, True, False)
+                scenery.bar(self.B, PP(a0, sg * (W / 2 - 0.1), deck + 1.02), PP(a1, sg * (W / 2 - 0.1), deck + 1.02), 0.05, COL['rail'], METAL)
+                scenery.bar(self.B, PP(a0, sg * (W / 2 - 0.1), deck + 0.55), PP(a1, sg * (W / 2 - 0.1), deck + 0.55), 0.03, COL['rail'], METAL)
         # luminarias e bancos
         for i in range(1, int(Lp / 22) + 1):
             a = i * 22.0
@@ -348,27 +363,38 @@ class Orla:
             a = i * 34.0 + 5
             bx, bz = PP(a, W / 2 - 0.9, 0)[0], PP(a, W / 2 - 0.9, 0)[2]
             self.B.box(bx, bz, 1.5, 0.5, deck + 0.35, deck + 0.50, COL['bench'], WOOD, True, False); self.B.box(bx, bz, 0.3, 0.3, deck, deck + 0.35, COL['iron'], PLAIN, True, False)
-        # plataforma do fim (22 x 14) com gazebo
+        # plataforma do fim (22 x 16) com gazebo, tambem espessa
         a0, a1 = Lp, Lp + 16.0
-        for k in range(7):
-            for j in range(8):
-                aa0, aa1 = a0 + j * 2.0, a0 + (j + 1) * 2.0; bb0, bb1 = -11 + k * 3.14, -11 + (k + 1) * 3.14
-                col = COL['wood'] if (j + k) % 2 == 0 else COL['wood2']
-                self.g.quad(WOOD, [PP(aa0, bb0, deck), PP(aa1, bb0, deck), PP(aa1, bb1, deck), PP(aa0, bb1, deck)], col, None)
+        for j in range(8):
+            for k in range(3):
+                bb0, bb1 = -11 + k * 7.33, -11 + (k + 1) * 7.33
+                self.B.obox_pts([PP(a0 + j * 2.0, bb0, 0)[0::2], PP(a0 + (j + 1) * 2.0, bb0, 0)[0::2], PP(a0 + (j + 1) * 2.0, bb1, 0)[0::2], PP(a0 + j * 2.0, bb1, 0)[0::2]], deck - TH, deck, COL['wood'] if (k % 2 == 0) else rgb('#977650'), WOOD, True, False, 0.5)
         self.polys.append(('pier', [(PP(a0, -11, 0)[0], PP(a0, -11, 0)[2]), (PP(a1, -11, 0)[0], PP(a1, -11, 0)[2]), (PP(a1, 11, 0)[0], PP(a1, 11, 0)[2]), (PP(a0, 11, 0)[0], PP(a0, 11, 0)[2])]))
-        for (aa, bb) in ((a0, -11), (a0, 11), (a1, -11), (a1, 11)):
-            px, pz = PP(aa, bb, 0)[0], PP(aa, bb, 0)[2]; bot = min(self.sample(px, pz), -0.5) - 1.0
-            self.B.box(px, pz, 0.5, 0.5, bot, deck + 3.0, COL['wood2'], WOOD, False, False)
+        for aa in (a0 + 1.0, a0 + 8.0, a1 - 1.0):
+            for bb in (-10.0, -3.5, 3.5, 10.0):
+                px, pz = PP(aa, bb, 0)[0], PP(aa, bb, 0)[2]; bot = min(self.sample(px, pz), -0.5) - 1.2
+                self.B.box(px, pz, 0.5, 0.5, bot, deck - TH, COL['wood2'], WOOD, False, False, 0.5)
+        for (aa, sgb) in ((a0, 1), (a1, 1)):
+            for sg in (-1, 1):
+                scenery.bar(self.B, PP(aa, sg * 10.95, deck + 1.02), PP(aa, 0, deck + 1.02) if False else PP(aa, sg * 4.0, deck + 1.02), 0.05, COL['rail'], METAL)
+        for sg in (-1, 1):
+            scenery.bar(self.B, PP(a0, sg * 10.95, deck + 1.02), PP(a1, sg * 10.95, deck + 1.02), 0.05, COL['rail'], METAL)
+            scenery.bar(self.B, PP(a1, sg * 10.95, deck + 1.02), PP(a1, sg * 3.0, deck + 1.02), 0.05, COL['rail'], METAL)
         cx, cz = PP(a0 + 8.0, 0, 0)[0], PP(a0 + 8.0, 0, 0)[2]
         for sgx in (-1, 1):
             for sgz in (-1, 1): self.B.cyl(cx + sgx * 3.2, cz + sgz * 3.2, 0.12, deck, deck + 3.2, COL['rail'], 8)
         for q in range(4):          # telhado piramidal do gazebo
             ang0 = math.pi / 4 + q * math.pi / 2; ang1 = ang0 + math.pi / 2
-            self.B.tri(ROOF, (cx + math.cos(ang0) * 4.2, deck + 3.1, cz + math.sin(ang0) * 4.2), (cx + math.cos(ang1) * 4.2, deck + 3.1, cz + math.sin(ang1) * 4.2), (cx, deck + 5.0, cz), (math.cos((ang0 + ang1) / 2), 0.6, math.sin((ang0 + ang1) / 2)), COL['roof'], None, True)
-        # rampa de entrada (do calcadao ao deck): 6 m
+            P0 = (cx + math.cos(ang0) * 4.2, deck + 3.1, cz + math.sin(ang0) * 4.2); P1 = (cx + math.cos(ang1) * 4.2, deck + 3.1, cz + math.sin(ang1) * 4.2); top = (cx, deck + 5.0, cz)
+            nn = (math.cos((ang0 + ang1) / 2), 0.6, math.sin((ang0 + ang1) / 2))
+            self.B.tri(ROOF, P0, P1, top, nn, COL['roof'], None, True); self.B.tri(ROOF, P0, P1, top, (-nn[0], -0.6, -nn[2]), COL['wood2'], None, True)
+        # rampa de entrada (do calcadao ao deck): 6 m, com espessura
         for i in range(6):
             y0 = YPf + 0.06 + (deck - YPf - 0.06) * i / 6.0; y1 = YPf + 0.06 + (deck - YPf - 0.06) * (i + 1) / 6.0
-            self.g.quad(WOOD, [PP(-0.0 - 6 + i, -W / 2, y0), PP(-6 + i + 1, -W / 2, y1), PP(-6 + i + 1, W / 2, y1), PP(-6 + i, W / 2, y0)], COL['wood'], None)
+            A0, A1 = -6 + i, -6 + i + 1
+            self.g.quad(WOOD, [PP(A0, -W / 2, y0), PP(A1, -W / 2, y1), PP(A1, W / 2, y1), PP(A0, W / 2, y0)], COL['wood'], None)
+            for sg in (-1, 1):
+                self.B.quad(WOOD, [PP(A0, sg * W / 2, y0 - TH), PP(A1, sg * W / 2, y1 - TH), PP(A1, sg * W / 2, y1), PP(A0, sg * W / 2, y0)], (rx * sg, 0, rz * sg), COL['wood2'], None, True)
         self.items['piers'].append({'x': round(x0, 2), 'z': round(z0, 2), 'dx': round(sx, 3), 'dz': round(sz, 3), 'len': round(Lp + 16.0, 1), 'w': W, 'deck': round(deck, 2)})
         self.stats['piers'] += 1
 

@@ -74,3 +74,11 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Avenidas (lvl 0) SEM calçada: guia + canteiro de grama (só carros). Exceção: Av. Beira-Mar do lado da cidade (prédios de frente pro mar). Esquinas continuam com calçada (espera de pedestre).
 - Sinalização: uma seta reta por faixa (sem combinações de conversão) e SEM linha de retenção. Postes do lado do mar vão para o jardim; validador agora acusa poste no meio da calçada.
 - Ferramentas de QA: qa/qa3d.py + qa/shots.js (three.js no Chromium sem tela, igual ao jogo), qa/tour.py (fotos 3D de todos os ladrilhos), qa/overview.py, qa/trace_build.py, qa/mismatch.py.
+
+## Revisão 2 pós-jogo (frestas, avenidas, orla, píer, pontes)
+- Frestas verdes nas bocas dos cruzamentos: as tiras de pista/calçada/guia agora entram 0,3 m no cruzamento (antes terminavam exatamente na linha de corte e a malha de 2 peças deixava uma fresta de ~0,01-0,4 m por onde o terreno aparecia).
+- Avenidas: pesquisa em guias de ruas urbanas (NACTO/Raleigh/Seattle): avenida real tem guia + faixa de plantio (~1,6 m, árvores) + calçada (~2 m). Voltou a ter calçada (lado de dentro da faixa de plantio) em vez de grama pura; meia-largura da avenida 14 -> 15,8 m. Nas pontas (faixas de pedestre) a calçada encosta na guia (sem grama entre a faixa e a calçada).
+- Orla: pouso das faixas alinhado com a projeção da travessia na AVENIDA (antes pelo ponto mais próximo no calçadão, deslocado); vagas 2,8 x 6,4 m a 60° (guias: ~2,7 x 6,2 m) com piso de concreto claro e linhas de 16 cm; piso das vagas 2 cm abaixo do asfalto e entrando 0,35 m sob a pista (sem fresta). Pontas do calçadão fechadas com muro baixo + poste + banco.
+- Píer: deck com 0,42 m de espessura (fachada), 3 tábuas longitudinais sem xadrez + juntas, travessas e pares de estacas a cada 3 m, guarda-corpo com poste/corrimão duplo, plataforma do fim espessa com gazebo, rampa com fachada.
+- Pontes vermelhas: blocos de ancoragem agora ficam AO LADO do tabuleiro (z ±11..18) e não em cima da pista; tabuleiro começa na borda do retorno do mirante (14,4 m do centro), cabos a ±12,5 m.
+- QA: qa/cracks.py (vista de cima sem terreno, fundo magenta = fresta), qa/crackscan.py (varre todos os nós), validador "borda de asfalto sem guia" (informativo).

@@ -7,7 +7,7 @@ import geo as G
 STEP = 8.0
 N8X, N8Z = int(WX / STEP) + 1, int(WZ / STEP) + 1
 GRADE = {0: 0.065, 1: 0.075, 2: 0.095}        # declive maximo final por nivel (ave/col/loc)
-HALF = {0: 14.0, 1: 10.0, 2: 7.5}
+HALF = {0: 15.8, 1: 10.0, 2: 7.5}
 
 def upsample(geo):
     xs = np.arange(N8X) * STEP / CELL; zs = np.arange(N8Z) * STEP / CELL

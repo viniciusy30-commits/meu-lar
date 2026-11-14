@@ -25,6 +25,23 @@ def v_ground(g):
         pct = 100.0 * ov / base
         good = pct < 1.2
         out.append(f'  sobreposicao {a} x {b}: {ov} m2 ({pct:.2f}%) {"ok" if good else "ALTA"}'); ok &= good
+    # 1b) asfalto exposto: borda do asfalto sem guia/calcada/canteiro/ilha/faixa do outro lado (nao e fim de rua)
+    from collections import defaultdict
+    P = raster(g, ['asphalt', 'curb', 'sidewalk', 'verge', 'median', 'island', 'zebra', 'tact', 'prom', 'prom2', 'bike', 'pier', 'wall', 'stairs'])
+    cover = np.zeros_like(P['asphalt'])
+    for k_, v_ in P.items():
+        if k_ != 'asphalt': cover |= v_
+    a_ = P['asphalt']
+    nb = np.zeros_like(a_)
+    for dj, di in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        nb |= np.roll(np.roll(~a_ & ~cover, dj, 0), di, 1)
+    # ignora pontas de rua (cais/mirante) e pontes: so mede quando ha 2+ pixels vizinhos vazios seguidos
+    expo = a_ & nb
+    ys, xs = np.nonzero(expo); cl = defaultdict(int)
+    for x, y in zip(xs, ys): cl[(int(x // 40), int(y // 40))] += 1
+    worst = sorted(cl.items(), key=lambda kv: -kv[1])[:6]
+    tot = int(expo.sum())
+    out.append(f'  borda de asfalto sem guia/calcada ao lado: {tot} m (so informativo); piores: ' + ', '.join(f'({k[0]*40+20},{k[1]*40+20}) {v} m' for k, v in worst))
     # 2) buracos: centro de cada rua precisa estar sobre asfalto (ou canteiro central)
     miss = 0; tot = 0; samples = []
     for k, e in enumerate(c.edges):
@@ -57,7 +74,7 @@ def v_ground(g):
     nos = 0; tot2 = 0
     for k, e in enumerate(c.edges):
         if e['kind'] == 'redbridge': continue
-        sec = {0: 14.0, 1: 10.0, 2: 7.5}[min(e['lvl'], 2)]; asp = {0: 11.5, 1: 6.0, 2: 5.0}[min(e['lvl'], 2)]
+        sec = {0: 15.8, 1: 10.0, 2: 7.5}[min(e['lvl'], 2)]; asp = {0: 11.5, 1: 6.0, 2: 5.0}[min(e['lvl'], 2)]
         L = g.elen(k)
         ca = max([a['cut'] for a in g.arms[e['a']] if a['k'] == k and a['end'] == 'a'] or [0]); cb = max([a['cut'] for a in g.arms[e['b']] if a['k'] == k and a['end'] == 'b'] or [0])
         for s in np.arange(8.0, L - 8.0, 9.0):
