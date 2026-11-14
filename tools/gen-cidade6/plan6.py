@@ -29,6 +29,30 @@ PROFILE = {
 }
 
 
+class Path:
+    """eixo de uma via (polilinha): ponto e tangente na distancia s, ponto deslocado lateralmente, faixa entre dois deslocamentos"""
+    def __init__(self, pts):
+        self.pts = np.array(pts, float)
+        seg = np.hypot(*(self.pts[1:] - self.pts[:-1]).T)
+        self.cs = np.concatenate([[0.0], np.cumsum(seg)]); self.L = float(self.cs[-1])
+
+    def at(self, s):
+        s = min(max(s, 0.0), self.L)
+        i = min(int(np.searchsorted(self.cs, s, 'right') - 1), len(self.pts) - 2)
+        a, b = self.pts[i], self.pts[i + 1]; L = self.cs[i + 1] - self.cs[i] or 1.0
+        t = (s - self.cs[i]) / L
+        tx, tz = (b - a) / L
+        return a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, tx, tz
+
+    def pt(self, s, off=0.0):
+        x, z, tx, tz = self.at(s); return x - tz * off, z + tx * off
+
+    def band(self, s0, s1, r0, r1, step=2.0):
+        n = max(1, int(math.ceil((s1 - s0) / step)))
+        ss = [s0 + (s1 - s0) * k / n for k in range(n + 1)]
+        return Polygon([self.pt(q, r0) for q in ss] + [self.pt(q, r1) for q in ss[::-1]])
+
+
 def half_row(kind):
     p = PROFILE[kind]; return p['road'] + p['verge'] + p['walk']
 
@@ -89,29 +113,66 @@ class Plan:
         self.add('Av. Norte', 'av', [(0, 440), (W, 440)])
         self.add('Av. Oeste', 'av', [(360, 140), (360, Z_ORLA)])
         self.add('Av. Beira-Mar', 'orla', [(0, Z_ORLA), (W, Z_ORLA)])
-        # suburbio oeste: N-S x=120, 600 ; E-W a cada 100 m (quadras compridas, lotes de frente para as ruas E-W)
-        self.add('Rua Oeste 1', 'rua', [(120, 140), (120, Z_ORLA)])
+        # ---- suburbios: ruas curvas (cada uma com sua ondulacao) e cul-de-sacs
+        import random as _rnd
+        R = _rnd.Random(606)
+        self.bulbs = []
+
+        def wave(a, b, A, k, ph, step=8.0):
+            (x0, z0), (x1, z1) = a, b; L = math.hypot(x1 - x0, z1 - z0); n = max(2, int(L / step))
+            nx, nz = -(z1 - z0) / L, (x1 - x0) / L
+            out = []
+            for q in range(n + 1):
+                t = q / n; env = math.sin(math.pi * t) ** 0.8
+                o = A * env * math.sin(2 * math.pi * k * t + ph)
+                out.append((x0 + (x1 - x0) * t + nx * o, z0 + (z1 - z0) * t + nz * o))
+            return out
+
+        def wavy(name, a, b, Amin=11, Amax=22):
+            self.add(name, 'rua', wave(a, b, R.uniform(Amin, Amax) * R.choice((-1, 1)), R.uniform(0.55, 1.25), R.uniform(0, 6.28)))
+
+        # oeste
+        wavy('Rua Oeste 1', (120, 140), (120, Z_ORLA), 6, 12)
         self.add('Rua 600 norte', 'rua', [(600, 140), (600, 640)])
+        ew_streets = []
         for z in range(140, 1641, 100):
             if z in (440, 1240): continue
-            self.add(f'Rua O{z}', 'rua', [(120, z), (600, z)])
-        # suburbio norte (entre x=600 e o rio): N-S a cada 240 m, E-W a cada 100 m
-        for x in (840, 1080, 1320, 1560):
-            if x == 1560: self.add('Rua Ribeirinha Oeste', 'rua', [(1560, 140), (1560, 640)]); continue
-            self.add(f'Rua N{x}', 'rua', [(x, 140), (x, 640)])
+            if z == 140: self.add(f'Rua O{z}', 'rua', [(120, z), (600, z)]); continue
+            wavy(f'Rua O{z}', (120, z), (600, z)); ew_streets.append((self.roads[-1], 120, 600))
+        # norte (entre x=600 e o rio)
+        for x in (840, 1080, 1320):
+            wavy(f'Rua N{x}', (x, 140), (x, 640), 12, 24)
+        self.add('Rua Ribeirinha Oeste', 'rua', wave((1560, 140), (1560, 640), 10, 0.8, 1.0))
         for z in range(140, 641, 100):
             if z == 440: continue
-            self.add(f'Rua Nz{z}', 'rua', [(600, z), (1560, z)])
+            if z in (140, 640): self.add(f'Rua Nz{z}', 'rua', [(600, z), (1560, z)]); continue
+            wavy(f'Rua Nz{z}', (600, z), (1560, z), 10, 18); ew_streets.append((self.roads[-1], 600, 1560))
         self.add('Rua 1440 sul', 'centro', [(1440, 640), (1440, Z_ORLA)])
         # leste do rio
         XE0 = 1800
-        self.add('Rua Ribeirinha Leste', 'rua', [(XE0, 140), (XE0, Z_ORLA)])
+        self.add('Rua Ribeirinha Leste', 'rua', wave((XE0, 140), (XE0, Z_ORLA), 9, 1.4, 0.4))
         for x in (2040, 2280):
-            self.add(f'Rua L{x}', 'rua', [(x, 140), (x, Z_ORLA)])
-        self.add('Rua L2440', 'rua', [(2440, 140), (2440, Z_ORLA)])
+            wavy(f'Rua L{x}', (x, 140), (x, Z_ORLA), 14, 26)
+        self.add('Rua L2440', 'rua', wave((2440, 140), (2440, Z_ORLA), 8, 1.1, 2.0))
         for z in range(140, 1541, 100):
             if z in (440, 1240): continue
-            self.add(f'Rua Lz{z}', 'rua', [(XE0, z), (2440, z)])
+            if z == 140: self.add(f'Rua Lz{z}', 'rua', [(XE0, z), (2440, z)]); continue
+            wavy(f'Rua Lz{z}', (XE0, z), (2440, z)); ew_streets.append((self.roads[-1], XE0, 2440))
+        # cul-de-sacs: rua curta sem saida com retorno redondo entrando no miolo das quadras
+        for (rd, xa, xb) in ew_streets:
+            pts = rd['pts']; n_cul = 0
+            for frac in (0.18, 0.5, 0.82):
+                if R.random() > 0.42: continue
+                xm = xa + (xb - xa) * frac + R.uniform(-15, 15)
+                if any(abs(xm - xv) < 45 for xv in (360, 840, 1080, 1200, 1320, 2040, 2280)): continue
+                i = min(range(len(pts)), key=lambda q: abs(pts[q][0] - xm))
+                if i <= 0 or i >= len(pts) - 1: continue
+                (x0, z0), (x1, z1) = pts[i - 1], pts[i + 1]; L = math.hypot(x1 - x0, z1 - z0)
+                sd = R.choice((-1, 1)); nx, nz = -(z1 - z0) / L * sd, (x1 - x0) / L * sd
+                bx, bz = pts[i]; Lc = 30.0
+                self.add(f'Cul-de-sac {len(self.bulbs) + 1}', 'rua', [(bx, bz), (bx + nx * Lc, bz + nz * Lc)])
+                self.roads[-1]['cul'] = True
+                self.bulbs.append((bx + nx * Lc, bz + nz * Lc, 11.5))
         # ponte de pedestre do Parque Ribeirinho
         self.footbridge = (880.0,)
         # ---------------- geometria das faixas de dominio
@@ -122,9 +183,12 @@ class Plan:
         rows, roads, meds = [], [], []
         for r in self.roads:
             p = PROFILE[r['kind']]; L = LineString(r['pts'])
-            r['line'] = L
+            r['line'] = L; r['path'] = Path(r['pts'])
             roads.append(L.buffer(p['road'], cap_style='flat', join_style='mitre'))
             rows.append(L.buffer(half_row(r['kind']), cap_style='flat', join_style='mitre'))
+        from shapely.geometry import Point as _P
+        for (bx, bz, br) in getattr(self, 'bulbs', []):
+            roads.append(_P(bx, bz).buffer(br, 24)); rows.append(_P(bx, bz).buffer(br + PROFILE['rua']['verge'] + PROFILE['rua']['walk'], 24))
         self.asphalt_raw = unary_union(roads)
         # esquinas arredondadas: guia com raio ~6 m (pista) e calcada acompanhando
         self.asphalt = self.asphalt_raw.buffer(6.0, join_style='round').buffer(-6.0, join_style='round')

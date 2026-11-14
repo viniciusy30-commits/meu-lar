@@ -176,6 +176,9 @@ class Lots:
 
     def special_block(self, bi, blk, nm, side):
         poly = blk['poly']; minx, minz, maxx, maxz = poly.bounds; B = self.B; r = self.rnd
+        for _ in range(20):                                   # retangulo interno (quadras de bordas curvas)
+            if sbox(minx, minz, maxx, maxz).buffer(-0.5).within(poly): break
+            minx += 1.5; minz += 1.5; maxx -= 1.5; maxz -= 1.5
         L = (maxx - minx) if side in ('N', 'S') else (maxz - minz); D = (maxz - minz) if side in ('N', 'S') else (maxx - minx)
         F = self.frame(side, minx, maxx, minz, maxz, 0.0)
         if nm.startswith('escola'):
@@ -312,18 +315,175 @@ class Lots:
         else:
             self.centro(bi, blk)
 
+    # ------------------------------------------------------------ suburbios: lotes ao longo das ruas curvas
+    def _depth_to_middle(self, mx, mz, nx, nz, dmax=46.0):
+        """distancia ate a faixa de dominio do outro lado da quadra, andando para dentro"""
+        from shapely.geometry import LineString as _L
+        ray = _L([(mx + nx * 0.5, mz + nz * 0.5), (mx + nx * 140, mz + nz * 140)])
+        g = ray.intersection(self.P.row)
+        if g.is_empty: A = 140.0
+        else:
+            A = 140.0
+            for q in getattr(g, 'geoms', [g]):
+                for c in (q.coords if hasattr(q, 'coords') else []):
+                    A = min(A, math.hypot(c[0] - mx, c[1] - mz))
+        if A < 2 * 17: return A - 0.6, A
+        return min(dmax, A / 2 - 0.3), A
+
+    def _free(self, poly):
+        """lote cabe: dentro do terreno livre do suburbio e sem encostar em outro lote"""
+        if not poly.buffer(-0.4).within(self.sub_free): return False
+        bb = poly.bounds
+        for i in range(int(bb[0] // 40), int(bb[2] // 40) + 1):
+            for j in range(int(bb[1] // 40), int(bb[3] // 40) + 1):
+                for q in self.occ.get((i, j), []):
+                    if q.intersects(poly.buffer(-0.35)): return False
+        return True
+
+    def _take(self, poly):
+        bb = poly.bounds
+        for i in range(int(bb[0] // 40), int(bb[2] // 40) + 1):
+            for j in range(int(bb[1] // 40), int(bb[3] // 40) + 1): self.occ.setdefault((i, j), []).append(poly)
+
+    def suburbs(self):
+        P, G, r = self.P, self.G, self.rnd
+        from shapely.ops import unary_union
+        sub = [b['poly'] for bi, b in enumerate(P.blocks) if b['zone'] == 'suburbio' and bi not in self.special]
+        self.sub_free = unary_union(sub)
+        for bi, b in enumerate(P.blocks):
+            if b['zone'] == 'suburbio' and bi not in self.special: self.lawn(b['poly'])
+        self.occ = {}
+        fronts = []
+        for i, rd in enumerate(P.roads):
+            if rd['kind'] not in ('rua', 'av') or rd.get('cul'): continue
+            for (s0, s1) in G.free_spans(i, pad=0.5):
+                for sg in (-1, 1): fronts.append(('rua', i, sg, s0, s1, s1 - s0))
+        for k, (bx, bz, br) in enumerate(P.bulbs): fronts.append(('bulb', k, 1, 0, 0, 999))
+        # casas do jogador: reservar frentes nos bairros
+        want = {}
+        for k, b in HOUSE_BAIRRO.items(): want.setdefault(b, []).append(k)
+        reserve = {}
+        for nm, ks in want.items():
+            x0, x1, z0, z1 = BAIRRO_REG[nm]
+            cands = []
+            for fi, f in enumerate(fronts):
+                if f[0] != 'rua' or P.roads[f[1]]['kind'] != 'rua' or f[5] < 110: continue
+                mx, mz = P.roads[f[1]]['path'].pt((f[3] + f[4]) / 2)
+                if x0 <= mx <= x1 and z0 <= mz <= z1: cands.append(fi)
+            r.shuffle(cands)
+            for j, k in enumerate(ks):
+                if j < len(cands): reserve.setdefault(cands[j], []).append(k)
+        order = sorted(range(len(fronts)), key=lambda q: (q not in reserve, -fronts[q][5]))
+        for fi in order:
+            f = fronts[fi]
+            if f[0] == 'bulb': self.bulb_lots(f[1])
+            else: self.front_lots(f, reserve.get(fi, []))
+        print(f'  casas do jogador reservadas: {len(self.player)}/17')
+
+    def front_lots(self, f, res):
+        P, r, B = self.P, self.rnd, self.B
+        _, i, sg, s0, s1, L = f
+        rd = P.roads[i]; pth = rd['path']; hr = half_row(rd['kind'])
+        avenue = rd['kind'] == 'av'
+        fam = FAMILIES[r.randrange(len(FAMILIES))]
+        w0 = r.uniform(16.5, 19.5) if not avenue else 0
+        sf = r.choice((6.0, 6.5, 7.0, 7.5)); picket = r.random() < 0.35; pal_base = r.random()
+        res = list(res); res_at = [s0 + (s1 - s0) * (j + 1) / (len(res) + 1) for j in range(len(res))]
+        pos = s0 + 0.5; q = 0
+        while pos < s1 - 8:
+            kres = None
+            if res and pos >= res_at[0] - 10:
+                kres = res.pop(0); res_at.pop(0)
+                pl = self.plots[kres]; hw, hd = pl['x1'] - pl['x0'], pl['z1'] - pl['z0']
+                w = max(hw + 9.0, 18.0)
+            elif avenue: w = r.choice((42.0, 55.0, 70.0))
+            else: w = w0 + r.uniform(-0.4, 0.4)
+            if pos + w > s1 - 0.5:
+                if kres is not None: res.insert(0, kres); res_at.insert(0, pos)
+                break
+            a = pth.pt(pos, sg * (hr + 0.15)); b = pth.pt(pos + w, sg * (hr + 0.15))
+            ux, uz = b[0] - a[0], b[1] - a[1]; cl = math.hypot(ux, uz) or 1; ux, uz = ux / cl, uz / cl
+            _, _, tx, tz = pth.at(pos + w / 2); inx, inz = -tz * sg, tx * sg
+            flip = (-uz * inx + ux * inz) < 0
+            F = Frame(a, (ux, uz), flip)
+            mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            D, A = self._depth_to_middle(mx, mz, inx, inz, 60 if avenue else 44)
+            placed = False
+            for Dq in (D, D * 0.85, D * 0.7):
+                if Dq < (24 if avenue else 15): break
+                if kres is not None and Dq < FRONT_SB + hd + 3: break
+                poly = Polygon(F.rect(0, cl, 0, Dq))
+                if not self._free(poly): continue
+                self._take(poly)
+                if kres is not None: self.player_lot(F, cl, Dq, (kres, cl, hw, hd), None, None)
+                elif avenue: self.commercial_lot(F, cl, Dq)
+                else:
+                    style = fam[0] if r.random() < 0.68 else fam[1]
+                    info = B.house(F, cl, Dq, style, self.palette(style, pal_base), sf, 1 if q % 2 == 0 else -1, picket, True, True, False)
+                    self.yard_plants(F, cl, Dq, info)
+                placed = True; q += 1; break
+            if not placed and kres is not None: res.insert(0, kres); res_at.insert(0, pos + 6)
+            pos += (cl + 0.3) if placed else 3.0
+
+    def bulb_lots(self, k):
+        """lotes em leque em volta do retorno do cul-de-sac"""
+        P, r, B = self.P, self.rnd, self.B
+        bx, bz, br = P.bulbs[k]; Rf = br + PROFILE['rua']['verge'] + PROFILE['rua']['walk'] + 0.2
+        fam = FAMILIES[r.randrange(len(FAMILIES))]; pal_base = r.random(); sf = 6.5
+        n = 7; ang0 = r.uniform(0, 6.28)
+        for q in range(n):
+            a0 = ang0 + 2 * math.pi * q / n; a1 = ang0 + 2 * math.pi * (q + 1) / n
+            pa = (bx + math.cos(a0) * Rf, bz + math.sin(a0) * Rf); pb = (bx + math.cos(a1) * Rf, bz + math.sin(a1) * Rf)
+            ux, uz = pb[0] - pa[0], pb[1] - pa[1]; cl = math.hypot(ux, uz); ux, uz = ux / cl, uz / cl
+            am = (a0 + a1) / 2; inx, inz = math.cos(am), math.sin(am)
+            flip = (-uz * inx + ux * inz) < 0
+            F = Frame(pa, (ux, uz), flip)
+            D, A = self._depth_to_middle((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, inx, inz, 34)
+            for Dq in (D, D * 0.8):
+                if Dq < 18: break
+                # lote em leque: frente estreita no retorno, abre para o fundo (usa o retangulo da frente para a casa)
+                poly = Polygon([pa, pb, (pb[0] + math.cos(a1) * Dq, pb[1] + math.sin(a1) * Dq), (pa[0] + math.cos(a0) * Dq, pa[1] + math.sin(a0) * Dq)])
+                if not self._free(poly): continue
+                self._take(poly)
+                style = fam[0] if r.random() < 0.6 else fam[1]
+                info = B.house(F, cl, Dq, style, self.palette(style, pal_base), sf, 1, False, False, False, False)
+                self.yard_plants(F, cl, Dq, info)
+                break
+
+    def yard_plants(self, F, w, d, info):
+        r = self.rnd
+        for (tu, tv) in info['trees_front']: self.trees.append((*F.xz(tu, tv), r.choice(('folhosa', 'oval', 'folhosa')), r.uniform(0.8, 1.1)))
+        if r.random() < 0.75: self.trees.append((*F.xz(r.uniform(2, w - 2), r.uniform(info['back'][0] + 3, d - 2.5)), r.choice(('folhosa', 'folhosa', 'conifera', 'colunar')), r.uniform(0.9, 1.3)))
+        # arbustos junto a frente da casa e no jardim
+        v0 = info['back'][0] - 11.0
+        for k in range(r.choice((2, 3, 4))):
+            self.trees.append((*F.xz(r.uniform(1.5, w - 1.5), max(1.2, info.get('v0', 6.5) - 1.0) if k < 2 else r.uniform(1.0, 3.0)), 'arbusto', r.uniform(0.7, 1.1)))
+
+    def commercial_lot(self, F, w, d):
+        r = self.rnd; B = self.B
+        signs = [rgb(c) for c in ('#C8102E', '#0057B8', '#FFB81C', '#00843D', '#E35205', '#6D2077', '#2D2926', '#00A3AD')]
+        walls = [rgb(c) for c in ('#F2EDE4', '#E9DFD0', '#DDE3E6', '#EFE3D3', '#D8D2C6')]
+        if w < 50 and r.random() < 0.45: B.gas_station(F, w, d - 1, r.choice(signs)); return
+        pk = 15.0 if d > 30 else 8.0
+        B.parking(F, 1, w - 1, 0.5, pk, self.park_car)
+        bd = min(d - pk - 2, 22)
+        Fs = Frame(F.xz(1, pk + 0.5), (F.ux, F.uz)); Fs.vx, Fs.vz = F.vx, F.vz
+        n = max(1, int((w - 2) / 13)); uw = (w - 2) / n
+        for k in range(n):
+            Fk = Frame(Fs.xz(k * uw, 0), (F.ux, F.uz)); Fk.vx, Fk.vz = F.vx, F.vz
+            B.shop_row(Fk, uw - 0.05, bd, r.choice(signs), r.choice(walls), r.choice((5.0, 5.5, 6.2, 7.5)))
+
     # ------------------------------------------------------------ geral
     def build(self):
         self.parked = []
         self.find_specials()
-        self.plan_player()
         for bi, blk in enumerate(self.P.blocks):
             z = blk['zone']
             if bi in self.special: self.special_block(bi, blk, *self.special[bi])
-            elif z == 'suburbio': self.suburb(bi, blk)
+            elif z == 'suburbio': pass
             elif z == 'centro': self.centro(bi, blk)
             elif z == 'orla': self.orla(bi, blk)
             elif z in ('parque', 'ribeirinho'): self.lawn(blk['poly'])
             elif z == 'praia': self.lawn(blk['poly'], 'paver', Y_WALK, (240, 236, 228))
-        print(f'  casas do jogador reservadas: {len(self.player)}/17')
+        self.suburbs()
         return self

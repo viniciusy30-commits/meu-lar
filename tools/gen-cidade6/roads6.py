@@ -165,18 +165,14 @@ class Ground:
         # faixas de grama (entre guia e calcada) e canteiros centrais: fora dos cruzamentos
         verges = []; meds = []
         for i, r in enumerate(P.roads):
-            pr = PROFILE[r['kind']]; o, d, L = axis(r)
-            nx, nz = -d[1], d[0]
+            pr = PROFILE[r['kind']]; pth = r['path']
             for (s0, s1) in self.free_spans(i, pad=3.0):
-                ax, az = o[0] + d[0] * s0, o[1] + d[1] * s0; bx, bz = o[0] + d[0] * s1, o[1] + d[1] * s1
                 if pr['verge'] > 0:
                     for sg in (-1, 1):
                         r0, r1 = pr['road'] + 0.25, pr['road'] + pr['verge']
-                        q = Polygon([(ax + nx * sg * r0, az + nz * sg * r0), (bx + nx * sg * r0, bz + nz * sg * r0), (bx + nx * sg * r1, bz + nz * sg * r1), (ax + nx * sg * r1, az + nz * sg * r1)])
-                        verges.append(q)
+                        verges.append(pth.band(s0, s1, sg * r0, sg * r1).buffer(0))
                 if pr['med'] > 0:
-                    q = Polygon([(ax + nx * pr['med'], az + nz * pr['med']), (bx + nx * pr['med'], bz + nz * pr['med']), (bx - nx * pr['med'], bz - nz * pr['med']), (ax - nx * pr['med'], az - nz * pr['med'])])
-                    meds.append((q, r, (ax, az), (bx, bz)))
+                    meds.append((pth.band(s0, s1, -pr['med'], pr['med']).buffer(0), r, pth.pt(s0), pth.pt(s1)))
         V = unary_union(verges).difference(P.river.buffer(RIVER_WALL))
         self.verges = V
         W_ = P.row.difference(P.asphalt).difference(V)
@@ -221,37 +217,41 @@ class Ground:
         M.free()
 
     # ------------------------------------------------------------ pintura
-    def stripe(self, o, d, s0, s1, off, w, col, dash=None, gap=None, y=Y_ASF + 0.012):
-        M = self.M; nx, nz = -d[1], d[0]
+    def stripe(self, pth, s0, s1, off, w, col, dash=None, gap=None, y=Y_ASF + 0.012):
+        """faixa pintada ao longo do eixo (curvas: em pedacos de ate 3 m)"""
+        M = self.M
         segs = []
         if dash:
             s = s0
             while s < s1:
                 segs.append((s, min(s + dash, s1))); s += dash + gap
         else: segs = [(s0, s1)]
+        old = M.m('liso')
         for a, b in segs:
             if b - a < 0.2: continue
-            p = [(o[0] + d[0] * a + nx * (off - w / 2), o[1] + d[1] * a + nz * (off - w / 2)), (o[0] + d[0] * b + nx * (off - w / 2), o[1] + d[1] * b + nz * (off - w / 2)),
-                 (o[0] + d[0] * b + nx * (off + w / 2), o[1] + d[1] * b + nz * (off + w / 2)), (o[0] + d[0] * a + nx * (off + w / 2), o[1] + d[1] * a + nz * (off + w / 2))]
-            cx = (p[0][0] + p[2][0]) / 2; cz = (p[0][1] + p[2][1]) / 2
-            M.at(cx, cz); old = M.m('liso'); M.poly([(x, y, z) for x, z in p], col, (0, 1, 0)); M.m(old); M.free()
+            n = max(1, int(math.ceil((b - a) / 3.0)))
+            for k in range(n):
+                q0, q1 = a + (b - a) * k / n, a + (b - a) * (k + 1) / n
+                p = [pth.pt(q0, off - w / 2), pth.pt(q1, off - w / 2), pth.pt(q1, off + w / 2), pth.pt(q0, off + w / 2)]
+                M.at((p[0][0] + p[2][0]) / 2, (p[0][1] + p[2][1]) / 2); M.poly([(x, y, z) for x, z in p], col, (0, 1, 0)); M.free()
+        M.m(old)
 
     def markings(self):
         P = self.P; self.crossings = []
         for i, r in enumerate(P.roads):
-            pr = PROFILE[r['kind']]; o, d, L = axis(r)
+            pr = PROFILE[r['kind']]; pth = r['path']; L = pth.L
             for (s0, s1) in self.free_spans(i, pad=1.0):
                 k = r['kind']
                 if k in ('av', 'orla'):
                     for sg in (-1, 1):
-                        self.stripe(o, d, s0, s1, sg * (pr['med'] + 0.35), 0.15, C_YEL)                    # amarela junto ao canteiro
-                        self.stripe(o, d, s0, s1, sg * (pr['med'] + 0.35 + 3.4), 0.13, C_WHITE, 3.0, 6.0)  # tracejada entre faixas
-                        self.stripe(o, d, s0, s1, sg * (pr['road'] - 0.45), 0.14, C_WHITE)                  # bordo
+                        self.stripe(pth, s0, s1, sg * (pr['med'] + 0.35), 0.15, C_YEL)                    # amarela junto ao canteiro
+                        self.stripe(pth, s0, s1, sg * (pr['med'] + 0.35 + 3.4), 0.13, C_WHITE, 3.0, 6.0)  # tracejada entre faixas
+                        self.stripe(pth, s0, s1, sg * (pr['road'] - 0.45), 0.14, C_WHITE)                  # bordo
                 elif k == 'centro':
-                    self.stripe(o, d, s0, s1, 0.0, 0.14, C_YEL, 3.0, 5.0)
-                    for sg in (-1, 1): self.stripe(o, d, s0, s1, sg * (pr['road'] - 2.3), 0.12, C_WHITE)      # linha da faixa de estacionamento
+                    self.stripe(pth, s0, s1, 0.0, 0.14, C_YEL, 3.0, 5.0)
+                    for sg in (-1, 1): self.stripe(pth, s0, s1, sg * (pr['road'] - 2.3), 0.12, C_WHITE)      # linha da faixa de estacionamento
                 else:
-                    self.stripe(o, d, s0, s1, -0.12, 0.11, C_YEL); self.stripe(o, d, s0, s1, 0.12, 0.11, C_YEL)  # dupla amarela
+                    self.stripe(pth, s0, s1, -0.12, 0.11, C_YEL); self.stripe(pth, s0, s1, 0.12, 0.11, C_YEL)  # dupla amarela
             # faixas de pedestre e linhas de retencao: em cada aproximacao de cruzamento entre vias da cidade
             for (s, rr, j) in self.nodes_on[i]:
                 if j < 0: continue
@@ -259,17 +259,16 @@ class Ground:
                 for sg in (-1, 1):
                     sc = s + sg * (half_row(other['kind']) + 1.5)       # faixa de pedestre logo apos a calcada da transversal
                     if sc < 4 or sc > L - 4: continue
-                    nx, nz = -d[1], d[0]
                     n = int((2 * pr['road'] - 0.6) / 1.1)
                     for q in range(n):
                         off = -pr['road'] + 0.5 + q * 1.1 + 0.25
                         if pr['med'] and abs(off) < pr['med'] + 0.2: continue
-                        self.stripe(o, d, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.014)
+                        self.stripe(pth, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.014)
                     # linha de retencao (lado de quem chega)
                     sl = sc + sg * 2.6
                     lane_side = -sg            # mao direita: quem chega em direcao ao cruzamento
-                    self.stripe(o, d, sl - 0.2, sl + 0.2, lane_side * (pr['road'] + (pr['med'] or 0.2)) / 2, pr['road'] - (pr['med'] or 0.2) - 0.4, C_WHITE, y=Y_ASF + 0.014)
-                    self.crossings.append((o[0] + d[0] * sc, o[1] + d[1] * sc, d, i, sg))
+                    self.stripe(pth, sl - 0.2, sl + 0.2, lane_side * (pr['road'] + (pr['med'] or 0.2)) / 2, pr['road'] - (pr['med'] or 0.2) - 0.4, C_WHITE, y=Y_ASF + 0.014)
+                    cx_, cz_, tx_, tz_ = pth.at(sc); self.crossings.append((cx_, cz_, (tx_, tz_), i, sg))
 
     # ------------------------------------------------------------ pontes
     def bridges(self):

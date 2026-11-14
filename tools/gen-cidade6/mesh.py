@@ -44,6 +44,7 @@ class Mesh:
         self.layer = 'geral'
         self.mat = 'liso'
         self.ntri = 0
+        self.ao = True
 
     # ---------------------------------------------------------------- contexto
     def at(self, x, z, layer=None):
@@ -100,8 +101,10 @@ class Mesh:
             else:
                 hl = math.hypot(gx, gz) or 1.0; tx, tz = -gz / hl, gx / hl
                 uv = [((p[0] * tx + p[2] * tz) / su, -p[1] / sv) for p in pts]
+        multi = isinstance(col[0], (tuple, list))
         for i, p in enumerate(pts):
-            c.pn.extend((p[0], p[1], p[2], gx, gy, gz)); c.uv.extend(uv[i]); c.col.extend((col[0], col[1], col[2], 255))
+            cc = col[i] if multi else col
+            c.pn.extend((p[0], p[1], p[2], gx, gy, gz)); c.uv.extend(uv[i]); c.col.extend((cc[0], cc[1], cc[2], 255))
         c.nv += k
         for i in range(1, k - 1):
             if rev: c.idx.extend((base, base + i + 1, base + i))
@@ -152,7 +155,13 @@ class Mesh:
                 u0 = round(run / su); u1 = u0 + max(1, round(L / su))
                 uv = [(u0, (v0 - y0) / sv), (u1, (v0 - y0) / sv), (u1, (v0 - y1) / sv), (u0, (v0 - y1) / sv)]
                 run += L
-            self.quad((a[0], y0, a[1]), (b[0], y0, b[1]), (b[0], y1, b[1]), (a[0], y1, a[1]), cc, (fx, 0, fz), uv)
+            if y0 < 1.0 and y1 - y0 > 1.2 and self.ao:          # sombra de contato: base da parede mais escura
+                ym = min(y1, y0 + 1.4); cd = shade(cc, -38); cm = cc
+                if uv: uvm = [(uv[0][0], uv[0][1] + (uv[3][1] - uv[0][1]) * (ym - y0) / (y1 - y0)), (uv[1][0], uv[1][1] + (uv[2][1] - uv[1][1]) * (ym - y0) / (y1 - y0))]
+                self.quad((a[0], y0, a[1]), (b[0], y0, b[1]), (b[0], ym, b[1]), (a[0], ym, a[1]), [cd, cd, cm, cm], (fx, 0, fz), [uv[0], uv[1], uvm[1], uvm[0]] if uv else None)
+                if y1 > ym + 0.01: self.quad((a[0], ym, a[1]), (b[0], ym, b[1]), (b[0], y1, b[1]), (a[0], y1, a[1]), cc, (fx, 0, fz), [uvm[0], uvm[1], uv[2], uv[3]] if uv else None)
+            else:
+                self.quad((a[0], y0, a[1]), (b[0], y0, b[1]), (b[0], y1, b[1]), (a[0], y1, a[1]), cc, (fx, 0, fz), uv)
         if top or bottom:
             old = self.mat
             if mat_top: self.mat = mat_top
@@ -191,9 +200,11 @@ class Mesh:
         for (a, b, d) in T: c.idx.extend((base + a, base + b, base + d))
         self.ntri += len(T)
 
-    def sphere(self, cx, cy, cz, r, col, seg=6, rings=4, sy=1.0):
-        """esfera com vertices compartilhados e normais suaves (copa de arvore)"""
+    def sphere(self, cx, cy, cz, r, col, seg=6, rings=4, sy=1.0, jit=0.0, rnd=None):
+        """esfera com vertices compartilhados e normais suaves (copa de arvore); jit: irregularidade do contorno"""
         P, N, UV, C, T = [], [], [], [], []
+        import random as _r
+        rr = rnd or _r
         P.append((cx, cy + r * sy, cz)); N.append((0, 1, 0)); UV.append((0.5, 0)); C.append(shade(col, 14))
         for j in range(1, rings):
             th = math.pi * j / rings; y = math.cos(th)
@@ -201,7 +212,8 @@ class Mesh:
             for i in range(seg):
                 ph = 2 * math.pi * i / seg + (0.5 if j % 2 else 0) * 2 * math.pi / seg
                 nx, nz = math.sin(th) * math.cos(ph), math.sin(th) * math.sin(ph)
-                P.append((cx + nx * r, cy + y * r * sy, cz + nz * r)); N.append((nx, y, nz)); UV.append((i * 0.6, j * 0.6)); C.append(cc)
+                k = 1.0 + (rr.uniform(-jit, jit) if jit else 0.0)
+                P.append((cx + nx * r * k, cy + y * r * sy * k, cz + nz * r * k)); N.append((nx, y, nz)); UV.append((i * 0.6, j * 0.6)); C.append(shade(cc, int(rr.uniform(-10, 10)) if jit else 0))
         P.append((cx, cy - r * sy, cz)); N.append((0, -1, 0)); UV.append((0.5, rings * 0.6)); C.append(shade(col, -26))
         bot = len(P) - 1
         ring = lambda j, i: 1 + (j - 1) * seg + (i % seg)

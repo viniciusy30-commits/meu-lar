@@ -49,13 +49,31 @@ class Props:
             M.m('folhagem'); col = r.choice((rgb('#3F6E3A'), rgb('#355E33'), rgb('#4A7A42')))
             for k, (rr, y0, y1) in enumerate(((2.4, 1.2, 5.0), (1.9, 3.6, 7.6), (1.3, 6.0, 10.0))):
                 M.smooth_cyl(x, z, rr * sc, y + y0 * sc * h / 10, y + y1 * sc * h / 10, shade(col, k * 6), 7, 0.0)
+        elif kind == 'colunar':          # cipreste/choupo: alto e estreito
+            h = r.uniform(1.4, 2.0) * sc
+            M.m('casca'); M.smooth_cyl(x, z, 0.16 * sc, y, y + h + 0.5, (220, 200, 180), 5, 0.1 * sc)
+            M.m('folhagem'); col = r.choice((rgb('#3E6E36'), rgb('#4A7A3C'), rgb('#557F3E')))
+            M.sphere(x, y + h + 3.4 * sc, z, 1.25 * sc, col, 7, 5, 3.0, 0.12, r)
+        elif kind == 'arbusto':
+            M.m('folhagem'); col = r.choice((rgb('#5E8F45'), rgb('#4E7F3C'), rgb('#6E9A4E'), rgb('#7A8F3E')))
+            for _ in range(r.choice((1, 2, 2))):
+                M.sphere(x + r.uniform(-0.5, 0.5), y + 0.5 * sc, z + r.uniform(-0.5, 0.5), r.uniform(0.6, 0.95) * sc, col, 6, 3, 0.75, 0.15, r)
+            if r.random() < 0.35:                 # flores
+                fc = r.choice(((230, 80, 120), (250, 220, 90), (240, 240, 245), (200, 110, 220), (245, 150, 60)))
+                M.m('liso')
+                for _ in range(5):
+                    a = r.uniform(0, 6.28); fx, fz = x + math.cos(a) * 0.6 * sc, z + math.sin(a) * 0.6 * sc
+                    M.box(fx - 0.09, fx + 0.09, y + 0.7 * sc, y + 0.85 * sc, fz - 0.09, fz + 0.09, fc)
         else:
-            h = r.uniform(2.6, 3.6) * sc
-            M.m('casca'); M.smooth_cyl(x, z, 0.2 * sc, y, y + h + 0.6, (230, 210, 190), 5, 0.14 * sc)
-            M.m('folhagem'); col = r.choice(LEAF[:7]) if r.random() > 0.04 else LEAF[7]
-            R = r.uniform(2.3, 3.0) * sc
-            M.sphere(x, y + h + R * 0.7, z, R, col, 6, 4, 0.85)
-            a = r.uniform(0, 6.28); M.sphere(x + math.cos(a) * R * 0.5, y + h + R * 0.4, z + math.sin(a) * R * 0.5, R * 0.62, shade(col, r.randint(-12, 8)), 5, 3, 0.85)
+            oval = kind == 'oval'
+            h = r.uniform(2.4, 3.4) * sc
+            M.m('casca'); M.smooth_cyl(x, z, 0.21 * sc, y, y + h + 0.8, (230, 210, 190), 5, 0.14 * sc)
+            M.m('folhagem'); col = r.choice(LEAF[:7]) if r.random() > 0.05 else LEAF[7]
+            R = r.uniform(2.2, 2.9) * sc; syc = 1.25 if oval else 0.82
+            M.sphere(x, y + h + R * 0.75 * syc, z, R, col, 7, 4, syc, 0.16, r)
+            for _ in range(1 if oval else r.choice((2, 3))):
+                a = r.uniform(0, 6.28); rr = R * r.uniform(0.5, 0.7)
+                M.sphere(x + math.cos(a) * R * 0.55, y + h + R * r.uniform(0.35, 0.9) * syc, z + math.sin(a) * R * 0.55, rr, shade(col, r.randint(-14, 10)), 6, 3, syc, 0.18, r)
         self.ntrees += 1
         M.free()
 
@@ -135,6 +153,9 @@ class Props:
         M.quad(F.p(-L / 2 - 0.02, 0.75, yb + 0.68), F.p(-L / 2 - 0.02, -0.75, yb + 0.68), F.p(-L / 2 - 0.02, -0.75, yb + 0.85), F.p(-L / 2 - 0.02, 0.75, yb + 0.85), (190, 30, 30), F.nu(-1))
         self.ncars += 1; M.free()
 
+    def street_species(self, i):
+        return ('folhosa', 'folhosa', 'oval', 'colunar', 'folhosa', 'oval')[i % 6]
+
     # ------------------------------------------------------------ ruas: postes, arvores de calcada, carros
     def near_drive(self, x, z, d=3.2):
         for (a, b) in self.drive_idx.get((int(x // 20), int(z // 20)), []):
@@ -148,13 +169,15 @@ class Props:
             for i in range(int(a // 20) - 1, int(a // 20) + 2):
                 for j in range(int(b // 20) - 1, int(b // 20) + 2): self.drive_idx.setdefault((i, j), []).append((a, b))
         for i, rd in enumerate(P.roads):
-            pr = PROFILE[rd['kind']]; o, d, L = axis(rd); nx, nz = -d[1], d[0]
+            pr = PROFILE[rd['kind']]; pth = rd['path']
+            def at(s, off=0.0):
+                x, z, tx, tz = pth.at(s); return x - tz * off, z + tx * off, tx, tz
             for (s0, s1) in G.free_spans(i, pad=2.0):
                 if s1 - s0 < 8: continue
                 # postes: alternados de lado a cada ~32 m (avenidas: no canteiro central, duplos)
                 k = 0; s = s0 + 6
                 while s < s1 - 4:
-                    px, pz = o[0] + d[0] * s, o[1] + d[1] * s
+                    px, pz, tx, tz = at(s); nx, nz = -tz, tx
                     if pr['med'] > 0.5:
                         if not P.river.buffer(6).contains(Point(px, pz)): self.streetlight(px, pz, nx, nz, True)
                     else:
@@ -163,47 +186,42 @@ class Props:
                         lx, lz = px + nx * sg * off, pz + nz * sg * off
                         if not P.river.buffer(4).contains(Point(lx, lz)) and not self.near_drive(lx, lz, 2.0): self.streetlight(lx, lz, -nx * sg, -nz * sg)
                     s += 32; k += 1
-                # arvores na faixa de grama (rua de bairro / avenida) ou covas na calcada do centro
                 if rd['kind'] in ('rua', 'av'):
                     for sg in (-1, 1):
-                        off = pr['road'] + pr['verge'] * 0.5 + 0.12
+                        off = sg * (pr['road'] + pr['verge'] * 0.5 + 0.12)
                         s = s0 + r.uniform(4, 9)
                         while s < s1 - 3:
-                            tx, tz = o[0] + d[0] * s + nx * sg * off, o[1] + d[1] * s + nz * sg * off
-                            if not self.near_drive(tx, tz) and not P.river.buffer(6).contains(Point(tx, tz)):
-                                self.tree(tx, tz, 'folhosa', r.uniform(0.8, 1.05), Y_LAWN + 0.02)
+                            tx_, tz_, _, _ = at(s, off)
+                            if not self.near_drive(tx_, tz_) and not P.river.buffer(6).contains(Point(tx_, tz_)):
+                                self.tree(tx_, tz_, self.street_species(i), r.uniform(0.8, 1.05), Y_LAWN + 0.02)
                             s += r.uniform(11, 14)
                 elif rd['kind'] == 'centro':
                     for sg in (-1, 1):
-                        off = pr['road'] + 1.4; s = s0 + 5
+                        off = sg * (pr['road'] + 1.4); s = s0 + 5
                         while s < s1 - 3:
-                            tx, tz = o[0] + d[0] * s + nx * sg * off, o[1] + d[1] * s + nz * sg * off
-                            M = self.M; M.at(tx, tz, 'mobiliario'); M.m('metal'); M.prism([(tx - 0.8, tz - 0.8), (tx + 0.8, tz - 0.8), (tx + 0.8, tz + 0.8), (tx - 0.8, tz + 0.8)], Y_WALK, Y_WALK + 0.06, (70, 72, 76)); M.free()
-                            self.tree(tx, tz, 'folhosa', r.uniform(0.75, 0.95), Y_WALK + 0.06)
-                            if r.random() < 0.25: self.bench(tx + d[0] * 3.5 + nx * sg * 0.6, tz + d[1] * 3.5 + nz * sg * 0.6, -nx * sg, -nz * sg)
-                            if r.random() < 0.15: self.bin(tx - d[0] * 3 + nx * sg * 0.6, tz - d[1] * 3 + nz * sg * 0.6)
+                            tx_, tz_, dx, dz = at(s, off); nx, nz = -dz, dx
+                            M = self.M; M.at(tx_, tz_, 'mobiliario'); M.m('metal'); M.prism([(tx_ - 0.8, tz_ - 0.8), (tx_ + 0.8, tz_ - 0.8), (tx_ + 0.8, tz_ + 0.8), (tx_ - 0.8, tz_ + 0.8)], Y_WALK, Y_WALK + 0.06, (70, 72, 76)); M.free()
+                            self.tree(tx_, tz_, 'folhosa', r.uniform(0.75, 0.95), Y_WALK + 0.06)
+                            if r.random() < 0.25: self.bench(tx_ + dx * 3.5 + nx * sg * 0.6, tz_ + dz * 3.5 + nz * sg * 0.6, -nx * sg, -nz * sg)
+                            if r.random() < 0.15: self.bin(tx_ - dx * 3 + nx * sg * 0.6, tz_ - dz * 3 + nz * sg * 0.6)
                             s += r.uniform(9, 12)
                 elif rd['kind'] == 'orla':
                     s = s0 + 8
                     while s < s1 - 4:
-                        self.tree(o[0] + d[0] * s, o[1] + d[1] * s, 'palmeira', r.uniform(0.95, 1.2), 0.22); s += 16
-                # carros estacionados nas faixas de estacionamento
+                        px, pz, _, _ = at(s); self.tree(px, pz, 'palmeira', r.uniform(0.95, 1.2), 0.22); s += 16
                 if pr['park']:
                     for sg in (-1, 1):
-                        off = pr['road'] - 1.15
+                        off = sg * (pr['road'] - 1.15)
                         s = s0 + 3
                         while s < s1 - 5:
-                            cx, cz = o[0] + d[0] * s + nx * sg * off, o[1] + d[1] * s + nz * sg * off
+                            cx, cz, dx, dz = at(s, off); nx, nz = -dz, dx
                             if r.random() < (0.26 if rd['kind'] == 'rua' else 0.45) and not self.near_drive(cx - nx * sg * 1.6, cz - nz * sg * 1.6, 3.8) and not P.river.buffer(6).contains(Point(cx, cz)):
-                                fwd = -sg                       # mao direita: carro do lado +n anda em -d
-                                self.car(cx, cz, d[0] * fwd, d[1] * fwd)
+                                self.car(cx, cz, dx * -sg, dz * -sg)
                             s += 6.2
-                # hidrantes
                 if rd['kind'] in ('rua', 'centro'):
                     s = s0 + 20
                     while s < s1 - 10:
-                        off = pr['road'] + 0.55
-                        hx, hz = o[0] + d[0] * s + nx * off, o[1] + d[1] * s + nz * off
+                        hx, hz, _, _ = at(s, pr['road'] + 0.55)
                         if not self.near_drive(hx, hz, 2.5): self.hydrant(hx, hz)
                         s += 90
         # sinalizacao dos cruzamentos: semaforos onde ha avenida, PARE nas ruas de bairro
@@ -215,7 +233,8 @@ class Props:
             ri, rj = P.roads[i], P.roads[j]
             av = 'av' in (ka, kb) or 'orla' in (ka, kb)
             for (ra, rb) in ((ri, rj), (rj, ri)):
-                pa = PROFILE[ra['kind']]; oa, da, La = axis(ra)
+                pa = PROFILE[ra['kind']]
+                _, _, dtx, dtz = ra['path'].at(ra['line'].project(Point(x, z))); da = (dtx, dtz)
                 hb = half_row(rb['kind'])
                 for sg in (-1, 1):
                     # canto de chegada (mao direita): lado direito de quem chega
