@@ -533,8 +533,19 @@ class Ground:
         sea = self.sea_sign(k)
         for sgn in (1, -1):
             if sea and sgn == sea: continue                                 # lado do mar da Beira-Mar: vagas, jardim e calcadao (orla.py)
-            self.strip(PAVER, COL['curb'], stl, sgn * a_, sgn * (a_ + 0.2), SW_Y, 'curb')
-            self.vwall(stl, sgn * a_, ROADY, SW_Y, COL['curb'], -sgn)
+            # guia continua, exceto nos REBAIXOS das garagens das casas (Etapa D)
+            lp_ = getattr(self.c, 'lotplan', None)
+            gaps_ = sorted((lp_.driveways.get((k, sgn), []) if lp_ else []))
+            rng_ = []; cur_ = max(la - OV, 0.0); end_ = min(L - lb + OV, L)
+            for g0_, g1_ in gaps_:
+                if g1_ <= cur_ or g0_ >= end_: continue
+                if g0_ > cur_ + 0.2: rng_.append((cur_, g0_))
+                cur_ = max(cur_, g1_)
+            if end_ > cur_ + 0.2: rng_.append((cur_, end_))
+            for ra_, rb_ in rng_:
+                sub_ = self.stations(k, ra_, rb_)
+                self.strip(PAVER, COL['curb'], sub_, sgn * a_, sgn * (a_ + 0.2), SW_Y, 'curb')
+                self.vwall(sub_, sgn * a_, ROADY, SW_Y, COL['curb'], -sgn)
             o = a_ + 0.2
             if lvl == 0 and not bridge:                                      # AVENIDA: calcada larga ate o fim (com covas de arvore), sem canteiros de grama que parecem buracos
                 self.strip(PAVER, sw_col2, stl, sgn * o, sgn * (o + 0.6), SW_Y, 'sidewalk'); self.strip(PAVER, sw_col, stl, sgn * (o + 0.6), sgn * h_, SW_Y, 'sidewalk')
@@ -729,4 +740,6 @@ class Ground:
         for ni in self.arms: self.junction(ni)
         for k in range(len(self.c.edges)): self.edge_body(k)
         self.red_bridges()
+        if getattr(self.c, 'lotplan', None) is not None:
+            import lots; lots.build_ground(self, self.c.lotplan)
         return self

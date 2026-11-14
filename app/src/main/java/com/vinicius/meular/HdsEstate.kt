@@ -22,7 +22,16 @@ object HdsEstate {
     private fun perM2(a: Int) = when { a < 200 -> 900; a < 400 -> 1500; a < 700 -> 2400; else -> 3800 }
 
     // Etapa 177: cada casa fica no seu próprio quarteirão da cidade ampliada; todas à venda
-    val houses: List<Info> = AREA.indices.map { i -> Info(i, BAIRRO[i], classe(AREA[i]), AREA[i], AREA[i] * perM2(AREA[i]) / 1000 * 1000, true) }
+    private val housesOld: List<Info> = AREA.indices.map { i -> Info(i, BAIRRO[i], classe(AREA[i]), AREA[i], AREA[i] * perM2(AREA[i]) / 1000 * 1000, true) }
+    // Cidade 5 (Meular City): bairros do zoneamento do prompt (Casa k+1 = índice k)
+    private val BAIRRO_C5 = arrayOf(
+        "Vila Esperança", "Alto da Colina", "Alto da Colina", "Recanto do Sul",
+        "Jardim Central", "Jardim Central", "Jardim Central", "Vila Esperança",
+        "Vila Esperança", "Parque das Flores", "Parque das Flores", "Vila Esperança",
+        "Vila Esperança", "Parque das Flores", "Recanto do Sul", "Recanto do Sul",
+        "Península Real")
+    private val housesC5: List<Info> = AREA.indices.map { i -> Info(i, BAIRRO_C5[i], classe(AREA[i]), AREA[i], AREA[i] * perM2(AREA[i]) / 1000 * 1000, true) }
+    val houses: List<Info> get() = if (City.C5) housesC5 else housesOld
     /** distância em metros da sua primeira casa até a casa i */
     fun dist(i: Int): Int {
         val a = Hds.plot(0) ?: return 0; val b = Hds.plot(i) ?: return 0

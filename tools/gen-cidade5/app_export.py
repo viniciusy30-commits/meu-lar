@@ -46,20 +46,10 @@ def run(out, geo, hf, assets):
         for k in range(16): pts.append((r['x'] + math.cos(k / 16 * 6.283) * r['r'], r['z'] + math.sin(k / 16 * 6.283) * r['r']))
     dist = _grid_dist(pts, hf)
     ny, nx = hf.shape
-    # Casa 1 provisoria: terreno mais plano em zona urbana, 22-60 m de uma rua
-    best = None
-    gx, gz = np.gradient(hf, 8.0, 8.0, edge_order=1)[1], np.gradient(hf, 8.0, 8.0)[0]
-    for j in range(4, ny - 4, 2):
-        for i in range(4, nx - 4, 2):
-            x, z = i * 8.0, j * 8.0
-            if not geo.is_urban(x, z): continue
-            if not (22 <= dist[j, i] <= 60): continue
-            h = hf[j, i]
-            if h < 6 or h > 40: continue
-            sl = float(np.abs(hf[j - 2:j + 3, i - 2:i + 3] - h).max())
-            if best is None or sl < best[0]: best = (sl, x, z, float(h))
-    sl, hx, hz, hh = best
-    print(f'  Casa 1 provisoria em ({hx:.0f},{hz:.0f}) h={hh:.2f} desnivel={sl:.2f} m')
+    # as 17 casas (Etapa D): posicoes/platos vindos de lots.json (caixa da casa = centro + plots da Cidade 2; o app soma CX/CZ)
+    L = json.load(open(os.path.join(out, 'lots.json')))
+    houses = [{'k': h['k'], 'x': h['x'], 'z': h['z'], 'lvl': h['lvl']} for h in L['houses']]
+    print(f'  {len(houses)} casas exportadas')
     # arvores: fora de ruas (>30 m), fora da zona urbana e das praias, acima da praia
     rng = np.random.default_rng(5)
     trees = []
@@ -79,9 +69,10 @@ def run(out, geo, hf, assets):
     if len(trees) > cap:
         idx = rng.choice(len(trees), cap, replace=False); trees = [trees[k] for k in sorted(idx)]
     print(f'  {len(trees)} arvores')
+    trees += L.get('trees', [])
     flat = [v for t in trees for v in t]
-    js = {'world': roads['world'], 'roads': [], 'rounds': [], 'nodes': [], 'houses': [{'k': 0, 'x': hx, 'z': hz, 'lvl': round(hh, 2)}],
-          'bld': [], 'lamp': [], 'hyd': [], 'tree': flat, 'solid': []}
+    js = {'world': roads['world'], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses,
+          'bld': [], 'lamp': [], 'hyd': [], 'tree': flat, 'solid': [v for sl in L.get('solids', []) for v in sl]}
     os.makedirs(assets, exist_ok=True)
     json.dump(js, open(os.path.join(assets, 'c5.json'), 'w'), separators=(',', ':'))
     # terreno abaixo da malha + mapa de altura de caminhada

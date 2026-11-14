@@ -307,7 +307,7 @@ object Hds {
         val oz = if (rel) 0f else (City.lotZ0 + City.lotZ1) / 2f - res.getDouble(1).toFloat()
         offX = ox; offZ = oz
         val plots = js.getJSONArray("plots"); val np0 = plots.length()
-        val np = if (rel && Relevo.sub) minOf(1, np0) else np0   // Etapa 185: na Cidade 3 só existe a Casa 1; o resto do bairro é malha assada
+        val np = if (rel && Relevo.sub && !City.C5) minOf(1, np0) else np0   // Etapa 185: na Cidade 3 só existe a Casa 1; na Cidade 5 existem as 17 casas (Etapa D)
         val ha = js.optJSONArray("holes"); val holes = FloatArray(ha?.length() ?: 0) { ha!!.getDouble(it).toFloat() }
         val ncx = js.getInt("ncx"); val ncz = js.getInt("ncz")
         val bcell = js.getJSONArray("bcell"); val spA = js.getJSONArray("sp"); val hpA = js.getJSONArray("hp"); val wpA = js.getJSONArray("wp")
@@ -475,7 +475,7 @@ object Hds {
                     for (q in 0 until cnt) fl[n++] = bb.getShort()
                 }
                 off[nx * nz] = n
-                if ((!rel || Relevo.has(pk)) && pk < np) wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))   // Etapa 185: Cidade 3 só tem a Casa 1
+                if ((!rel || Relevo.has(pk)) && pk < np) wl.add(WG(gx, gz, nx, nz, wall, off, fl.copyOf(n), py[pk]))   // Etapa 185: Cidade 3 só tem a Casa 1; Cidade 5 tem as 17
             }
             walk = wl
         } catch (e: Throwable) { android.util.Log.w("Hds", "city2walk.bin: $e") }

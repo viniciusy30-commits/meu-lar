@@ -100,3 +100,12 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Lado "verde" da faixa: o jardim de grama entre a ciclovia e as vagas virou calçada contínua de concreto claro (mesmo nível do calçadão); a grama sumiu dali.
 - Ciclovia de MÃO DUPLA toda vermelha (3 a 7 m): linhas de borda brancas, tracejado central e setas de sentido (uma em cada faixa, a cada 55 m). A travessia de pedestres cruza por cima com barras brancas (zebra); a passagem NÃO corta mais a ciclovia.
 - Palmeiras com tronco curvo e folhas arqueadas direto no mesh (substituem os "toquinhos" cinza), em canteiro redondo na calçada (o = 8,3); postes de luz em o = 9,0; a orla desvia de postes/placas de trânsito (validado: 0 sobre a ciclovia, 0 colados).
+
+## Etapa D — lotes e as 17 casas (lots.py, validate_lots.py)
+- Casas do Hds NÃO giram (malha fixa no city2.glb, "frente norte/sul"): cada casa só entra em trecho de rua quase leste-oeste (desvio <= 20°, na prática <= 11,6°) e do lado certo (frente norte = lote ao sul da rua; frente sul = lote ao norte). Frentes reais (por Casa k+1): norte 1,2,5,6,9,10,13,14,17; sul 3,4,7,8,11,12,15,16.
+- QUINTAL REAL: medi no city2.glb a extensão de cada casa (instâncias com plot=k, inclui a cerca da casa) -> `house_extents.json` (descartada 1 instância a 278 m na Casa 11). O lote = quintal + 6 m de recuo da frente (7 nos nobres) + 2 m laterais (4) + 2,5 m de fundo (5). Não desenho cerca própria: a da casa já vem na malha original.
+- Zoneamento (tabela do prompt, índice k = Casa k+1): Vila Esperança 1,12,8,13,9 · Parque das Flores 10,11,14 · Jardim Central 5,6,7 · Recanto do Sul 15,16,4 (frente na Av. Beira-Mar/parale la, lado da cidade) · Alto da Colina 3,2 · Península Real 17 (casa 17 vai no lado leste da orla porque a península foi removida da costa). HdsEstate usa esses nomes no mapa 5.
+- Plateau (platô) do lote = calçada da frente + 0,12 m; terraplenagem plana no lote + 7 m e talude de 9 m; caminho (1,4 m) da calçada até a porta (rampa <= 5%); garagem 3 m com rebaixo de guia (a guia some nesse trecho) e rampa; caixa de correio; 3-4 árvores por lote.
+- 1753 lotes comuns em lots.json (frente, retângulo, declive) prontos para a Etapa E (prédios decorativos).
+- Orçamento: palmeiras da orla ficaram 40% mais leves (9 folhas x 2 segmentos).
+- Validadores: 17 casas únicas; quintal dentro do lote; casa >= 3 m da divisa; frente voltada para a rua; casas >= 6 m uma da outra; lotes sem sobreposição (1 m2); lotes sem asfalto/calçada; platô nivelado; caminho/garagem.
