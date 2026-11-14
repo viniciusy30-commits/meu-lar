@@ -5,7 +5,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point, Polygon, box as sbox
 from shapely.ops import unary_union
-from mesh import rgb, shade, mix
+from mesh import rgb, shade, mix, WHITE
 from plan6 import *
 
 Y_ASF = 0.03          # asfalto
@@ -66,7 +66,7 @@ class Ground:
     def height(self, X, Z):
         """terreno natural: plano na cidade, morros nas bordas (fora da faixa das vias), praia/mar e leito do rio"""
         P = self.P
-        h = np.zeros_like(X)
+        h = np.full_like(X, -0.25)          # chao da cidade fica abaixo do asfalto/gramados (sem disputa de profundidade)
         # morros: norte (z<130), oeste (x<105), leste (x>2455)
         hill = np.maximum.reduce([np.clip((128 - Z) / 128, 0, 1), np.clip((100 - X) / 100, 0, 1), np.clip((X - 2460) / 40, 0, 1)])
         nz = np.sin(X / 61.0) * np.cos(Z / 47.0) * 0.5 + np.sin(X / 23.0 + Z / 31.0) * 0.25
@@ -80,7 +80,7 @@ class Ground:
         beach0 = sz - 78
         t = np.clip((Z - beach0) / 78, 0, 1)
         hb = 0.12 - 1.0 * t ** 1.3
-        h = np.where(Z > beach0, np.minimum(h, hb), h)
+        h = np.where(Z > beach0 + 2, hb, h)
         h = np.where(Z > sz, -0.9 - np.clip((Z - sz) / 120, 0, 1) * 6.0, h)
         # rio (leito)
         rx = np.vectorize(river_x)(Z)
@@ -89,7 +89,7 @@ class Ground:
         return h
 
     def terrain(self):
-        M = self.M.free('terreno')
+        M = self.M.free('terreno'); M.m('terreno')
         st = 10.0
         xs = np.arange(0, W + 0.1, st); zs = np.arange(0, H + 0.1, st)
         X, Z = np.meshgrid(xs, zs)
@@ -116,28 +116,28 @@ class Ground:
 
     # ------------------------------------------------------------ agua
     def water(self):
-        M = self.M.free('agua')
+        M = self.M.free('agua'); M.m('agua')
         P = self.P
         # mar: faixas largas (cada pedaco no seu tile)
         for x0 in range(0, int(W), 125):
             for z0 in range(1700, int(H), 125):
                 q = sbox(x0, z0, x0 + 125, z0 + 125).intersection(P.sea)
-                M.shp(q, Y_SEA, C_SEA)
+                M.shp(q, Y_SEA, (215, 228, 240))
         # rio
         for z0 in range(-20, int(shore_z(1700)) + 40, 60):
             q = sbox(0, z0, W, z0 + 60).intersection(P.river).difference(P.sea)
-            M.shp(q, Y_RIVER, C_WATER)
+            M.shp(q, Y_RIVER, (200, 214, 205))
         # espuma na beira da praia
-        xs = np.arange(0, W, 6.0)
+        xs = np.arange(0, W, 6.0); M.m('liso')
         for x in xs:
             z0, z1 = shore_z(x), shore_z(x + 6)
             M.quad((x, Y_SEA + 0.03, z0 - 1.2), (x + 6, Y_SEA + 0.03, z1 - 1.2), (x + 6, Y_SEA + 0.03, z1 + 1.8), (x, Y_SEA + 0.03, z0 + 1.8), rgb('#E8F4F2'), (0, 1, 0))
         # cais de pedra nas margens do rio (de -3 a +0,2) e guarda-corpo
-        M.free('ruas')
+        M.free('ruas'); M.m('pedra')
         for sgn in (-1, 1):
             zs = np.arange(-10, shore_z(1700) - 4, 4.0)
             line = [(river_x(z) + sgn * (RIVER_W / 2 + RIVER_WALL / 2), z) for z in zs]
-            M.wall_strip(line, -3.2, 0.25, RIVER_WALL, C_STONE)
+            M.m('pedra'); M.wall_strip(line, -3.2, 0.25, RIVER_WALL, WHITE); M.m('metal')
             # guarda-corpo (fora das pontes)
             for i in range(len(line) - 1):
                 a, b = line[i], line[i + 1]
@@ -155,7 +155,7 @@ class Ground:
             for z0 in range(0, int(H), 250):
                 cell = sbox(x0, z0, x0 + 250, z0 + 250)
                 a = P.asphalt.intersection(cell)
-                M.shp(a, Y_ASF, C_ASF)
+                M.m('asfalto'); M.shp(a, Y_ASF, WHITE)
                 walk = P.row.difference(P.asphalt).intersection(cell)
                 self.walk_cells = getattr(self, 'walk_cells', []) ; self.walk_cells.append(walk)
         # faixas de grama (entre guia e calcada) e canteiros centrais: fora dos cruzamentos
@@ -180,9 +180,10 @@ class Ground:
         for x0 in range(0, int(W), 250):
             for z0 in range(0, int(H), 250):
                 cell = sbox(x0, z0, x0 + 250, z0 + 250)
-                M.shp(W_.intersection(cell), Y_WALK, C_WALK)
-                M.shp(V.intersection(cell), Y_LAWN + 0.02, C_GRASS2)
+                M.m('calcada'); M.shp(W_.intersection(cell), Y_WALK, WHITE)
+                M.m('grama'); M.shp(V.intersection(cell), Y_LAWN + 0.02, WHITE)
         # guias (meio-fio): ao longo de todo o contorno do asfalto
+        M.m('concreto')
         for g in getattr(P.asphalt, 'geoms', [P.asphalt]):
             for ring in [g.exterior] + list(g.interiors):
                 pts = list(ring.coords)
@@ -193,7 +194,7 @@ class Ground:
                     mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
                     if P.river.contains(Point(mx, mz)): continue
                     M.at(mx, mz)
-                    M.wall_strip([a, b], Y_ASF - 0.02, Y_WALK + 0.01, 0.22, C_CURB)
+                    M.wall_strip([a, b], Y_ASF - 0.02, Y_WALK + 0.01, 0.22, (236, 234, 228))
                     M.free()
         # bordas de calcada/gramado contra os lotes (degrauzinho) ficam escondidas pelo lote
         # canteiro central das avenidas: guia + grama + palmeiras/arvores (as arvores entram em props)
@@ -211,8 +212,8 @@ class Ground:
         M = self.M
         c = q.centroid; M.at(c.x, c.y)
         pts = list(q.exterior.coords)[:-1]
-        M.prism(pts, Y_ASF - 0.02, 0.22, C_CURB, top=False)
-        M.flat(pts, 0.22, C_GRASS)
+        M.m('concreto'); M.prism(pts, Y_ASF - 0.02, 0.22, (236, 234, 228), top=False)
+        M.m('grama'); M.flat(pts, 0.22, WHITE)
         M.free()
 
     # ------------------------------------------------------------ pintura
@@ -229,7 +230,7 @@ class Ground:
             p = [(o[0] + d[0] * a + nx * (off - w / 2), o[1] + d[1] * a + nz * (off - w / 2)), (o[0] + d[0] * b + nx * (off - w / 2), o[1] + d[1] * b + nz * (off - w / 2)),
                  (o[0] + d[0] * b + nx * (off + w / 2), o[1] + d[1] * b + nz * (off + w / 2)), (o[0] + d[0] * a + nx * (off + w / 2), o[1] + d[1] * a + nz * (off + w / 2))]
             cx = (p[0][0] + p[2][0]) / 2; cz = (p[0][1] + p[2][1]) / 2
-            M.at(cx, cz); M.poly([(x, y, z) for x, z in p], col, (0, 1, 0)); M.free()
+            M.at(cx, cz); old = M.m('liso'); M.poly([(x, y, z) for x, z in p], col, (0, 1, 0)); M.m(old); M.free()
 
     def markings(self):
         P = self.P; self.crossings = []
@@ -278,25 +279,27 @@ class Ground:
             z = o[1]; hw = half_row(r['kind'])
             xa = river_x(z) - RIVER_W / 2 - RIVER_WALL - 2; xb = river_x(z) + RIVER_W / 2 + RIVER_WALL + 2
             self.bridge_z.append(z)
-            M.at((xa + xb) / 2, z, 'ruas')
+            M.at((xa + xb) / 2, z, 'ruas'); M.m('concreto')
             # tabuleiro (laje) com viga lateral e parapeito
             M.box(xa, xb, -1.1, Y_ASF - 0.01, z - hw, z + hw, rgb('#B9B3A8'), top=False, bottom=True)
             for sg in (-1, 1):
                 zz = z + sg * hw
                 M.box(xa, xb, -1.2, Y_WALK + 1.05, zz - (0.35 if sg > 0 else 0), zz + (0.35 if sg < 0 else 0), rgb('#D7D1C4'))
                 M.box(xa, xb, Y_WALK + 1.05, Y_WALK + 1.18, zz - 0.4, zz + 0.4, rgb('#9C968B'))
+                M.m('metal')
                 for x in np.arange(xa + 2, xb - 1, 6.0):              # postes da ponte
                     M.box(x - 0.12, x + 0.12, Y_WALK, Y_WALK + 6.5, zz - sg * 0.6 - 0.12, zz - sg * 0.6 + 0.12, rgb('#3E4247'))
                     M.box(x - 0.12, x + 0.12, Y_WALK + 6.3, Y_WALK + 6.45, zz - sg * 0.6 - sg * 1.6, zz - sg * 0.6 + 0.1, rgb('#3E4247'))
                     M.box(x - 0.3, x + 0.3, Y_WALK + 6.1, Y_WALK + 6.3, zz - sg * 2.0 - 0.25, zz - sg * 2.0 + 0.25, rgb('#FFF3C4'))
             # pilares no rio
+            M.m('concreto')
             for xp in (river_x(z) - RIVER_W / 6, river_x(z) + RIVER_W / 6):
                 for zp in np.linspace(z - hw + 2, z + hw - 2, 3):
                     M.cyl(xp, zp, 0.9, -3.6, -1.1, rgb('#A9A397'), 10)
             M.free()
         # ponte de pedestre (arco) no Parque Ribeirinho
         z = self.P.footbridge[0]; xa = river_x(z) - RIVER_W / 2 - RIVER_WALL - 1; xb = river_x(z) + RIVER_W / 2 + RIVER_WALL + 1
-        M.at((xa + xb) / 2, z, 'ruas')
+        M.at((xa + xb) / 2, z, 'ruas'); M.m('madeira')
         n = 16
         for k in range(n):
             t0, t1 = k / n, (k + 1) / n

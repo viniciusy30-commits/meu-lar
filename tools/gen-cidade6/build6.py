@@ -14,12 +14,62 @@ def build():
     P = Plan(); M = Mesh(W, H)
     G = roads6.Ground(P, M).build()
     print(f'chao: {M.ntri} triangulos ({time.time() - t:.1f}s)')
-    import lots6
-    L = lots6.Lots(P, G, M).build()
-    print(f'lotes/construcoes: {M.ntri} triangulos ({time.time() - t:.1f}s)')
+    L = None
+    if STAGE != 'chao':
+        import lots6
+        L = lots6.Lots(P, G, M).build()
+        print(f'lotes/construcoes: {M.ntri} triangulos ({time.time() - t:.1f}s)')
+        import props6
+        props6.Props(P, G, L, M).build()
+    print(f'total: {M.ntri} triangulos ({time.time() - t:.1f}s)')
     return P, G, L, M
+
+
+def export(P, G, L, M, out=OUT, texdir=None, single=True):
+    import shutil, math
+    from mesh import write_glb, TILE
+    import textures6
+    os.makedirs(os.path.join(out, 'tiles', 'texturas'), exist_ok=True)
+    tdir = os.path.join(out, 'tiles', 'texturas')
+    textures6.make_all(tdir)
+    # agrupa por tile -> camada -> material
+    tiles = {}
+    for (ti, tj, lay, mat), lst in M.data.items():
+        tiles.setdefault((ti, tj), {}).setdefault(lay, {}).setdefault(mat, []).extend(lst)
+    man = {'nome': 'Cidade 6 - Meu Lar', 'tamanho_m': [W, H], 'eixos': 'X leste, Z sul, Y para cima (metros, igual ao glTF)', 'tile_m': TILE,
+           'texturas': 'tiles/texturas/*.jpg (uri relativa dentro de cada tile)', 'tiles': [], 'casas_jogador': L.player,
+           'colisoes_ret': {'formato': '[cx, cz, ux, uz, meia_u, meia_v] (retangulo girado: eixo u=(ux,uz), v perpendicular)', 'lista': L.B.colliders},
+           'spawn': [float(L.player[0]['centro'][0]), 0.3, float(L.player[0]['centro'][2])] if L.player else [1140, 0.3, 1000]}
+    tot = 0
+    for (ti, tj), lays in sorted(tiles.items()):
+        tr = (ti * TILE, 0.0, tj * TILE)
+        spec = [(f'{lay}_{ti:02d}_{tj:02d}', tr, mats) for lay, mats in sorted(lays.items())]
+        mk = []
+        for h in L.player:
+            if M.tile_of(h['centro'][0], h['centro'][2]) == (ti, tj):
+                mk.append((f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", (h['centro'][0], h['centro'][1], h['centro'][2]), math.radians(h['yaw_graus'])))
+        fn = f'tile_{ti:02d}_{tj:02d}.glb'
+        n = write_glb(os.path.join(out, 'tiles', fn), spec, tdir, embed=False, tex_uri_prefix='texturas/', markers=mk)
+        tot += n
+        man['tiles'].append({'arquivo': 'tiles/' + fn, 'i': ti, 'j': tj, 'x0': ti * TILE, 'z0': tj * TILE, 'triangulos': n, 'camadas': sorted(lays),
+                             'bytes': os.path.getsize(os.path.join(out, 'tiles', fn))})
+    json.dump(man, open(os.path.join(out, 'cidade6.json'), 'w'), ensure_ascii=False, indent=1)
+    print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
+    if single:
+        spec = []
+        for (ti, tj), lays in sorted(tiles.items()):
+            for lay, mats in sorted(lays.items()):
+                if single == 'leve' and lay in ('carros', 'mobiliario'): continue
+                spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
+        mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), math.radians(h['yaw_graus'])) for h in L.player]
+        fn = os.path.join(out, 'cidade6_completa.glb')
+        n = write_glb(fn, spec, tdir, embed=True, markers=mk)
+        print(f'GLB unico: {n} triangulos, {os.path.getsize(fn) / 1e6:.1f} MB')
+    return man
 
 
 if __name__ == '__main__':
     P, G, L, M = build()
     print(M.stats())
+    export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
+

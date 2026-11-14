@@ -1,12 +1,13 @@
-"""Cidade 6 - construtor de malha indexada por TILE e CAMADA, primitivas geometricas e gravador GLB.
+"""Cidade 6 - construtor de malha indexada por TILE, CAMADA e MATERIAL; primitivas geometricas; gravador GLB com texturas.
 
 Coordenadas do mundo: X leste (0..W), Z sul (0..H), Y para cima, em metros (o mesmo eixo do glTF).
-Cada elemento (triangulo/quad/caixa...) vai para o tile do "ancora" atual (o objeto inteiro fica num tile so)
-ou, sem ancora, para o tile do seu centro. Cada (tile, camada) guarda pedacos com menos de 65 mil vertices
-(o leitor GLB do jogo usa indices de 16 bits)."""
-import math, struct, json
+Cada elemento vai para o tile do "ancora" atual (o objeto inteiro fica num tile so) ou, sem ancora, para o tile do seu centro.
+Cada (tile, camada, material) guarda pedacos com menos de 65 mil vertices (o leitor GLB do jogo usa indices de 16 bits).
+UV: sem UV explicito, projecao planar no mundo na escala do material (metros por repeticao da textura)."""
+import math, struct, json, os
 from array import array
 import numpy as np
+from textures6 import MATS
 
 TILE = 250.0
 MAXV = 65000
@@ -24,25 +25,28 @@ def mix(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
+WHITE = (255, 255, 255)
+
+
 class Chunk:
-    __slots__ = ('pn', 'col', 'idx', 'nv')
+    __slots__ = ('pn', 'uv', 'col', 'idx', 'nv')
 
     def __init__(self):
-        self.pn = array('f'); self.col = array('B'); self.idx = array('H'); self.nv = 0
+        self.pn = array('f'); self.uv = array('f'); self.col = array('B'); self.idx = array('H'); self.nv = 0
 
 
 class Mesh:
     def __init__(self, W, H):
         self.W, self.H = W, H
         self.nx, self.nz = int(math.ceil(W / TILE)), int(math.ceil(H / TILE))
-        self.data = {}            # (ti, tj, camada) -> [Chunk]
+        self.data = {}            # (ti, tj, camada, material) -> [Chunk]
         self.anchor = None
         self.layer = 'geral'
+        self.mat = 'liso'
         self.ntri = 0
 
     # ---------------------------------------------------------------- contexto
     def at(self, x, z, layer=None):
-        """ancora o proximo objeto no tile de (x, z)"""
         self.anchor = (x, z)
         if layer: self.layer = layer
         return self
@@ -51,6 +55,10 @@ class Mesh:
         self.anchor = None
         if layer: self.layer = layer
         return self
+
+    def m(self, mat):
+        """material atual; devolve o anterior"""
+        old = self.mat; self.mat = mat; return old
 
     def tile_of(self, x, z):
         return (min(max(int(x // TILE), 0), self.nx - 1), min(max(int(z // TILE), 0), self.nz - 1))
@@ -64,8 +72,8 @@ class Mesh:
         return c
 
     # ---------------------------------------------------------------- elementos basicos
-    def poly(self, pts, col, n=None, flip_ok=True):
-        """poligono convexo plano (lista de (x,y,z)) com normal plana; n: normal desejada (o sentido dos indices segue n)"""
+    def poly(self, pts, col, n=None, uv=None):
+        """poligono convexo plano (lista de (x,y,z)); n: normal desejada (o sentido dos indices segue n); uv: lista de (u,v) opcional"""
         k = len(pts)
         if k < 3: return
         p0 = pts[0]
@@ -79,49 +87,58 @@ class Mesh:
         if L < 1e-12: return
         gx, gy, gz = gx / L, gy / L, gz / L
         rev = False
-        if n is not None:
-            if gx * n[0] + gy * n[1] + gz * n[2] < 0: rev = True; gx, gy, gz = -gx, -gy, -gz
-        # glTF: frente = anti-horario visto de fora (normal pela regra da mao direita)
+        if n is not None and gx * n[0] + gy * n[1] + gz * n[2] < 0: rev = True; gx, gy, gz = -gx, -gy, -gz
         if self.anchor is not None: cx, cz = self.anchor
         else: cx = sum(p[0] for p in pts) / k; cz = sum(p[2] for p in pts) / k
         t = self.tile_of(cx, cz)
-        c = self._chunk((t[0], t[1], self.layer), k)
+        c = self._chunk((t[0], t[1], self.layer, self.mat), k)
         base = c.nv
-        for p in pts:
-            c.pn.extend((p[0], p[1], p[2], gx, gy, gz)); c.col.extend((col[0], col[1], col[2], 255))
+        if uv is None:
+            su, sv = MATS.get(self.mat, (None, (1.0, 1.0)))[1]
+            if abs(gy) > 0.7:
+                uv = [(p[0] / su, p[2] / sv) for p in pts]
+            else:
+                hl = math.hypot(gx, gz) or 1.0; tx, tz = -gz / hl, gx / hl
+                uv = [((p[0] * tx + p[2] * tz) / su, -p[1] / sv) for p in pts]
+        for i, p in enumerate(pts):
+            c.pn.extend((p[0], p[1], p[2], gx, gy, gz)); c.uv.extend(uv[i]); c.col.extend((col[0], col[1], col[2], 255))
         c.nv += k
         for i in range(1, k - 1):
             if rev: c.idx.extend((base, base + i + 1, base + i))
             else: c.idx.extend((base, base + i, base + i + 1))
         self.ntri += k - 2
 
-    def tri(self, a, b, c, col, n=None): self.poly([a, b, c], col, n)
+    def tri(self, a, b, c, col, n=None, uv=None): self.poly([a, b, c], col, n, uv)
 
-    def quad(self, a, b, c, d, col, n=None): self.poly([a, b, c, d], col, n)
+    def quad(self, a, b, c, d, col, n=None, uv=None): self.poly([a, b, c, d], col, n, uv)
 
     def smooth_grid(self, P, N, C):
-        """grade de vertices com normais suaves (terreno): P (nz,nx,3), N (nz,nx,3), C (nz,nx,3); quebrada por tile"""
+        """grade com normais suaves (terreno): P, N, C arrays (nz, nx, 3)"""
         nz, nx = P.shape[:2]
+        su, sv = MATS.get(self.mat, (None, (1.0, 1.0)))[1]
         for j in range(nz - 1):
             for i in range(nx - 1):
-                q = [(j, i), (j, i + 1), (j + 1, i + 1), (j + 1, i)]
+                q = ((j, i), (j, i + 1), (j + 1, i + 1), (j + 1, i))
                 cx = (P[j, i, 0] + P[j, i + 1, 0]) / 2; cz = (P[j, i, 2] + P[j + 1, i, 2]) / 2
                 t = self.tile_of(cx, cz)
-                ch = self._chunk((t[0], t[1], self.layer), 4)
+                ch = self._chunk((t[0], t[1], self.layer, self.mat), 4)
                 base = ch.nv
                 for (a, b) in q:
-                    ch.pn.extend((float(P[a, b, 0]), float(P[a, b, 1]), float(P[a, b, 2]), float(N[a, b, 0]), float(N[a, b, 1]), float(N[a, b, 2])))
+                    x, y, z = float(P[a, b, 0]), float(P[a, b, 1]), float(P[a, b, 2])
+                    ch.pn.extend((x, y, z, float(N[a, b, 0]), float(N[a, b, 1]), float(N[a, b, 2])))
+                    ch.uv.extend((x / su, z / sv))
                     ch.col.extend((int(C[a, b, 0]), int(C[a, b, 1]), int(C[a, b, 2]), 255))
                 ch.nv += 4
-                # frente para cima: (x+,z) x (x,z+) -> y- ; entao ordem 0,3,2 / 0,2,1 aponta para cima
                 ch.idx.extend((base, base + 3, base + 2, base, base + 2, base + 1))
                 self.ntri += 2
 
     # ---------------------------------------------------------------- solidos
-    def prism(self, c4, y0, y1, col, top=True, bottom=False, colt=None, sides=None):
-        """prisma vertical sobre poligono convexo (lista de (x,z) em qualquer sentido)"""
+    def prism(self, c4, y0, y1, col, top=True, bottom=False, colt=None, sides=None, mat_top=None, wall_uv=None):
+        """prisma vertical sobre poligono convexo (lista de (x,z)); wall_uv=(su, sv, v0): UV das paredes
+        corrido ao longo do contorno (fachadas: janelas alinhadas nas quinas)"""
         n = len(c4)
         cx = sum(p[0] for p in c4) / n; cz = sum(p[1] for p in c4) / n
+        run = 0.0
         for k in range(n):
             a = c4[k]; b = c4[(k + 1) % n]
             ex, ez = b[0] - a[0], b[1] - a[1]; L = math.hypot(ex, ez)
@@ -129,10 +146,19 @@ class Mesh:
             fx, fz = ez / L, -ex / L
             if fx * ((a[0] + b[0]) / 2 - cx) + fz * ((a[1] + b[1]) / 2 - cz) < 0: fx, fz = -fx, -fz
             cc = col if sides is None else sides[k % len(sides)]
-            cc = shade(cc, -10 if abs(fx) > abs(fz) else 0)
-            self.quad((a[0], y0, a[1]), (b[0], y0, b[1]), (b[0], y1, b[1]), (a[0], y1, a[1]), cc, (fx, 0, fz))
-        if top: self.poly([(p[0], y1, p[1]) for p in c4], colt or col, (0, 1, 0))
-        if bottom: self.poly([(p[0], y0, p[1]) for p in c4], col, (0, -1, 0))
+            uv = None
+            if wall_uv:
+                su, sv, v0 = wall_uv
+                u0 = round(run / su); u1 = u0 + max(1, round(L / su))
+                uv = [(u0, (v0 - y0) / sv), (u1, (v0 - y0) / sv), (u1, (v0 - y1) / sv), (u0, (v0 - y1) / sv)]
+                run += L
+            self.quad((a[0], y0, a[1]), (b[0], y0, b[1]), (b[0], y1, b[1]), (a[0], y1, a[1]), cc, (fx, 0, fz), uv)
+        if top or bottom:
+            old = self.mat
+            if mat_top: self.mat = mat_top
+            if top: self.poly([(p[0], y1, p[1]) for p in c4], colt or col, (0, 1, 0))
+            if bottom: self.poly([(p[0], y0, p[1]) for p in c4], col, (0, -1, 0))
+            self.mat = old
 
     def box(self, x0, x1, y0, y1, z0, z1, col, top=True, bottom=False, colt=None):
         self.prism([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], y0, y1, col, top, bottom, colt)
@@ -141,16 +167,17 @@ class Mesh:
         r1 = r if r1 is None else r1
         pts0 = [(cx + math.cos(2 * math.pi * i / seg) * r, cz + math.sin(2 * math.pi * i / seg) * r) for i in range(seg)]
         pts1 = [(cx + math.cos(2 * math.pi * i / seg) * r1, cz + math.sin(2 * math.pi * i / seg) * r1) for i in range(seg)]
+        circ = 2 * math.pi * max(r, 0.05)
         for i in range(seg):
             a0, b0 = pts0[i], pts0[(i + 1) % seg]; a1, b1 = pts1[i], pts1[(i + 1) % seg]
             am = 2 * math.pi * (i + 0.5) / seg
             nrm = (math.cos(am), (r - r1) / max(0.01, (y1 - y0)), math.sin(am))
-            if r1 < 1e-4: self.tri((a0[0], y0, a0[1]), (b0[0], y0, b0[1]), (cx, y1, cz), col, nrm)
-            else: self.quad((a0[0], y0, a0[1]), (b0[0], y0, b0[1]), (b1[0], y1, b1[1]), (a1[0], y1, a1[1]), col, nrm)
+            uu0, uu1 = i / seg * circ, (i + 1) / seg * circ
+            if r1 < 1e-4: self.tri((a0[0], y0, a0[1]), (b0[0], y0, b0[1]), (cx, y1, cz), col, nrm, [(uu0, -y0), (uu1, -y0), ((uu0 + uu1) / 2, -y1)])
+            else: self.quad((a0[0], y0, a0[1]), (b0[0], y0, b0[1]), (b1[0], y1, b1[1]), (a1[0], y1, a1[1]), col, nrm, [(uu0, -y0), (uu1, -y0), (uu1, -y1), (uu0, -y1)])
         if top and r1 > 1e-4: self.poly([(p[0], y1, p[1]) for p in pts1], colt or col, (0, 1, 0))
 
     def sphere(self, cx, cy, cz, r, col, seg=6, rings=4, sy=1.0):
-        """esfera baixa (copa de arvore): faixas de quads"""
         P = []
         for j in range(rings + 1):
             th = math.pi * j / rings
@@ -159,10 +186,11 @@ class Mesh:
             for i in range(seg):
                 a, b = P[j][i], P[j][(i + 1) % seg]; c, d = P[j + 1][(i + 1) % seg], P[j + 1][i]
                 mx = (a[0] + b[0] + c[0] + d[0]) / 4 - cx; my = (a[1] + b[1] + c[1] + d[1]) / 4 - cy; mz = (a[2] + b[2] + c[2] + d[2]) / 4 - cz
-                cc = shade(col, int(-18 + 30 * (my / max(r * sy, 0.01) + 1) / 2))
-                if j == 0: self.tri(a, c, d, cc, (mx, my, mz))
-                elif j == rings - 1: self.tri(a, b, d, cc, (mx, my, mz))
-                else: self.quad(a, b, c, d, cc, (mx, my, mz))
+                cc = shade(col, int(-22 + 36 * (my / max(r * sy, 0.01) + 1) / 2))
+                uv = [(i * 0.5, j * 0.5), ((i + 1) * 0.5, j * 0.5), ((i + 1) * 0.5, (j + 1) * 0.5), (i * 0.5, (j + 1) * 0.5)]
+                if j == 0: self.tri(a, c, d, cc, (mx, my, mz), [uv[0], uv[2], uv[3]])
+                elif j == rings - 1: self.tri(a, b, d, cc, (mx, my, mz), [uv[0], uv[1], uv[3]])
+                else: self.quad(a, b, c, d, cc, (mx, my, mz), uv)
 
     def flat(self, poly, y, col, holes=None, n=(0, 1, 0)):
         """poligono qualquer (com buracos) plano em y, triangulado (earcut)"""
@@ -171,7 +199,7 @@ class Mesh:
         verts = []; ends = []
         for r in rings:
             r = list(r)
-            if len(r) > 1 and r[0] == r[-1]: r = r[:-1]
+            if len(r) > 1 and tuple(r[0]) == tuple(r[-1]): r = r[:-1]
             verts.extend(r); ends.append(len(verts))
         if len(verts) < 3: return
         V = np.array(verts, dtype=np.float64)
@@ -182,15 +210,19 @@ class Mesh:
             self.tri((a[0], y, a[1]), (b[0], y, b[1]), (c[0], y, c[1]), col, n)
 
     def shp(self, geom, y, col, n=(0, 1, 0)):
-        """desenha um poligono/multipoligono do shapely plano em y"""
+        """poligono/multipoligono do shapely plano em y (triangulacao de Delaunay restrita: exata com buracos)"""
+        import shapely
         if geom is None or geom.is_empty: return
-        gs = getattr(geom, 'geoms', [geom])
-        for g in gs:
+        for g in getattr(geom, 'geoms', [geom]):
+            if g.geom_type in ('MultiPolygon', 'GeometryCollection'): self.shp(g, y, col, n); continue
             if g.geom_type != 'Polygon' or g.area < 0.01: continue
-            self.flat(list(g.exterior.coords), y, col, [list(r.coords) for r in g.interiors], n)
+            if not g.is_valid: g = g.buffer(0)
+            tris = shapely.constrained_delaunay_triangles(g)
+            for t in getattr(tris, 'geoms', []):
+                c = list(t.exterior.coords)[:3]
+                self.tri((c[0][0], y, c[0][1]), (c[1][0], y, c[1][1]), (c[2][0], y, c[2][1]), col, n)
 
     def wall_strip(self, line, y0, y1, th, col, top=True):
-        """muro/cerca ao longo de uma polilinha (x,z)"""
         for i in range(len(line) - 1):
             a, b = line[i], line[i + 1]
             dx, dz = b[0] - a[0], b[1] - a[1]; L = math.hypot(dx, dz)
@@ -201,20 +233,18 @@ class Mesh:
     # ---------------------------------------------------------------- saida
     def stats(self):
         out = {}
-        for (ti, tj, lay), lst in self.data.items():
+        for (ti, tj, lay, mat), lst in self.data.items():
             out[lay] = out.get(lay, 0) + sum(len(c.idx) // 3 for c in lst)
         return out
 
 
 class Frame:
-    """referencial de um lote/construcao: origem o (x,z), eixo u (ao longo da rua) e v (para dentro do lote)"""
-    def __init__(self, o, u):
+    """referencial: origem o (x,z), eixo u (ao longo da rua) e v (para dentro do lote)"""
+    def __init__(self, o, u, flip=False):
         self.ox, self.oz = o; L = math.hypot(u[0], u[1])
         self.ux, self.uz = u[0] / L, u[1] / L
         self.vx, self.vz = -self.uz, self.ux
-
-    def flipv(self):
-        self.vx, self.vz = -self.vx, -self.vz; return self
+        if flip: self.vx, self.vz = -self.vx, -self.vz
 
     def xz(self, u, v): return (self.ox + self.ux * u + self.vx * v, self.oz + self.uz * u + self.vz * v)
 
@@ -232,43 +262,66 @@ def _pad4(b, fill=b'\x00'):
     return b + fill * ((4 - len(b) % 4) % 4)
 
 
-def write_glb(path, nodes_spec, extras=None):
-    """nodes_spec: lista de (nome, translacao (x,y,z), [chunks]) ; cada chunk vira uma primitiva com POSITION/NORMAL/COLOR_0/indices"""
+def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/', extras=None, markers=None):
+    """nodes_spec: lista de (nome, translacao, {material: [chunks]}).
+    Texturas: embed=True embute os JPEG no GLB; senao referencia arquivos externos (uri = prefixo + nome.jpg)."""
     bin_ = bytearray(); bviews = []; accs = []; meshes = []; nodes = []
-    mat = [{'name': 'cidade', 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0.0, 'roughnessFactor': 1.0}, 'doubleSided': False}]
+    mats_used = []
+    for (_, _, bymat) in nodes_spec:
+        for m in bymat:
+            if m not in mats_used: mats_used.append(m)
+    mats_used.sort()
+    mid = {m: i for i, m in enumerate(mats_used)}
 
-    def add_view(data, target):
+    def add_view(data, target=None):
         nonlocal bin_
         off = len(bin_); bin_ += data
         while len(bin_) % 4: bin_ += b'\x00'
-        bviews.append({'buffer': 0, 'byteOffset': off, 'byteLength': len(data), **({'target': target} if target else {})})
-        return len(bviews) - 1
+        bv = {'buffer': 0, 'byteOffset': off, 'byteLength': len(data)}
+        if target: bv['target'] = target
+        bviews.append(bv); return len(bviews) - 1
 
+    images = []; textures = []; materials = []
+    for i, m in enumerate(mats_used):
+        fn = os.path.join(texdir, m + '.jpg')
+        if embed:
+            images.append({'bufferView': add_view(open(fn, 'rb').read()), 'mimeType': 'image/jpeg', 'name': m})
+        else:
+            images.append({'uri': tex_uri_prefix + m + '.jpg', 'name': m})
+        textures.append({'sampler': 0, 'source': i})
+        materials.append({'name': m, 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'baseColorTexture': {'index': i}, 'metallicFactor': 0.0,
+                                                              'roughnessFactor': 0.35 if m in ('vidro', 'vitrine', 'agua', 'escritorio') else 0.95}})
     ntri = 0
-    for (name, tr, chunks) in nodes_spec:
+    for (name, tr, bymat) in nodes_spec:
         prims = []
-        for c in chunks:
-            if not len(c.idx): continue
-            pn = np.frombuffer(c.pn.tobytes(), np.float32).reshape(-1, 6).copy()
-            pn[:, 0] -= tr[0]; pn[:, 1] -= tr[1]; pn[:, 2] -= tr[2]
-            pos = np.ascontiguousarray(pn[:, 0:3]); nrm = pn[:, 3:6]
-            ln = np.linalg.norm(nrm, axis=1, keepdims=True); ln[ln < 1e-9] = 1; nrm = np.ascontiguousarray(nrm / ln, dtype=np.float32)
-            col = np.frombuffer(c.col.tobytes(), np.uint8)
-            idx = np.frombuffer(c.idx.tobytes(), np.uint16)
-            vp = add_view(pos.tobytes(), 34962); vn = add_view(nrm.tobytes(), 34962); vc = add_view(col.tobytes(), 34962)
-            vi = add_view(idx.tobytes(), 34963)
-            nv = len(pos)
-            accs.append({'bufferView': vp, 'componentType': 5126, 'count': nv, 'type': 'VEC3', 'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()}); ap = len(accs) - 1
-            accs.append({'bufferView': vn, 'componentType': 5126, 'count': nv, 'type': 'VEC3'}); an = len(accs) - 1
-            accs.append({'bufferView': vc, 'componentType': 5121, 'normalized': True, 'count': nv, 'type': 'VEC4'}); ac = len(accs) - 1
-            accs.append({'bufferView': vi, 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'}); ai = len(accs) - 1
-            prims.append({'attributes': {'POSITION': ap, 'NORMAL': an, 'COLOR_0': ac}, 'indices': ai, 'material': 0})
-            ntri += len(idx) // 3
+        for m in sorted(bymat):
+            for c in bymat[m]:
+                if not len(c.idx): continue
+                pn = np.frombuffer(c.pn.tobytes(), np.float32).reshape(-1, 6).copy()
+                pn[:, 0] -= tr[0]; pn[:, 1] -= tr[1]; pn[:, 2] -= tr[2]
+                pos = np.ascontiguousarray(pn[:, 0:3]); nrm = pn[:, 3:6]
+                ln = np.linalg.norm(nrm, axis=1, keepdims=True); ln[ln < 1e-9] = 1; nrm = np.ascontiguousarray(nrm / ln, dtype=np.float32)
+                uv = np.frombuffer(c.uv.tobytes(), np.float32).reshape(-1, 2)
+                col = np.frombuffer(c.col.tobytes(), np.uint8)
+                idx = np.frombuffer(c.idx.tobytes(), np.uint16)
+                nv = len(pos)
+                ap = len(accs); accs.append({'bufferView': add_view(pos.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC3', 'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()})
+                an = len(accs); accs.append({'bufferView': add_view(nrm.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC3'})
+                au = len(accs); accs.append({'bufferView': add_view(uv.tobytes(), 34962), 'componentType': 5126, 'count': nv, 'type': 'VEC2'})
+                ac = len(accs); accs.append({'bufferView': add_view(col.tobytes(), 34962), 'componentType': 5121, 'normalized': True, 'count': nv, 'type': 'VEC4'})
+                ai = len(accs); accs.append({'bufferView': add_view(idx.tobytes(), 34963), 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'})
+                prims.append({'attributes': {'POSITION': ap, 'NORMAL': an, 'TEXCOORD_0': au, 'COLOR_0': ac}, 'indices': ai, 'material': mid[m]})
+                ntri += len(idx) // 3
         if not prims: continue
         meshes.append({'name': name, 'primitives': prims})
         nodes.append({'name': name, 'mesh': len(meshes) - 1, 'translation': [float(tr[0]), float(tr[1]), float(tr[2])]})
+    for (mn, mt, myaw) in (markers or []):          # nos vazios (ex.: onde vai cada casa do jogador)
+        q = [0.0, math.sin(myaw / 2), 0.0, math.cos(myaw / 2)]
+        nodes.append({'name': mn, 'translation': [float(v) for v in mt], 'rotation': q})
     gl = {'asset': {'version': '2.0', 'generator': 'meu-lar gen-cidade6'}, 'scene': 0, 'scenes': [{'name': 'cidade', 'nodes': list(range(len(nodes)))}],
-          'nodes': nodes, 'meshes': meshes, 'materials': mat, 'accessors': accs, 'bufferViews': bviews, 'buffers': [{'byteLength': len(bin_)}]}
+          'nodes': nodes, 'meshes': meshes, 'materials': materials, 'textures': textures, 'images': images,
+          'samplers': [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 10497, 'wrapT': 10497}],
+          'accessors': accs, 'bufferViews': bviews, 'buffers': [{'byteLength': len(bin_)}]}
     if extras: gl['extras'] = extras
     js = _pad4(json.dumps(gl, separators=(',', ':')).encode(), b' ')
     bb = _pad4(bytes(bin_))
@@ -280,19 +333,19 @@ def write_glb(path, nodes_spec, extras=None):
 
 
 def read_glb(path):
-    """leitor de conferencia: devolve lista de (nome, pos Nx3 mundo, nrm Nx3, cor Nx3 0..1, idx)"""
+    """leitor de conferencia: lista de (no, material, pos Nx3 mundo, nrm, uv, cor Nx3 0..1, idx)"""
     raw = open(path, 'rb').read()
     jl = struct.unpack_from('<I', raw, 12)[0]; g = json.loads(raw[20:20 + jl]); bo = 20 + jl + 8; b = raw[bo:]
     def acc(i, dt, k):
         a = g['accessors'][i]; v = g['bufferViews'][a['bufferView']]
-        return np.frombuffer(b, dt, a['count'] * k, v.get('byteOffset', 0) + a.get('byteOffset', 0)).reshape(a['count'], k) if k > 1 else np.frombuffer(b, dt, a['count'], v.get('byteOffset', 0) + a.get('byteOffset', 0))
+        arr = np.frombuffer(b, dt, a['count'] * k, v.get('byteOffset', 0) + a.get('byteOffset', 0))
+        return arr.reshape(a['count'], k) if k > 1 else arr
     out = []
     for nd in g['nodes']:
         if 'mesh' not in nd: continue
         t = np.array(nd.get('translation', [0, 0, 0]), np.float32)
         for p in g['meshes'][nd['mesh']]['primitives']:
             at = p['attributes']
-            pos = acc(at['POSITION'], np.float32, 3) + t; nrm = acc(at['NORMAL'], np.float32, 3); col = acc(at['COLOR_0'], np.uint8, 4)[:, :3] / 255.0
-            idx = acc(p['indices'], np.uint16, 1).astype(np.int64)
-            out.append((nd['name'], pos, nrm, col, idx))
+            out.append((nd['name'], g['materials'][p['material']]['name'], acc(at['POSITION'], np.float32, 3) + t, acc(at['NORMAL'], np.float32, 3),
+                        acc(at['TEXCOORD_0'], np.float32, 2), acc(at['COLOR_0'], np.uint8, 4)[:, :3] / 255.0, acc(p['indices'], np.uint16, 1).astype(np.int64)))
     return out, g
