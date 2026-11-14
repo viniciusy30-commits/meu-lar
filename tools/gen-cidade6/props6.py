@@ -114,32 +114,25 @@ class Props:
         M = self.M; M.at(x, z, 'mobiliario'); M.m('metal'); M.cyl(x, z, 0.28, Y_WALK, Y_WALK + 0.95, (46, 80, 60), 8); M.free()
 
     def car(self, x, z, dx, dz, col=None, yb=Y_ASF):
-        """carro de passeio estacionado (4,5 x 1,8 m) apontando para (dx, dz)"""
+        """carro de passeio (4,5 x 1,8 m), ~50 triangulos: carroceria, cabine, vidros, eixos/rodas, farois"""
         M = self.M; r = self.rnd; M.at(x, z, 'carros')
         col = col or r.choice(CARS); F = Frame((x, z), (dx, dz))
         L, Wd = r.uniform(4.2, 4.8), 1.82
+        tall = r.random() < 0.3; rh = 1.65 if tall else 1.42; ext = 0.3 if tall else 0.0
         M.m('liso')
-        M.prism(F.rect(-L / 2, L / 2, -Wd / 2, Wd / 2), yb + 0.35, yb + 0.95, col)
-        tall = r.random() < 0.3      # SUV
-        rh = 1.65 if tall else 1.42
-        cab = F.rect(-L * 0.22, L * 0.22 + (0.3 if tall else 0), -Wd / 2 + 0.12, Wd / 2 - 0.12)
-        M.prism(cab, yb + 0.95, yb + rh, col)
-        # vidros (laterais e para-brisas) escuros
+        M.prism(F.rect(-L / 2, L / 2, -Wd / 2, Wd / 2), yb + 0.32, yb + 0.95, col)
+        M.prism(F.rect(-L * 0.22, L * 0.22 + ext, -Wd / 2 + 0.12, Wd / 2 - 0.12), yb + 0.95, yb + rh, shade(col, 6), True)
         M.m('vitrine')
-        for s in (-1, 1):
-            vv = s * (Wd / 2 - 0.1)
-            a, b = F.p(-L * 0.2, vv, yb + 1.0), F.p(L * 0.2 + (0.28 if tall else 0), vv, yb + 1.0)
-            c, d = F.p(L * 0.2 + (0.28 if tall else 0), vv, yb + rh - 0.06), F.p(-L * 0.2, vv, yb + rh - 0.06)
-            M.quad(a, b, c, d, (180, 190, 200), F.nv(s))
-        for s in (-1, 1):
-            uu = s * (L * 0.22 + (0.3 if (tall and s > 0) else 0)) + s * 0.02
-            M.quad(F.p(uu, -Wd / 2 + 0.2, yb + 1.0), F.p(uu, Wd / 2 - 0.2, yb + 1.0), F.p(uu, Wd / 2 - 0.2, yb + rh - 0.08), F.p(uu, -Wd / 2 + 0.2, yb + rh - 0.08), (170, 180, 190), F.nu(s))
+        for s_ in (-1, 1):
+            vv = s_ * (Wd / 2 - 0.11)
+            M.quad(F.p(-L * 0.2, vv, yb + 1.0), F.p(L * 0.2 + ext, vv, yb + 1.0), F.p(L * 0.2 + ext, vv, yb + rh - 0.06), F.p(-L * 0.2, vv, yb + rh - 0.06), (180, 190, 200), F.nv(s_))
+            uu = s_ * (L * 0.22 + (ext if s_ > 0 else 0)) + s_ * 0.02
+            M.quad(F.p(uu, -Wd / 2 + 0.2, yb + 1.0), F.p(uu, Wd / 2 - 0.2, yb + 1.0), F.p(uu, Wd / 2 - 0.2, yb + rh - 0.08), F.p(uu, -Wd / 2 + 0.2, yb + rh - 0.08), (170, 180, 190), F.nu(s_))
         M.m('liso')
-        for (uu, vv) in ((-L * 0.32, -Wd / 2), (L * 0.32, -Wd / 2), (-L * 0.32, Wd / 2), (L * 0.32, Wd / 2)):
-            M.prism(F.rect(uu - 0.33, uu + 0.33, vv - 0.12 if vv < 0 else vv - 0.1, vv + 0.1 if vv < 0 else vv + 0.12), yb, yb + 0.62, (30, 30, 32), False)
-        for s in (-1, 1):   # farois / lanternas
-            for vv in (-0.6, 0.6):
-                M.prism(F.rect(s * L / 2 - 0.05, s * L / 2 + 0.03, vv - 0.18, vv + 0.18), yb + 0.7, yb + 0.85, (250, 245, 220) if s > 0 else (190, 30, 30))
+        for uu in (-L * 0.32, L * 0.32):       # eixo com as duas rodas
+            M.prism(F.rect(uu - 0.33, uu + 0.33, -Wd / 2 - 0.02, Wd / 2 + 0.02), yb, yb + 0.6, (30, 30, 32), False)
+        M.quad(F.p(L / 2 + 0.02, -0.75, yb + 0.68), F.p(L / 2 + 0.02, 0.75, yb + 0.68), F.p(L / 2 + 0.02, 0.75, yb + 0.85), F.p(L / 2 + 0.02, -0.75, yb + 0.85), (250, 245, 220), F.nu(1))
+        M.quad(F.p(-L / 2 - 0.02, 0.75, yb + 0.68), F.p(-L / 2 - 0.02, -0.75, yb + 0.68), F.p(-L / 2 - 0.02, -0.75, yb + 0.85), F.p(-L / 2 - 0.02, 0.75, yb + 0.85), (190, 30, 30), F.nu(-1))
         self.ncars += 1; M.free()
 
     # ------------------------------------------------------------ ruas: postes, arvores de calcada, carros
@@ -201,7 +194,7 @@ class Props:
                         s = s0 + 3
                         while s < s1 - 5:
                             cx, cz = o[0] + d[0] * s + nx * sg * off, o[1] + d[1] * s + nz * sg * off
-                            if r.random() < (0.3 if rd['kind'] == 'rua' else 0.5) and not self.near_drive(cx - nx * sg * 1.6, cz - nz * sg * 1.6, 3.8) and not P.river.buffer(6).contains(Point(cx, cz)):
+                            if r.random() < (0.26 if rd['kind'] == 'rua' else 0.45) and not self.near_drive(cx - nx * sg * 1.6, cz - nz * sg * 1.6, 3.8) and not P.river.buffer(6).contains(Point(cx, cz)):
                                 fwd = -sg                       # mao direita: carro do lado +n anda em -d
                                 self.car(cx, cz, d[0] * fwd, d[1] * fwd)
                             s += 6.2

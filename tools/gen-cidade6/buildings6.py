@@ -224,14 +224,11 @@ class Builder:
             if first: self.box(F, 0, 0.12, vf, d - 0.1, Y0, Y0 + 1.8, fc, 'cerca')
             self.box(F, 0, w, d - 0.22, d - 0.1, Y0, Y0 + 1.8, fc, 'cerca')
             self.box(F, hu1, w - 0.12, vf, vf + 0.12, Y0, Y0 + 1.8, fc, 'cerca') if not (gw and garage_side > 0) else None
-        if picket:
+        if picket:      # cerquinha branca: painel de tabuas (textura) + travessa de cima
             for (a, b) in ((0.3, min(dr0, door_u - 0.8) - 0.3), (door_u + 0.8, dr0 - 0.3 if dr0 > door_u else w - 0.3)):
                 if b - a > 0.6:
-                    self.box(F, a, b, 0.25, 0.33, Y0 + 0.35, Y0 + 0.45, TRIM, 'liso')
-                    self.box(F, a, b, 0.25, 0.33, Y0 + 0.75, Y0 + 0.85, TRIM, 'liso')
-                    k = int((b - a) / 0.18)
-                    for q in range(k):
-                        uu = a + q * 0.18; self.box(F, uu, uu + 0.08, 0.27, 0.31, Y0, Y0 + 1.0, TRIM, 'liso', top=False)
+                    self.box(F, a, b, 0.26, 0.31, Y0, Y0 + 0.95, (255, 255, 255), 'cerca')
+                    self.box(F, a, b, 0.24, 0.33, Y0 + 0.95, Y0 + 1.02, TRIM, 'liso')
         # quintal: deck/patio, piscina, deposito
         if extras and d - v1 > 9:
             self.box(F, hu0 + 1, hu0 + 1 + min(5, hw - 2), v1, v1 + 3.2, Y0, Y0 + 0.25, WHITE, 'madeira')
@@ -312,7 +309,7 @@ class Builder:
             u = u0 + 1
             while u < u1 - 2.5:
                 M.poly([F.p(u, row[0], y + 0.035), F.p(u + 0.12, row[0], y + 0.035), F.p(u + 0.12, row[1], y + 0.035), F.p(u, row[1], y + 0.035)], (245, 245, 240), (0, 1, 0))
-                if cars and self.rnd.random() < 0.55: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz)
+                if cars and self.rnd.random() < 0.45: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz)
                 u += 2.6
 
     def shop_row(self, F, w, d, sign, wall, hgt=5.5, glass=True):
