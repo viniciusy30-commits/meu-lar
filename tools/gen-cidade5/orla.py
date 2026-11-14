@@ -10,7 +10,7 @@ YP = 2.40           # nivel do calcadao (acima do mar)
 HALF_W = 7.0        # meia-largura do calcadao (de -7 mar a +7 avenida)
 GARDEN_O = 9.4      # jardim de palmeiras de +7 a +10,3; guia; vagas de +10,5 ate a pista (+16 = borda do asfalto da avenida)
 PARK_O1 = ORLA_CALC - 11.5
-XW_HALF = 3.4       # meia-largura da travessia de pedestres (patamar sem vagas)
+XW_HALF = 1.75      # meia-largura da travessia de pedestres (patamar sem vagas)
 SW_Y = 0.27; ROADY = 0.12
 COL = {'asph': rgb('#4A4A4E'), 'bay': rgb('#A7A59C'), 'curbP': rgb('#C9C4B8'), 'stall': rgb('#F2F2F2'), 'wave1': rgb('#EDE7DA'), 'wave2': rgb('#B4AC9C'), 'wave3': rgb('#D9D2C2'), 'bike': rgb('#B8452F'), 'wall': rgb('#CFCABF'), 'wall2': rgb('#B3AD9F'), 'grass': rgb('#6FA84A'),
        'wood': rgb('#8B6B47'), 'wood2': rgb('#6E5236'), 'rail': rgb('#E9E6DE'), 'lamp': rgb('#2B2E33'), 'bench': rgb('#7A5A3A'), 'iron': rgb('#2A2C30'), 'sand': rgb('#E4D4B4'),
@@ -162,6 +162,91 @@ class Orla:
         f = self.at(fr, c)
         self.items['paths'].append({'x': round(f['x'] + f['nx'] * PARK_O1, 2), 'z': round(f['z'] + f['nz'] * PARK_O1, 2), 'sx': round(-f['nx'], 3), 'sz': round(-f['nz'], 3), 's': round(c, 1)})
 
+    def end_plaza(self, fr, end, so):
+        f = fr[end]; YPf = f['yp']
+        tdx, tdz = f['tx'] * so, f['tz'] * so                      # sentido para fora da ponta
+        sea = (-f['nx'], -f['nz'])
+        def dry(x, z, pad=0.0): return self.sample(x, z) > -0.05 and not self.geo.is_water(x, z)
+        Rr = None
+        for cand in (13.0, 11.5, 10.0, 8.5, 7.0):
+            cx = f['x'] + tdx * cand * 0.85; cz = f['z'] + tdz * cand * 0.85
+            ok = all(dry(cx + math.cos(a_ * math.pi / 8) * (cand + 2.5), cz + math.sin(a_ * math.pi / 8) * (cand + 2.5)) for a_ in range(16)) and dry(cx, cz)
+            if ok: Rr = cand; break
+        if Rr is None:                                              # sem espaco (rio/mar): so um murinho de fechamento
+            c4 = [(self.P(f, o, 0, 0.0)[0], self.P(f, o, 0, 0.0)[2]) for o in (-HALF_W - 0.35, GARDEN_O + 0.2)] + [(self.P(f, o, 0, 0.45 * so)[0], self.P(f, o, 0, 0.45 * so)[2]) for o in (GARDEN_O + 0.2, -HALF_W - 0.35)]
+            self.B.obox_pts(c4, YPf - 1.6, YPf + 1.0, COL['wall'], STONE, True, False); return
+        cx = f['x'] + tdx * Rr * 0.85; cz = f['z'] + tdz * Rr * 0.85
+        ring = [(cx + math.cos(a_ * math.pi / 18) * Rr, cz + math.sin(a_ * math.pi / 18) * Rr) for a_ in range(36)]
+        ground_lo = min(min(self.sample(x, z) for x, z in ring), self.sample(cx, cz)) - 0.4
+        ang_in = math.atan2(-tdz, -tdx); ang_sea = math.atan2(sea[1], sea[0])
+        def angdiff(a, b): return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
+        # piso: setores de 10 graus em aneis, padrao radial claro/escuro + anel vermelho (continua a ciclovia)
+        NSEG = 36
+        for k in range(NSEG):
+            a0 = 2 * math.pi * k / NSEG; a1 = 2 * math.pi * (k + 1) / NSEG
+            for (r0, r1, kind) in ((2.7, Rr - 3.2, 'pizza'), (Rr - 3.2, Rr - 2.2, 'red'), (Rr - 2.2, Rr, 'edge')):
+                col = (COL['wave1'] if k % 2 == 0 else COL['wave3']) if kind == 'pizza' else (COL['bike'] if kind == 'red' else COL['wave1'])
+                q = [(cx + math.cos(a0) * r0, YPf + 0.06, cz + math.sin(a0) * r0), (cx + math.cos(a0) * r1, YPf + 0.06, cz + math.sin(a0) * r1),
+                     (cx + math.cos(a1) * r1, YPf + 0.06, cz + math.sin(a1) * r1), (cx + math.cos(a1) * r0, YPf + 0.06, cz + math.sin(a1) * r0)]
+                self.g.quad(PAVER, q, col, 'bike' if kind == 'red' else 'prom')
+        # laje: tampa e saia ate o terreno
+        for k in range(NSEG):
+            a0 = 2 * math.pi * k / NSEG; a1 = 2 * math.pi * (k + 1) / NSEG; am = (a0 + a1) / 2
+            p0 = (cx + math.cos(a0) * Rr, cz + math.sin(a0) * Rr); p1 = (cx + math.cos(a1) * Rr, cz + math.sin(a1) * Rr)
+            in_open = angdiff(am, ang_in) < math.radians(42); in_sea = angdiff(am, ang_sea) < math.radians(15)
+            self.B.quad(STONE, [(p0[0], ground_lo, p0[1]), (p1[0], ground_lo, p1[1]), (p1[0], YPf + 0.06, p1[1]), (p0[0], YPf + 0.06, p0[1])], (math.cos(am), 0, math.sin(am)), COL['wall'], None, True)
+            if not in_open and not in_sea:            # murinho de contorno (0,95 m) com tampa
+                q0 = (cx + math.cos(a0) * (Rr - 0.35), cz + math.sin(a0) * (Rr - 0.35)); q1 = (cx + math.cos(a1) * (Rr - 0.35), cz + math.sin(a1) * (Rr - 0.35))
+                self.B.quad(STONE, [(p0[0], YPf + 0.06, p0[1]), (p1[0], YPf + 0.06, p1[1]), (p1[0], YPf + 1.0, p1[1]), (p0[0], YPf + 1.0, p0[1])], (math.cos(am), 0, math.sin(am)), COL['wall2'], None, True)
+                self.B.quad(STONE, [(q0[0], YPf + 0.06, q0[1]), (q1[0], YPf + 0.06, q1[1]), (q1[0], YPf + 1.0, q1[1]), (q0[0], YPf + 1.0, q0[1])], (-math.cos(am), 0, -math.sin(am)), COL['wall2'], None, True)
+                self.B.quad(STONE, [(q0[0], YPf + 1.0, q0[1]), (q1[0], YPf + 1.0, q1[1]), (p1[0], YPf + 1.0, p1[1]), (p0[0], YPf + 1.0, p0[1])], (0, 1, 0), COL['wall'], None, True)
+        self.polys.append(('prom', ring))
+        # escada para a areia no lado do mar (4,6 m de largura)
+        sx_, sz_ = math.cos(ang_sea), math.sin(ang_sea); rx_, rz_ = -sz_, sx_
+        base = (cx + sx_ * Rr, cz + sz_ * Rr); yb = max(self.sample(base[0] + sx_ * 2.6, base[1] + sz_ * 2.6), 0.2)
+        n = max(3, int(round((YPf + 0.06 - yb) / 0.15))); rise = (YPf + 0.06 - yb) / n; tread = 0.34; W = 4.6
+        for i in range(n):
+            yt = YPf + 0.06 - (i + 1) * rise
+            c0 = (base[0] + sx_ * i * tread - rx_ * W / 2, base[1] + sz_ * i * tread - rz_ * W / 2); c1 = (base[0] + sx_ * (i + 1) * tread - rx_ * W / 2, base[1] + sz_ * (i + 1) * tread - rz_ * W / 2)
+            c2 = (c1[0] + rx_ * W, c1[1] + rz_ * W); c3 = (c0[0] + rx_ * W, c0[1] + rz_ * W)
+            self.g.quad(PAVER, [(c0[0], yt + 0.01, c0[1]), (c1[0], yt + 0.01, c1[1]), (c2[0], yt + 0.01, c2[1]), (c3[0], yt + 0.01, c3[1])], COL['step'] if i % 2 == 0 else COL['step2'], None)
+            self.B.quad(PLAIN, [(c0[0], yt + rise, c0[1]), (c3[0], yt + rise, c3[1]), (c3[0], yt, c3[1]), (c0[0], yt, c0[1])], (-sx_, 0, -sz_), COL['step2'], None, True)
+        for sg in (-1, 1):
+            px, pz = base[0] + rx_ * sg * (W / 2 + 0.05), base[1] + rz_ * sg * (W / 2 + 0.05)
+            for i in range(0, n + 1, 3): self.B.cyl(px + sx_ * i * tread, pz + sz_ * i * tread, 0.04, YPf + 0.06 - i * rise, YPf + 0.06 - i * rise + 1.0, COL['iron'], 6)
+        self.items['stairs'].append({'x': round(base[0], 2), 'z': round(base[1], 2), 'dx': round(sx_, 3), 'dz': round(sz_, 3), 'steps': n, 'w': W, 'top': YPf, 'plaza': True})
+        self.stats['stairs'] += 1
+        # fonte central
+        self.B.cyl(cx, cz, 2.6, YPf + 0.06, YPf + 0.62, COL['wall'], 28, STONE, False)
+        self.B.cyl(cx, cz, 2.6, YPf + 0.62, YPf + 0.66, COL['wall2'], 28, STONE, True, 2.2)
+        for k in range(24):
+            a0 = 2 * math.pi * k / 24; a1 = 2 * math.pi * (k + 1) / 24
+            self.B.tri(PLAIN, (cx, YPf + 0.5, cz), (cx + math.cos(a0) * 2.2, YPf + 0.5, cz + math.sin(a0) * 2.2), (cx + math.cos(a1) * 2.2, YPf + 0.5, cz + math.sin(a1) * 2.2), (0, 1, 0), COL['water'], None, True)
+        self.B.cyl(cx, cz, 0.45, YPf + 0.5, YPf + 1.3, COL['wall'], 12, STONE, True)
+        self.B.cyl(cx, cz, 0.08, YPf + 1.3, YPf + 3.0, rgb('#CFE9F5'), 8, PLAIN, True, 0.03)
+        self.B.cyl(cx, cz, 0.55, YPf + 3.0, YPf + 3.06, rgb('#CFE9F5'), 12, PLAIN, True)
+        # bancos virados para o centro, postes e palmeiras em canteiros redondos
+        for k in range(12):
+            a_ = 2 * math.pi * k / 12 + math.pi / 12
+            if angdiff(a_, ang_in) < math.radians(42) or angdiff(a_, ang_sea) < math.radians(30): continue
+            rr = Rr - 4.4; bx, bz = cx + math.cos(a_) * rr, cz + math.sin(a_) * rr
+            tt = (-math.sin(a_), math.cos(a_)); nn = (math.cos(a_), math.sin(a_))
+            c4 = [(bx - tt[0] * 0.9 - nn[0] * 0.25, bz - tt[1] * 0.9 - nn[1] * 0.25), (bx + tt[0] * 0.9 - nn[0] * 0.25, bz + tt[1] * 0.9 - nn[1] * 0.25), (bx + tt[0] * 0.9 + nn[0] * 0.25, bz + tt[1] * 0.9 + nn[1] * 0.25), (bx - tt[0] * 0.9 + nn[0] * 0.25, bz - tt[1] * 0.9 + nn[1] * 0.25)]
+            self.B.obox_pts(c4, YPf + 0.5, YPf + 0.62, COL['bench'], WOOD, True, False)
+            for sg in (-1, 1): self.B.box(bx + tt[0] * 0.7 * sg, bz + tt[1] * 0.7 * sg, 0.15, 0.4, YPf + 0.06, YPf + 0.5, COL['iron'], PLAIN, True, False)
+            self.items['benches'].append({'x': round(bx, 2), 'z': round(bz, 2), 'nx': round(-nn[0], 3), 'nz': round(-nn[1], 3)})
+        for k in range(8):
+            a_ = 2 * math.pi * k / 8 + math.pi / 8
+            if angdiff(a_, ang_in) < math.radians(40) or angdiff(a_, ang_sea) < math.radians(30): continue
+            px, pz = cx + math.cos(a_) * (Rr - 1.1), cz + math.sin(a_) * (Rr - 1.1)
+            if k % 2 == 0:
+                self.B.cyl(px, pz, 0.08, YPf + 0.06, YPf + 4.6, COL['lamp'], 8); self.B.box(px, pz, 0.7, 0.3, YPf + 4.5, YPf + 4.7, rgb('#FFF0B8'), PLAIN, True, False)
+                self.items['lamps'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.06})
+            else:
+                self.B.cyl(px, pz, 0.7, YPf + 0.06, YPf + 0.5, COL['wall'], 14, STONE, True)
+                self.items['palms'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.5, 'sp': 'palmeira', 'scale': 1.1})
+        self.items.setdefault('plazas', []).append({'x': round(cx, 2), 'z': round(cz, 2), 'r': Rr, 'y': round(YPf, 2)})
+
     # ---------------------------------------------------------- construcao por segmento
     def build_line(self, fr, idx):
         if len(fr) < 10: return
@@ -215,16 +300,9 @@ class Orla:
             q = [self.P(a_, -HALF_W - 0.35, 0.98), self.P(b_, -HALF_W - 0.35, 0.98), self.P(b_, -HALF_W + 0.05, 0.98), self.P(a_, -HALF_W + 0.05, 0.98)]
             self.B.quad(STONE, q, (0, 1, 0), COL['wall'], None, True); self.stats['wall_m'] += 4.0
             self.polys.append(('wall', [(p[0], p[2]) for p in q]))
-        # --- fechamento das pontas do calcadao (muro baixo + poste + banco): nada de borda aberta
+        # --- pontas do calcadao: praca-mirante circular (fonte, bancos, palmeiras, postes, escada para a areia)
         for end, so in ((0, -1.0), (len(fr) - 1, 1.0)):
-            f = fr[end]; sa, sb = (0.0, 0.5 * so) if so > 0 else (-0.5, 0.0)
-            if so < 0: sa, sb = -0.5, 0.0
-            c4 = [(self.P(f, -HALF_W - 0.35, 0, sa)[0], self.P(f, -HALF_W - 0.35, 0, sa)[2]), (self.P(f, GARDEN_O + 0.2, 0, sa)[0], self.P(f, GARDEN_O + 0.2, 0, sa)[2]),
-                  (self.P(f, GARDEN_O + 0.2, 0, sb)[0], self.P(f, GARDEN_O + 0.2, 0, sb)[2]), (self.P(f, -HALF_W - 0.35, 0, sb)[0], self.P(f, -HALF_W - 0.35, 0, sb)[2])]
-            if so > 0: c4 = [(self.P(f, -HALF_W - 0.35, 0, 0.0)[0], self.P(f, -HALF_W - 0.35, 0, 0.0)[2]), (self.P(f, GARDEN_O + 0.2, 0, 0.0)[0], self.P(f, GARDEN_O + 0.2, 0, 0.0)[2]),
-                            (self.P(f, GARDEN_O + 0.2, 0, 0.5)[0], self.P(f, GARDEN_O + 0.2, 0, 0.5)[2]), (self.P(f, -HALF_W - 0.35, 0, 0.5)[0], self.P(f, -HALF_W - 0.35, 0, 0.5)[2])]
-            self.B.obox_pts(c4, f['yp'] - 1.6, f['yp'] + 1.0, COL['wall'], STONE, True, False)
-            self.lamp(f, 0.0); self.bench(self.at(fr, min(max(fr[end]['s'] - so * 3.0, 0.0), L)), -HALF_W + 1.6)
+            self.end_plaza(fr, end, so)
         # --- escadas
         for s_ in stairs: self.stairs(fr, s_)
         # --- piers

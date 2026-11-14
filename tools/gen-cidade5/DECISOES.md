@@ -82,3 +82,8 @@ A grade retangular (superquadras) foi descartada: "quadradona, repetitiva, peque
 - Píer: deck com 0,42 m de espessura (fachada), 3 tábuas longitudinais sem xadrez + juntas, travessas e pares de estacas a cada 3 m, guarda-corpo com poste/corrimão duplo, plataforma do fim espessa com gazebo, rampa com fachada.
 - Pontes vermelhas: blocos de ancoragem agora ficam AO LADO do tabuleiro (z ±11..18) e não em cima da pista; tabuleiro começa na borda do retorno do mirante (14,4 m do centro), cabos a ±12,5 m.
 - QA: qa/cracks.py (vista de cima sem terreno, fundo magenta = fresta), qa/crackscan.py (varre todos os nós), validador "borda de asfalto sem guia" (informativo).
+
+## Revisão 3 (ponte conectada, pouso das faixas, pontas da orla)
+- Ponte vermelha: sem retorno redondo. A rua termina reta no nó do mirante (corte 0) e o tabuleiro começa ali, com a MESMA seção da rua coletora (pista ±6, guia, calçada até ±10); cancela listrada + barreiras de concreto 4 m à frente (acesso continua fechado: cenário).
+- Orla: passagem elevada com a mesma largura da faixa de pedestre (3,5 m; antes 6,8 m).
+- Pontas do calçadão: praça-mirante circular (R até 13 m, reduz se faltar terra) com fonte central, piso em setores claro/escuro, anel vermelho (continua a ciclovia), bancos virados ao centro, postes e palmeiras em canteiros redondos, muro baixo e escada de 4,6 m até a areia. Se não cabe (rio/mar), só um muro de fechamento.

@@ -171,6 +171,8 @@ class Ground:
         if n == 1:
             a = arms[0]; kind = self.c.legit.get(ni) or ('lookout' if ni in self.c.lookouts else 'cais')
             a['cut'] = 0.5; a['bulb'] = kind
+            if kind == 'lookout':                                   # a rua segue reta para o tabuleiro da ponte (sem retorno redondo)
+                a['cut'] = 0.0; return None
             if kind in ('bolsao', 'lookout') and self.bulb_blocked(ni, a, 11.0 if kind == 'bolsao' else 12.5): a['bulb'] = 'cais'; kind = 'cais'
             if kind in ('bolsao', 'lookout'):
                 Rb = 11.0 if kind == 'bolsao' else 12.5; a['Rb'] = Rb
@@ -197,7 +199,8 @@ class Ground:
         self.stats['junctions'] += 1
         if n == 1:
             a = arms[0]
-            if a.get('bulb') in ('bolsao', 'lookout'): self.bulb(ni, a, a['Rb'], a['bulb'])
+            if a.get('bulb') == 'lookout': self.lookout_gate(ni, a)
+            elif a.get('bulb') in ('bolsao', 'lookout'): self.bulb(ni, a, a['Rb'], a['bulb'])
             else: self.cais_cap(ni, a)
             return
         if ni in self.rounds and n >= 3:
@@ -319,6 +322,21 @@ class Ground:
         for o in np.arange(-h + 1.0, h - 0.5, 2.4):
             bx, bz = P(-3.9, o); self.B.cyl(bx, bz, 0.11, yc + CURB_H, yc + CURB_H + 0.95, COL['iron'], 8)
         self.cais_info = getattr(self, 'cais_info', []) + [{'node': ni, 'x': nx, 'z': nz, 'dx': d[0], 'dz': d[1]}]
+
+    def lookout_gate(self, ni, a):
+        """a rua entra reta no tabuleiro da ponte vermelha (cenario): cancela listrada + barreiras de concreto 3 m a frente do fim da rua"""
+        nx, nz = self.c.nodes[ni][:2]; yc = self.yn[ni] + ROADY
+        d = a['d']; r = (-d[1], d[0]); out = (-d[0], -d[1])           # out = sentido da ponte
+        cx, cz = nx + out[0] * 4.0, nz + out[1] * 4.0
+        for sgn in (-1, 1):
+            self.B.obox_pts([(cx + r[0] * (4.6 * sgn + o1) + d[0] * o2, cz + r[1] * (4.6 * sgn + o1) + d[1] * o2) for (o1, o2) in ((-1.4, -0.4), (1.4, -0.4), (1.4, 0.4), (-1.4, 0.4))], yc, yc + 0.85, COL['conc3'], PLAIN)
+            self.B.cyl(cx + r[0] * 2.0 * sgn, cz + r[1] * 2.0 * sgn, 0.1, yc, yc + 1.25, COL['iron'], 8)
+        for q in range(8):
+            col = COL['white'] if q % 2 == 0 else COL['orange']
+            u0, u1 = -2.0 + q * 0.5, -2.0 + (q + 1) * 0.5
+            for fx, nrm in ((1, d), (-1, out)):
+                self.B.quad(PLAIN, [(cx + r[0] * u0, yc + 1.05, cz + r[1] * u0), (cx + r[0] * u1, yc + 1.05, cz + r[1] * u1), (cx + r[0] * u1, yc + 1.25, cz + r[1] * u1), (cx + r[0] * u0, yc + 1.25, cz + r[1] * u0)][::fx], (nrm[0], 0, nrm[1]), col, None, True)
+        self.cais_info = getattr(self, 'cais_info', []) + []
 
     def bulb(self, ni, a, Rb, kind):
         nx, nz = self.c.nodes[ni][:2]; yc = self.yn[ni] + ROADY
