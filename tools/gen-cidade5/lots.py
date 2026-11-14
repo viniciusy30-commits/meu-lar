@@ -390,6 +390,7 @@ def fill_gaps(plan, geo, seed=RNG + 7):
             break
     plan.log.append(f'miolo: +{added} lotes')
 
+      base = newl
 
 # ---------------------------------------------------------------------------------------------------- planejamento
 def plan(city, geo, yn):
