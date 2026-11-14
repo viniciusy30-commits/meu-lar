@@ -220,20 +220,21 @@ class Lots:
         r = self.rnd; B = self.B; M = self.M
         # gramado ja existe; cerca de fundo/laterais e caixa de correio; casa em si vem do city2.glb no jogo
         fc = B6.FENCE_W[r.randrange(len(B6.FENCE_W))]
-        vf = FRONT_SB + hd * 0.6
+        sb = max(4.0, min(FRONT_SB, d - hd - 3.0))
+        vf = sb + hd * 0.6
         B.box(F, w - 0.12, w, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
         B.box(F, 0, 0.12, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
         B.box(F, 0, w, d - 0.22, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
         B.box(F, 1.0, 1.1, 0.4, 0.5, Y_LAWN, Y_LAWN + 1.05, (90, 90, 92), 'metal')
         B.box(F, 0.83, 1.27, 0.3, 0.75, Y_LAWN + 1.0, Y_LAWN + 1.3, rgb('#7A2E2E'), 'metal')
-        cx, cz = F.xz(w / 2, FRONT_SB + hd / 2)
+        cx, cz = F.xz(w / 2, sb + hd / 2)
         fx, fz = -F.vx, -F.vz                                     # frente da casa: para a rua
         self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': self.plots[k]['name'], 'bairro': HOUSE_BAIRRO[k],
                             'centro': [round(cx, 2), round(Y_LAWN, 2), round(cz, 2)], 'frente': [round(fx, 4), round(fz, 4)],
                             'yaw_graus': round(math.degrees(math.atan2(fx, fz)), 2),
                             'lote': [[round(p[0], 2), round(p[1], 2)] for p in F.rect(0, w, 0, d)], 'lote_m': [round(w, 1), round(d, 1)],
-                            'casa_m': [round(hw, 1), round(hd, 1)], 'recuo_frente_m': FRONT_SB})
-        if d < FRONT_SB + hd + 3: print(f'  aviso: lote da casa {k + 1} raso ({d:.1f} m para {hd:.1f} m de casa)')
+                            'casa_m': [round(hw, 1), round(hd, 1)], 'recuo_frente_m': round(sb, 2)})
+        if d < sb + hd + 2: print(f'  aviso: lote da casa {k + 1} raso ({d:.1f} m para {hd:.1f} m de casa)')
 
     # ------------------------------------------------------------ centro
     def centro(self, bi, blk):
@@ -386,6 +387,13 @@ class Lots:
             f = fronts[fi]
             if f[0] == 'bulb': self.bulb_lots(f[1])
             else: self.front_lots(f, reserve.get(fi, []))
+        placed = {h['k'] for h in self.player}
+        for k in [k for k in HOUSE_BAIRRO if k not in placed]:
+            for fi in sorted(range(len(fronts)), key=lambda q: -fronts[q][5]):
+                f = fronts[fi]
+                if f[0] != 'rua': continue
+                n0 = len(self.player); self.front_lots_player_only(f, k)
+                if len(self.player) > n0: break
         self.pocket_parks()
         print(f'  casas do jogador reservadas: {len(self.player)}/17')
 
@@ -416,11 +424,12 @@ class Lots:
             flip = (-uz * inx + ux * inz) < 0
             F = Frame(a, (ux, uz), flip)
             mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
-            D, A = self._depth_to_middle(mx, mz, inx, inz, 60 if avenue else 44)
+            D, A = self._depth_to_middle(mx, mz, inx, inz, 60 if (avenue or kres is not None) else 44)
+            if kres is not None and D < hd + 9: D = min(A * 0.7, hd + 12)
             placed = False
             for Dq in (D, D * 0.93, D * 0.86, D * 0.78, D * 0.7):
                 if Dq < (24 if avenue else 15): break
-                if kres is not None and Dq < FRONT_SB + hd + 3: break
+                if kres is not None and Dq < hd + 7: break
                 poly = Polygon(F.rect(0, cl, 0, Dq))
                 if not self._free(poly): continue
                 self._take(poly)
@@ -431,8 +440,27 @@ class Lots:
                     info = B.house(F, cl, Dq, style, self.palette(style, pal_base), sf, 1 if q % 2 == 0 else -1, picket, True, True, False)
                     self.yard_plants(F, cl, Dq, info)
                 placed = True; q += 1; break
-            if not placed and kres is not None: res.insert(0, kres); res_at.insert(0, pos + 6)
+            if not placed and kres is not None: res.insert(0, kres); res_at.insert(0, pos + 3); self.retry = getattr(self, 'retry', {}); self.retry[kres] = self.retry.get(kres, 0) + 1
             pos += (cl + 0.3) if placed else 3.0
+
+    def front_lots_player_only(self, f, k):
+        """segunda chance para uma casa do jogador: procura qualquer trecho livre na frente"""
+        P = self.P; _, i, sg, s0, s1, L = f
+        rd = P.roads[i]; pth = rd['path']; hr = half_row(rd['kind'])
+        pl = self.plots[k]; hw, hd = pl['x1'] - pl['x0'], pl['z1'] - pl['z0']; w = max(hw + 9.0, 18.0)
+        pos = s0 + 1.0
+        while pos + w < s1 - 1:
+            a = pth.pt(pos, sg * (hr + 0.15)); b = pth.pt(pos + w, sg * (hr + 0.15))
+            ux, uz = b[0] - a[0], b[1] - a[1]; cl = math.hypot(ux, uz) or 1; ux, uz = ux / cl, uz / cl
+            _, _, tx, tz = pth.at(pos + w / 2); inx, inz = -tz * sg, tx * sg
+            F = Frame(a, (ux, uz), (-uz * inx + ux * inz) < 0)
+            D, A = self._depth_to_middle((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, inx, inz, 60)
+            for Dq in (D, A * 0.7, hd + 9):
+                if Dq < hd + 7: continue
+                poly = Polygon(F.rect(0, cl, 0, Dq))
+                if self._free(poly):
+                    self._take(poly); self.player_lot(F, cl, Dq, (k, cl, hw, hd), None, None); return
+            pos += 2.0
 
     def bulb_lots(self, k):
         """lotes em leque em volta do retorno do cul-de-sac"""
