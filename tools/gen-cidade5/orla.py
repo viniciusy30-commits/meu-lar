@@ -130,9 +130,15 @@ class Orla:
         """posicoes (s) das faixas de pedestre que atravessam a Av. Beira-Mar e chegam neste trecho de orla"""
         out = []
         for (x, z) in getattr(self.g, 'xw_beach', []):
-            k = min(range(len(fr)), key=lambda q: (fr[q]['ax'] - x) ** 2 + (fr[q]['az'] - z) ** 2)
-            if math.hypot(fr[k]['ax'] - x, fr[k]['az'] - z) < 4.0:           # a travessia esta mesmo sobre ESTE trecho da avenida
-                out.append(fr[k]['s'])
+            best = None
+            for k in range(len(fr) - 1):                                      # projecao EXATA do centro da faixa na polilinha da avenida
+                ax_, az_, bx_, bz_ = fr[k]['ax'], fr[k]['az'], fr[k + 1]['ax'], fr[k + 1]['az']
+                vx, vz = bx_ - ax_, bz_ - az_; L2 = vx * vx + vz * vz
+                if L2 < 1e-9: continue
+                t = min(max(((x - ax_) * vx + (z - az_) * vz) / L2, 0.0), 1.0)
+                d = math.hypot(x - (ax_ + vx * t), z - (az_ + vz * t))
+                if best is None or d < best[0]: best = (d, fr[k]['s'] + (fr[k + 1]['s'] - fr[k]['s']) * t)
+            if best and best[0] < 3.0: out.append(best[1])
         return sorted(out)
 
     def parking(self, fr, xr):
@@ -149,18 +155,25 @@ class Orla:
         self.stats['vagas'] = self.stats.get('vagas', 0) + max(nst - 1, 0)
 
     def landing(self, fr, c):
-        """patamar de pedestre: da faixa (no asfalto) ate o calcadao, cortando as vagas e o jardim; rampas nas pontas"""
-        i0 = None
-        a, b = c - XW_HALF, c + XW_HALF
-        ks = [k for k in range(len(fr) - 1) if fr[k + 1]['s'] >= a and fr[k]['s'] <= b]
-        if not ks: return
-        sub = self.sub_frames(fr, a, b)
-        for k in range(len(sub) - 1):
-            p, q = sub[k], sub[k + 1]
-            self.g.quad(PAVER, [self.P(p, HALF_W, 0.06), self.P(q, HALF_W, 0.06), self.P(q, PARK_O1 - 1.2, 0.06), self.P(p, PARK_O1 - 1.2, 0.06)], COL['wave1'], 'prom')
-            self.g.quad(PAVER, [self.P(p, PARK_O1 - 1.2, 0.06), self.P(q, PARK_O1 - 1.2, 0.06), self.P(q, PARK_O1, -0.08), self.P(p, PARK_O1, -0.08)], COL['wave3'], 'prom')
+        """passagem de pedestres: retangulo reto, perpendicular EXATA a avenida no centro da faixa, da faixa ate o calcadao; a ciclovia continua toda vermelha
+        com uma travessia zebrada em cima"""
         f = self.at(fr, c)
-        self.items['paths'].append({'x': round(f['x'] + f['nx'] * PARK_O1, 2), 'z': round(f['z'] + f['nz'] * PARK_O1, 2), 'sx': round(-f['nx'], 3), 'sz': round(-f['nz'], 3), 's': round(c, 1)})
+        k = min(range(len(fr) - 1), key=lambda q: abs(fr[q]['s'] - c))
+        tx, tz = fr[min(k + 1, len(fr) - 1)]['ax'] - fr[max(k - 1, 0)]['ax'], fr[min(k + 1, len(fr) - 1)]['az'] - fr[max(k - 1, 0)]['az']
+        l = math.hypot(tx, tz) or 1; tx, tz = tx / l, tz / l
+        nx_, nz_ = -tz, tx
+        if nx_ * (-f['nx']) + nz_ * (-f['nz']) < 0: nx_, nz_ = -nx_, -nz_             # (nx_, nz_) = para o MAR
+        ax, az = f['ax'], f['az']; yp = f['yp']; hw = XW_HALF
+        def Pt(d, u, dy): return (ax + nx_ * d + tx * u, yp + dy, az + nz_ * d + tz * u)
+        d_far = ORLA_CALC - HALF_W; d_ramp = ORLA_CALC - (PARK_O1 - 1.2); d_near = ORLA_CALC - PARK_O1
+        self.g.quad(PAVER, [Pt(d_ramp, -hw, 0.10), Pt(d_far, -hw, 0.10), Pt(d_far, hw, 0.10), Pt(d_ramp, hw, 0.10)], COL['wave1'], 'prom')
+        self.g.quad(PAVER, [Pt(d_near, -hw, -0.08), Pt(d_ramp, -hw, 0.10), Pt(d_ramp, hw, 0.10), Pt(d_near, hw, -0.08)], COL['wave3'], 'prom')
+        # barras brancas (zebra) sobre a ciclovia vermelha (o piso da ciclovia fica a +0,06): 0,5 m de barra a cada 1 m
+        nb = int(round(2 * hw))
+        for j in range(nb):
+            u0 = -hw + 0.25 + j * (2 * hw / nb); u1 = u0 + 0.5
+            self.B.quad(PLAIN, [Pt(ORLA_CALC - 7.0, u0, 0.09), Pt(ORLA_CALC - 7.0, u1, 0.09), Pt(ORLA_CALC - 3.0, u1, 0.09), Pt(ORLA_CALC - 3.0, u0, 0.09)], (0, 1, 0), COL['white'], None, True)
+        self.items['paths'].append({'x': round(ax + nx_ * d_near, 2), 'z': round(az + nz_ * d_near, 2), 'sx': round(nx_, 3), 'sz': round(nz_, 3), 's': round(c, 1)})
 
     def end_plaza(self, fr, end, so):
         f = fr[end]; YPf = f['yp']
@@ -245,8 +258,8 @@ class Orla:
                 self.B.cyl(px, pz, 0.08, YPf + 0.06, YPf + 4.6, COL['lamp'], 8); self.B.box(px, pz, 0.7, 0.3, YPf + 4.5, YPf + 4.7, rgb('#FFF0B8'), PLAIN, True, False)
                 self.items['lamps'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.06})
             else:
-                self.B.cyl(px, pz, 0.7, YPf + 0.06, YPf + 0.5, COL['wall'], 14, STONE, True)
-                self.items['palms'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.5, 'sp': 'palmeira', 'scale': 1.1})
+                self.palm_at(px, pz, YPf + 0.3, 1.0)
+                self.items['palms'].append({'x': round(px, 2), 'z': round(pz, 2), 'y': YPf + 0.5, 'sp': 'palmeira', 'scale': 1.0, 'baked': True})
         self.items.setdefault('plazas', []).append({'x': round(cx, 2), 'z': round(cz, 2), 'r': Rr, 'y': round(YPf, 2)})
 
     # ---------------------------------------------------------- construcao por segmento
@@ -271,25 +284,30 @@ class Orla:
                 if b in (5, 6): col = COL['bike']
                 q = [self.P(a_, o0, 0.06), self.P(b_, o0, 0.06), self.P(b_, o1, 0.06), self.P(a_, o1, 0.06)]
                 self.g.quad(PAVER, q, col, 'bike' if b in (5, 6) else ('prom2' if col == COL['wave2'] else 'prom'))
-        # linhas da ciclovia
-        self.strip(fr, 3.0 - 0.08, 3.0 + 0.08, 0.08, PLAIN, COL['white'], None)
-        self.strip(fr, 6.0 - 0.08, 6.0 + 0.08, 0.08, PLAIN, COL['white'], None)
+        # ciclovia de MAO DUPLA (3..7 m, tudo vermelho): linhas de borda, tracejado central e setas de sentido
+        self.strip(fr, 3.0 - 0.07, 3.0 + 0.07, 0.08, PLAIN, COL['white'], None)
+        self.strip(fr, 7.0 - 0.07, 7.0 + 0.07, 0.08, PLAIN, COL['white'], None)
+        Lc = fr[-1]['s']; sd = 1.0
+        while sd < Lc - 3.0:
+            f0 = self.at(fr, sd); f1 = self.at(fr, min(sd + 2.0, Lc))
+            self.B.quad(PLAIN, [self.P(f0, 5.0 - 0.06, 0.085), self.P(f1, 5.0 - 0.06, 0.085), self.P(f1, 5.0 + 0.06, 0.085), self.P(f0, 5.0 + 0.06, 0.085)], (0, 1, 0), COL['white'], None, True)
+            sd += 5.0
+        sd = 22.0
+        while sd < Lc - 10.0:
+            for o_, dr in ((4.0, 1.0), (6.0, -1.0)):                      # faixa interna +s, faixa externa -s
+                f = self.at(fr, sd); st_ = -1.1 * dr; en_ = 0.3 * dr; hd = 1.2 * dr
+                Pq = lambda so, oo: self.P(f, o_ + oo, 0.085, so)
+                self.B.quad(PLAIN, [Pq(st_, -0.07), Pq(en_, -0.07), Pq(en_, 0.07), Pq(st_, 0.07)], (0, 1, 0), COL['white'], None, True)
+                self.B.tri(PLAIN, Pq(en_, -0.4), Pq(en_ + hd, 0.0), Pq(en_, 0.4), (0, 1, 0), COL['white'], None, True)
+            sd += 55.0
         # --- jardim de palmeiras entre o calcadao e as vagas (mesmo nivel do calcadao) + guia + VAGAS a 60 graus junto a avenida
         xs = self.crossings(fr)
         xr = [(c - XW_HALF, c + XW_HALF) for c in xs]
-        L_ = fr[-1]['s']; free = []; cur = 0.0
-        for a, b in sorted(xr):
-            if a > cur: free.append((cur, a))
-            cur = max(cur, b)
-        if cur < L_: free.append((cur, L_))
-        for a, b in free:
-            if b - a < 0.5: continue
-            sf = self.sub_frames(fr, a, b)
-            self.strip(sf, HALF_W, GARDEN_O, 0.05, PAVER, COL['grass'], 'verge')
-            self.strip(sf, GARDEN_O, GARDEN_O + 0.2, 0.06, PAVER, COL['curbP'], 'curb')
-            self.vwall(sf, GARDEN_O + 0.2, -0.09, 0.06, COL['curbP'], 1, PLAIN)
-            # pista das vagas (asfalto no nivel da avenida, emenda com a pista)
-            self.strip(sf, GARDEN_O + 0.2, PARK_O1 + 0.35, -0.115, PAVER, COL['bay'], 'asphalt')
+        # calcada de pedestres (concreto claro) entre a ciclovia e as vagas, guia e piso das vagas (continuos; a passagem fica por cima)
+        self.strip(fr, HALF_W, GARDEN_O, 0.05, PAVER, COL['wave3'], 'prom')
+        self.strip(fr, GARDEN_O, GARDEN_O + 0.2, 0.06, PAVER, COL['curbP'], 'curb')
+        self.vwall(fr, GARDEN_O + 0.2, -0.115, 0.06, COL['curbP'], 1, PLAIN)
+        self.strip(fr, GARDEN_O + 0.2, PARK_O1 + 0.35, -0.115, PAVER, COL['bay'], 'bay')
         self.parking(fr, xr)
         # travessias: patamar elevado do asfalto ate o calcadao (rampa acessivel), sem vagas
         for c in xs: self.landing(fr, c)
@@ -311,19 +329,23 @@ class Orla:
         for s_ in piers: self.pier(fr, s_)
         # --- mobiliario: palmeiras, postes, bancos, lixeiras
         gp = gaps
+        fpoles = getattr(self.g, 'fu_poles', [])
+        def near_pole(s_, o_):
+            f_ = self.at(fr, s_); x_, z_ = f_['x'] + f_['nx'] * o_, f_['z'] + f_['nz'] * o_
+            return any(abs(px - x_) < 2.6 and abs(pz - z_) < 2.6 and math.hypot(px - x_, pz - z_) < 2.6 for px, pz in fpoles)
         def in_gap(s_, pad=0.0):
             if any(g0 - pad <= s_ <= g1 + pad for g0, g1 in gp): return True
             return any(abs(s_ - c) < XW_HALF + 1.0 + pad for c in xs)
-        s_ = 6.0
+        s_ = 6.0; palm_s = []
         while s_ < L - 4:
             f = self.at(fr, s_)
-            if not in_gap(s_, 2.5): self.palm(f, (HALF_W + GARDEN_O) / 2)
+            if not in_gap(s_, 3.5) and not near_pole(s_, 8.3): self.palm(f, 8.3); palm_s.append(s_)
             s_ += 15.0
         s_ = 12.0; alt = 1
         while s_ < L - 4:
             f = self.at(fr, s_)
-            if not in_gap(s_, 2.0):
-                self.lamp(f, HALF_W - 0.4 if alt > 0 else -HALF_W + 0.9); alt = -alt
+            if not in_gap(s_, 2.0) and all(abs(s_ - pp) > 3.0 for pp in palm_s) and not near_pole(s_, 9.0 if alt > 0 else -HALF_W + 0.9):
+                self.lamp(f, 9.0 if alt > 0 else -HALF_W + 0.9); alt = -alt
             s_ += 26.0
         s_ = 30.0
         while s_ < L - 4:
@@ -498,8 +520,40 @@ class Orla:
     def palm(self, f, o):
         YPf = f['yp']
         x, z = f['x'] + f['nx'] * o, f['z'] + f['nz'] * o
-        self.B.cyl(x, z, 0.18, YPf, YPf + 0.2, COL['wall'], 8)
-        self.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YPf + 0.1, 'sp': 'palmeira', 'scale': round(self.rnd.uniform(0.9, 1.2), 2)})
+        sc = self.rnd.uniform(0.9, 1.2)
+        self.palm_at(x, z, YPf + 0.18, sc)
+        self.items['palms'].append({'x': round(x, 2), 'z': round(z, 2), 'y': YPf + 0.1, 'sp': 'palmeira', 'scale': round(sc, 2), 'baked': True})
+
+    def palm_at(self, x, z, y0, sc=1.0):
+        """canteiro redondo + palmeira (tronco levemente curvo em 6 trechos + 11 folhas arqueadas) ja no mesh"""
+        self.B.cyl(x, z, 0.75, y0 - 0.18, y0 + 0.02, COL['wall'], 14, STONE, True)
+        self.B.cyl(x, z, 0.62, y0 + 0.02, y0 + 0.07, rgb('#5A4632'), 14, PLAIN, True)
+        ang = self.rnd.uniform(0, 6.283); lean = self.rnd.uniform(0.25, 0.55) * sc; H = 7.0 * sc
+        px, py, pz = x, y0, z
+        n = 6
+        for k in range(n):
+            t0 = k / n; t1 = (k + 1) / n
+            x0_, z0_ = x + math.cos(ang) * lean * t0 * t0 * 3.0, z + math.sin(ang) * lean * t0 * t0 * 3.0
+            x1_, z1_ = x + math.cos(ang) * lean * t1 * t1 * 3.0, z + math.sin(ang) * lean * t1 * t1 * 3.0
+            r0 = 0.22 * sc * (1 - 0.35 * t0); r1 = 0.22 * sc * (1 - 0.35 * t1)
+            for q in range(6):
+                a0 = 2 * math.pi * q / 6; a1 = 2 * math.pi * (q + 1) / 6; am = (a0 + a1) / 2
+                col = COL['trunk'] if (k % 2 == 0) else rgb('#6A4C30')
+                self.B.quad(WOOD, [(x0_ + math.cos(a0) * r0, y0 + H * t0, z0_ + math.sin(a0) * r0), (x0_ + math.cos(a1) * r0, y0 + H * t0, z0_ + math.sin(a1) * r0),
+                                   (x1_ + math.cos(a1) * r1, y0 + H * t1, z1_ + math.sin(a1) * r1), (x1_ + math.cos(a0) * r1, y0 + H * t1, z1_ + math.sin(a0) * r1)], (math.cos(am), 0, math.sin(am)), col, None, True)
+            px, py, pz = x1_, y0 + H * t1, z1_
+        for q in range(11):                                     # folhas: faixa arqueada de 3 segmentos, dupla face
+            a_ = 2 * math.pi * q / 11 + self.rnd.uniform(-0.15, 0.15); L = 3.1 * sc * self.rnd.uniform(0.85, 1.1)
+            cx, cz = math.cos(a_), math.sin(a_); sx_, sz_ = -cz, cx; w = 0.55 * sc
+            pts = []
+            for u in range(4):
+                tt = u / 3.0
+                pts.append((px + cx * L * tt, py + 0.55 * math.sin(math.pi * tt * 0.9) * sc - 0.5 * L * tt * tt * 0.55, pz + cz * L * tt, w * (1 - 0.75 * tt)))
+            col = rgb('#3F8F3A') if q % 2 == 0 else rgb('#4FA044')
+            for u in range(3):
+                A, Bp = pts[u], pts[u + 1]
+                quad = [(A[0] - sx_ * A[3], A[1], A[2] - sz_ * A[3]), (A[0] + sx_ * A[3], A[1], A[2] + sz_ * A[3]), (Bp[0] + sx_ * Bp[3], Bp[1], Bp[2] + sz_ * Bp[3]), (Bp[0] - sx_ * Bp[3], Bp[1], Bp[2] - sz_ * Bp[3])]
+                self.B.quad(PLAIN, quad, (0, 1, 0), col, None, True); self.B.quad(PLAIN, quad[::-1], (0, -1, 0), rgb('#2F7A2F'), None, True)
 
     def lamp(self, f, o):
         YPf = f['yp']

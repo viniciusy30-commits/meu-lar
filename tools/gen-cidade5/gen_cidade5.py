@@ -29,6 +29,7 @@ gr = ground.Ground(c, geo, hf, ynode); gr.build()
 import traffic, furniture, validate_traffic, orla, validate_orla
 tr = traffic.Traffic(gr); tr.build_moves(); tr.plan_control(); tr.plan_bumps()
 fu = furniture.Furn(gr, tr).build()
+gr.fu_poles = list(fu.poles)
 o = orla.Orla(gr, geo, hf).build()
 ok_o, msg_o = validate_orla.run(gr, o, geo, hf)
 print(('PASSOU ' if ok_o else 'FALHOU ') + 'ETAPA C3: orla das praias (calcadao, escadas, pieres)')
