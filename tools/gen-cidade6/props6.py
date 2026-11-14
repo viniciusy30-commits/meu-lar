@@ -405,14 +405,20 @@ class Props:
             M.free()
 
     def forest(self):
-        """mata nos morros (bordas norte, oeste e leste) e nas sobras sem uso"""
+        """mata fechada nos morros das bordas"""
         r = self.rnd; G = self.G
-        for _ in range(4200):
-            x, z = r.uniform(0, W), r.uniform(0, H)
+        n = 0; tries = 0
+        while n < 3600 and tries < 60000:
+            tries += 1
+            side = r.random()
+            if side < 0.5: x, z = r.uniform(0, W), r.uniform(0, 150)
+            elif side < 0.75: x, z = r.uniform(0, 140), r.uniform(0, 1700)
+            else: x, z = r.uniform(W - 140, W), r.uniform(0, 1700)
             h = G.h_at(x, z)
-            if h < 1.2: continue
+            if h < 1.5: continue
             if self.P.row.buffer(8).contains(Point(x, z)): continue
-            self.layer_tree = 'mata'; self.tree(x, z, r.choice(('conifera', 'folhosa', 'folhosa')), r.uniform(1.0, 1.5), h - 0.3); self.layer_tree = None
+            self.layer_tree = 'mata'; self.tree(x, z, r.choice(('conifera', 'conifera', 'folhosa')), r.uniform(1.0, 1.6), h - 0.3); self.layer_tree = None
+            n += 1
 
     def build(self):
         self.streets()

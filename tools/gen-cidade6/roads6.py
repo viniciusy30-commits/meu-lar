@@ -68,9 +68,13 @@ class Ground:
         P = self.P
         h = np.full_like(X, -0.25)          # chao da cidade fica abaixo do asfalto/gramados (sem disputa de profundidade)
         # morros: norte (z<130), oeste (x<105), leste (x>2455)
-        hill = np.maximum.reduce([np.clip((128 - Z) / 128, 0, 1), np.clip((100 - X) / 100, 0, 1), np.clip((X - 2460) / 40, 0, 1)])
-        nz = np.sin(X / 61.0) * np.cos(Z / 47.0) * 0.5 + np.sin(X / 23.0 + Z / 31.0) * 0.25
-        hh = (hill ** 1.6) * (38 + 10 * nz)
+        # distancia ate a borda da cidade (morros comecam ~20 m antes das ultimas ruas e sobem ate a borda do mapa)
+        e = np.minimum.reduce([Z - 4, X - 4, W - 4 - X])
+        e = e + 14 * np.sin(X / 83.0 + 1.1) * np.cos(Z / 71.0) + 8 * np.sin((X + Z) / 37.0)
+        hill = np.clip((115 - e) / 115, 0, 1)
+        nz = np.sin(X / 61.0) * np.cos(Z / 47.0) * 0.5 + np.sin(X / 29.0 + Z / 41.0) * 0.3
+        hh = (hill * hill * (3 - 2 * hill)) * (26 + 12 * nz)
+        hh = np.where(Z > 1650, hh * np.clip((1760 - Z) / 110, 0, 1), hh)          # morros somem perto da praia
         # vias que entram nos morros: corredor plano
         pts = shapely.points(X.ravel(), Z.ravel())
         d = shapely.distance(P.row, pts).reshape(X.shape)
@@ -103,7 +107,7 @@ class Ground:
         nn = (np.sin(X / 13.0) * np.cos(Z / 17.0) + 1) / 2
         C[:] = grass * (1 - 0.25 * nn[..., None]) + dark * 0.25 * nn[..., None]
         C = np.where((Hh > 6)[..., None], C * 0.85 + dark * 0.15, C)
-        C = np.where((slope > 0.55)[..., None], rock, C)
+        C = np.where((slope > 0.75)[..., None], C * 0.45 + rock * 0.55, C)
         C = np.where((Z > sz - 80)[..., None] & (Hh < 0.3)[..., None], sand, C)
         C = np.where((Hh < -1.0)[..., None], bed, C)
         P3 = np.dstack([X, Hh, Z])
