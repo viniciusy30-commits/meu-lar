@@ -62,6 +62,29 @@ class Scene:
                             out.append((V[k][0], -0.2, V[k][2], 0, 1, 0, *cc, 0, 0, 0))
         return np.array(out, np.float32)
 
+    def houses_mesh(self, x0, z0, x1, z1):
+        """caixas das casas (altura 6 m, cor salmao) + contorno do quintal (pilares) para conferir o posicionamento (as casas reais so existem no jogo)"""
+        try: L = json.load(open(os.path.join(HERE, '..', 'out', 'lots.json')))
+        except OSError: return np.zeros((0, 12), np.float32)
+        out = []
+        def quad(p, n, c):
+            for t in ((0, 1, 2), (0, 2, 3)):
+                for k in t: out.append((*p[k], *n, *c, 0, 0, 0))
+        for h in L['houses']:
+            bx0, bz0, bx1, bz1 = h['box']
+            if bx1 < x0 or bx0 > x1 or bz1 < z0 or bz0 > z1: continue
+            y = h['lvl'] + 0.08; hh = 6.0; col = (0.93, 0.62, 0.52)
+            quad([(bx0, y, bz0), (bx1, y, bz0), (bx1, y + hh, bz0), (bx0, y + hh, bz0)], (0, 0, -1), col); quad([(bx1, y, bz1), (bx0, y, bz1), (bx0, y + hh, bz1), (bx1, y + hh, bz1)], (0, 0, 1), col)
+            quad([(bx0, y, bz1), (bx0, y, bz0), (bx0, y + hh, bz0), (bx0, y + hh, bz1)], (-1, 0, 0), col); quad([(bx1, y, bz0), (bx1, y, bz1), (bx1, y + hh, bz1), (bx1, y + hh, bz0)], (1, 0, 0), col)
+            quad([(bx0, y + hh, bz0), (bx1, y + hh, bz0), (bx1, y + hh, bz1), (bx0, y + hh, bz1)], (0, 1, 0), (0.55, 0.25, 0.2))
+            # porta (faixa verde) e contorno do quintal
+            dx, dz = h['door']; quad([(dx - 0.8, y + 0.05, dz - 0.3), (dx + 0.8, y + 0.05, dz - 0.3), (dx + 0.8, y + 0.05, dz + 0.3), (dx - 0.8, y + 0.05, dz + 0.3)], (0, 1, 0), (0.1, 0.8, 0.2))
+            lr = h['lot']
+            for a, b in zip(lr, lr[1:] + lr[:1]):
+                ex, ez = b[0] - a[0], b[1] - a[1]; L_ = math.hypot(ex, ez); ux, uz = ex / L_, ez / L_
+                quad([(a[0] - uz * 0.08, y + 0.02, a[1] + ux * 0.08), (b[0] - uz * 0.08, y + 0.02, b[1] + ux * 0.08), (b[0] + uz * 0.08, y + 0.02, b[1] - ux * 0.08), (a[0] + uz * 0.08, y + 0.02, a[1] - ux * 0.08)], (0, 1, 0), (1, 1, 0))
+        return np.array(out, np.float32).reshape(-1, 12) if out else np.zeros((0, 12), np.float32)
+
     def mesh(self, x0, z0, x1, z1):
         out = []
         for cx, cz, mat, a in self.recs:
@@ -83,7 +106,7 @@ class Viewer:
     def shot(self, path, eye, at, R=None, w=1280, h=720, fov=60, fog=(300, 900), terrain=True, bg=None):
         cx, cz = at[0], at[2]; R = R or max(200.0, math.hypot(eye[0] - at[0], eye[2] - at[2]) * 2.0)
         x0, z0, x1, z1 = cx - R, cz - R, cx + R, cz + R
-        parts = ([self.S.terrain(x0, z0, x1, z1)] if terrain else []) + [self.S.mesh(x0, z0, x1, z1)]
+        parts = ([self.S.terrain(x0, z0, x1, z1)] if terrain else []) + [self.S.mesh(x0, z0, x1, z1), self.S.houses_mesh(x0, z0, x1, z1)]
         data = np.vstack(parts)
         fn = f'tmp/s{len(self.jobs)}.bin'; data.tofile(os.path.join(HERE, fn))
         self.jobs.append({'file': fn, 'eye': list(map(float, eye)), 'at': list(map(float, at)), 'out': os.path.abspath(path), 'w': w, 'h': h, 'fov': fov, 'fog0': fog[0], 'fog1': fog[1], 'bg': bg})

@@ -86,7 +86,7 @@ def profile_pts(e, ya, yb):
 
 FLAT_EXTRA = 4.0      # terreno plano alem da borda da calcada (a grade de 8 m nao "morde" a borda)
 
-def carve(h, X, Z, city, ynode, geo=None):
+def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
     """terraplenagem: cada vertice da grade de 8 m recebe a altura da rua MAIS PROXIMA no ponto projetado
     (nao a do ultimo ponto amostrado), plano ate HALF+FLAT_EXTRA e talude suave depois."""
     h0 = h.copy()
@@ -135,6 +135,18 @@ def carve(h, X, Z, city, ynode, geo=None):
             else:
                 w = np.where(d <= flat, 1.0, smooth(np.clip(1.0 - (d - flat) / sh, 0, 1)))
             put(j0, j1, i0, i1, w, d, y)
+    # platos dos lotes das casas (Etapa D): plano dentro do lote, talude suave fora
+    if plateaus:
+        import lots as _lots
+        for pl in plateaus:
+            R_ = max(pl['hw'], pl['hd']) + pl['blend'] + 4
+            i0, i1 = max(int((pl['cx'] - R_) / STEP), 0), min(int((pl['cx'] + R_) / STEP) + 2, N8X)
+            j0, j1 = max(int((pl['cz'] - R_) / STEP), 0), min(int((pl['cz'] + R_) / STEP) + 2, N8Z)
+            if i1 <= i0 or j1 <= j0: continue
+            d = _lots.plateau_weight(X[j0:j1, i0:i1], Z[j0:j1, i0:i1], pl)
+            FL = 7.0                                  # alem do lote o terreno continua plano (a grade de 8 m nao pode "morder" o quintal), mas perde o empate para as ruas
+            w = np.where(d <= FL, 1.0, smooth(np.clip(1.0 - (d - FL) / pl['blend'], 0, 1)))
+            put(j0, j1, i0, i1, np.maximum(w, 0), np.where(d <= 0.3, -1.0, 500.0 + d), np.full_like(d, pl['y']))
     wgt = np.clip(acc_w, 0, 1)
     return np.where(wgt > 0, h0 * (1 - wgt) + acc_y * wgt, h0)
 
@@ -153,7 +165,10 @@ def run(city, geo):
     set_plateaus(city, geo)
     h, X, Z = upsample(geo)
     ynode = node_profile(city, geo)
-    hf = carve(h, X, Z, city, ynode, geo)
+    import lots
+    city.lotplan = lots.plan(city, geo, ynode)
+    for ln in city.lotplan.log: print('  ' + ln)
+    hf = carve(h, X, Z, city, ynode, geo, city.lotplan.plateaus)
     # faixa de areia (entre o mar e o muro do calcadao): nunca acima de 1,2 m (senao o jogo pinta grama na praia)
     ii = np.clip(np.round(X / CELL).astype(int), 0, NX - 1); jj = np.clip(np.round(Z / CELL).astype(int), 0, NZ - 1)
     sand = geo.beach_zone[jj, ii] & (geo.Dsea[jj, ii] < 58.0) & ~geo.water[jj, ii]

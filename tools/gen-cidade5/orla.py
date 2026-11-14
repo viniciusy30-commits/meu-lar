@@ -340,7 +340,7 @@ class Orla:
         while s_ < L - 4:
             f = self.at(fr, s_)
             if not in_gap(s_, 3.5) and not near_pole(s_, 8.3): self.palm(f, 8.3); palm_s.append(s_)
-            s_ += 15.0
+            s_ += 18.0
         s_ = 12.0; alt = 1
         while s_ < L - 4:
             f = self.at(fr, s_)
@@ -526,31 +526,31 @@ class Orla:
 
     def palm_at(self, x, z, y0, sc=1.0):
         """canteiro redondo + palmeira (tronco levemente curvo em 6 trechos + 11 folhas arqueadas) ja no mesh"""
-        self.B.cyl(x, z, 0.75, y0 - 0.18, y0 + 0.02, COL['wall'], 14, STONE, True)
-        self.B.cyl(x, z, 0.62, y0 + 0.02, y0 + 0.07, rgb('#5A4632'), 14, PLAIN, True)
+        self.B.cyl(x, z, 0.75, y0 - 0.18, y0 + 0.02, COL['wall'], 9, STONE, True)
+        self.B.cyl(x, z, 0.62, y0 + 0.02, y0 + 0.07, rgb('#5A4632'), 9, PLAIN, True)
         ang = self.rnd.uniform(0, 6.283); lean = self.rnd.uniform(0.25, 0.55) * sc; H = 7.0 * sc
         px, py, pz = x, y0, z
-        n = 6
+        n = 4
         for k in range(n):
             t0 = k / n; t1 = (k + 1) / n
             x0_, z0_ = x + math.cos(ang) * lean * t0 * t0 * 3.0, z + math.sin(ang) * lean * t0 * t0 * 3.0
             x1_, z1_ = x + math.cos(ang) * lean * t1 * t1 * 3.0, z + math.sin(ang) * lean * t1 * t1 * 3.0
             r0 = 0.22 * sc * (1 - 0.35 * t0); r1 = 0.22 * sc * (1 - 0.35 * t1)
-            for q in range(6):
-                a0 = 2 * math.pi * q / 6; a1 = 2 * math.pi * (q + 1) / 6; am = (a0 + a1) / 2
+            for q in range(5):
+                a0 = 2 * math.pi * q / 5; a1 = 2 * math.pi * (q + 1) / 5; am = (a0 + a1) / 2
                 col = COL['trunk'] if (k % 2 == 0) else rgb('#6A4C30')
                 self.B.quad(WOOD, [(x0_ + math.cos(a0) * r0, y0 + H * t0, z0_ + math.sin(a0) * r0), (x0_ + math.cos(a1) * r0, y0 + H * t0, z0_ + math.sin(a1) * r0),
                                    (x1_ + math.cos(a1) * r1, y0 + H * t1, z1_ + math.sin(a1) * r1), (x1_ + math.cos(a0) * r1, y0 + H * t1, z1_ + math.sin(a0) * r1)], (math.cos(am), 0, math.sin(am)), col, None, True)
             px, py, pz = x1_, y0 + H * t1, z1_
-        for q in range(11):                                     # folhas: faixa arqueada de 3 segmentos, dupla face
-            a_ = 2 * math.pi * q / 11 + self.rnd.uniform(-0.15, 0.15); L = 3.1 * sc * self.rnd.uniform(0.85, 1.1)
+        for q in range(9):                                      # folhas: faixa arqueada de 2 segmentos, dupla face
+            a_ = 2 * math.pi * q / 9 + self.rnd.uniform(-0.15, 0.15); L = 3.1 * sc * self.rnd.uniform(0.85, 1.1)
             cx, cz = math.cos(a_), math.sin(a_); sx_, sz_ = -cz, cx; w = 0.55 * sc
             pts = []
-            for u in range(4):
-                tt = u / 3.0
+            for u in range(3):
+                tt = u / 2.0
                 pts.append((px + cx * L * tt, py + 0.55 * math.sin(math.pi * tt * 0.9) * sc - 0.5 * L * tt * tt * 0.55, pz + cz * L * tt, w * (1 - 0.75 * tt)))
             col = rgb('#3F8F3A') if q % 2 == 0 else rgb('#4FA044')
-            for u in range(3):
+            for u in range(2):
                 A, Bp = pts[u], pts[u + 1]
                 quad = [(A[0] - sx_ * A[3], A[1], A[2] - sz_ * A[3]), (A[0] + sx_ * A[3], A[1], A[2] + sz_ * A[3]), (Bp[0] + sx_ * Bp[3], Bp[1], Bp[2] + sz_ * Bp[3]), (Bp[0] - sx_ * Bp[3], Bp[1], Bp[2] - sz_ * Bp[3])]
                 self.B.quad(PLAIN, quad, (0, 1, 0), col, None, True); self.B.quad(PLAIN, quad[::-1], (0, -1, 0), rgb('#2F7A2F'), None, True)

@@ -35,6 +35,11 @@ ok_o, msg_o = validate_orla.run(gr, o, geo, hf)
 print(('PASSOU ' if ok_o else 'FALHOU ') + 'ETAPA C3: orla das praias (calcadao, escadas, pieres)')
 for m in msg_o: print(m)
 allok &= ok_o
+import validate_lots
+ok_l, msg_l = validate_lots.run(gr, c.lotplan, c, geo, hf)
+print(('PASSOU ' if ok_l else 'FALHOU ') + 'ETAPA D: lotes e as 17 casas')
+for m in msg_l: print(m)
+allok &= ok_l
 ok_c, msg_c = validate_ground.v_ground(gr)
 print(('PASSOU ' if ok_c else 'FALHOU ') + f'ETAPA C: chao e protecoes ({time.time()-t0:.1f}s)')
 for m in msg_c: print(m)
@@ -77,6 +82,8 @@ data = {'world': [WX, WZ], 'lagoon': list(LAGOON), 'channels': [CHANNEL_W, CHANN
         'edges': [{'a': e['a'], 'b': e['b'], 'cls': KIND[e['lvl']], 'c': LEVELS[min(e['lvl'], 2)][1] if e['lvl'] < 3 else 0, 'kind': e['kind'], 'name': e['name'],
                    'p': [[round(q[0], 1), round(q[1], 1), round(q[2], 2)] for q in T.profile_pts(e, ynode[e['a']], ynode[e['b']])]} for e in c.edges]}
 json.dump(data, open(os.path.join(out, 'city5_roads.json'), 'w'), separators=(',', ':'))
+import lots as _lots
+_lots.export(c.lotplan, os.path.join(out, 'lots.json'))
 import app_export
 app_export.run(out, geo, hf, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'src', 'main', 'assets', 'hds')))
 np.save(os.path.join(out, 'height16.npy'), geo.h.astype(np.float32))
