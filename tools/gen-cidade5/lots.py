@@ -316,7 +316,7 @@ def fill_lots(plan, geo, seed=RNG):
             Nn = Nn2
             F = ((A[0] + B[0]) / 2, (A[1] + B[1]) / 2)
             ok = None
-            for D in ((30, 28, 26, 24, 22, 20, 18, 16, 14) if fr['lvl'] > 0 else (42, 38, 34, 30, 26, 22, 18)):
+            for D in ((34, 30, 28, 26, 24, 22, 20, 18, 16, 14) if fr['lvl'] > 0 else (42, 38, 34, 30, 26, 22, 18)):
                 cor = rect_corners(F, Tn, Nn, Wl, D)
                 if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): plan.rej['block'] = plan.rej.get('block', 0) + 1; continue
                 if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): plan.rej['occ'] = plan.rej.get('occ', 0) + 1; continue
@@ -333,7 +333,7 @@ def fill_lots(plan, geo, seed=RNG):
                 s += 3.0
     # segunda fileira (miolo de quadra): atras de cada lote da frente, ate 30 m de fundo, se houver espaco (sem rua propria: condominios/fundos)
     base = list(plan.lots)
-    for _pass in range(4):
+    for _pass in range(7):
       newl = []
       for l in base:
           a, b, c, d = [tuple(p) for p in l['rect']]
@@ -342,14 +342,53 @@ def fill_lots(plan, geo, seed=RNG):
           F = ((a[0] + b[0]) / 2 + Nn[0] * (Dl + 0.5), (a[1] + b[1]) / 2 + Nn[1] * (Dl + 0.5))
           for D in (34, 30, 26, 22, 18, 14):
               cor = rect_corners(F, Tn, Nn, Wl, D)
-              if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): continue
-              if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): continue
+              if poly_mask(plan.block, rect_corners(F, Tn, Nn, Wl, D, inset=0.6)): plan.rej['i_block'] = plan.rej.get('i_block', 0) + 1; continue
+              if poly_mask(plan.occ, rect_corners(F, Tn, Nn, Wl - 0.9, D - 0.9, inset=0.45), 0.0): plan.rej['i_occ'] = plan.rej.get('i_occ', 0) + 1; continue
               hm, sl = terrain_stats(geo, cor)
-              if sl > 0.20: continue
+              if sl > 0.20: plan.rej['i_slope'] = plan.rej.get('i_slope', 0) + 1; continue
               draw_poly(plan.occ, cor, True)
               plan.lots.append({'id': len(plan.lots), 'edge': l['edge'], 'sgn': l['sgn'], 'lvl': 2, 'street': l['street'], 'rect': [[round(p[0], 2), round(p[1], 2)] for p in cor],
                                 'w': round(Wl, 1), 'd': D, 'y': round(hm, 2), 'slope': round(sl, 3), 'kind': 'livre', 'inner': True}); newl.append(plan.lots[-1])
               break
+
+      base = newl
+
+def fill_gaps(plan, geo, seed=RNG + 7):
+    """preenche o miolo das quadras: grade de candidatos do mais proximo da rua para dentro; cada lote alinhado a rua mais proxima"""
+    from scipy.spatial import cKDTree
+    rnd = random.Random(seed)
+    pts = []; info = []
+    for fr in plan.fronts:
+        for i in range(0, len(fr['S']), 2):
+            pts.append((fr['X'][i], fr['Z'][i])); info.append((fr['TX'][i], fr['TZ'][i], fr['NX'][i], fr['NZ'][i], fr['lvl']))
+    if not pts: return
+    tree = cKDTree(np.array(pts)); info = np.array(info)
+    H, W = plan.block.shape
+    free = ~plan.block & ~plan.occ
+    ys, xs = np.nonzero(free[::4, ::4]); xs = xs * 4; ys = ys * 4
+    d, idx = tree.query(np.stack([xs, ys], 1))
+    order = np.argsort(d)
+    added = 0
+    for o in order:
+        x, z = float(xs[o]), float(ys[o])
+        if plan.occ[int(z), int(x)] or plan.block[int(z), int(x)]: continue
+        k = int(idx[o]); tx, tz, nx, nz, lv = info[k]
+        px, pz = pts[k]
+        if (x - px) * nx + (z - pz) * nz < 0: nx, nz = -nx, -nz
+        T_ = (-nz, nx); N_ = (nx, nz)
+        for Wl, D in ((26, 30), (22, 28), (20, 24), (18, 22), (16, 20), (14, 16)):
+            Wl = Wl + rnd.uniform(-1.5, 1.5)
+            F = (x - N_[0] * D / 2, z - N_[1] * D / 2)
+            cor = rect_corners(F, T_, N_, Wl, D)
+            if poly_mask(plan.block, rect_corners(F, T_, N_, Wl, D, inset=0.6)): continue
+            if poly_mask(plan.occ, rect_corners(F, T_, N_, Wl - 0.9, D - 0.9, inset=0.45), 0.0): continue
+            hm, sl = terrain_stats(geo, cor)
+            if sl > 0.20: continue
+            draw_poly(plan.occ, cor, True)
+            plan.lots.append({'id': len(plan.lots), 'edge': -1, 'sgn': 1, 'lvl': 2, 'street': '', 'rect': [[round(p[0], 2), round(p[1], 2)] for p in cor],
+                              'w': round(Wl, 1), 'd': D, 'y': round(hm, 2), 'slope': round(sl, 3), 'kind': 'livre', 'inner': True}); added += 1
+            break
+    plan.log.append(f'miolo: +{added} lotes')
 
       base = newl
 
@@ -376,6 +415,7 @@ def plan(city, geo, yn):
         sc = float(fr['S'][q])
         lot['drive_s'] = sc
     fill_lots(P, geo)
+    fill_gaps(P, geo)
     P.log.append(f'rejeicoes de lote: {P.rej}')
     P.log.append(f'{len(P.houses)} casas; {len(P.lots)} lotes comuns; {len(P.fronts)} frentes de rua')
     return P

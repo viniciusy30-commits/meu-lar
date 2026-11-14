@@ -680,8 +680,8 @@ class Gen:
             rect = l['rect']; F = Frame(rect)
             cx, cz = F.xz(F.w / 2, F.d / 2)
             zone = self.zone(cx, cz); br = self.bairro(cx, cz)
-            kind = self.pick(l['lvl'], zone, br)
-            if l.get('inner') and kind in ('torre', 'hotel', 'comercial', 'mercado', 'posto', 'galpao', 'igreja', 'escola', 'mansao'): kind = self.rnd.choice(('apto', 'sobrado', 'terrea', 'moderna', 'geminadas', 'colonial'))
+            kind = self.pick(1 if (l.get('inner') and zone == 'centro') else l['lvl'], zone, br)
+            if l.get('inner') and zone != 'centro' and kind in ('torre', 'hotel', 'comercial', 'mercado', 'posto', 'galpao', 'igreja', 'escola', 'mansao'): kind = self.rnd.choice(('apto', 'sobrado', 'terrea', 'moderna', 'geminadas', 'colonial'))
             # altura da base: media do terreno no miolo do lote; muito inclinado vira jardim
             hs = [self.sample(*F.xz(u * F.w, v * F.d)) for u in (0.2, 0.5, 0.8) for v in (0.2, 0.5, 0.8)]
             level = l['slope'] <= T.LOT_SLOPE_MAX
