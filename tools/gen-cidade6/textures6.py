@@ -1,13 +1,13 @@
-"""Cidade 6 - texturas procedurais (512 px, JPEG) e tabela de materiais.
-Cada material: textura + quantos metros a textura cobre (escala do UV no mundo). A cor do vertice multiplica a textura:
-texturas 'tingiveis' (siding, reboco, telha, folhagem...) sao claras e recebem a cor da casa; as naturais (asfalto, grama,
-areia, tijolo, vidro...) ja tem a cor certa e usam vertice branco."""
+"""Cidade 6 - texturas procedurais (1024 px, JPEG) e tabela de materiais.
+Cada textura nasce de um mapa de ALTURA iluminado (relevo: tijolo, telha, tabua, pedra parecem ter volume) + cor com variacao
+por peca, sujeira e desgaste. A cor do vertice multiplica a textura: as 'tingiveis' (siding, reboco, telha, folhagem...) sao
+claras e recebem a cor de cada casa; as naturais (asfalto, grama, tijolo, vidro...) ja tem a cor certa."""
 import os, math
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
-N = 512
-RNG = np.random.RandomState(7)
+N = 1024
+LX, LY = -0.55, -0.7           # luz de cima-esquerda (para o relevo)
 
 
 def vnoise(n, cells, seed):
@@ -18,314 +18,352 @@ def vnoise(n, cells, seed):
     return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
 
 
-def fbm(n, base=4, oct=5, seed=0):
+def fbm(n=N, base=4, oct=5, seed=0, gain=0.5):
     s = np.zeros((n, n)); amp = 1.0; tot = 0
     for o in range(oct):
-        s += vnoise(n, base * 2 ** o, seed + o * 13) * amp; tot += amp; amp *= 0.5
+        s += vnoise(n, base * 2 ** o, seed + o * 13) * amp; tot += amp; amp *= gain
     return s / tot
 
 
-def to_img(a):
-    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+def light(h, strength=1.0):
+    """sombreado do relevo: derivada do mapa de altura (repete nas bordas)"""
+    gx = np.roll(h, -1, 1) - np.roll(h, 1, 1); gy = np.roll(h, -1, 0) - np.roll(h, 1, 0)
+    return 1.0 + strength * (gx * LX + gy * LY)
 
 
-def col(rgb, v):
-    return np.dstack([v * rgb[0], v * rgb[1], v * rgb[2]])
+def rgb3(c, v):
+    v = v[..., None] if v.ndim == 2 else v
+    return v * np.array(c, float)[None, None, :]
 
 
-# ---------------------------------------------------------------- texturas
-def asfalto():
-    n1 = fbm(N, 8, 5, 1); sp = RNG.rand(N, N)
-    v = 0.30 + 0.10 * n1 + (sp > 0.93) * 0.10 - (sp < 0.04) * 0.08
-    patch = (fbm(N, 3, 3, 9) > 0.62) * 0.04                     # remendos levemente mais escuros
-    v = v - patch
-    return col((235, 236, 240), v)
+def grid_ids(x, y, w, h, stagger=0.5):
+    row = (y // h).astype(int); off = (row % 2) * stagger * w
+    col = ((x + off) // w).astype(int)
+    u = ((x + off) % w) / w; v = (y % h) / h
+    return row * 1009 + col, u, v
 
 
-def calcada():
-    n1 = fbm(N, 6, 5, 2); sp = RNG.rand(N, N)
-    v = 0.80 + 0.07 * n1 + (sp > 0.97) * 0.04 - (sp < 0.02) * 0.05
-    y, x = np.mgrid[0:N, 0:N]
-    j = ((x % (N // 2)) < 3) | ((y % (N // 2)) < 3)              # junta a cada 1,5 m (textura = 3 m)
-    v = np.where(j, v * 0.70, v)
-    # leve variacao por placa
-    pl = (np.floor(x / (N // 2)) * 7 + np.floor(y / (N // 2)) * 3) % 4
-    v = v * (0.97 + pl * 0.012)
-    return col((238, 234, 226), v)
+def hash01(i, s=0):
+    return ((np.sin(np.asarray(i, float) * 12.9898 + s * 78.233) * 43758.5453) % 1.0 + 1.0) % 1.0
 
 
-def paver():
-    y, x = np.mgrid[0:N, 0:N]
-    bh = N // 16; bw = N // 8
-    row = y // bh; off = (row % 2) * (bw // 2)
-    bx = (x + off) % bw; by = y % bh
-    j = (bx < 3) | (by < 3)
-    idv = ((x + off) // bw * 31 + row * 17) % 7
-    base = 0.72 + idv * 0.025 + 0.06 * fbm(N, 10, 4, 3)
-    v = np.where(j, 0.45, base)
-    c = np.dstack([v * 228, v * 214, v * 196])
-    return c
-
-
-def grama():
-    n1 = fbm(N, 6, 6, 4); n2 = fbm(N, 24, 3, 5); sp = RNG.rand(N, N)
-    g = 0.55 + 0.25 * n1 + 0.12 * n2 + (sp > 0.9) * 0.08
-    img = np.dstack([g * 112, g * 168, g * 74])
-    # pequenas lâminas mais claras
-    img[..., 1] += (sp > 0.985) * 40
-    return img
-
-
-def areia():
-    n1 = fbm(N, 5, 5, 6); sp = RNG.rand(N, N)
-    y, x = np.mgrid[0:N, 0:N]
-    rip = 0.04 * np.sin((x * 0.06 + n1 * 9))
-    v = 0.84 + 0.08 * n1 + rip + (sp > 0.95) * 0.05 - (sp < 0.03) * 0.06
-    return col((240, 224, 182), v)
-
-
-def agua():
-    n1 = fbm(N, 4, 4, 8); n2 = fbm(N, 32, 3, 11); n3 = fbm(N, 16, 3, 12)
-    v = 0.80 + 0.10 * n1 + 0.08 * n3
-    rip = np.clip((n2 - 0.58) * 5, 0, 1) * 0.22
-    return np.dstack([v * 64 + rip * 150, v * 128 + rip * 120, v * 178 + rip * 70])
-
-
-def tijolo():
-    y, x = np.mgrid[0:N, 0:N]
-    bh = N // 24; bw = N // 8
-    row = y // bh; off = (row % 2) * (bw // 2)
-    bx = (x + off) % bw; by = y % bh
-    j = (bx < 4) | (by < 3)
-    idv = (((x + off) // bw) * 13 + row * 7) % 9
-    n1 = fbm(N, 16, 4, 12)
-    r = 150 + idv * 6 + n1 * 30; g = 72 + idv * 3 + n1 * 15; b = 54 + n1 * 12
-    m = 200 + n1 * 20
-    return np.dstack([np.where(j, m, r), np.where(j, m * 0.97, g), np.where(j, m * 0.92, b)])
-
-
-def siding():
-    y, x = np.mgrid[0:N, 0:N]
-    bh = N // 12                                                  # 12 tabuas por 2,4 m (20 cm)
-    t = (y % bh) / bh
-    v = 0.92 + 0.05 * fbm(N, 8, 3, 13) - 0.22 * (t > 0.86) + 0.05 * t
-    v -= 0.03 * fbm(N, 32, 2, 14)
-    return col((255, 255, 255), v)
-
-
-def reboco():
-    v = 0.90 + 0.06 * fbm(N, 10, 5, 15) + 0.03 * (RNG.rand(N, N) - 0.5)
-    return col((255, 255, 255), v)
-
-
-def telha_shingle():
-    y, x = np.mgrid[0:N, 0:N]
-    rh = N // 12; tw = N // 10
-    row = y // rh; off = ((row * 37) % 5) * tw // 5
-    tx = (x + off) % tw; ty = (y % rh) / rh
-    v = 0.62 + 0.10 * fbm(N, 20, 3, 16) + 0.08 * (((x + off) // tw * 11 + row * 5) % 5) / 5
-    v = v - 0.25 * (ty > 0.85) - 0.18 * (tx < 3)
-    v += (RNG.rand(N, N) - 0.5) * 0.08
-    return col((235, 235, 235), v)
-
-
-def telha_ceramica():
-    y, x = np.mgrid[0:N, 0:N]
-    cw = N // 8; rh = N // 6
-    cx = (x % cw) / cw; cy = (y % rh) / rh
-    bulge = np.sin(cx * math.pi)
-    v = 0.55 + 0.38 * bulge - 0.25 * (cy > 0.88) + 0.05 * fbm(N, 12, 3, 17)
-    return np.dstack([v * 205, v * 105, v * 70])
-
-
-def fachada_vidro():
-    """parede-cortina: 2 baias de 1,5 m x 1 andar de 3,6 m por textura (u=3 m, v=3,6 m)"""
-    y, x = np.mgrid[0:N, 0:N]
-    g = 0.5 + 0.35 * (1 - y / N) + 0.15 * fbm(N, 3, 3, 18)
-    r = 70 * g; gg = 115 * g; b = 150 * g + 30
-    mull = ((x % (N // 2)) < 8) | ((y % N) < 10) | (np.abs(y - N * 0.78) < 4)
-    spand = y > N * 0.80
-    img = np.dstack([r, gg, b])
-    img[spand] = (np.array([96, 110, 122])[None, :] * (0.9 + 0.1 * fbm(N, 8, 2, 19)[spand][:, None]))
-    img[mull] = (200, 204, 208)
-    return img
-
-
-def fachada_janelas():
-    """predio residencial: 1 baia de 3 m x 1 andar de 3 m; parede clara (tingivel) com janela, peitoril e verga"""
-    y, x = np.mgrid[0:N, 0:N]
-    v = 0.93 + 0.04 * fbm(N, 10, 4, 20)
-    img = col((255, 255, 255), v)
-    wx0, wx1, wy0, wy1 = int(N * 0.22), int(N * 0.78), int(N * 0.22), int(N * 0.70)
-    win = (x >= wx0) & (x < wx1) & (y >= wy0) & (y < wy1)
-    gl = 0.55 + 0.35 * (1 - (y - wy0) / (wy1 - wy0)) * 0.6 + 0.1 * fbm(N, 4, 2, 21)
-    img[win] = np.dstack([gl * 85, gl * 115, gl * 140])[win]
-    frame = win & (((x - wx0) < 10) | ((wx1 - x) < 10) | ((y - wy0) < 10) | ((wy1 - y) < 10) | (np.abs(x - N // 2) < 5))
-    img[frame] = (236, 236, 232)
-    sill = (x >= wx0 - 14) & (x < wx1 + 14) & (y >= wy1) & (y < wy1 + 14)
-    img[sill] = (205, 200, 192)
-    shadow = (x >= wx0) & (x < wx1) & (y >= wy1 + 14) & (y < wy1 + 22)
-    img[shadow] = img[shadow] * 0.86
-    return img
-
-
-def fachada_escritorio():
-    """faixa continua de janelas (fita) + peitoril de concreto: 3 m x 3,6 m"""
-    y, x = np.mgrid[0:N, 0:N]
-    v = 0.86 + 0.05 * fbm(N, 8, 3, 22)
-    img = col((240, 238, 232), v)
-    band = (y > N * 0.18) & (y < N * 0.72)
-    g = 0.55 + 0.4 * (1 - (y - N * 0.18) / (N * 0.54)) + 0.1 * fbm(N, 3, 2, 23)
-    img[band] = np.dstack([g * 72, g * 98, g * 118])[band]
-    mull = band & ((x % (N // 3)) < 6)
-    img[mull] = (60, 64, 70)
-    return img
-
-
-def vitrine():
-    y, x = np.mgrid[0:N, 0:N]
-    g = 0.5 + 0.4 * (y / N) + 0.1 * fbm(N, 4, 2, 24)
-    img = np.dstack([g * 60, g * 80, g * 95])
-    # reflexo diagonal
-    refl = (np.abs(((x + y) % (N // 2)) - N // 4) < N // 18)
-    img[refl] = img[refl] * 1.35
-    fr = ((x % (N // 2)) < 10) | (y < 10) | (y > N - 12)
-    img[fr] = (52, 54, 58)
-    return img
-
-
-def madeira():
-    y, x = np.mgrid[0:N, 0:N]
-    pw = N // 6
-    plank = y // pw
-    grain = 0.06 * np.sin(x * 0.05 + fbm(N, 6, 3, 25) * 12 + plank * 2)
-    v = 0.70 + grain + 0.06 * fbm(N, 24, 2, 26) + (plank % 3) * 0.03
-    v = np.where((y % pw) < 4, 0.4, v)
-    return np.dstack([v * 190, v * 140, v * 95])
-
-
-def pedra():
-    """muro de pedra: celulas de Voronoi (pedras) com argamassa"""
-    y, x = np.mgrid[0:N, 0:N]
-    r = np.random.RandomState(40); k = 70
-    P = r.rand(k, 2) * N
-    P = np.vstack([P + (dx, dy) for dx in (-N, 0, N) for dy in (-N, 0, N)])
-    best = np.full((N, N), 1e9); second = np.full((N, N), 1e9); idx = np.zeros((N, N), int)
+def voronoi(n, k, seed):
+    r = np.random.RandomState(seed); P = r.rand(k, 2) * n
+    P = np.vstack([P + (dx, dy) for dx in (-n, 0, n) for dy in (-n, 0, n)])
+    y, x = np.mgrid[0:n, 0:n].astype(np.float32)
+    best = np.full((n, n), 1e12, np.float32); second = best.copy(); idx = np.zeros((n, n), np.int32)
     for i, (px, py) in enumerate(P):
         d = (x - px) ** 2 + (y - py) ** 2
         m = d < best
         second = np.where(m, best, np.minimum(second, d)); idx = np.where(m, i % k, idx); best = np.where(m, d, best)
-    edge = np.sqrt(second) - np.sqrt(best)
-    tone = (idx * 37 % 11) / 11.0
-    v = 0.58 + 0.16 * tone + 0.10 * fbm(N, 16, 3, 41)
-    v = v * (0.8 + 0.2 * np.clip(edge / 12, 0, 1))
-    v = np.where(edge < 3.0, 0.42, v)
-    return np.dstack([v * 205, v * 196, v * 180])
+    return idx, np.sqrt(second) - np.sqrt(best)
+
+
+Y, X = np.mgrid[0:N, 0:N].astype(np.float64)
+
+
+# ================================================================ chao
+def asfalto():
+    n1 = fbm(N, 8, 6, 1); n2 = fbm(N, 64, 2, 2); sp = np.random.RandomState(3).rand(N, N)
+    v = 0.34 + 0.08 * n1 + 0.05 * n2 + (sp > 0.94) * 0.09 - (sp < 0.05) * 0.07
+    v += np.clip((fbm(N, 3, 3, 4) - 0.55) * 3, 0, 1) * 0.05
+    crack = (np.abs(fbm(N, 3, 6, 5, 0.6) - 0.5) < 0.0022) & (fbm(N, 2, 2, 75) > 0.55)
+    v = np.where(crack, v * 0.6, v)
+    v *= light(n2 + sp * 0.3, 0.8)
+    return rgb3((228, 229, 233), v)
+
+
+def calcada():
+    pid, u, w = grid_ids(X, Y, N / 2, N / 2, 0.0)
+    tone = 0.80 + 0.05 * hash01(pid) + 0.06 * fbm(N, 6, 5, 6) + 0.03 * fbm(N, 64, 2, 7)
+    edge = np.minimum.reduce([u, 1 - u, w, 1 - w]) * (N / 2)
+    h = np.clip(edge / 4, 0, 1) + 0.05 * fbm(N, 40, 2, 8)
+    v = tone * light(h, 1.2) * np.where(edge < 2.5, 0.72, 1.0)
+    return rgb3((240, 236, 228), v - np.clip((fbm(N, 4, 4, 9) - 0.6) * 4, 0, 1) * 0.06)
+
+
+def paver():
+    pid, u, w = grid_ids(X, Y, N / 8, N / 16, 0.5)
+    tone = 0.70 + 0.10 * hash01(pid, 2) + 0.05 * fbm(N, 20, 3, 10)
+    edge = np.minimum.reduce([u * (N / 8), (1 - u) * (N / 8), w * (N / 16), (1 - w) * (N / 16)])
+    v = tone * light(np.clip(edge / 5, 0, 1), 1.5) * np.where(edge < 2.0, 0.55, 1.0)
+    warm = hash01(pid, 5)
+    return np.dstack([v * (222 + warm * 18), v * (208 + warm * 10), v * 190])
+
+
+def grama():
+    n1 = fbm(N, 6, 6, 11); n2 = fbm(N, 48, 3, 12); sp = np.random.RandomState(13).rand(N, N)
+    g = 0.55 + 0.22 * n1 + 0.14 * n2 + 0.10 * fbm(N, 20, 3, 14) + (sp > 0.9) * 0.07 - (sp < 0.06) * 0.08
+    g *= light(n2 * 0.6 + sp * 0.4, 0.9)
+    dry = np.clip((fbm(N, 3, 3, 15) - 0.55) * 3, 0, 1)
+    return np.dstack([g * (98 + 40 * dry), g * (160 + 6 * dry), g * (68 + 10 * dry)])
+
+
+def areia():
+    n1 = fbm(N, 5, 6, 16); sp = np.random.RandomState(17).rand(N, N)
+    rip = np.sin(X * 0.045 + n1 * 14 + Y * 0.01) * 0.5 + 0.5
+    v = (0.86 + 0.07 * n1 + (sp > 0.96) * 0.05 - (sp < 0.03) * 0.06) * light(rip * 0.6 + sp * 0.4, 0.6)
+    return rgb3((240, 223, 184), v)
+
+
+def agua():
+    n1 = fbm(N, 4, 4, 18); n2 = fbm(N, 32, 3, 19); n3 = fbm(N, 12, 3, 20)
+    sh = light(n2 * 0.7 + n3 * 0.3, 3.0)
+    base = 0.78 + 0.10 * n1
+    spec = np.clip((sh - 1.12) * 3, 0, 1) * 0.35
+    return np.dstack([base * 58 * sh + spec * 190, base * 118 * sh + spec * 170, base * 168 * sh + spec * 120])
+
+
+# ================================================================ paredes
+def tijolo():
+    bw, bh = N / 8, N / 24
+    pid, u, w = grid_ids(X, Y, bw, bh, 0.5)
+    t = hash01(pid, 3)
+    r = 142 + t * 40 + 18 * fbm(N, 40, 2, 21); g = 66 + t * 16 + 8 * fbm(N, 40, 2, 22); b = 48 + t * 10
+    burnt = hash01(pid, 9) > 0.88
+    r = np.where(burnt, r * 0.72, r); g = np.where(burnt, g * 0.7, g); b = np.where(burnt, b * 0.75, b)
+    edge = np.minimum.reduce([u * bw, (1 - u) * bw, w * bh, (1 - w) * bh])
+    mortar = edge < 3.0
+    sh = light(np.clip(edge / 4, 0, 1) + 0.15 * fbm(N, 60, 2, 23), 1.6)
+    m = 196 + 14 * fbm(N, 30, 2, 24)
+    return np.dstack([np.where(mortar, m, r), np.where(mortar, m * 0.97, g), np.where(mortar, m * 0.92, b)]) * sh[..., None]
+
+
+def siding():
+    bh = N / 12
+    t = (Y % bh) / bh
+    h = t * 0.6 + np.where(t > 0.9, -0.4, 0)
+    grain = 0.03 * fbm(N, 6, 4, 25) + 0.015 * np.sin(X * 0.02 + fbm(N, 4, 3, 26) * 8)
+    v = (0.93 + grain) * light(h, 1.4) * np.where(t > 0.92, 0.66, 1.0)
+    return rgb3((255, 255, 255), v - np.clip((fbm(N, 3, 3, 27) - 0.6) * 2, 0, 1) * 0.05 * (Y / N))
+
+
+def reboco():
+    h = fbm(N, 24, 4, 28) * 0.7 + np.random.RandomState(29).rand(N, N) * 0.3
+    v = (0.90 + 0.05 * fbm(N, 6, 4, 30)) * light(h, 0.8)
+    streak = np.clip((fbm(N, 2, 3, 31) - 0.55) * 2, 0, 1) * 0.04 * (1 - np.abs(np.sin(X / N * 9.0)))
+    return rgb3((255, 255, 255), v - streak)
+
+
+def telha_shingle():
+    rh, tw = N / 14, N / 9
+    row = (Y // rh).astype(int); off = hash01(row, 4) * tw
+    col = ((X + off) // tw).astype(int); u = ((X + off) % tw) / tw; t = (Y % rh) / rh
+    pid = row * 997 + col
+    tone = 0.62 + 0.12 * hash01(pid, 6) + 0.06 * fbm(N, 30, 3, 32)
+    v = tone * light(t + 0.2 * fbm(N, 50, 2, 33), 1.4) * np.where(t > 0.88, 0.55, 1.0) * np.where(u < 0.012, 0.6, 1.0)
+    return rgb3((240, 240, 240), v + np.random.RandomState(34).rand(N, N) * 0.08 - 0.04)
+
+
+def telha_ceramica():
+    cw, rh = N / 8, N / 6
+    cx = (X % cw) / cw; cy = (Y % rh) / rh
+    pid = (Y // rh).astype(int) * 31 + (X // cw).astype(int)
+    hb = np.sin(cx * math.pi) * (0.6 + 0.4 * cy)
+    h = hb + np.where(cy > 0.9, -0.5, 0)
+    tone = 0.75 + 0.15 * hash01(pid, 7) + 0.05 * fbm(N, 30, 2, 35)
+    v = tone * light(h * 3, 0.7) * np.where(cy > 0.9, 0.6, 1.0)
+    moss = np.clip((fbm(N, 5, 3, 36) - 0.62) * 3, 0, 1)
+    return np.dstack([v * (205 - 60 * moss), v * (98 + 10 * moss), v * (64 - 10 * moss)])
+
+
+def pedra():
+    idx, edge = voronoi(N, 80, 37)
+    tone = 0.58 + 0.2 * hash01(idx, 8) + 0.10 * fbm(N, 16, 3, 38)
+    v = tone * light(np.clip(edge / 10, 0, 1) + 0.2 * fbm(N, 30, 3, 39), 1.4) * np.where(edge < 3.0, 0.5, 1.0)
+    warm = hash01(idx, 11)
+    return np.dstack([v * (190 + 20 * warm), v * (182 + 10 * warm), v * 168])
 
 
 def concreto():
-    v = 0.80 + 0.06 * fbm(N, 6, 5, 29) + 0.02 * (RNG.rand(N, N) - 0.5)
-    y, x = np.mgrid[0:N, 0:N]
-    v = np.where(((y % (N // 2)) < 2) | ((x % (N // 2)) < 2), v * 0.88, v)
-    for (px, py) in ((N * 0.25, N * 0.25), (N * 0.75, N * 0.25), (N * 0.25, N * 0.75), (N * 0.75, N * 0.75)):   # furos de forma
-        v = np.where(((x - px) ** 2 + (y - py) ** 2) < 30, v * 0.75, v)
-    return col((240, 238, 234), v)
+    v = (0.80 + 0.05 * fbm(N, 6, 5, 42)) * light(fbm(N, 20, 4, 40) * 0.5 + np.random.RandomState(41).rand(N, N) * 0.2, 0.7)
+    seam = ((Y % (N / 2)) < 3) | ((X % (N / 2)) < 3)
+    v = np.where(seam, v * 0.84, v)
+    for (px, py) in ((0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)):
+        v = np.where(((X - px * N) ** 2 + (Y - py * N) ** 2) < 60, v * 0.72, v)
+    return rgb3((238, 236, 232), v - np.clip((fbm(N, 3, 3, 43) - 0.6) * 3, 0, 1) * 0.07)
+
+
+def madeira():
+    pw = N / 6
+    plank = (Y // pw).astype(int); t = (Y % pw) / pw
+    grain = 0.035 * np.sin(Y * 0.35 + fbm(N, 3, 3, 44) * 5 + plank * 2.3 + X * 0.004) + 0.02 * np.sin(Y * 0.9 + X * 0.01 + plank) + 0.03 * fbm(N, 64, 2, 45)
+    tone = 0.70 + 0.10 * hash01(plank, 12)
+    v = (tone + grain) * light(np.where(t < 0.04, 0.0, 1.0) + grain, 0.8) * np.where(t < 0.035, 0.45, 1.0)
+    return np.dstack([v * 196, v * 142, v * 96])
+
+
+def cerca():
+    bw = N / 8
+    board = (X // bw).astype(int); u = (X % bw) / bw
+    v = 0.86 + 0.025 * np.sin(X * 0.35 + board * 1.7 + fbm(N, 3, 3, 46) * 4 + Y * 0.004) + 0.04 * hash01(board, 13) + 0.03 * fbm(N, 64, 2, 76)
+    v = v * light(np.where(u < 0.04, 0.0, 1.0) + 0.1 * fbm(N, 40, 2, 47), 0.9) * np.where(u < 0.035, 0.5, 1.0)
+    rail = (np.abs(Y - N * 0.18) < 10) | (np.abs(Y - N * 0.82) < 10)
+    v = np.where(rail, v * 0.88, v)
+    return np.dstack([v * 238, v * 214, v * 182])
+
+
+def metal():
+    v = 0.76 + 0.05 * fbm(N, 4, 4, 48)
+    rib = (X % (N / 8)) / (N / 8)
+    return rgb3((255, 255, 255), v * light(np.sin(rib * math.pi) * 2, 0.5))
 
 
 def cascalho():
-    sp = RNG.rand(N, N); v = 0.55 + 0.25 * fbm(N, 40, 2, 31) + (sp > 0.8) * 0.1 - (sp < 0.15) * 0.1
-    return col((220, 218, 214), v)
+    idx, edge = voronoi(256, 900, 49)
+    idx = np.tile(idx, (4, 4)); edge = np.tile(edge, (4, 4))
+    return rgb3((222, 220, 216), (0.55 + 0.3 * hash01(idx, 14)) * light(np.clip(edge / 3, 0, 1), 1.0))
 
 
-def folhagem():
-    n1 = fbm(N, 10, 5, 32); sp = RNG.rand(N, N)
-    v = 0.62 + 0.32 * n1 + (sp > 0.92) * 0.12 - (sp < 0.08) * 0.15
-    return col((255, 255, 255), v)
+# ================================================================ fachadas
+def _window(img, x0, x1, y0, y1, rng_id, frame=(236, 236, 232), lit=0.0, mullion=True, curtain=True):
+    m = (X >= x0) & (X < x1) & (Y >= y0) & (Y < y1)
+    gy = (Y - y0) / max(1, (y1 - y0))
+    sky = 0.55 + 0.40 * (1 - gy)
+    refl = (np.abs(((X - x0) * 0.6 + (Y - y0)) % (x1 - x0 + 1) - (x1 - x0) * 0.4) < (x1 - x0) * 0.08)
+    img[m] = np.dstack([sky * 92 + refl * 40, sky * 120 + refl * 40, sky * 146 + refl * 35])[m]
+    if curtain:
+        cov = 0.15 + 0.5 * float(hash01(rng_id, 21))
+        tint = np.array([(236, 228, 210), (210, 222, 230), (230, 214, 200), (190, 196, 204)][int(float(hash01(rng_id, 22)) * 4) % 4], float)
+        img[m & (gy < cov)] = tint * 0.85
+    fw = max(4, int((x1 - x0) * 0.06))
+    fr = m & (((X - x0) < fw) | ((x1 - X) < fw) | ((Y - y0) < fw) | ((y1 - Y) < fw) | (mullion & (np.abs(X - (x0 + x1) / 2) < fw * 0.6)))
+    img[fr] = frame
+    sh = (X >= x0) & (X < x1) & (Y >= y0) & (Y < y0 + fw * 2.5)
+    img[sh & ~fr] *= 0.7
+    img[(X >= x0 - fw * 2) & (X < x1 + fw * 2) & (Y >= y1) & (Y < y1 + fw * 1.6)] = (210, 205, 196)
+    img[(X >= x0 - fw * 2) & (X < x1 + fw * 2) & (Y >= y1 + fw * 1.6) & (Y < y1 + fw * 3)] *= 0.84
+
+
+def fachada_janelas():
+    """predio residencial: 2 baias de 3 m x 1 andar de 3 m; parede clara tingivel"""
+    img = rgb3((255, 255, 255), (0.92 + 0.04 * fbm(N, 10, 4, 50)) * light(fbm(N, 30, 3, 51), 0.5))
+    img[Y > N * 0.94] *= 0.9
+    for k in range(2):
+        _window(img, k * N / 2 + N * 0.10, k * N / 2 + N * 0.40, N * 0.22, N * 0.70, k + 1)
+    return img
+
+
+def fachada_classica():
+    """predio antigo de tijolo: janelas altas com arco, cornija (2 baias x 1 andar de 3,6 m)"""
+    img = tijolo()
+    for k in range(2):
+        x0 = k * N / 2 + N * 0.14; x1 = k * N / 2 + N * 0.36
+        _window(img, x0, x1, N * 0.18, N * 0.74, 10 + k, frame=(242, 238, 228))
+        arch = (Y < N * 0.18) & (Y > N * 0.08) & ((((X - (x0 + x1) / 2) / ((x1 - x0) / 2 + 10)) ** 2 + ((Y - N * 0.18) / (N * 0.09)) ** 2) < 1)
+        img[arch] = (226, 214, 196)
+        img[arch & (np.abs(X - (x0 + x1) / 2) < 12)] = (200, 190, 172)
+    img[Y > N * 0.90] = (228, 220, 204)
+    img[(Y > N * 0.90) & (Y < N * 0.915)] = (180, 172, 160)
+    return img
+
+
+def fachada_vidro():
+    sky = 0.50 + 0.40 * (1 - Y / N) + 0.10 * fbm(N, 3, 3, 52)
+    cloud = np.clip((fbm(N, 4, 4, 53) - 0.5) * 2, 0, 1) * 0.25
+    pane = ((X // (N / 2)) % 2) * 0.04
+    img = np.dstack([(sky + cloud + pane) * 82, (sky + cloud + pane) * 118, (sky + cloud * 0.8 + pane) * 150 + 18])
+    spand = Y > N * 0.80
+    img[spand] = np.array([92.0, 104.0, 116.0]) * (0.9 + 0.1 * fbm(N, 8, 2, 54)[spand][:, None])
+    img[((X % (N / 2)) < 9) | ((Y % N) < 10) | (np.abs(Y - N * 0.80) < 5)] = (196, 200, 206)
+    img[((X % (N / 2)) >= 9) & ((X % (N / 2)) < 14)] *= 0.75
+    return img
+
+
+def fachada_escritorio():
+    img = rgb3((240, 238, 232), (0.86 + 0.05 * fbm(N, 8, 3, 55)) * light(fbm(N, 30, 3, 56), 0.5))
+    band = (Y > N * 0.16) & (Y < N * 0.70)
+    g = 0.55 + 0.4 * (1 - (Y - N * 0.16) / (N * 0.54)) + 0.08 * fbm(N, 3, 2, 57)
+    refl = np.abs(((X * 0.5 + Y) % (N * 0.6)) - N * 0.3) < N * 0.04
+    img[band] = np.dstack([g * 70 + refl * 30, g * 96 + refl * 30, g * 118 + refl * 25])[band]
+    img[band & ((X % (N / 3)) < 7)] = (62, 66, 72)
+    img[(Y >= N * 0.70) & (Y < N * 0.72)] *= 0.7
+    img[(Y >= N * 0.14) & (Y < N * 0.16)] *= 0.8
+    return img
+
+
+def fachada_moderna():
+    img = rgb3((255, 255, 255), 0.94 + 0.03 * fbm(N, 10, 3, 58))
+    _window(img, N * 0.06, N * 0.62, N * 0.10, N * 0.86, 30, frame=(60, 62, 66), mullion=False)
+    wood = (X >= N * 0.70) & (X < N * 0.96) & (Y >= N * 0.10) & (Y < N * 0.86)
+    img[wood] = madeira()[wood]
+    img[Y > N * 0.90] = (214, 212, 206)
+    return img
+
+
+def vitrine():
+    g = 0.45 + 0.35 * (Y / N) + 0.08 * fbm(N, 4, 2, 59)
+    img = np.dstack([g * 62, g * 78, g * 92])
+    img[((Y % (N / 4)) < 6) & (Y > N * 0.3)] = (150, 140, 120)
+    goods = (Y > N * 0.3) & (fbm(N, 30, 2, 60) > 0.55) & ((Y % (N / 4)) > 12) & ((Y % (N / 4)) < 60)
+    gcol = np.dstack([fbm(N, 20, 2, 61) * 255, fbm(N, 20, 2, 62) * 200, fbm(N, 20, 2, 63) * 160])
+    img[goods] = img[goods] * 0.4 + gcol[goods] * 0.6
+    refl = (np.abs(((X + Y * 0.7) % (N / 2)) - N / 4) < N / 22)
+    img[refl] = np.minimum(img[refl] * 1.5 + 30, 255)
+    img[((X % (N / 2)) < 12) | (Y < 12) | (Y > N - 60)] = (46, 48, 52)
+    return img
 
 
 def janela_casa():
-    """janela de casa (moldura branca, 2 folhas com divisao): UV 0..1 por janela"""
-    y, x = np.mgrid[0:N, 0:N]
-    img = np.zeros((N, N, 3)) + (240, 240, 236)
-    gx0, gx1, gy0, gy1 = 28, N - 28, 28, N - 28
-    gl = (x > gx0) & (x < gx1) & (y > gy0) & (y < gy1)
-    g = 0.55 + 0.35 * (1 - y / N) + 0.1 * fbm(N, 3, 2, 33)
-    img[gl] = np.dstack([g * 90, g * 120, g * 145])[gl]
-    bars = gl & ((np.abs(x - N // 2) < 9) | (np.abs(y - N // 2) < 7) | (np.abs(x - N // 4) < 4) | (np.abs(x - 3 * N // 4) < 4))
-    img[bars] = (240, 240, 236)
-    refl = gl & (np.abs((x - y) % (N // 2) - N // 4) < 14)
-    img[refl] = np.minimum(img[refl] * 1.3, 255)
+    img = np.zeros((N, N, 3)) + (242, 242, 238)
+    _window(img, 56, N - 56, 56, N - 80, 40, frame=(242, 242, 238))
+    gl = (X > 70) & (X < N - 70) & (Y > 70) & (Y < N - 94)
+    img[gl & ((np.abs(X - N * 0.25) < 6) | (np.abs(X - N * 0.75) < 6) | (np.abs(Y - N * 0.33) < 6) | (np.abs(Y - N * 0.62) < 6))] = (242, 242, 238)
     return img
 
 
 def porta():
-    y, x = np.mgrid[0:N, 0:N]
-    v = 0.8 + 0.05 * fbm(N, 8, 3, 34)
-    img = col((255, 255, 255), v)
-    for (a, b, c, d) in ((0.15, 0.45, 0.08, 0.45), (0.55, 0.85, 0.08, 0.45), (0.15, 0.45, 0.55, 0.92), (0.55, 0.85, 0.55, 0.92)):
-        m = (x > a * N) & (x < b * N) & (y > c * N) & (y < d * N)
-        img[m] *= 0.86
-        e = m & ((x < a * N + 6) | (y < c * N + 6))
-        img[e] *= 0.8
-    kn = ((x - 0.88 * N) ** 2 + (y - 0.55 * N) ** 2) < 120
-    img[kn] = (200, 175, 90)
+    img = rgb3((255, 255, 255), 0.82 + 0.04 * fbm(N, 8, 3, 64))
+    hh = np.zeros((N, N))
+    for (a, b, c, e) in ((0.12, 0.44, 0.06, 0.44), (0.56, 0.88, 0.06, 0.44), (0.12, 0.44, 0.52, 0.94), (0.56, 0.88, 0.52, 0.94)):
+        hh[(X > a * N) & (X < b * N) & (Y > c * N) & (Y < e * N)] = 1.0
+        hh[(X > a * N + 18) & (X < b * N - 18) & (Y > c * N + 18) & (Y < e * N - 18)] = 0.4
+    img *= light(hh * 6, 1.0)[..., None]
+    img[((X - 0.90 * N) ** 2 + (Y - 0.52 * N) ** 2) < 300] = (205, 178, 92)
     return img
 
 
 def garagem():
-    y, x = np.mgrid[0:N, 0:N]
-    v = 0.86 + 0.04 * fbm(N, 8, 3, 35)
-    v = np.where((y % (N // 5)) < 6, 0.62, v)
-    v = np.where((y % (N // 5)) > (N // 5) - 4, 0.95, v)
-    return col((255, 255, 255), v)
+    t = (Y % (N / 5)) / (N / 5)
+    v = (0.88 + 0.03 * fbm(N, 8, 3, 65)) * light(np.where(t < 0.06, 0.0, t), 1.2) * np.where(t < 0.05, 0.62, 1.0)
+    return rgb3((255, 255, 255), np.where((X % (N / 4)) < 5, v * 0.9, v))
 
 
-def metal():
-    v = 0.75 + 0.06 * fbm(N, 4, 4, 36); y, x = np.mgrid[0:N, 0:N]
-    v = np.where((x % (N // 8)) < 3, v * 0.8, v)
-    return col((255, 255, 255), v)
+# ================================================================ natureza
+def folhagem():
+    idx, edge = voronoi(512, 1400, 66)
+    idx = np.tile(idx, (2, 2)); edge = np.tile(edge, (2, 2))
+    v = (0.60 + 0.30 * hash01(idx, 15)) * light(np.clip(edge / 6, 0, 1), 1.2) * np.where(edge < 1.2, 0.55, 1.0)
+    return rgb3((255, 255, 255), v * (0.85 + 0.15 * fbm(N, 6, 3, 67)))
 
 
 def casca():
-    y, x = np.mgrid[0:N, 0:N]
-    v = 0.55 + 0.2 * fbm(N, 6, 4, 37) + 0.12 * np.sin(x * 0.12 + fbm(N, 4, 3, 38) * 10)
-    return np.dstack([v * 150, v * 112, v * 80])
+    h = np.sin(X * 0.09 + fbm(N, 4, 3, 69) * 12)
+    v = (0.55 + 0.2 * fbm(N, 6, 4, 68) + 0.12 * h) * light(h, 0.4)
+    return np.dstack([v * 150, v * 114, v * 84])
 
 
 def quadra():
-    """piso de quadra esportiva (verde com textura fina)"""
-    v = 0.85 + 0.05 * fbm(N, 20, 3, 39)
-    return np.dstack([v * 70, v * 140, v * 100])
-
-
-def cerca():
-    """cerca de tabuas verticais (madeira clara envelhecida, tingivel)"""
-    y, x = np.mgrid[0:N, 0:N]
-    bw = N // 8
-    board = x // bw
-    v = 0.86 + 0.05 * np.sin(y * 0.03 + board * 1.7 + fbm(N, 8, 3, 44) * 6) + 0.03 * ((board * 7) % 3)
-    v = np.where((x % bw) < 4, 0.55, v)
-    v = np.where((np.abs(y - N * 0.2) < 6) | (np.abs(y - N * 0.8) < 6), v * 0.9, v)
-    return np.dstack([v * 236, v * 214, v * 184])
+    v = 0.86 + 0.04 * fbm(N, 30, 3, 70)
+    return np.dstack([v * 72, v * 140, v * 102])
 
 
 def terreno():
-    """solo neutro (tingido pela cor do vertice: grama, areia, rocha)"""
-    sp = RNG.rand(N, N)
-    v = 0.80 + 0.12 * fbm(N, 8, 5, 42) + 0.06 * fbm(N, 40, 2, 43) + (sp > 0.93) * 0.05 - (sp < 0.06) * 0.06
-    return col((255, 255, 255), v)
+    sp = np.random.RandomState(71).rand(N, N)
+    v = (0.80 + 0.10 * fbm(N, 8, 5, 73) + 0.05 * fbm(N, 48, 2, 74) + (sp > 0.94) * 0.04 - (sp < 0.06) * 0.05) * light(fbm(N, 16, 4, 72), 0.6)
+    return rgb3((255, 255, 255), v)
 
 
 def branco():
     return np.full((64, 64, 3), 255.0)
 
 
-# nome: (funcao, metros por repeticao (u, v))
 MATS = {
-    'asfalto': (asfalto, (7.0, 7.0)), 'calcada': (calcada, (3.0, 3.0)), 'paver': (paver, (2.4, 2.4)), 'grama': (grama, (6.0, 6.0)),
-    'areia': (areia, (5.0, 5.0)), 'agua': (agua, (12.0, 12.0)), 'tijolo': (tijolo, (2.4, 2.4)), 'siding': (siding, (2.4, 2.4)),
-    'reboco': (reboco, (3.0, 3.0)), 'telha': (telha_shingle, (3.0, 3.0)), 'ceramica': (telha_ceramica, (2.0, 2.0)),
-    'vidro': (fachada_vidro, (3.0, 3.6)), 'janelas': (fachada_janelas, (3.0, 3.0)), 'escritorio': (fachada_escritorio, (3.0, 3.6)),
+    'asfalto': (asfalto, (8.0, 8.0)), 'calcada': (calcada, (3.0, 3.0)), 'paver': (paver, (2.4, 2.4)), 'grama': (grama, (6.0, 6.0)),
+    'areia': (areia, (6.0, 6.0)), 'agua': (agua, (14.0, 14.0)), 'tijolo': (tijolo, (2.4, 2.4)), 'siding': (siding, (2.4, 2.4)),
+    'reboco': (reboco, (4.0, 4.0)), 'telha': (telha_shingle, (3.0, 3.0)), 'ceramica': (telha_ceramica, (2.0, 2.0)),
+    'vidro': (fachada_vidro, (3.0, 3.6)), 'janelas': (fachada_janelas, (6.0, 3.0)), 'escritorio': (fachada_escritorio, (3.0, 3.6)),
+    'classica': (fachada_classica, (6.0, 3.6)), 'moderna': (fachada_moderna, (3.0, 3.0)),
     'vitrine': (vitrine, (3.0, 3.0)), 'madeira': (madeira, (2.0, 2.0)), 'pedra': (pedra, (2.5, 2.5)), 'concreto': (concreto, (3.0, 3.0)),
     'cascalho': (cascalho, (2.0, 2.0)), 'folhagem': (folhagem, (2.0, 2.0)), 'janela': (janela_casa, (1.0, 1.0)), 'porta': (porta, (1.0, 1.0)),
     'garagem': (garagem, (1.0, 1.0)), 'metal': (metal, (2.0, 2.0)), 'casca': (casca, (1.0, 1.0)), 'quadra': (quadra, (4.0, 4.0)),
@@ -333,26 +371,23 @@ MATS = {
 }
 
 
-def make_all(outdir):
+def make_all(outdir, only=None):
     os.makedirs(outdir, exist_ok=True)
     for k, (fn, sc) in MATS.items():
-        p = os.path.join(outdir, k + '.jpg')
-        img = to_img(fn())
-        img.save(p, quality=88)
+        if only and k not in only: continue
+        Image.fromarray(np.clip(fn(), 0, 255).astype(np.uint8)).save(os.path.join(outdir, k + '.jpg'), quality=86)
     return outdir
 
 
 if __name__ == '__main__':
     import sys
     d = make_all(sys.argv[1] if len(sys.argv) > 1 else '/tmp/tex6')
-    # prancha de conferencia
-    ks = list(MATS); cols = 7; s = 160
-    sheet = Image.new('RGB', (cols * s, ((len(ks) + cols - 1) // cols) * (s + 18)), 'white')
     from PIL import ImageDraw
+    ks = list(MATS); cols = 8; s = 200
+    sheet = Image.new('RGB', (cols * s, ((len(ks) + cols - 1) // cols) * (s + 18)), 'white')
     dr = ImageDraw.Draw(sheet)
     for i, k in enumerate(ks):
-        im = Image.open(os.path.join(d, k + '.jpg')).resize((s, s))
-        sheet.paste(im, ((i % cols) * s, (i // cols) * (s + 18)))
+        sheet.paste(Image.open(os.path.join(d, k + '.jpg')).resize((s, s)), ((i % cols) * s, (i // cols) * (s + 18)))
         dr.text(((i % cols) * s + 4, (i // cols) * (s + 18) + s + 2), k, fill='black')
     sheet.save(os.path.join(d, '_prancha.png'))
     print('ok', len(ks))
