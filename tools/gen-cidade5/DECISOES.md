@@ -146,6 +146,7 @@ A cidade é cercada de água (mar ao sul, canais a oeste e leste, rio no meio, l
 | Rio urbano (z 600–2540) | terraço plano + enrocamento + calçadão ribeirinho com guarda-corpo (colisão) + docas/barcos | parques lineares, restaurantes de beira-rio (decor), marinas; prédios a ≥ 45 m |
 | Lagoa da Praça | banco baixo + enrocamento + calçadão em anel | praça/parque; sem lotes |
 | Pontas da orla | Praça do Farol + molhe/farol + Parque (alameda, mirante, quadra, playground, piquenique, quiosque) | só equipamentos públicos |
+| Canal e mar nas pontas (560 m a partir de cada Praça do Farol) | CAIS de pedra: terraço plano a 2,55 m, muralha de 2,8 m em fiadas, calçadão de 5,6 m com parapeito (colisão), balizadores, postes, bancos, palmeiras, escadas até a água; marina com 3 pontões, veleiros e lanchas; galpão do clube náutico; formações de rocha nas pontas | só uso público/náutico |
 | Canais e resto do litoral | barranco rochoso de 3 m no terreno (cor de rocha por inclinação) + faixa de blocos de pedra (3 mil blocos); a água continua bloqueando | reserva natural: sem construção |
 - **Lotes**: nenhum lote a menos de 45 m da água nem encostado no calçadão ribeirinho (38 lotes retirados; as 17 casas passam no validador). Esses espaços viram parque/praça/estacionamento na Etapa F.
 - **Barreira**: guarda-corpo do calçadão ribeirinho e das cabeceiras tem colisão (1.810 vãos em `margens.json → solids`, exportados em `c5.json → solid`).

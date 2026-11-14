@@ -33,10 +33,11 @@ class Margens:
     def __init__(self, gr, geo, hf, orla, plan, seed=RNG + 5):
         self.g = gr; self.geo = geo; self.hf = hf; self.o = orla; self.P = plan; self.B = gr.B; self.c = gr.c
         self.rnd = random.Random(seed)
-        self.items = {'solids': [], 'runs': [], 'lamps': [], 'benches': [], 'docks': [], 'boats': [], 'jetties': [], 'lighthouses': [], 'rocks': 0, 'trees': 0}
+        self.items = {'solids': [], 'stairs_cais': [], 'galpoes': [], 'runs': [], 'lamps': [], 'benches': [], 'docks': [], 'boats': [], 'jetties': [], 'lighthouses': [], 'rocks': 0, 'trees': 0}
         self.stats = {'rip_m': 0.0, 'prom_m': 0.0, 'rocks': 0}
         self.band_pts = []                                   # pontos (3 m) do calcadao: reserva para os lotes
-        self.plazas = list(orla.items.get('plazas', [])); self.dock_sites = []; self.solids = []
+        self.plazas = list(orla.items.get('plazas', [])); self.dock_sites = []; self.solids = []; self.stairs_at = []; self.cais_runs = []
+        self.ends = [(p['x'], p['z']) for p in self.plazas if p['x'] < 1500 or p['x'] > 3000]
         self.occ = self.occupied(); self.dbg = {}
 
     # ------------------------------------------------------------------ base
@@ -126,6 +127,11 @@ class Margens:
             out.append((fr, closed))
         return out
 
+    def bm_dist(self, x, z):
+        if not hasattr(self, '_bm'):
+            self._bm = [e['p'] for e in self.c.edges if e.get('name') == 'Av. Beira-Mar']
+        return min((poly_d(x, z, p) for p in self._bm), default=1e9)
+
     def classify(self, fr, closed):
         """tipo de cada ponto: lagoa / rio / canal / mar / praia"""
         lx, lz, rx, rz = LAGOON
@@ -135,7 +141,10 @@ class Margens:
             if closed and math.hypot((x - lx) / (rx + 50), (z - lz) / (rz + 50)) < 1.3: kinds.append('lagoa'); continue
             dr = poly_d(x, z, RIVER['pts'])
             if dr < 190 and z < 2790: kinds.append('rio'); continue
+            ii_ = int(min(max(round(x / CELL), 0), NX - 1)); jj_ = int(min(max(round(z / CELL), 0), NZ - 1))
+            if self.bm_dist(x, z) < 150.0 and not any(math.hypot(x - a, z - b) < 45 for a, b in self.ends): kinds.append('praia'); continue
             dw = min(poly_d(x, z, CHANNEL_W['pts']), poly_d(x, z, CHANNEL_E['pts']))
+            if 700 < x < 3700 and any(math.hypot(x - a, z - b) < 560 for a, b in self.ends): kinds.append('cais'); continue
             if dw < 330: kinds.append('canal'); continue
             kinds.append('mar')
         return kinds
@@ -150,6 +159,7 @@ class Margens:
             ok = False; prom = False
             if kd == 'rio' and 560 < z < 2700: ok = True; prom = True
             elif kd == 'lagoa': ok = True; prom = True
+            elif kd == 'cais': ok = True
             elif kd == 'canal' and any(math.hypot(x - a, z - b) < 190 for a, b in looks): ok = True
             elif kd == 'mar' and any(math.hypot(x - a, z - b) < 230 for a, b in plz): ok = True; prom = any(math.hypot(x - a, z - b) < 140 for a, b in plz)
             elif kd == 'rio' and any(math.hypot(x - a, z - b) < 120 for a, b in plz): ok = True
@@ -428,14 +438,45 @@ class Margens:
                             if g and not any(math.hypot(g['x0'] - o['x0'], g['z0'] - o['z0']) < 60 for o in self.dock_sites): self.dock_sites.append(g)
         for fr, runs in plan:
             for (i0, i1, kind, prom) in runs:
+                if kind == 'cais':
+                    import cais; cais.run_cais(self, fr, i0, i1)
+                    self.items['runs'].append({'kind': 'cais', 'len': round(3.0 * (i1 - i0), 1), 'x0': round(fr[i0]['x']), 'z0': round(fr[i0]['z']), 'x1': round(fr[i1]['x']), 'z1': round(fr[i1]['z'])})
+                    self.cais_runs.append((fr, i0, i1)); continue
                 self.run_stone(fr, i0, i1, kind)
                 if prom: self.run_prom(fr, i0, i1, kind)
                 else: self.run_rail(fr, i0, i1)
                 self.items['runs'].append({'kind': kind, 'len': round(3.0 * (i1 - i0), 1), 'x0': round(fr[i0]['x']), 'z0': round(fr[i0]['z']), 'x1': round(fr[i1]['x']), 'z1': round(fr[i1]['z'])})
         for d in self.dock_sites: self.draw_dock(d)
+        self.build_marinas()
+        import cais
+        for fr, i0, i1 in self.cais_runs:                               # as pontas de cada trecho de cais terminam em formacoes de rocha
+            for (k, sg) in ((i0, -1), (i1, 1)):
+                f = fr[k]; cais.outcrop(self, f['x'] + f['nx'] * 1.5 + f['tx'] * sg * 2.0, f['z'] + f['nz'] * 1.5 + f['tz'] * sg * 2.0, 12, 3.6)
         for fr, runs in plan: self.fringe(fr, runs)
         self.items['solids'] = self.solids
         return self
+
+    def build_marinas(self):
+        """uma marina (3 pontoes + clube nautico) em cada ponta, no cais, depois do calcadao da praca (60 a 330 m)"""
+        import cais
+        for (ex, ez) in self.ends:
+            cands = []
+            for fr, i0, i1 in self.cais_runs:
+                for k in range(i0 + 6, i1 - 6, 4):
+                    f = fr[k]; d = math.hypot(f['x'] - ex, f['z'] - ez)
+                    if 70 < d < 340: cands.append((d, fr, k))
+            cands.sort(key=lambda t: t[0]); done = 0
+            for d, fr, k in cands:
+                if done >= 2: break
+                f = fr[k]
+                if any(math.hypot(f['x'] - ox, f['z'] - oz) < 150 for ox, oz in getattr(self, '_mar_pos', [])): continue
+                a = (f['x'], f['z']); nx_, nz_ = f['nx'], f['nz']
+                if self.sample(a[0] - nx_ * 22, a[1] - nz_ * 22) > -1.0: continue
+                n_boats = cais.marina(self, a, nx_, nz_)
+                if n_boats < 4: continue
+                cais.shed(self, a, nx_, nz_)
+                self._mar_pos = getattr(self, '_mar_pos', []) + [a]; done += 1
+                self.items.setdefault('marinas', []).append({'x': round(a[0], 1), 'z': round(a[1], 1), 'barcos': n_boats})
 
     def fringe(self, fr, runs):
         """margem natural (resto do litoral das terras da cidade): faixa de blocos grandes de pedra, para a borda d'agua nunca ser so grama"""
@@ -444,8 +485,10 @@ class Margens:
         for (i0, i1, kind, prom) in runs: covered[max(i0 - 3, 0):i1 + 4] = True
         ii = lambda x: int(min(max(round(x / CELL), 0), NX - 1)); jj = lambda z: int(min(max(round(z / CELL), 0), NZ - 1))
         n = 0
+        import cais
         for k in range(0, len(fr), 3):                                  # a cada ~9 m
             if covered[k]: continue
+            if k % 24 == 0 and not (self.geo.beach_zone[jj(fr[k]['z']), ii(fr[k]['x'])] and self.geo.Dsea[jj(fr[k]['z']), ii(fr[k]['x'])] < 80): cais.outcrop(self, fr[k]['x'] + fr[k]['nx'] * 1.0, fr[k]['z'] + fr[k]['nz'] * 1.0, 8, 3.2)
             f = fr[k]; x, z = f['x'], f['z']
             if self.geo.beach_zone[jj(z), ii(x)] and self.geo.Dsea[jj(z), ii(x)] < 80: continue            # praia: areia, sem pedra
             if self.rnd.random() < 0.1: continue
@@ -527,7 +570,7 @@ class Margens:
         bad = [j for j in self.items['jetties'] if self.sample(j['x'] + j['dx'] * j['len'], j['z'] + j['dz'] * j['len']) > -1.0]
         good = not bad; ok &= good
         out.append(f'  molhes terminam em agua funda: {len(self.items["jetties"]) - len(bad)}/{len(self.items["jetties"])} {"ok" if good else "CURTOS"}')
-        bad = [d for d in self.items['docks'] if self.sample(d['x'] + d['dx'] * d['len'], d['z'] + d['dz'] * d['len']) > -0.6]
+        bad = [d for d in self.items['docks'] if d.get('w', 2.3) >= 2.3 and self.sample(d['x'] + d['dx'] * d['len'], d['z'] + d['dz'] * d['len']) > -0.6]
         good = not bad; ok &= good
         out.append(f'  docas terminam na agua: {len(self.items["docks"]) - len(bad)}/{len(self.items["docks"])}; barcos {len(self.items["boats"])} {"ok" if good else "RASAS"}')
         good = not self.stats.get('houses_in_band') and not self.stats.get('houses_water'); ok &= good

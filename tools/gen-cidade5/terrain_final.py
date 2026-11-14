@@ -212,10 +212,29 @@ def carve(h, X, Z, city, ynode, geo=None, plateaus=()):
         beach_ = geo.beach_zone[jj_, ii_] & (geo.Dsea[jj_, ii_] < 110.0)
         urb_river = (Dr_ < 230) & (Z > 520) & (Z < 2700)
         inside = (X > 700) & (X < 3700)
-        nat = (~water_) & inside & (~beach_) & (~ell_) & (~urb_river) & (Z < 2880)
+        cnt0 = {}
+        for e_ in city.edges:
+            if e_.get('name') == 'Av. Beira-Mar':
+                for q_ in (e_['a'], e_['b']): cnt0[q_] = cnt0.get(q_, 0) + 1
+        qends = [(city.nodes[q_][0], city.nodes[q_][1] + 34.0) for q_, c_ in cnt0.items() if c_ == 1 and (city.nodes[q_][0] < 1500 or city.nodes[q_][0] > 3000)]
+        near_q = np.zeros_like(water_)
+        for (ex_, ez_) in qends: near_q |= np.hypot(X - ex_, Z - ez_) < 640.0
+        nat = (~water_) & inside & (~beach_) & (~ell_) & (~urb_river) & (Z < 2880) & (~near_q)
         bump = 3.0 * smooth(np.clip(Dn / 10.0, 0, 1)) * (1.0 - smooth(np.clip((Dn - 14.0) / 22.0, 0, 1)))
         wn = np.where(nat & (Dn > 0) & (Dn < 40), 1.0, 0.0)
         put(0, N8Z, 0, N8X, wn, 600.0 + Dn, h0 + bump)
+        # CAIS das pontas: 560 m de margem (canal + mar) em volta de cada ponta da orla viram terraco plano ao nivel da praca (2,55 m), para o cais de pedra e o calcadao
+        for (ex_, ez_) in qends:
+            dd = np.hypot(X - ex_, Z - ez_)
+            near = dd < 560.0
+            src = water_ & near
+            if not src.any(): continue
+            Dq = _chamfer8(src)
+            fade = smooth(np.clip((560.0 - dd) / 90.0, 0, 1))
+            shq = np.clip(4.0 * np.abs(h0 - ORLA_END_Y), 14.0, 60.0)
+            sand_q = geo.beach_zone[jj_, ii_] & (geo.Dsea[jj_, ii_] < 66.0) & (h0 < 1.6)
+            wq = np.where(Dq <= 18.0, 1.0, smooth(np.clip(1.0 - (Dq - 18.0) / shq, 0, 1))) * (~water_) * (~sand_q) * fade * near
+            put(0, N8Z, 0, N8X, wq, 520.0 + Dq, np.full_like(h0, ORLA_END_Y))
     # pontas da orla: terreno plano (nivel do calcadao) em volta da Praca do Farol, para o parque nascer rente ao piso
     cnt = {}
     for e in city.edges:

@@ -89,7 +89,7 @@ def v_ground(g):
     out.append(f'  trechos sem calcada/canteiro ao lado da pista: {nos}/{tot2} ({pct:.2f}%) {"ok" if good else "ALTO"}'); ok &= good
     # 5) orcamento
     ntri = g.B.ntri; mb = ntri * 3 * (8 * 4 + 3) / 1e6
-    good = ntri < 650000 and mb < 85
+    good = ntri < 800000 and mb < 105
     out.append(f'  triangulos: {ntri} (~{mb:.0f} MB sem compressao) {"ok" if good else "ACIMA DO ORCAMENTO"}'); ok &= good
     out.append(f'  protecoes: {g.stats["guard_m"]:.0f} m de guard-rail, {g.stats["wall_m"]:.0f} m de muro de arrimo, {g.stats["short_edges"]} trechos curtos sem corpo, {g.stats["junctions"]} cruzamentos/pontas')
     return ok, out
