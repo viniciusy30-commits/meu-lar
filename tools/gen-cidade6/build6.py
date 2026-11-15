@@ -20,7 +20,7 @@ def build():
         L = lots6.Lots(P, G, M).build()
         print(f'lotes/construcoes: {M.ntri} triangulos ({time.time() - t:.1f}s)')
         import props6
-        props6.Props(P, G, L, M).build()
+        L.props = props6.Props(P, G, L, M).build()
     print(f'total: {M.ntri} triangulos ({time.time() - t:.1f}s)')
     return P, G, L, M
 
@@ -47,7 +47,7 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
         mk = []
         for h in L.player:
             if M.tile_of(h['centro'][0], h['centro'][2]) == (ti, tj):
-                mk.append((f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", (h['centro'][0], h['centro'][1], h['centro'][2]), math.radians(h['yaw_graus'])))
+                mk.append((f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", (h['centro'][0], h['centro'][1], h['centro'][2]), h['yaw']))
         fn = f'tile_{ti:02d}_{tj:02d}.glb'
         n = write_glb(os.path.join(out, 'tiles', fn), spec, tdir, embed=False, tex_uri_prefix='texturas/', markers=mk)
         tot += n
@@ -56,9 +56,9 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     json.dump(man, open(os.path.join(out, 'cidade6.json'), 'w'), ensure_ascii=False, indent=1)
     print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
     if single:
-        mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), math.radians(h['yaw_graus'])) for h in L.player]
+        mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), h['yaw']) for h in L.player]
         # GLB unico em duas partes (cada uma < 100 MB): construcoes/chao e vegetacao
-        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'mata')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'mata'))):
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'arvores', 'mata')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'mata'))):
             spec = []
             for (ti, tj), lays in sorted(tiles.items()):
                 for lay, mats in sorted(lays.items()):
@@ -83,3 +83,7 @@ if __name__ == '__main__':
     print('faces invertidas (normal x ordem dos vertices):', bad or 0, 'de', tot)
     export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
 
+    if os.environ.get('APP', '1') != '0':
+        import app_export6
+        print('exportando para o jogo (assets/hds/c6*)...')
+        app_export6.run(P, G, L, M, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'app', 'src', 'main', 'assets', 'hds'))

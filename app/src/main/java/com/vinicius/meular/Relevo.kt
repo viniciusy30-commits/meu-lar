@@ -46,7 +46,7 @@ object Relevo {
     private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0, val vb: Int = 35, val cell: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
     private val subIdx = HashMap<Int, ArrayList<SubRec>>()
     private var subFile: java.io.RandomAccessFile? = null
-    private var subFile2: java.io.RandomAccessFile? = null     // Etapa E: malha das construções
+    private val subExtra = ArrayList<java.io.RandomAccessFile>()     // Etapa E: malhas extras (construções...); SubRec.src = posição + 1
     private var subSolR = FloatArray(0)                         // colisões girados das construções: cx, cz, cos, sen, x0, z0, x1, z1
     private var subMem: ByteArray? = null          // plano B: se não der para gravar o arquivo, mantém tudo na memória
     private val subLock = Any()
@@ -59,7 +59,7 @@ object Relevo {
     /** Cidade 5: 1 = vértice de areia de praia (o resto, mesmo baixo, é grama: margens de rio/lagoa sem "degraus" de areia) */
     private var sandMask = ByteArray(0)
     private fun loadSand(am: AssetManager) {
-        val bb = ByteBuffer.wrap(am.open("hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+        val bb = ByteBuffer.wrap(am.open(if (City.C6) "hds/c6_sand.bin" else "hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
         val sx = bb.getInt(); val sz = bb.getInt()
         sandMask = if (sx == nx && sz == nz) ByteArray(sx * sz).also { bb.get(it) } else ByteArray(0)
     }
@@ -69,7 +69,7 @@ object Relevo {
     private var wst = 2f
     /** lê o mapa de altura de caminhada em blocos (sem ler os 8 MB inteiros de uma vez para a memória) */
     private fun loadWalk(am: AssetManager) {
-        am.open("hds/c5_walk.bin").use { raw ->
+        am.open(if (City.C6) "hds/c6_walk.bin" else "hds/c5_walk.bin").use { raw ->
             val ins = java.io.BufferedInputStream(raw, 1 shl 16)
             val hd = ByteArray(12); var got = 0
             while (got < 12) { val n = ins.read(hd, got, 12 - got); if (n < 0) throw java.io.EOFException(); got += n }
@@ -132,7 +132,7 @@ object Relevo {
 
     /** lê só os cabeçalhos (16 bytes por registro) e guarda onde estão os vértices de cada pedaço de 64 m */
     private fun loadSubMesh(am: AssetManager, name: String) {
-        subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; try { subFile2?.close() } catch (e: Throwable) { }; subFile2 = null
+        subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
         val f = ensureSubFile(am, name)
         val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
         if (f != null) {
@@ -170,6 +170,7 @@ object Relevo {
             val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
             val raf = java.io.RandomAccessFile(f, "r")
             try {
+                val src = subExtra.size + 1
                 hd.clear(); raf.readFully(hd.array(), 0, 8)
                 val vb = if (hd.get(0) == 'S'.code.toByte() && hd.get(3) == '2'.code.toByte()) SUB2_VB else SUB_VB   // SUB2: vértice compacto
                 hd.position(4)
@@ -178,10 +179,10 @@ object Relevo {
                 for (r in 0 until n) {
                     raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
                     val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
-                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, 1, vb, cell))
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, src, vb, cell))
                     pos += 16L + nv.toLong() * vb
                 }
-                subFile2 = raf
+                subExtra.add(raf)
             } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
         } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e") }
     }
@@ -204,14 +205,14 @@ object Relevo {
     }
 
     private fun readSub(rc: SubRec): ByteBuffer {
-        val n = rc.nv * (if (rc.src == 1) rc.vb else SUB_VB)
+        val n = rc.nv * (if (rc.src >= 1) rc.vb else SUB_VB)
         val mem = subMem
         val bytes0 = if (mem != null && rc.src == 0) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
             val b = ByteArray(n)
-            synchronized(subLock) { val raf = (if (rc.src == 1) subFile2 else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            synchronized(subLock) { val raf = (if (rc.src >= 1) subExtra.getOrNull(rc.src - 1) else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
             b
         }
-        val bytes = if (rc.src == 1 && rc.vb == SUB2_VB) expandSub2(bytes0, rc.nv, rc.cell) else bytes0
+        val bytes = if (rc.src >= 1 && rc.vb == SUB2_VB) expandSub2(bytes0, rc.nv, rc.cell) else bytes0
         return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
     }
     @Volatile var worldW = 3200f
@@ -286,7 +287,7 @@ object Relevo {
         on = false
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
-        sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; try { subFile2?.close() } catch (e: Throwable) { }; subFile2 = null; subSol = FloatArray(0); subSolR = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
+        sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear(); subSol = FloatArray(0); subSolR = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
         gen++; readyQ.clear(); loadedCells.clear(); lazyOf.clear(); cellsT = arrayOfNulls(0); cellsR = arrayOfNulls(0); cellState = ByteArray(0); lazyTrees.clear()
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
@@ -294,6 +295,7 @@ object Relevo {
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
     fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false, c5: Boolean = false): Boolean {
         on = false; sub = false
+        val c6 = c5 && City.C6   // Cidade 6: mesmo caminho da Cidade 5, arquivos hds/c6*
         try {
             val h: ShortArray
             val js: JSONObject
@@ -302,11 +304,11 @@ object Relevo {
                 nx = UserMap.NX; nz = UserMap.NZ; g = UserMap.G
                 h = cm.hs; js = cm.json
             } else {
-                val bb = ByteBuffer.wrap(am.open(if (c5) "hds/c5.bin" else if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+                val bb = ByteBuffer.wrap(am.open(if (c6) "hds/c6.bin" else if (c5) "hds/c5.bin" else if (wantSub) "hds/sub.bin" else "hds/relevo.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
                 nx = bb.getInt(); nz = bb.getInt(); g = bb.getFloat()
                 h = ShortArray(nx * nz)
                 for (i in h.indices) h[i] = bb.getShort()
-                js = JSONObject(am.open(if (c5) "hds/c5.json" else if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
+                js = JSONObject(am.open(if (c6) "hds/c6.json" else if (c5) "hds/c5.json" else if (wantSub) "hds/sub.json" else "hds/city3.json").bufferedReader().use { it.readText() })
             }
             val wo = js.getJSONArray("world")
             worldW = wo.getDouble(0).toFloat(); worldH = wo.getDouble(1).toFloat()
@@ -363,8 +365,13 @@ object Relevo {
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
-                loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
-                if (c5) loadExtraSub(am, "hds/c5_bld.bin")
+                if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
+                    subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
+                    for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
+                } else {
+                    loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
+                    if (c5) loadExtraSub(am, "hds/c5_bld.bin")
+                }
                 if (c5) loadWalk(am) else walk = ShortArray(0)
                 val sa = js.optJSONArray("solid")
                 val so = ArrayList<Float>()
@@ -1265,7 +1272,7 @@ object Relevo {
                 val o = k * 6
                 val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
                 val h = groundH(px, pz)
-                if (h < 1.0f) continue
+                if (h < 1.0f && !City.C6) continue   // Cidade 6: a cidade inteira fica perto do nível do mar
                 tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve
                 tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
             }

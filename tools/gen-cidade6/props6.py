@@ -17,12 +17,21 @@ class Props:
         self.P, self.G, self.L, self.M = P, G, L, M
         self.rnd = random.Random(seed)
         self.drives = L.B.drives
-        self.nlights = 0; self.ncars = 0; self.ntrees = 0
+        self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []
 
     # ------------------------------------------------------------ arvores
-    def tree(self, x, z, kind='folhosa', sc=1.0, y=Y_LAWN, lod=2):
-        layer = getattr(self, 'layer_tree', None) or 'vegetacao'
-        PL.tree(self.M, self.rnd, x, z, kind, sc, y, layer, 0 if layer == 'mata' else lod)
+    APP_TREE = {'folhosa': (0, 1), 'oval': (1, 0), 'ornamental': (1,), 'frutifera': (0,), 'conifera': (3,)}
+
+    def tree(self, x, z, kind='folhosa', sc=1.0, y=Y_LAWN, lod=1):
+        """arvores comuns vao para a camada 'arvores' (no jogo viram as arvores modeladas do proprio app: lista app_trees);
+        palmeiras, floridas, colunares, arbustos, flores e cercas vivas ficam na camada 'vegetacao' (malha propria)"""
+        mata = getattr(self, 'layer_tree', None) == 'mata'
+        if kind in self.APP_TREE:
+            layer = 'mata' if mata else 'arvores'
+            sp = self.rnd.choice(self.APP_TREE[kind])
+            self.app_trees.append([round(x, 1), round(z, 1), sp, round(sc * (0.62 if kind in ('ornamental', 'frutifera') else 1.0), 2), round(self.rnd.uniform(0, 6.28), 2), round(self.rnd.random(), 2)])
+        else: layer = 'vegetacao'
+        PL.tree(self.M, self.rnd, x, z, kind, sc, y, layer, 0 if mata else lod)
         self.ntrees += 1
 
     # ------------------------------------------------------------ mobiliario urbano
@@ -146,7 +155,7 @@ class Props:
                         s = s0 + 3
                         while s < s1 - 5:
                             cx, cz, dx, dz = at(s, off); nx, nz = -dz, dx
-                            if r.random() < (0.26 if rd['kind'] == 'rua' else 0.45) and not self.near_drive(cx - nx * sg * 1.6, cz - nz * sg * 1.6, 2.6) and not P.river.buffer(6).contains(Point(cx, cz)):
+                            if r.random() < (0.2 if rd['kind'] == 'rua' else 0.38) and not self.near_drive(cx - nx * sg * 1.6, cz - nz * sg * 1.6, 2.6) and not P.river.buffer(6).contains(Point(cx, cz)):
                                 self.car(cx, cz, dx * -sg, dz * -sg)
                             s += 6.2
                 if rd['kind'] in ('rua', 'centro'):
@@ -198,7 +207,7 @@ class Props:
         M.m('pedra'); ring2 = list(lake.exterior.coords)
         for k in range(len(ring2) - 1):
             a, b = ring2[k], ring2[k + 1]; M.at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); M.wall_strip([a, b], -0.6, Y_LAWN + 0.25, 0.8, WHITE)
-        M.free('parques'); M.m('agua'); M.shp(lake, -0.25, (200, 225, 215))
+        M.free('parques'); M.m('agua'); M.shp(lake, 0.03, (200, 225, 215))
         fx, fz = cx + 18, cz + 12
         M.m('pedra'); M.cyl(fx, fz, 4.5, -0.3, 0.5, WHITE, 16); M.m('agua'); M.cyl(fx, fz, 4.0, 0.5, 0.52, (200, 230, 240), 16)
         M.m('liso'); M.cyl(fx, fz, 0.5, 0.5, 2.4, (235, 240, 245), 8); M.cyl(fx, fz, 1.4, 2.4, 3.6, (210, 235, 245), 8, True, 0.2)

@@ -148,16 +148,13 @@ def car(M, r, x, z, dx, dz, col=None, yb=0.03, layer='carros'):
         du, dy = p1[0] - p0[0], p1[1] - p0[1]; nrm = (F.ux * sgn, 0.5, F.uz * sgn)
         M.quad(F.p(p0[0] + du * 0.12 + sgn * e, -cw + 0.1, yb + p0[1] + dy * 0.12), F.p(p0[0] + du * 0.12 + sgn * e, cw - 0.1, yb + p0[1] + dy * 0.12),
                F.p(p0[0] + du * 0.92 + sgn * e, cw - 0.12, yb + p0[1] + dy * 0.92), F.p(p0[0] + du * 0.92 + sgn * e, -cw + 0.12, yb + p0[1] + dy * 0.92), g, nrm)
-    # rodas (hexagonos) e arcos
+    # rodas: eixo escuro entre as duas rodas + calota hexagonal por fora
     M.m('liso'); R = 0.31 if kind in ('sedan', 'hatch') else 0.36
     for uu in (a + 0.85, b - 0.9):
+        M.prism(F.rect(uu - R * 0.8, uu + R * 0.8, -Wd / 2 + 0.03, Wd / 2 - 0.03), yb + 0.02, yb + 2 * R - 0.04, (26, 26, 28), False)
         hexa = [(uu + math.cos(k * math.pi / 3) * R, R + math.sin(k * math.pi / 3) * R) for k in range(6)]
         for s in (-1, 1):
-            v_in, v_out = s * (Wd / 2 - 0.2), s * (Wd / 2 + 0.02)
-            _extrude(M, F, hexa, min(v_in, v_out), max(v_in, v_out), (28, 28, 30), yb, False)
-            M.poly([F.p(u, v_out, yb + y) for u, y in hexa], (34, 34, 36), F.nv(s))
-            hub = [(uu + math.cos(k * math.pi / 3) * R * 0.5, R + math.sin(k * math.pi / 3) * R * 0.5) for k in range(6)]
-            M.poly([F.p(u, v_out + s * 0.01, yb + y) for u, y in hub], (190, 192, 196), F.nv(s))
+            M.poly([F.p(u, s * (Wd / 2 + 0.01), yb + y) for u, y in hexa], (34, 34, 36), F.nv(s))
     # farois, lanternas, para-choques, placa
     for vv in (-Wd / 2 + 0.32, Wd / 2 - 0.32):
         M.quad(F.p(b + 0.01, vv - 0.24, yb + belt - 0.36), F.p(b + 0.01, vv + 0.24, yb + belt - 0.36), F.p(b + 0.01, vv + 0.24, yb + belt - 0.2), F.p(b + 0.01, vv - 0.24, yb + belt - 0.2), (252, 248, 226), F.nu(1))

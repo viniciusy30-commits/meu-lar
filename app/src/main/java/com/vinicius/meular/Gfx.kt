@@ -55,9 +55,12 @@ object Mt {
     const val CURTAIN = 24
     /** Etapa 149: copa florida (ipê roxo/amarelo) — folha clara, a cor vem do vértice. */
     const val BLOSSOM = 25
-    const val COUNT = 26
+    /** Cidade 6: materiais com textura própria (assets/hds/c6tex/NOME.jpg), na ordem de C6_NAMES (igual a tools/gen-cidade6/app_export6.py) */
+    const val C6 = 26
+    val C6_NAMES = arrayOf("agua", "areia", "asfalto", "calcada", "casca", "cascalho", "ceramica", "cerca", "classica", "concreto", "escritorio", "folhagem", "garagem", "grama", "janela", "janelas", "madeira", "metal", "moderna", "ondas", "paver", "pedra", "porta", "quadra", "reboco", "siding", "telha", "terreno", "tijolo", "vidro", "vitrine")
+    const val COUNT = 57   // 26 + 31 materiais da Cidade 6
     fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB || m == BLOSSOM
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f, 0.70f, 0.0f)
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f, 0.70f, 0.0f) + FloatArray(31) { 0.04f }
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -423,7 +426,7 @@ object Tex {
     /** Gera as texturas em segundo plano, para não travar o primeiro quadro. */
     fun pregen() {
         Thread {
-            for (m in 0 until Mt.COUNT) if (m != Mt.PLAIN && m != Mt.GLASS && m != Mt.SIGN) pix(m)
+            for (m in 0 until Mt.C6) if (m != Mt.PLAIN && m != Mt.GLASS && m != Mt.SIGN) pix(m)
         }.start()
     }
 
@@ -505,12 +508,36 @@ object Tex {
         bmp.recycle()
     }
 
+    /** Cidade 6: textura do material m (JPEG de 512 px em assets/hds/c6tex) */
+    private fun c6Tex(m: Int): Bitmap? {
+        val n = Mt.C6_NAMES.getOrNull(m - Mt.C6) ?: return null
+        val am = Glb.assets ?: return null
+        return try { am.open("hds/c6tex/$n.jpg").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { android.util.Log.w("Tex", "c6tex/$n: $e"); null }
+    }
+    private var c6Loaded = false
+    /** chamado na thread GL ao trocar de mapa: carrega as texturas da Cidade 6 só quando ela é escolhida */
+    fun refreshC6() {
+        if (!City.C6 || c6Loaded) return
+        for (m in Mt.C6 until Mt.COUNT) {
+            val bmp = c6Tex(m) ?: continue
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[m])
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+            GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+            bmp.recycle()
+        }
+        c6Loaded = true
+    }
+
     fun init() {
         GLES20.glGenTextures(Mt.COUNT, ids, 0)
+        c6Loaded = City.C6
         for (m in 0 until Mt.COUNT) {
-            val small = m == Mt.PLAIN || m == Mt.GLASS
+            val isC6 = m >= Mt.C6
+            var c6b: Bitmap? = if (isC6 && City.C6) c6Tex(m) else null
+            val small = m == Mt.PLAIN || m == Mt.GLASS || (isC6 && c6b == null)
             val sz = if (small) 4 else S
-            var bmp: Bitmap? = if (small) null else if (m == Mt.SIGN) signAtlas() else fileTex(m)
+            var bmp: Bitmap? = if (small) null else if (isC6) c6b else if (m == Mt.SIGN) signAtlas() else fileTex(m)
             if (bmp == null) {
                 val data = if (small) IntArray(16) { Color.WHITE } else pix(m)
                 bmp = Bitmap.createBitmap(data, sz, sz, Bitmap.Config.ARGB_8888)

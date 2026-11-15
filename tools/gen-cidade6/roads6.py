@@ -11,7 +11,7 @@ from plan6 import *
 Y_ASF = 0.03          # asfalto
 Y_WALK = 0.16         # calcada
 Y_LAWN = 0.13         # gramado
-Y_RIVER = -1.5        # espelho d'agua do rio
+Y_RIVER = -0.9        # espelho d'agua do rio (mesmo nivel do mar: no jogo a agua e um plano so)
 Y_SEA = -0.9
 
 C_ASF = rgb('#55575C'); C_ASF2 = rgb('#4D4F54'); C_CURB = rgb('#C9C5BC'); C_WALK = rgb('#D8D3C8'); C_WALK2 = rgb('#CFC9BC')
@@ -194,7 +194,11 @@ class Ground:
                     mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
                     if P.river.contains(Point(mx, mz)): continue
                     M.at(mx, mz)
-                    M.wall_strip([a, b], Y_ASF - 0.02, Y_WALK + 0.01, 0.22, (236, 234, 228))
+                    nx_, nz_ = -dz / L * 0.11, dx / L * 0.11
+                    col_ = (236, 234, 228)
+                    M.quad((a[0] - nx_, Y_WALK + 0.01, a[1] - nz_), (b[0] - nx_, Y_WALK + 0.01, b[1] - nz_), (b[0] + nx_, Y_WALK + 0.01, b[1] + nz_), (a[0] + nx_, Y_WALK + 0.01, a[1] + nz_), col_, (0, 1, 0))
+                    for sg_ in (-1, 1):
+                        M.quad((a[0] + sg_ * nx_, Y_ASF - 0.02, a[1] + sg_ * nz_), (b[0] + sg_ * nx_, Y_ASF - 0.02, b[1] + sg_ * nz_), (b[0] + sg_ * nx_, Y_WALK + 0.01, b[1] + sg_ * nz_), (a[0] + sg_ * nx_, Y_WALK + 0.01, a[1] + sg_ * nz_), col_, (sg_ * nx_, 0, sg_ * nz_))
                     M.free()
         # bordas de calcada/gramado contra os lotes (degrauzinho) ficam escondidas pelo lote
         # canteiro central das avenidas: guia + grama + palmeiras/arvores (as arvores entram em props)
@@ -284,10 +288,10 @@ class Ground:
             self.bridge_z.append(z)
             M.at((xa + xb) / 2, z, 'ruas'); M.m('concreto')
             # tabuleiro (laje) com viga lateral e parapeito
-            M.box(xa, xb, -1.1, Y_ASF - 0.01, z - hw, z + hw, rgb('#B9B3A8'), top=False, bottom=True)
+            M.box(xa, xb, -0.7, Y_ASF - 0.01, z - hw, z + hw, rgb('#B9B3A8'), top=False, bottom=True)
             for sg in (-1, 1):
                 zz = z + sg * hw
-                M.box(xa, xb, -1.2, Y_WALK + 1.05, zz - (0.35 if sg > 0 else 0), zz + (0.35 if sg < 0 else 0), rgb('#D7D1C4'))
+                M.box(xa, xb, -0.75, Y_WALK + 1.05, zz - (0.35 if sg > 0 else 0), zz + (0.35 if sg < 0 else 0), rgb('#D7D1C4'))
                 M.box(xa, xb, Y_WALK + 1.05, Y_WALK + 1.18, zz - 0.4, zz + 0.4, rgb('#9C968B'))
                 M.m('metal')
                 for x in np.arange(xa + 2, xb - 1, 6.0):              # postes da ponte
@@ -298,7 +302,7 @@ class Ground:
             M.m('concreto')
             for xp in (river_x(z) - RIVER_W / 6, river_x(z) + RIVER_W / 6):
                 for zp in np.linspace(z - hw + 2, z + hw - 2, 3):
-                    M.cyl(xp, zp, 0.9, -3.6, -1.1, rgb('#A9A397'), 10)
+                    M.cyl(xp, zp, 0.9, -3.6, -0.7, rgb('#A9A397'), 10)
             M.free()
         # ponte de pedestre (arco) no Parque Ribeirinho
         z = self.P.footbridge[0]; xa = river_x(z) - RIVER_W / 2 - RIVER_WALL - 1; xb = river_x(z) + RIVER_W / 2 + RIVER_WALL + 1
@@ -315,7 +319,7 @@ class Ground:
                 M.quad((x0, y0 + 1.0, z + sg * 1.95), (x1, y1 + 1.0, z + sg * 1.95), (x1, y1 + 1.1, z + sg * 1.95), (x0, y0 + 1.1, z + sg * 1.95), rgb('#F2F0EA'), (0, 0, sg))
                 M.box(x0 - 0.05, x0 + 0.05, y0, y0 + 1.05, z + sg * 1.95 - 0.05, z + sg * 1.95 + 0.05, rgb('#F2F0EA'))
             # arco branco por baixo
-            ya0, ya1 = -1.2 + 3.0 * math.sin(math.pi * t0), -1.2 + 3.0 * math.sin(math.pi * t1)
+            ya0, ya1 = -0.8 + 2.6 * math.sin(math.pi * t0), -0.8 + 2.6 * math.sin(math.pi * t1)
             for sg in (-1, 1):
                 M.box(min(x0, x1), max(x0, x1), min(ya0, ya1) - 0.15, max(ya0, ya1) + 0.15, z + sg * 1.7 - 0.15, z + sg * 1.7 + 0.15, rgb('#F2F0EA'))
         M.free()

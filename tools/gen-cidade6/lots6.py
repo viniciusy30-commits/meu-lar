@@ -34,6 +34,7 @@ class Lots:
         self.trees = []               # (x, z, tipo, escala) -> props
         self.lots = []
         self.plots = json.load(open(CITY2))['plots']
+        self.ext = json.load(open(os.path.join(HERE, '..', 'gen-cidade5', 'house_extents.json')))
 
     # ------------------------------------------------------------ chao das quadras
     def lawn(self, poly, mat='grama', y=Y_LAWN, col=WHITE):
@@ -217,26 +218,37 @@ class Lots:
         roof = r.choice(B6.ROOF); rm = 'telha'
         return (wall, wm, roof, rm, r.choice(B6.DOORC), r.choice(B6.SHUT))
 
+    def yard(self, k):
+        """tamanho efetivo do quintal real da casa k (malha do city2.glb, cerca incluida), no formato usado pelo loteamento:
+        largura do lote = hw + 9, profundidade minima = hd + 7"""
+        x0, x1, z0, z1 = self.ext[str(k)]
+        return (x1 - x0) - 7.0, (z1 - z0) - 4.5
+
     def player_lot(self, F, w, d, val, side, blk):
-        k, W_, hw, hd = val
+        """lote de uma casa do jogador: fica vazio (a casa e o quintal vem do city2.glb no jogo); so caminho e caixa de correio.
+        Mesma convencao da Cidade 5: x,z = centro da caixa da casa; yaw gira a frente (0, face) para a rua."""
+        k = val[0]
         r = self.rnd; B = self.B; M = self.M
-        # gramado ja existe; cerca de fundo/laterais e caixa de correio; casa em si vem do city2.glb no jogo
-        fc = B6.FENCE_W[r.randrange(len(B6.FENCE_W))]
-        sb = max(4.0, min(FRONT_SB, d - hd - 3.0))
-        vf = sb + hd * 0.6
-        B.box(F, w - 0.12, w, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
-        B.box(F, 0, 0.12, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
-        B.box(F, 0, w, d - 0.22, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
-        hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r      # entrada de carro e caixa de correio do lote
-        hh.driveway(w - 3.7, w - 0.7, sb + 4.5); hh.mailbox(w - 4.5)
-        cx, cz = F.xz(w / 2, sb + hd / 2)
-        fx, fz = -F.vx, -F.vz                                     # frente da casa: para a rua
-        self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': self.plots[k]['name'], 'bairro': HOUSE_BAIRRO[k],
-                            'centro': [round(cx, 2), round(Y_LAWN, 2), round(cz, 2)], 'frente': [round(fx, 4), round(fz, 4)],
-                            'yaw_graus': round(math.degrees(math.atan2(fx, fz)), 2),
+        pl = self.plots[k]; pcx, pcz = (pl['x0'] + pl['x1']) / 2, (pl['z0'] + pl['z1']) / 2
+        face = 1.0 if (pl['z'] - pcz) > 0 else -1.0
+        x0, x1, z0, z1 = self.ext[str(k)]
+        flip = abs(F.vx - F.uz) < 1e-6 and abs(F.vz + F.ux) < 1e-6          # v = (uz, -ux)
+        su = face if flip else -face                                       # x local -> u
+        umin, umax = (x0, x1) if su > 0 else (-x1, -x0)
+        zfront = z1 if face > 0 else -z0
+        cu = (w - (umax - umin)) / 2 - umin; cv = 1.5 + zfront
+        cx, cz = F.xz(cu, cv)
+        yaw = math.atan2(F.vx * face, -F.vz * face)
+        du = cu + su * (pl['x'] - pcx)                                     # porta/portao: caminho ate a calcada
+        hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r
+        M.at(*F.xz(w / 2, 2), 'lotes'); hh.walkway(du, 0.0, 1.6, 1.4); hh.mailbox(max(0.8, du - 2.0)); M.free('lotes')
+        B.drives.append((*F.xz(du, -2.6), 1.5))
+        self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': pl['name'], 'bairro': HOUSE_BAIRRO[k],
+                            'centro': [round(cx, 3), round(Y_LAWN, 2), round(cz, 3)], 'yaw': round(yaw, 5), 'yaw_graus': round(math.degrees(yaw), 2),
+                            'frente': [round(-F.vx, 4), round(-F.vz, 4)], 'face_modelo': 'sul(+z)' if face > 0 else 'norte(-z)',
                             'lote': [[round(p[0], 2), round(p[1], 2)] for p in F.rect(0, w, 0, d)], 'lote_m': [round(w, 1), round(d, 1)],
-                            'casa_m': [round(hw, 1), round(hd, 1)], 'recuo_frente_m': round(sb, 2)})
-        if d < sb + hd + 2: print(f'  aviso: lote da casa {k + 1} raso ({d:.1f} m para {hd:.1f} m de casa)')
+                            'quintal_m': [round(x1 - x0, 1), round(z1 - z0, 1)]})
+        if d < (z1 - z0) + 2.0: print(f'  aviso: lote da casa {k + 1} raso ({d:.1f} m para quintal de {z1 - z0:.1f} m)')
 
     # ------------------------------------------------------------ centro
     def fountain(self, x, z, R=4.5, y=Y_WALK):
@@ -485,7 +497,7 @@ class Lots:
             kres = None
             if res and pos >= res_at[0] - 10:
                 kres = res.pop(0); res_at.pop(0)
-                pl = self.plots[kres]; hw, hd = pl['x1'] - pl['x0'], pl['z1'] - pl['z0']
+                hw, hd = self.yard(kres)
                 w = max(hw + 9.0, 18.0)
             elif avenue: w = r.choice((42.0, 55.0, 70.0))
             else: w = w0 + r.uniform(-0.4, 0.4)
@@ -521,7 +533,7 @@ class Lots:
         """segunda chance para uma casa do jogador: procura qualquer trecho livre na frente"""
         P = self.P; _, i, sg, s0, s1, L = f
         rd = P.roads[i]; pth = rd['path']; hr = half_row(rd['kind'])
-        pl = self.plots[k]; hw, hd = pl['x1'] - pl['x0'], pl['z1'] - pl['z0']; w = max(hw + 9.0, 18.0)
+        hw, hd = self.yard(k); w = max(hw + 9.0, 18.0)
         pos = s0 + 1.0
         while pos + w < s1 - 1:
             a = pth.pt(pos, sg * (hr + 0.15)); b = pth.pt(pos + w, sg * (hr + 0.15))

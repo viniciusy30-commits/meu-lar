@@ -375,7 +375,7 @@ def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/',
         meshes.append({'name': name, 'primitives': prims})
         nodes.append({'name': name, 'mesh': len(meshes) - 1, 'translation': [float(tr[0]), float(tr[1]), float(tr[2])]})
     for (mn, mt, myaw) in (markers or []):          # nos vazios (ex.: onde vai cada casa do jogador)
-        q = [0.0, math.sin(myaw / 2), 0.0, math.cos(myaw / 2)]
+        q = [0.0, math.sin(-myaw / 2), 0.0, math.cos(-myaw / 2)]      # yaw do jogo: R(x,z) = (c x - s z, s x + c z) = giro de -yaw em torno de +Y
         nodes.append({'name': mn, 'translation': [float(v) for v in mt], 'rotation': q})
     gl = {'asset': {'version': '2.0', 'generator': 'meu-lar gen-cidade6'}, 'scene': 0, 'scenes': [{'name': 'cidade', 'nodes': list(range(len(nodes)))}],
           'nodes': nodes, 'meshes': meshes, 'materials': materials, 'textures': textures, 'images': images,

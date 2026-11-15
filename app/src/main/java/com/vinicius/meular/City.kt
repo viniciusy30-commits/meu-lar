@@ -288,7 +288,7 @@ object City {
         val tk = token
         startGen = GlGen.gen
         error = null
-        hdsBuilt = HDS; c3Built = C3; c4Built = C4; c5Built = C5; c4Ver = UserMap.ver
+        hdsBuilt = HDS; c3Built = C3; c4Built = C4; c5Built = C5; c6Built = C6; c4Ver = UserMap.ver
         builder.execute {
             if (tk != token) return@execute
             try { buildTk = tk; build(gw, gh, tk) }
@@ -395,6 +395,9 @@ object City {
     /** Cidade 5 (Meular City, gerada em tools/gen-cidade5): relevo grande, ruas organicas, orla, pontes vermelhas */
     @Volatile @JvmField var C5 = false
     @Volatile @JvmField var c5Built = false
+    /** Cidade 6 (tools/gen-cidade6): cidade planejada com bairros americanos, centro e orla. Usa o mesmo caminho da Cidade 5 (C5 fica ligado junto), com os arquivos hds/c6* */
+    @Volatile @JvmField var C6 = false
+    @Volatile @JvmField var c6Built = false
     @Volatile @JvmField var c4Built = false
     @Volatile @JvmField var c4Ver = 0
 
