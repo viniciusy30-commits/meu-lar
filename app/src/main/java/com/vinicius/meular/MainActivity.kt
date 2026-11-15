@@ -264,6 +264,7 @@ class MainActivity : AppCompatActivity() {
         Relevo.dataDir = filesDir   // Cidade 5: a malha assada é copiada para cá e lida por pedaços (não cabe inteira na memória)
         City.C4 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade4", false)
         City.C5 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade5", false)
+        City.C6 = City.C5 && getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade6", false)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -1516,15 +1517,16 @@ class MainActivity : AppCompatActivity() {
                 fpsT?.text = if (game.r.showFps) "Contador de FPS: ligado" else "Contador de FPS: desligado"
             }
             var cidT: TextView? = null
-            fun cidTxt() = if (!City.HDS) "Mapa: Cidade 1" else if (City.C5) "Mapa: Cidade 5 (Meular City, em construção)" else if (City.C4) "Mapa: Cidade 4 (a sua, do editor)" else if (City.C3) "Mapa: Cidade 3 (bairro americano)" else "Mapa: Cidade 2 (casas do Hds)"
+            fun cidTxt() = if (!City.HDS) "Mapa: Cidade 1" else if (City.C5 && City.C6) "Mapa: Cidade 6 (nova: bairros, centro e orla)" else if (City.C5) "Mapa: Cidade 5 (Meular City, em construção)" else if (City.C4) "Mapa: Cidade 4 (a sua, do editor)" else if (City.C3) "Mapa: Cidade 3 (bairro americano)" else "Mapa: Cidade 2 (casas do Hds)"
             cidT = linha(panel, Ic.HOME, cidTxt(), Tn.SKY) {
                 // Etapas 185/187: Cidade 1 -> 2 -> 3 -> 4 (a sua) -> 1
-                if (!City.HDS) { City.HDS = true; City.C3 = false; City.C4 = false; City.C5 = false }
-                else if (City.C5) { City.HDS = false; City.C3 = false; City.C4 = false; City.C5 = false }
+                if (!City.HDS) { City.HDS = true; City.C3 = false; City.C4 = false; City.C5 = false; City.C6 = false }
+                else if (City.C5 && City.C6) { City.HDS = false; City.C3 = false; City.C4 = false; City.C5 = false; City.C6 = false }
+                else if (City.C5) { City.C6 = true }
                 else if (City.C4) { City.C4 = false; City.C3 = false; City.C5 = true }
                 else if (City.C3) { City.C4 = true }
                 else { City.C3 = true }
-                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).putBoolean("cidade4", City.C4).putBoolean("cidade5", City.C5).apply()
+                getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).putBoolean("cidade4", City.C4).putBoolean("cidade5", City.C5).putBoolean("cidade6", City.C6).apply()
                 cidT?.text = cidTxt()
             }
             linha(panel, Ic.HOME, "Editor de mapas (criar a sua cidade)", Tn.MINT) {

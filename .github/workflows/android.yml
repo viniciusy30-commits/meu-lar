@@ -10,6 +10,7 @@ on:
       - 'app/src/main/assets/hds/city3.json'
       - 'app/src/main/assets/hds/relevo.bin'
       - 'app/src/main/assets/hds/c5*'
+      - 'app/src/main/assets/hds/c6*'
       - '.github/workflows/android.yml'
   workflow_dispatch:
   workflow_run:
