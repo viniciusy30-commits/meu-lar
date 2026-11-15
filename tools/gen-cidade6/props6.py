@@ -202,12 +202,12 @@ class Props:
             paths.append(LineString([a, b]).buffer(2.0))
         from shapely.ops import unary_union
         pth = unary_union(paths).intersection(poly).difference(lake.buffer(1.5))
-        M.m('paver'); M.shp(pth, Y_LAWN + 0.03, WHITE)
+        M.m('paver'); M.shp(pth, Y_LAWN + 0.07, WHITE)
         # lago com borda de pedra e fonte
         M.m('pedra'); ring2 = list(lake.exterior.coords)
         for k in range(len(ring2) - 1):
             a, b = ring2[k], ring2[k + 1]; M.at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); M.wall_strip([a, b], -0.6, Y_LAWN + 0.25, 0.8, WHITE)
-        M.free('parques'); M.m('agua'); M.shp(lake, 0.03, (200, 225, 215))
+        M.free('parques'); M.m('agua'); M.shp(lake, Y_LAWN + 0.09, (200, 225, 215))
         fx, fz = cx + 18, cz + 12
         M.m('pedra'); M.cyl(fx, fz, 4.5, -0.3, 0.5, WHITE, 16); M.m('agua'); M.cyl(fx, fz, 4.0, 0.5, 0.52, (200, 230, 240), 16)
         M.m('liso'); M.cyl(fx, fz, 0.5, 0.5, 2.4, (235, 240, 245), 8); M.cyl(fx, fz, 1.4, 2.4, 3.6, (210, 235, 245), 8, True, 0.2)

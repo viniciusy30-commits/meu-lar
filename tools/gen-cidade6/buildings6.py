@@ -303,7 +303,16 @@ class Builder:
         M = self.M
         M.m('asfalto'); M.poly([F.p(u0, v0, y + 0.05), F.p(u1, v0, y + 0.05), F.p(u1, v1, y + 0.05), F.p(u0, v1, y + 0.05)], WHITE, (0, 1, 0))
         M.m('liso')
-        for row in ((v0 + 0.5, v0 + 5.5), (v1 - 5.5, v1 - 0.5)):
+        rows = [(v0 + 0.5, v0 + 5.5), (v1 - 5.5, v1 - 0.5)]
+        inner = (v1 - 5.5) - (v0 + 5.5)                                # miolo: filas duplas com corredor de 6,5 m
+        nd = int((inner - 6.5) // 16.5)
+        if nd > 0:
+            gap = (inner - nd * 10.0) / (nd + 1)
+            for k in range(nd):
+                c0 = v0 + 5.5 + gap * (k + 1) + 10.0 * k
+                rows += [(c0, c0 + 5.0), (c0 + 5.0, c0 + 10.0)]
+                M.poly([F.p(u0 + 1, c0 + 4.94, y + 0.1), F.p(u1 - 1.5, c0 + 4.94, y + 0.1), F.p(u1 - 1.5, c0 + 5.06, y + 0.1), F.p(u0 + 1, c0 + 5.06, y + 0.1)], (245, 245, 240), (0, 1, 0))
+        for row in rows:
             u = u0 + 1
             while u < u1 - 2.5:
                 M.poly([F.p(u, row[0], y + 0.1), F.p(u + 0.12, row[0], y + 0.1), F.p(u + 0.12, row[1], y + 0.1), F.p(u, row[1], y + 0.1)], (245, 245, 240), (0, 1, 0))

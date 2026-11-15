@@ -160,7 +160,7 @@ class Ground:
             M.m('metal'); rail = rgb('#3E4247')
             for k in range(len(sec) - 1):
                 zm = (zs[k] + zs[k + 1]) / 2
-                if zm > 1700 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
+                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
                 pa = sec[k][1] if sgn > 0 else sec[k][0]; pb = sec[k + 1][1] if sgn > 0 else sec[k + 1][0]
                 M.quad((pa[0], 1.05, pa[1]), (pb[0], 1.05, pb[1]), (pb[0], 1.15, pb[1]), (pa[0], 1.15, pa[1]), rail, (sgn, 0, 0))
                 M.quad((pa[0], 0.62, pa[1]), (pb[0], 0.62, pb[1]), (pb[0], 0.68, pb[1]), (pa[0], 0.68, pa[1]), rail, (sgn, 0, 0))
