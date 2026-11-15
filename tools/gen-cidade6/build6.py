@@ -56,15 +56,16 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     json.dump(man, open(os.path.join(out, 'cidade6.json'), 'w'), ensure_ascii=False, indent=1)
     print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
     if single:
-        spec = []
-        for (ti, tj), lays in sorted(tiles.items()):
-            for lay, mats in sorted(lays.items()):
-                if single == 'leve' and lay in ('carros', 'mobiliario'): continue
-                spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), math.radians(h['yaw_graus'])) for h in L.player]
-        fn = os.path.join(out, 'cidade6_completa.glb')
-        n = write_glb(fn, spec, tdir, embed=True, markers=mk, quant=True)
-        print(f'GLB unico: {n} triangulos, {os.path.getsize(fn) / 1e6:.1f} MB')
+        # GLB unico em duas partes (cada uma < 100 MB): construcoes/chao e vegetacao
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'mata')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'mata'))):
+            spec = []
+            for (ti, tj), lays in sorted(tiles.items()):
+                for lay, mats in sorted(lays.items()):
+                    if keep(lay): spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
+            fn = os.path.join(out, fname)
+            n = write_glb(fn, spec, tdir, embed=True, markers=mk if 'completa' in fname else None, quant=True)
+            print(f'{fname}: {n} triangulos, {os.path.getsize(fn) / 1e6:.1f} MB')
     return man
 
 
