@@ -69,8 +69,8 @@ class Ground:
         h = np.full_like(X, -0.25)          # chao da cidade fica abaixo do asfalto/gramados (sem disputa de profundidade)
         # morros: norte (z<130), oeste (x<105), leste (x>2455)
         # distancia ate a borda da cidade (morros comecam ~20 m antes das ultimas ruas e sobem ate a borda do mapa)
-        e = np.minimum.reduce([Z - 4, X - 4, W - 4 - X])
-        e = e + 14 * np.sin(X / 83.0 + 1.1) * np.cos(Z / 71.0) + 8 * np.sin((X + Z) / 37.0)
+        e = np.minimum.reduce([Z - 4, X - 4, (W - 4 - X) + 66])      # leste: o morro so comeca depois da ultima rua (x ~ 2440)
+        e = e + 9 * np.sin(X / 83.0 + 1.1) * np.cos(Z / 71.0) + 5 * np.sin((X + Z) / 37.0)
         hill = np.clip((115 - e) / 115, 0, 1)
         nz = np.sin(X / 61.0) * np.cos(Z / 47.0) * 0.5 + np.sin(X / 29.0 + Z / 41.0) * 0.3
         hh = (hill * hill * (3 - 2 * hill)) * (26 + 12 * nz)

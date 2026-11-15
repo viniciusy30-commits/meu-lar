@@ -131,6 +131,16 @@ def run(P, G, L, M, assets):
     wt = np.concatenate(wt).astype(np.float64)
     wnx, wnz = int(W / 2.0) + 3, int(H / 2.0) + 3
     Wk = walk_raster(wt, wnx, wnz)
+    # seguranca: o terreno nunca fica acima do chao andavel vizinho (gramados/ruas perto do pe dos morros)
+    from scipy.ndimage import minimum_filter
+    big = np.where(Wk < -1e8, 1e9, Wk + DY)
+    mn = minimum_filter(big, size=9)[::4, ::4]                       # menor chao andavel num raio de ~8 m, na grade de 8 m
+    mn = np.pad(mn, ((0, max(0, nz - mn.shape[0])), (0, max(0, nx - mn.shape[1]))), constant_values=1e9)[:nz, :nx]
+    fix = (mn < 1e8) & (Hh > mn - 0.25)
+    Hh = np.where(fix, mn - 0.25, Hh)
+    print(f'  terreno rebaixado sob o chao andavel em {int(fix.sum())} vertices')
+    with open(os.path.join(assets, 'c6.bin'), 'wb') as f:
+        f.write(struct.pack('<iif', nx, nz, G8)); f.write(np.clip(np.round(Hh * 100.0), -32000, 32000).astype('<i2').tobytes())
     cmw = np.where(Wk < -1e8, -32768, np.clip(np.round((Wk + DY) * 100.0), -32000, 32000)).astype('<i2')
     with open(os.path.join(assets, 'c6_walk.bin'), 'wb') as f:
         f.write(struct.pack('<iif', wnx, wnz, 2.0)); f.write(cmw.tobytes())

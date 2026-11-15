@@ -208,7 +208,14 @@ class Plan:
         for g in getattr(self.blocks_geom, 'geoms', [self.blocks_geom]):
             if g.area < 200: continue
             c = g.representative_point(); cx, cz = c.x, c.y
-            self.blocks.append({'poly': g, 'cx': cx, 'cz': cz, 'zone': self.zone(g, cx, cz)})
+            zn = self.zone(g, cx, cz)
+            if zn == 'ribeirinho':                                  # so a faixa junto ao rio (sem a mata do norte)
+                g2 = g.intersection(sbox(1452, 132, 1808, H))
+                parts = [q for q in getattr(g2, 'geoms', [g2]) if q.geom_type == 'Polygon' and q.area > 200]
+                for q in parts:
+                    c2 = q.representative_point(); self.blocks.append({'poly': q, 'cx': c2.x, 'cz': c2.y, 'zone': 'ribeirinho'})
+                continue
+            self.blocks.append({'poly': g, 'cx': cx, 'cz': cz, 'zone': zn})
 
     def zone(self, g, cx, cz):
         minx, minz, maxx, maxz = g.bounds
