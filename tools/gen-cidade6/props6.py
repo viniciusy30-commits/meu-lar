@@ -69,7 +69,7 @@ class Props:
         M.cyl(x, z, 0.04, Y_WALK, Y_WALK + 2.4, (150, 152, 156), 5)
         M.m('liso'); px, pz = -fz, fx
         pts = [(x + px * 0.35 * math.cos(a) + fx * 0.06, Y_WALK + 2.45 + 0.35 * math.sin(a), z + pz * 0.35 * math.cos(a) + fz * 0.06) for a in [math.pi / 8 + k * math.pi / 4 for k in range(8)]]
-        M.poly(pts, (196, 32, 36), (fx, 0, fz)); M.poly(pts[::-1], (180, 180, 182), (-fx, 0, -fz))
+        M.poly(pts, (196, 32, 36), (fx, 0, fz)); M.poly([(p[0] - fx * 0.05, p[1], p[2] - fz * 0.05) for p in pts], (180, 180, 182), (-fx, 0, -fz))
         M.free()
 
     def hydrant(self, x, z):
@@ -202,12 +202,12 @@ class Props:
             paths.append(LineString([a, b]).buffer(2.0))
         from shapely.ops import unary_union
         pth = unary_union(paths).intersection(poly).difference(lake.buffer(1.5))
-        M.m('paver'); M.shp(pth, Y_LAWN + 0.03, WHITE)
+        M.m('paver'); M.shp(pth, Y_LAWN + 0.07, WHITE)
         # lago com borda de pedra e fonte
         M.m('pedra'); ring2 = list(lake.exterior.coords)
         for k in range(len(ring2) - 1):
             a, b = ring2[k], ring2[k + 1]; M.at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); M.wall_strip([a, b], -0.6, Y_LAWN + 0.25, 0.8, WHITE)
-        M.free('parques'); M.m('agua'); M.shp(lake, 0.03, (200, 225, 215))
+        M.free('parques'); M.m('agua'); M.shp(lake, Y_LAWN + 0.09, (200, 225, 215))
         fx, fz = cx + 18, cz + 12
         M.m('pedra'); M.cyl(fx, fz, 4.5, -0.3, 0.5, WHITE, 16); M.m('agua'); M.cyl(fx, fz, 4.0, 0.5, 0.52, (200, 230, 240), 16)
         M.m('liso'); M.cyl(fx, fz, 0.5, 0.5, 2.4, (235, 240, 245), 8); M.cyl(fx, fz, 1.4, 2.4, 3.6, (210, 235, 245), 8, True, 0.2)
@@ -237,37 +237,116 @@ class Props:
             bx, bz = a[0] + dx / L * 13, a[1] + dz / L * 13
             self.bench(bx, bz, -dx / L, -dz / L, Y_LAWN + 0.03)
 
+    def parklight(self, x, z, y=Y_LAWN):
+        """poste baixo de parque (globo)"""
+        M = self.M; M.at(x, z, 'mobiliario'); M.m('metal'); M.cyl(x, z, 0.07, y, y + 3.6, (52, 56, 60), 6)
+        M.m('liso'); M.sphere(x, y + 3.85, z, 0.32, (255, 246, 214), 6, 4); self.nlights += 1; M.free()
+
     def riverside(self, blk):
-        """parque ribeirinho: calcadao junto ao cais, gramado, arvores, quadras, bancos"""
+        """parque linear do rio: calcadao junto ao cais (postes, bancos, palmeiras), trilha sinuosa, equipamentos dos dois
+        lados (quadras, playground, quiosque, coreto, jardim, lago, skate...), travessas ate a rua e bosques"""
+        import park6
+        from shapely.ops import unary_union
         M = self.M; r = self.rnd; poly = blk['poly']
         minx, minz, maxx, maxz = poly.bounds
         side = 1 if (minx + maxx) / 2 < river_x((minz + maxz) / 2) else -1
-        zs = np.arange(minz + 2, maxz - 2, 4.0)
-        line = [(river_x(z) - side * (RIVER_W / 2 + RIVER_WALL + 5.0), z) for z in zs]
-        walk = LineString(line).buffer(4.5).intersection(poly)
-        M.free('parques'); M.m('paver'); M.shp(walk, Y_LAWN + 0.03, (245, 238, 228))
-        for k in range(0, len(line), 6):
-            x, z = line[k]
-            if poly.contains(Point(x, z)):
-                self.tree(x - side * 6.5, z, r.choice(('folhosa', 'palmeira')), r.uniform(0.9, 1.15))
-                self.bench(x - side * 4.6, z + 2, side, 0, Y_LAWN + 0.03)
-        # quadras esportivas e arvores no resto
-        cx = (minx + maxx) / 2 - side * 20
-        for k, zc in enumerate(np.arange(minz + 40, maxz - 40, 150)):
-            if maxx - minx < 60: break
-            M.at(cx, zc); M.m('quadra')
-            q = [(cx - 9, zc - 16), (cx + 9, zc - 16), (cx + 9, zc + 16), (cx - 9, zc + 16)]
-            if not poly.contains(Polygon(q)): continue
-            M.prism(q, Y_LAWN, Y_LAWN + 0.06, (255, 255, 255) if k % 2 else (200, 120, 90))
-            M.m('liso')
-            for (a, b, c, d) in ((cx - 8.8, cx + 8.8, zc - 0.05, zc + 0.05), (cx - 8.8, cx - 8.7, zc - 15.8, zc + 15.8), (cx + 8.7, cx + 8.8, zc - 15.8, zc + 15.8), (cx - 8.8, cx + 8.8, zc - 15.8, zc - 15.7), (cx - 8.8, cx + 8.8, zc + 15.7, zc + 15.8)):
-                M.box(a, b, Y_LAWN + 0.06, Y_LAWN + 0.075, c, d, (250, 250, 248))
-            M.m('metal'); M.box(cx - 8, cx + 8, Y_LAWN, Y_LAWN + 1.0, zc - 0.03, zc + 0.03, (40, 40, 44))
-            M.free()
-        for _ in range(int(poly.area / 260)):
+        QD = RIVER_W / 2 + RIVER_WALL
+        xq = lambda z: river_x(z) - side * QD                    # borda do cais
+        xs_ = lambda z: (minx if side > 0 else maxx)             # lado da rua (aprox.)
+        wid = lambda z: abs(xq(z) - xs_(z))
+        pt = lambda u, z: (xq(z) - side * u, z)                  # u = distancia do cais
+        inner = poly.buffer(-2.0)
+        zs = np.arange(minz + 1, maxz - 1 + 0.01, 3.0)
+        # calcadao do cais
+        walk = LineString([pt(5.0, z) for z in zs]).buffer(4.5, cap_style='flat').intersection(poly)
+        # trilha sinuosa no meio
+        ph = r.uniform(0, 6.28)
+        um = lambda z: wid(z) * 0.5 + 2 + 5.0 * math.sin(z / 19.0 + ph)
+        trail_line = LineString([pt(um(z), z) for z in zs])
+        trail = trail_line.buffer(1.7, cap_style='flat')
+        # travessas (cais <-> rua): nas pontas, na ponte de pedestre e a cada ~70 m
+        zc = [minz + 7, maxz - 7] if maxz - minz > 40 else [(minz + maxz) / 2]
+        fz = self.P.footbridge[0]
+        if minz + 12 < fz < maxz - 12: zc.append(fz)
+        z = minz + 7 + 70
+        while z < maxz - 40:
+            if all(abs(z - q) > 30 for q in zc): zc.append(z)
+            z += 70
+        cross = [LineString([pt(0.5, z), pt(wid(z) + 4, z)]).buffer(2.0 if z == fz else 1.6, cap_style='flat') for z in zc]
+        paths = unary_union([trail] + cross).intersection(poly).difference(walk)
+        M.free('parques'); M.m('paver')
+        for z0 in range(int(minz // 60) * 60, int(maxz) + 1, 60):
+            M.shp(walk.intersection(sbox(minx - 5, z0, maxx + 5, z0 + 60)), Y_LAWN + 0.05, (245, 238, 228))
+            M.shp(paths.intersection(sbox(minx - 5, z0, maxx + 5, z0 + 60)), Y_LAWN + 0.05, (236, 226, 208))
+        allpaths = unary_union([walk, paths])
+        # equipamentos: um de cada lado da trilha a cada ~46 m
+        names = list(park6.STATIONS); r.shuffle(names); ni = 0
+        occ = []
+        z = minz + 30
+        while z < maxz - 24:
+            for lane in (0, 1):
+                for _try in range(len(names)):
+                    nm = names[_try]
+                    fn, ha, hb = park6.STATIONS[nm]
+                    u0, u1 = (11.5, um(z) - 5.5 - 2) if lane == 0 else (um(z) + 5.5 + 2, wid(z) - 4)
+                    if u1 - u0 < 2 * hb: continue
+                    u = (u0 + u1) / 2 + r.uniform(-1, 1) * max(0.0, (u1 - u0) / 2 - hb) * 0.5
+                    zz = z + r.uniform(-3, 3)
+                    x, _ = pt(u, zz)
+                    tx = xq(zz + 2) - xq(zz - 2); tl = math.hypot(tx, 4.0)
+                    from shapely.geometry import Polygon as _Pg
+                    F = Frame((x, zz), (tx / tl, 4.0 / tl))
+                    fp = _Pg(F.rect(-ha, ha, -hb, hb))
+                    if not inner.contains(fp) or fp.intersects(allpaths) or any(fp.distance(o) < 3 for o in occ): continue
+                    park6.place(self, nm, x, zz, tx / tl, 4.0 / tl, r); occ.append(fp); names.remove(nm); names.append(nm)
+                    # acesso: do equipamento ate a trilha
+                    tp = trail_line.interpolate(trail_line.project(Point(x, zz)))
+                    acc = LineString([(x, zz), (tp.x, tp.y)]).buffer(1.1).difference(fp).difference(allpaths).intersection(poly)
+                    M.free('parques'); M.m('paver'); M.shp(acc, Y_LAWN + 0.05, (236, 226, 208))
+                    occ.append(acc.buffer(0.5))
+                    break
+            z += 40
+        occu = unary_union(occ).buffer(1.5) if occ else None
+        blocked = allpaths.buffer(1.6) if occu is None else unary_union([allpaths.buffer(1.6), occu])
+        # calcadao: postes junto ao guarda-corpo, bancos virados para o rio, palmeiras/arvores em fila
+        k = 0
+        for z in np.arange(minz + 6, maxz - 5, 6.0):
+            if any(abs(z - q) < 3.2 for q in zc): k += 1; continue
+            if k % 4 == 0 and poly.contains(Point(*pt(1.3, z))): self.parklight(*pt(1.3, z))
+            if k % 4 == 2 and poly.contains(Point(*pt(8.4, z))): self.bench(*pt(8.4, z), side, 0, Y_LAWN + 0.05)
+            if k % 2 == 1:
+                p = Point(*pt(11.0, z))
+                if inner.contains(p) and not (occu is not None and occu.contains(p)) and not paths.buffer(1.5).contains(p):
+                    self.tree(p.x, p.y, 'palmeira' if (k // 2) % 3 else 'folhosa', r.uniform(0.9, 1.15))
+            k += 1
+        # trilha: postes e bancos alternados, canteiros de flores
+        L = trail_line.length; d = 8.0; k = 0
+        while d < L - 6:
+            p = trail_line.interpolate(d); p2 = trail_line.interpolate(d + 1.0)
+            tx, tz = p2.x - p.x, p2.y - p.y; tl = math.hypot(tx, tz) or 1; nx, nz = -tz / tl, tx / tl
+            s = 1 if k % 2 else -1
+            q = Point(p.x + nx * s * 3.0, p.y + nz * s * 3.0)
+            ok = inner.contains(q) and not blocked.buffer(-1.2).contains(q) if True else False
+            if inner.contains(q) and not (occu is not None and occu.contains(q)) and not walk.buffer(1).contains(q) and all(not c.buffer(1.5).contains(q) for c in cross):
+                if k % 3 == 0: self.parklight(q.x, q.y)
+                elif k % 3 == 1: self.bench(q.x, q.y, -nx * s, -nz * s, Y_LAWN)
+                else:
+                    for j in range(3): self.tree(q.x + tx / tl * (j - 1) * 1.3 + nx * s * 0.8, q.y + tz / tl * (j - 1) * 1.3 + nz * s * 0.8, 'flores' if j != 1 else 'arbusto', r.uniform(0.85, 1.15))
+            d += 9.0; k += 1
+        # fila de arvores do lado da rua e bosques no resto
+        for z in np.arange(minz + 8, maxz - 6, 11.0):
+            p = Point(*pt(wid(z) - 3.5, z))
+            if inner.contains(p) and not blocked.contains(p): self.tree(p.x, p.y, self.street_species(int(z // 200)) if hasattr(self, 'street_species') and False else 'oval', r.uniform(0.95, 1.2))
+        pts = []
+        for _ in range(int(poly.area / 85)):
             x, z = r.uniform(minx, maxx), r.uniform(minz, maxz); p = Point(x, z)
-            if poly.buffer(-3).contains(p) and not walk.buffer(6).contains(p) and abs(x - cx) > 14:
-                self.tree(x, z, r.choice(('folhosa', 'folhosa', 'conifera')), r.uniform(0.9, 1.3))
+            if not inner.buffer(-1.5).contains(p) or blocked.buffer(1.2).contains(p): continue
+            u = abs(x - xq(z))
+            if u < 13.5 or u > wid(z) - 6: continue
+            if any((x - a) ** 2 + (z - b) ** 2 < 30 for (a, b) in pts): continue
+            pts.append((x, z))
+            kd = r.choice(('folhosa', 'folhosa', 'oval', 'conifera', 'florida', 'ornamental', 'frutifera', 'arbusto'))
+            self.tree(x, z, kd, r.uniform(0.9, 1.3))
 
     def beach(self):
         """calcadao da orla (ondas em paver), quiosques, postos de salva-vidas, guarda-sois, pier"""
@@ -326,18 +405,44 @@ class Props:
         M.free()
 
     def marina(self, blk):
-        M = self.M; r = self.rnd; poly = blk['poly']; minx, minz, maxx, maxz = poly.bounds
-        self.L.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
-        # galpao da marina + estacionamento de barcos em cavaletes
-        F = Frame((minx + 6, minz + 6), (1, 0))
-        B = self.L.B
-        w = min(60, maxx - minx - 12)
+        """iate clube: sede de frente para a avenida, galpao de barcos, patio com barcos em cavaletes, estacionamento, palmeiras"""
+        import centro6 as C6
+        M = self.M; r = self.rnd; poly = blk['poly']; minx, minz, maxx, maxz = poly.bounds; L = self.L; B = L.B
+        for _ in range(20):
+            if sbox(minx, minz, maxx, maxz).buffer(-0.5).within(poly): break
+            minx += 1.5; minz += 1.5; maxx -= 1.5; maxz -= 1.5
+        L.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+        L.pocc = []; c0 = len(B.colliders)
+        # galpao (fundos, lado do rio)
+        F = Frame((minx + 4, minz + 4), (1, 0)); w = 56
+        M.at(minx + 4 + w / 2, minz + 16, 'lotes')
         B.box(F, 0, w, 0, 24, Y_WALK, Y_WALK + 9, (235, 235, 238), 'metal', top=False)
         B.gable(F, 0, w, 0, 24, Y_WALK + 9, 3.5, (60, 90, 120), True, 0.4, 'metal', (235, 235, 238), 'metal')
-        B.panel(F, w * 0.3, w * 0.7, 0, Y_WALK, Y_WALK + 6, (210, 214, 220), 'garagem', -1, 0.05, [(0, 1), (3, 1), (3, 0), (0, 0)])
-        for k in range(int((maxx - minx - 20) / 9)):
-            x = minx + 12 + k * 9; z = maxz - 18
-            self.boat(x, z, 0, 1, Y_WALK + 1.2)
+        for k in range(3): B.panel(F, 4 + k * 17, 16 + k * 17, 24, Y_WALK, Y_WALK + 6, (210, 214, 220), 'garagem', 1, 0.06, [(0, 1), (3, 1), (3, 0), (0, 0)])
+        B.solid(F, 0, w, 0, 24); M.free('lotes')
+        # patio de barcos em cavaletes (duas filas)
+        bx0 = minx + 4 + w + 8
+        for row, z in enumerate((minz + 10, minz + 26)):
+            for x in np.arange(bx0 + 4, maxx - 8, 8.5):
+                M.at(x, z, 'orla'); M.m('metal')
+                for dz in (-2.2, 2.2):
+                    M.box(x - 1.2, x + 1.2, Y_WALK, Y_WALK + 0.9, z + dz - 0.12, z + dz + 0.12, (60, 90, 150))
+                self.boat(x, z, 0, 1, Y_WALK + 1.25)
+        L.pocc.append(sbox(bx0, minz + 3, maxx - 2, minz + 33))
+        # sede do clube + predio de frente para a Beira-Mar
+        s = 2.0
+        for (pw, fl, tex) in ((46, 3, 'moderna'), (34, 6, 'janelas'), (40, 4, 'moderna')):
+            if s + pw > (maxx - minx) - 4: break
+            Fs = L.frame('S', minx, maxx, minz, maxz, s)
+            M.at(*Fs.xz(pw / 2, 9), 'lotes'); C6.midrise(B, Fs, pw - 0.15, 18, fl, None, None, True, None, True, tex); M.free('lotes')
+            s += pw + 10
+        # estacionamento no miolo
+        pz0, pz1 = minz + 38, maxz - 24
+        if pz1 - pz0 > 14:
+            Fp = Frame((minx + 6, pz0), (1, 0)); M.at((minx + maxx) / 2, (pz0 + pz1) / 2, 'lotes')
+            B.parking(Fp, 0, (maxx - minx) * 0.55, 0, pz1 - pz0, L.park_car, Y_WALK + 0.01); M.free('lotes')
+            L.pocc.append(sbox(minx + 5, pz0 - 1, minx + 7 + (maxx - minx) * 0.55, pz1 + 1))
+        L.fill_free(poly, c0, (), True, 3, ('quiosque', 'jardim', 'coreto', 'piquenique'))
 
     def boat(self, x, z, dx, dz, y=Y_SEA):
         M = self.M; r = self.rnd; M.at(x, z, 'orla'); F = Frame((x, z), (dx, dz))
@@ -357,6 +462,12 @@ class Props:
             px = x0 + 40 + k * 70; zA = shore_z(px) - 6; zB = shore_z(px) + 70
             M.at(px, (zA + zB) / 2, 'orla'); M.m('madeira')
             M.prism([(px - 1.5, zA), (px + 1.5, zA), (px + 1.5, zB), (px - 1.5, zB)], 0.2, 0.5, WHITE)
+            M.prism([(px - 1.5, 1718.6), (px + 1.5, 1718.6), (px + 1.5, zA), (px - 1.5, zA)], 0.2, 0.5, WHITE)       # passarela sobre a areia, da mureta ate o pier
+            for zz in np.arange(1722.0, zA, 6.0):
+                for s in (-1.3, 1.3): M.cyl(px + s, zz, 0.14, -1.6, 0.2, (120, 92, 66), 6)
+            for s in (-1.45, 1.45):
+                M.prism([(px + s - 0.04, 1718.6), (px + s + 0.04, 1718.6), (px + s + 0.04, zB), (px + s - 0.04, zB)], 1.25, 1.33, (240, 238, 232))
+                for zz in np.arange(1719.0, zB, 3.0): M.prism([(px + s - 0.04, zz - 0.04), (px + s + 0.04, zz - 0.04), (px + s + 0.04, zz + 0.04), (px + s - 0.04, zz + 0.04)], 0.5, 1.25, (240, 238, 232))
             for zz in np.arange(zA + 8, zB, 11):
                 for s in (-1, 1):
                     M.prism([(px + s * 1.5, zz - 0.8), (px + s * 9, zz - 0.8), (px + s * 9, zz + 0.8), (px + s * 1.5, zz + 0.8)], 0.2, 0.45, WHITE)
@@ -381,13 +492,15 @@ class Props:
 
     def build(self):
         self.streets()
+        for blk in self.P.blocks:
+            if blk['zone'] == 'marina' and not blk.get('feito'): self.marina(blk)         # antes: ela ainda pede arvores/bancos ao Lots
         for t in self.L.trees: self.tree(t[0], t[1], t[2], t[3], t[4] if len(t) > 4 else Y_LAWN)
         for c in self.L.parked: self.car(c[0], c[1], c[2], c[3], None, c[4] if len(c) > 4 else Y_LAWN + 0.04)
         for b in self.L.benches: self.bench(b[0], b[1], b[2], b[3], b[4] if len(b) > 4 else Y_LAWN + 0.09)
+        for q in getattr(self.L, 'plights', []): self.parklight(*q)
         for blk in self.P.blocks:
             if blk['zone'] == 'parque': self.central_park(blk)
             elif blk['zone'] == 'ribeirinho': self.riverside(blk)
-            elif blk['zone'] == 'marina': self.marina(blk)
         import orla6; orla6.build(self.P, self.G, self.L, self.M, self)
         self.harbor(); self.forest()
         print(f'  vida: {self.ntrees} arvores, {self.nlights} postes, {self.ncars} carros')

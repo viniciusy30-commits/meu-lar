@@ -57,8 +57,8 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
     if single:
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), h['yaw']) for h in L.player]
-        # GLB unico em duas partes (cada uma < 100 MB): construcoes/chao e vegetacao
-        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'arvores', 'mata')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'mata'))):
+        # GLB unico em duas partes (cada uma < 100 MB): construcoes/chao e vegetacao + parques
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'arvores', 'mata', 'parques')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'mata', 'parques'))):
             spec = []
             for (ti, tj), lays in sorted(tiles.items()):
                 for lay, mats in sorted(lays.items()):
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             k = int(((g * nm).sum(1) < -1e-9).sum()); tot += len(idx)
             if k: bad[lay] = bad.get(lay, 0) + k
     print('faces invertidas (normal x ordem dos vertices):', bad or 0, 'de', tot)
-    export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
+    if os.environ.get('GLB', '1') != '0': export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
 
     if os.environ.get('APP', '1') != '0':
         import app_export6

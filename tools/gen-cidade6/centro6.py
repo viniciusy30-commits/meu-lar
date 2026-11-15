@@ -29,19 +29,19 @@ def storefronts(B, F, w, gh, wall, v=0.0, u0=0.0):
             B.box(F, (a + b) / 2 - 1.6, (a + b) / 2 + 1.6, v - 1.5, v, y0 + 2.9, y0 + 3.05, (226, 224, 218), 'concreto')
         else:
             n = max(1, round((b - a) / 3.0))
-            B.panel(F, a, b, v, y0 + 0.45, y0 + gh - 1.25, WHITE, 'vitrine', -1, 0.05, [(0, 1), (n, 1), (n, 0), (0, 0)])
+            B.panel(F, a, b, v, y0 + 0.45, y0 + gh - 1.25, WHITE, 'vitrine', -1, 0.07, [(0, 1), (n, 1), (n, 0), (0, 0)])
             B.panel(F, a, b, v, y0, y0 + 0.45, shade(wall, -40), 'concreto', -1, 0.06)
             dz = a + (b - a) * r.choice((0.2, 0.5, 0.8))                   # porta de vidro
-            B.panel(F, dz - 0.55, dz + 0.55, v, y0, y0 + 2.35, (40, 44, 50), 'liso', -1, 0.07)
-            B.panel(F, dz - 0.47, dz + 0.47, v, y0 + 0.08, y0 + 2.27, (74, 96, 110), 'liso', -1, 0.085)
+            B.panel(F, dz - 0.55, dz + 0.55, v, y0, y0 + 2.35, (40, 44, 50), 'liso', -1, 0.1)
+            B.panel(F, dz - 0.47, dz + 0.47, v, y0 + 0.08, y0 + 2.27, (74, 96, 110), 'liso', -1, 0.16)
             sc = r.choice(SIGNS)
             B.box(F, a - 0.1, b + 0.1, v - 0.16, v, y0 + gh - 1.15, y0 + gh - 0.35, sc, 'liso', top=True)                # letreiro
             lw = (b - a) * r.uniform(0.35, 0.6); lc = (a + b) / 2
-            B.panel(F, lc - lw / 2, lc + lw / 2, v - 0.16, y0 + gh - 0.95, y0 + gh - 0.55, (250, 250, 246) if sum(sc) < 480 else (40, 40, 44), 'liso', -1, 0.02)
+            B.panel(F, lc - lw / 2, lc + lw / 2, v - 0.16, y0 + gh - 0.95, y0 + gh - 0.55, (250, 250, 246) if sum(sc) < 480 else (40, 40, 44), 'liso', -1, 0.06)
             if r.random() < 0.55:                                          # toldo
                 ac = r.choice(AWN); dep = r.uniform(1.1, 1.7); ya = y0 + gh - 1.2
                 q = [F.p(a, v - 0.14, ya), F.p(b, v - 0.14, ya), F.p(b, v - dep, ya - 0.55), F.p(a, v - dep, ya - 0.55)]
-                M.m('liso'); M.quad(*q, ac, (-F.vx * 0.5, 0.85, -F.vz * 0.5)); M.quad(*q[::-1], shade(ac, -45), (F.vx * 0.5, -0.85, F.vz * 0.5))
+                M.m('liso'); M.quad(*q, ac, (-F.vx * 0.5, 0.85, -F.vz * 0.5))      # uma face so: o jogo desenha os dois lados
                 M.quad(F.p(a, v - dep, ya - 0.8), F.p(b, v - dep, ya - 0.8), F.p(b, v - dep, ya - 0.55), F.p(a, v - dep, ya - 0.55), shade(ac, -15), F.nv(-1))
         u += bw
     B.box(F, u0 + w - 0.35, u0 + w + 0.02, v - 0.12, v + 0.2, y0, y0 + gh, shade(wall, -14), 'concreto', top=False)
@@ -80,7 +80,7 @@ def roof_stuff(B, F, u0, u1, v0, v1, y, wall, tank=0.3, garden=0.1, sign=0.06):
         a = r.uniform(u0 + 1, u1 - 9)
         for uu in (a + 1, a + 7): B.box(F, uu - 0.1, uu + 0.1, v0 + 0.6, v0 + 0.8, y, y + 5.2, (70, 72, 76), 'metal', top=False)
         B.box(F, a, a + 8, v0 + 0.45, v0 + 0.6, y + 1.8, y + 5.4, r.choice(SIGNS), 'liso')
-        B.panel(F, a + 1.2, a + 6.8, v0 + 0.45, y + 2.6, y + 4.6, (250, 250, 246), 'liso', -1, 0.02)
+        B.panel(F, a + 1.2, a + 6.8, v0 + 0.45, y + 2.6, y + 4.6, (250, 250, 246), 'liso', -1, 0.06)
 
 
 def midrise(B, F, w, d, floors, wall=None, facade=None, shop=True, awn=None, roof_equip=True, style=None):
@@ -246,7 +246,7 @@ def beach_hotel(B, F, w, d, floors, name_col=None):
     roof_stuff(B, F, tu0 + 0.3, tu1 - 0.3, tv0, tv1, yt + 0.4, wall, 0.0, 0.25, 0.0)
     lw = min(12.0, (tu1 - tu0) * 0.6); lc = (tu0 + tu1) / 2                # letreiro luminoso
     B.box(F, lc - lw / 2, lc + lw / 2, tv0 - 0.1, tv0 + 0.15, yt + 1.6, yt + 3.6, acc, 'liso')
-    B.panel(F, lc - lw / 2 + 0.8, lc + lw / 2 - 0.8, tv0 - 0.1, yt + 2.1, yt + 3.1, (252, 250, 240), 'liso', -1, 0.02)
+    B.panel(F, lc - lw / 2 + 0.8, lc + lw / 2 - 0.8, tv0 - 0.1, yt + 2.1, yt + 3.1, (252, 250, 240), 'liso', -1, 0.06)
     B.solid(F, 0, w, 0, pd)
     return yt
 
@@ -265,6 +265,6 @@ def parking_garage(B, F, w, d, levels=5):
                 for vv in (0.6, d / 2, d - 0.6): B.box(F, w * i / nu - 0.3 if i else 0.3, (w * i / nu + 0.3) if i < nu else w - 0.3, vv - 0.3, vv + 0.3, y, y + lh - 0.3, (190, 188, 182), 'concreto', top=False)
     yt = y0 + levels * lh
     B.box(F, w - 5.0, w - 0.5, 0.5, 5.0, yt, yt + 3.0, (226, 224, 218), 'reboco', mat_top='cascalho', colt=(196, 194, 188))
-    B.box(F, 0.5, 9.0, -0.12, 0.0, y0 + 3.4, y0 + 4.6, (0, 87, 184), 'liso'); B.panel(F, 1.5, 4.0, -0.12, y0 + 3.6, y0 + 4.4, (250, 250, 250), 'liso', -1, 0.02)
+    B.box(F, 0.5, 9.0, -0.12, 0.0, y0 + 3.4, y0 + 4.6, (0, 87, 184), 'liso'); B.panel(F, 1.5, 4.0, -0.12, y0 + 3.6, y0 + 4.4, (250, 250, 250), 'liso', -1, 0.06)
     B.solid(F, 0, w, 0, d)
     return [(F.xz(4 + i * 2.7, 4.0), yt) for i in range(int((w - 12) / 2.7)) if r.random() < 0.6]

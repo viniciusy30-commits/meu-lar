@@ -81,7 +81,7 @@ def tree(M, r, x, z, kind='folhosa', sc=1.0, y=0.13, layer='vegetacao', lod=2):
                 (l0, y0, w0), (l1, y1, w1) = pts[k], pts[k + 1]
                 q = [(tx + dx * l0 + px * w0, ty + y0, tz + dz * l0 + pz * w0), (tx + dx * l0 - px * w0, ty + y0, tz + dz * l0 - pz * w0),
                      (tx + dx * l1 - px * w1, ty + y1, tz + dz * l1 - pz * w1), (tx + dx * l1 + px * w1, ty + y1, tz + dz * l1 + pz * w1)]
-                M.quad(*q, shade(leaf, -6 * k), (0, 1, 0)); M.quad(*q[::-1], shade(leaf, -30), (0, -1, 0))
+                M.quad(*q, shade(leaf, -6 * k), (0, 1, 0))
         M.sphere(tx, ty - 0.1, tz, 0.42, rgb('#7A6A44'), 5, 3)
     elif kind == 'arbusto':
         M.m('folhagem'); col = r.choice(GREENS[:6] + [rgb('#7A8F3E')])

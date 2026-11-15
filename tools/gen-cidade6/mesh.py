@@ -29,10 +29,11 @@ WHITE = (255, 255, 255)
 
 
 class Chunk:
-    __slots__ = ('pn', 'uv', 'col', 'idx', 'nv')
+    __slots__ = ('pn', 'uv', 'col', 'idx', 'nv', 'anc')
 
     def __init__(self):
         self.pn = array('f'); self.uv = array('f'); self.col = array('B'); self.idx = array('H'); self.nv = 0
+        self.anc = array('f')          # ancora (x, z) de cada triangulo: o objeto inteiro vai para o mesmo pedaco no jogo
 
 
 class Mesh:
@@ -109,6 +110,7 @@ class Mesh:
         for i in range(1, k - 1):
             if rev: c.idx.extend((base, base + i + 1, base + i))
             else: c.idx.extend((base, base + i, base + i + 1))
+            c.anc.extend((cx, cz))
         self.ntri += k - 2
 
     def tri(self, a, b, c, col, n=None, uv=None): self.poly([a, b, c], col, n, uv)
@@ -133,6 +135,7 @@ class Mesh:
                     ch.col.extend((int(C[a, b, 0]), int(C[a, b, 1]), int(C[a, b, 2]), 255))
                 ch.nv += 4
                 ch.idx.extend((base, base + 3, base + 2, base, base + 2, base + 1))
+                ch.anc.extend((cx, cz, cx, cz))
                 self.ntri += 2
 
     # ---------------------------------------------------------------- solidos
@@ -197,7 +200,7 @@ class Mesh:
             n = N[i]; L = math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) or 1.0
             c.pn.extend((p[0], p[1], p[2], n[0] / L, n[1] / L, n[2] / L)); c.uv.extend(UV[i]); c.col.extend((C[i][0], C[i][1], C[i][2], 255))
         c.nv += len(P)
-        for (a, b, d) in T: c.idx.extend((base + a, base + b, base + d))
+        for (a, b, d) in T: c.idx.extend((base + a, base + b, base + d)); c.anc.extend((cx, cz))
         self.ntri += len(T)
 
     def sphere(self, cx, cy, cz, r, col, seg=6, rings=4, sy=1.0, jit=0.0, rnd=None):
@@ -340,7 +343,7 @@ def write_glb(path, nodes_spec, texdir, embed=False, tex_uri_prefix='texturas/',
             images.append({'uri': tex_uri_prefix + m + '.jpg', 'name': m})
         textures.append({'sampler': 0, 'source': i})
         materials.append({'name': m, 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1], 'baseColorTexture': {'index': i}, 'metallicFactor': 0.0,
-                                                              'roughnessFactor': 0.35 if m in ('vidro', 'vitrine', 'agua', 'escritorio') else 0.95}})
+                                                              'roughnessFactor': 0.35 if m in ('vidro', 'vitrine', 'agua', 'escritorio') else 0.95}, 'doubleSided': True})
     ntri = 0
     for (name, tr, bymat) in nodes_spec:
         prims = []

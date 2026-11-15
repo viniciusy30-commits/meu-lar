@@ -136,24 +136,41 @@ class Ground:
         for x in xs:
             z0, z1 = shore_z(x), shore_z(x + 6)
             M.quad((x, Y_SEA + 0.03, z0 - 1.2), (x + 6, Y_SEA + 0.03, z1 - 1.2), (x + 6, Y_SEA + 0.03, z1 + 1.8), (x, Y_SEA + 0.03, z0 + 1.8), rgb('#E8F4F2'), (0, 1, 0))
-        # cais de pedra nas margens do rio (de -3 a +0,2) e guarda-corpo
-        M.free('ruas'); M.m('pedra')
+        # cais de pedra nas margens do rio: faixa continua (emendas em esquadria) que segue ate dentro do mar, como molhe
+        M.free('ruas')
+        zend = shore_z(river_x(1840)) + 14.0
         for sgn in (-1, 1):
-            zs = np.arange(-10, shore_z(1700) - 4, 4.0)
-            line = [(river_x(z) + sgn * (RIVER_W / 2 + RIVER_WALL / 2), z) for z in zs]
-            M.m('pedra'); M.wall_strip(line, -3.2, 0.25, RIVER_WALL, WHITE); M.m('metal')
-            # guarda-corpo (fora das pontes)
-            for i in range(len(line) - 1):
-                a, b = line[i], line[i + 1]
-                if any(abs(a[1] - zb) < 18 for zb in self.bridge_z): continue
-                M.wall_strip([a, b], 1.05, 1.15, 0.08, rgb('#3E4247'))
-                if i % 2 == 0: M.box(a[0] - 0.05, a[0] + 0.05, 0.25, 1.1, a[1] - 0.05, a[1] + 0.05, rgb('#3E4247'))
+            zs = np.array(sorted(set(np.arange(-12.0, zend + 0.1, 4.0).tolist()) | {e for sp in self.bridge_span for e in sp}))
+            zs = zs[np.concatenate([[True], np.diff(zs) > 0.3])]
+            sec = []
+            for z in zs:
+                cx = river_x(z) + sgn * (RIVER_W / 2 + RIVER_WALL / 2)
+                tx = river_x(z + 1.0) - river_x(z - 1.0); tz = 2.0; tl = math.hypot(tx, tz); nx, nz = tz / tl, -tx / tl      # normal horizontal
+                sec.append(((cx - nx * RIVER_WALL / 2, z - nz * RIVER_WALL / 2), (cx + nx * RIVER_WALL / 2, z + nz * RIVER_WALL / 2)))
+            M.m('pedra')
+            for k in range(len(sec) - 1):
+                (a0, a1), (b0, b1) = sec[k], sec[k + 1]; zm = (zs[k] + zs[k + 1]) / 2
+                yt = -0.78 if any(sa < zm < sb for (sa, sb) in self.bridge_span) else 0.25      # por baixo do tabuleiro das pontes
+                M.at((a0[0] + b1[0]) / 2, zm)
+                M.quad((a0[0], yt, a0[1]), (a1[0], yt, a1[1]), (b1[0], yt, b1[1]), (b0[0], yt, b0[1]), WHITE, (0, 1, 0))
+                M.quad((a0[0], -3.2, a0[1]), (b0[0], -3.2, b0[1]), (b0[0], yt, b0[1]), (a0[0], yt, a0[1]), WHITE, (-1, 0, 0))
+                M.quad((a1[0], -3.2, a1[1]), (b1[0], -3.2, b1[1]), (b1[0], yt, b1[1]), (a1[0], yt, a1[1]), WHITE, (1, 0, 0))
+            (e0, e1) = sec[-1]; M.quad((e0[0], -3.2, e0[1]), (e1[0], -3.2, e1[1]), (e1[0], 0.25, e1[1]), (e0[0], 0.25, e0[1]), WHITE, (0, 0, 1))
+            # guarda-corpo continuo no lado da terra (fora das pontes e da praia)
+            M.m('metal'); rail = rgb('#3E4247')
+            for k in range(len(sec) - 1):
+                zm = (zs[k] + zs[k + 1]) / 2
+                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
+                pa = sec[k][1] if sgn > 0 else sec[k][0]; pb = sec[k + 1][1] if sgn > 0 else sec[k + 1][0]
+                M.quad((pa[0], 1.05, pa[1]), (pb[0], 1.05, pb[1]), (pb[0], 1.15, pb[1]), (pa[0], 1.15, pa[1]), rail, (sgn, 0, 0))
+                M.quad((pa[0], 0.62, pa[1]), (pb[0], 0.62, pb[1]), (pb[0], 0.68, pb[1]), (pa[0], 0.68, pa[1]), rail, (sgn, 0, 0))
+                M.box(pa[0] - 0.05, pa[0] + 0.05, 0.25, 1.15, pa[1] - 0.05, pa[1] + 0.05, rail)
 
     # ------------------------------------------------------------ ruas
     def roads(self):
         M = self.M; P = self.P
         M.free('ruas')
-        self.bridge_z = []
+        self.bridge_z = []; self.bridge_span = []
         # asfalto em pedacos de tile (fica no tile certo)
         for x0 in range(0, int(W), 250):
             for z0 in range(0, int(H), 250):
@@ -221,7 +238,7 @@ class Ground:
         M.free()
 
     # ------------------------------------------------------------ pintura
-    def stripe(self, pth, s0, s1, off, w, col, dash=None, gap=None, y=Y_ASF + 0.012):
+    def stripe(self, pth, s0, s1, off, w, col, dash=None, gap=None, y=Y_ASF + 0.035):
         """faixa pintada ao longo do eixo (curvas: em pedacos de ate 3 m)"""
         M = self.M
         segs = []
@@ -267,17 +284,17 @@ class Ground:
                     for q in range(n):
                         off = -pr['road'] + 0.5 + q * 1.1 + 0.25
                         if pr['med'] and abs(off) < pr['med'] + 0.2: continue
-                        self.stripe(pth, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.014)
+                        self.stripe(pth, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.04)
                     # linha de retencao (lado de quem chega)
                     sl = sc + sg * 2.6
                     lane_side = -sg            # mao direita: quem chega em direcao ao cruzamento
-                    self.stripe(pth, sl - 0.2, sl + 0.2, lane_side * (pr['road'] + (pr['med'] or 0.2)) / 2, pr['road'] - (pr['med'] or 0.2) - 0.4, C_WHITE, y=Y_ASF + 0.014)
+                    self.stripe(pth, sl - 0.2, sl + 0.2, lane_side * (pr['road'] + (pr['med'] or 0.2)) / 2, pr['road'] - (pr['med'] or 0.2) - 0.4, C_WHITE, y=Y_ASF + 0.04)
                     cx_, cz_, tx_, tz_ = pth.at(sc); self.crossings.append((cx_, cz_, (tx_, tz_), i, sg))
 
     # ------------------------------------------------------------ pontes
     def bridges(self):
         M = self.M; P = self.P
-        self.bridge_z = []
+        self.bridge_z = []; self.bridge_span = []
         for i, r in enumerate(P.roads):
             g = r['line'].intersection(P.river)
             if g.is_empty: continue
@@ -285,7 +302,7 @@ class Ground:
             if abs(d[0]) < 0.9: continue
             z = o[1]; hw = half_row(r['kind'])
             xa = river_x(z) - RIVER_W / 2 - RIVER_WALL - 2; xb = river_x(z) + RIVER_W / 2 + RIVER_WALL + 2
-            self.bridge_z.append(z)
+            self.bridge_z.append(z); self.bridge_span.append((z - hw - 0.4, z + hw + 0.4))
             M.at((xa + xb) / 2, z, 'ruas'); M.m('concreto')
             # tabuleiro (laje) com viga lateral e parapeito
             M.box(xa, xb, -0.7, Y_ASF - 0.01, z - hw, z + hw, rgb('#B9B3A8'), top=False, bottom=True)
