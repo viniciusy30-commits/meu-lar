@@ -288,7 +288,7 @@ object Relevo {
         hs = ShortArray(0)
         roads.clear(); hubs.clear(); pads.clear(); padGrid.clear(); segGrid.clear(); houses.clear()
         sub = false; subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear(); subSol = FloatArray(0); subSolR = FloatArray(0); walk = ShortArray(0); sandMask = ByteArray(0)
-        gen++; readyQ.clear(); loadedCells.clear(); lazyOf.clear(); cellsT = arrayOfNulls(0); cellsR = arrayOfNulls(0); cellState = ByteArray(0); lazyTrees.clear()
+        gen++; readyQ.clear(); loadedCells.clear(); lazyOf.clear(); cellsT = arrayOfNulls(0); cellsR = arrayOfNulls(0); cellState = ByteArray(0); lazyTrees.clear(); treeNearCap = 1e9f
         mapBmp = null   // sem recycle: o mapa pode estar sendo desenhado agora
     }
 
@@ -940,11 +940,16 @@ object Relevo {
      */
     private const val TREE_NEAR = 260f
     private const val TREE_FAR = 340f
+    @Volatile private var treeNearCap = 1e9f
 
     fun service(ex: Float, ez: Float) {
         if (!on) return
         streamCells(ex, ez)
-        var best: LazyTrees? = null; var bestD = TREE_NEAR * TREE_NEAR
+        // Cidade 6: muito mais árvores por quadra -> raio menor; e o raio encolhe de vez quando a memória aperta
+        // (antes soltava um bloco num quadro e remontava o mesmo no seguinte: as árvores ficavam piscando)
+        val nearR = min(if (City.C6) 120f else TREE_NEAR, treeNearCap)
+        val farR = nearR + (if (City.C6) 50f else TREE_FAR - TREE_NEAR)
+        var best: LazyTrees? = null; var bestD = nearR * nearR
         var worst: LazyTrees? = null; var worstD = 0f
         for (t in lazyTrees) {
             val c = t.chunk
@@ -953,7 +958,7 @@ object Relevo {
             val rich = t.rich
             if (rich == null) {
                 if (d2 < bestD) { bestD = d2; best = t }
-            } else if (d2 > TREE_FAR * TREE_FAR) {
+            } else if (d2 > farR * farR) {
                 c.near = t.cheap; t.rich = null; rich.release()
             } else if (d2 > worstD) { worstD = d2; worst = t }
         }
@@ -961,6 +966,7 @@ object Relevo {
         val tight = (rt.totalMemory() - rt.freeMemory()) > rt.maxMemory() * 0.72
         if (tight) {   // memória apertada: solta o detalhado mais longe e não monta nada novo neste quadro
             worst?.let { w -> w.rich?.release(); w.chunk.near = w.cheap; w.rich = null }
+            if (worst != null) treeNearCap = max(24f, min(treeNearCap, sqrt(worstD) * 0.8f))
             return
         }
         val t = best ?: return

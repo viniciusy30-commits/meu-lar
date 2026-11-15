@@ -81,7 +81,7 @@ if __name__ == '__main__':
             k = int(((g * nm).sum(1) < -1e-9).sum()); tot += len(idx)
             if k: bad[lay] = bad.get(lay, 0) + k
     print('faces invertidas (normal x ordem dos vertices):', bad or 0, 'de', tot)
-    export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
+    if os.environ.get('GLB', '1') != '0': export(P, G, L, M, single=os.environ.get('SINGLE', 'leve'))
 
     if os.environ.get('APP', '1') != '0':
         import app_export6

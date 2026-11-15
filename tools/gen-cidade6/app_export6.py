@@ -38,7 +38,7 @@ def _split(tri, lim=56.0):
 
 
 def _tris(M, layers):
-    """(material) -> array (n, 3, 11): x y z nx ny nz u v r g b"""
+    """(material) -> array (n, 3, 13): x y z nx ny nz u v r g b ancX ancZ"""
     by = {}
     for (ti, tj, lay, mat), lst in M.data.items():
         if lay not in layers: continue
@@ -49,6 +49,9 @@ def _tris(M, layers):
             col = np.frombuffer(c.col.tobytes(), np.uint8).reshape(-1, 4)[:, :3].astype(np.float32)
             idx = np.frombuffer(c.idx.tobytes(), np.uint16).astype(np.int64)
             v = np.hstack([pn, uv, col])[idx].reshape(-1, 3, 11)
+            anc = np.frombuffer(c.anc.tobytes(), np.float32).reshape(-1, 2)
+            assert len(anc) == len(v), (lay, mat, len(anc), len(v))
+            v = np.concatenate([v, np.repeat(anc[:, None, :], 3, axis=1)], axis=2)      # colunas 11, 12 = ancora do objeto
             by.setdefault(mat, []).append(v)
     return {m: np.concatenate(v) for m, v in by.items()}
 
@@ -64,12 +67,15 @@ def write_sub2(path, by_mat):
             extra = [s for t in T[big] for s in _split(t)]
             T = np.concatenate([T[~big], np.stack(extra)]) if extra else T[~big]
         cx = T[:, :, 0].mean(1); cz = T[:, :, 2].mean(1)
+        ax, az = T[:, 0, 11], T[:, 0, 12]                                 # objeto inteiro no pedaco da sua ancora (predio nao fica pela metade)
+        near = np.hypot(cx - ax, cz - az) < 38.0
+        cx = np.where(near, ax, cx); cz = np.where(near, az, cz)
         cell = (np.clip(cz, 0, None) // 64).astype(np.int64) * 1000 + (np.clip(cx, 0, None) // 64).astype(np.int64)
         order = np.argsort(cell, kind='stable'); T = T[order]; cell = cell[order]
         bounds = np.flatnonzero(np.diff(cell)) + 1
         starts = np.concatenate([[0], bounds]); ends = np.concatenate([bounds, [len(cell)]])
         for s, e in zip(starts, ends):
-            c = int(cell[s]); V = T[s:e].reshape(-1, 11)
+            c = int(cell[s]); V = T[s:e].reshape(-1, 13)
             ox, oz = (c % 1000) * 64.0, (c // 1000) * 64.0
             o = np.zeros(len(V), dt)
             rel = np.stack([V[:, 0] - ox, V[:, 1] + DY, V[:, 2] - oz], 1) * 50.0
@@ -111,6 +117,9 @@ def run(P, G, L, M, assets):
     nx, nz = int(W / G8) + 2, int(H / G8) + 2
     X, Z = np.meshgrid(np.arange(nx) * G8, np.arange(nz) * G8)
     Hh = G.height(np.clip(X, 0, W), np.clip(Z, 0, H)) + DY
+    from plan6 import river_x, RIVER_W, RIVER_WALL
+    rxv = np.vectorize(river_x)(Z); dr = np.abs(X - rxv)
+    Hh = np.where((dr < RIVER_W / 2 + RIVER_WALL + 7.0) & (Z < 1716), np.minimum(Hh, -1.2), Hh)      # a margem do rio no jogo fica escondida sob o cais/gramado
     cm = np.clip(np.round(Hh * 100.0), -32000, 32000).astype('<i2')
     with open(os.path.join(assets, 'c6.bin'), 'wb') as f:
         f.write(struct.pack('<iif', nx, nz, G8)); f.write(cm.tobytes())

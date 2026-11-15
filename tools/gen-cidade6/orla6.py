@@ -22,22 +22,42 @@ def build(P, G, L, M, pr):
     r = pr.rnd
     rx = river_x(1760)
     def in_river(x, pad=36): return abs(x - rx) < pad
-    spans = [(2.0, rx - 30), (rx + 30, W - 2.0)]
+    QW = RIVER_W / 2 + RIVER_WALL                                  # do eixo do rio ate a face de fora do cais
+    spans = [(2.0, river_x(ZW) - QW), (river_x(ZW) + QW, W - 2.0)]   # o calcadao e a mureta encostam no cais do rio
     y = Y_WALK
     # ------------------------------------------------------------ calcadao + ciclovia + mureta
-    for (xa, xb) in spans:
-        x = xa
-        while x < xb:
-            x1 = min(x + 25.0, xb)
-            M.free('orla'); M.m('ondas'); M.poly([(x, y, Z0), (x1, y, Z0), (x1, y, ZW - 0.2), (x, y, ZW - 0.2)], WHITE, (0, 1, 0))
-            M.m('asfalto'); M.poly([(x, y + 0.012, Z0 + 0.8), (x1, y + 0.012, Z0 + 0.8), (x1, y + 0.012, Z0 + 3.6), (x, y + 0.012, Z0 + 3.6)], (255, 150, 120), (0, 1, 0))
-            M.m('liso')
-            for zz in (Z0 + 0.8, Z0 + 3.5): M.poly([(x, y + 0.02, zz), (x1, y + 0.02, zz), (x1, y + 0.02, zz + 0.1), (x, y + 0.02, zz + 0.1)], (250, 250, 246), (0, 1, 0))
-            for k in range(int((x1 - x) / 5)):
-                xd = x + k * 5 + 1; M.poly([(xd, y + 0.02, Z0 + 2.15), (xd + 2, y + 0.02, Z0 + 2.15), (xd + 2, y + 0.02, Z0 + 2.25), (xd, y + 0.02, Z0 + 2.25)], (250, 220, 80), (0, 1, 0))
+    for si, (xa, xb) in enumerate(spans):
+        # piso de pedra portuguesa, recortado pela margem (fecha certinho contra o cais curvo)
+        x = xa - (6.0 if si == 1 else 0.0)
+        xe = xb + (6.0 if si == 0 else 0.0)
+        while x < xe:
+            x1 = min(x + 25.0, xe)
+            g = sbox(x, Z0, x1, ZW - 0.25).intersection(P.land)
+            M.free('orla'); M.m('ondas'); M.shp(g, y, WHITE)
             x = x1
-        # mureta com aberturas e escadas a cada ~70 m
-        gaps = [g for g in np.arange(xa + 35, xb - 20, 70.0)]
+        # ciclovia: termina num retorno redondo antes do rio (nada de faixa cortada no fim)
+        ca, cb = (xa, xb - 16.0) if si == 0 else (xa + 16.0, xb)
+        x = ca
+        while x < cb:
+            x1 = min(x + 25.0, cb)
+            M.free('orla'); M.m('asfalto'); M.poly([(x, y + 0.03, Z0 + 0.8), (x1, y + 0.03, Z0 + 0.8), (x1, y + 0.03, Z0 + 3.6), (x, y + 0.03, Z0 + 3.6)], (255, 150, 120), (0, 1, 0))
+            M.m('liso')
+            for zz in (Z0 + 0.8, Z0 + 3.5): M.poly([(x, y + 0.06, zz), (x1, y + 0.06, zz), (x1, y + 0.06, zz + 0.1), (x, y + 0.06, zz + 0.1)], (250, 250, 246), (0, 1, 0))
+            for k in range(int((x1 - x) / 5)):
+                xd = x + k * 5 + 1; M.poly([(xd, y + 0.06, Z0 + 2.15), (xd + 2, y + 0.06, Z0 + 2.15), (xd + 2, y + 0.06, Z0 + 2.25), (xd, y + 0.06, Z0 + 2.25)], (250, 220, 80), (0, 1, 0))
+            x = x1
+        ex = cb if si == 0 else ca; ez = Z0 + 2.2; R = 3.4
+        M.at(ex, ez, 'orla'); M.m('asfalto')
+        ring = [(ex + math.cos(t) * R, ez + math.sin(t) * R) for t in np.linspace(0, 2 * math.pi, 20, endpoint=False)]
+        M.poly([(px, y + 0.035, pz) for px, pz in ring], (255, 150, 120), (0, 1, 0))
+        M.m('liso')
+        for k in range(20):
+            (p0, p1) = ring[k], ring[(k + 1) % 20]; f = (R - 0.12) / R
+            M.poly([(p0[0], y + 0.065, p0[1]), (p1[0], y + 0.065, p1[1]), (ex + (p1[0] - ex) * f, y + 0.065, ez + (p1[1] - ez) * f), (ex + (p0[0] - ex) * f, y + 0.065, ez + (p0[1] - ez) * f)], (250, 250, 246), (0, 1, 0))
+        M.m('folhagem'); M.cyl(ex, ez, 1.1, y, y + 0.5, (70, 120, 60), 10, True)                     # canteiro no meio do retorno
+        M.free()
+        # mureta com aberturas e escadas a cada ~70 m, de ponta a ponta (ate o cais do rio)
+        gaps = [g for g in np.arange(xa + 35, xb - 22, 70.0)]
         cur = xa
         for g in gaps + [None]:
             end = (g - 3.0) if g is not None else xb
@@ -49,6 +69,10 @@ def build(P, G, L, M, pr):
                 x = x1
             if g is not None:
                 stairs(M, pr, g, y); cur = g + 3.0
+        # pilar de arremate onde a mureta encontra o cais
+        px = xb if si == 0 else xa
+        M.at(px, ZW, 'orla'); M.m('pedra'); M.prism([(px - 0.6, ZW - 0.6), (px + 0.6, ZW - 0.6), (px + 0.6, ZW + 0.6), (px - 0.6, ZW + 0.6)], -1.0, y + 0.95, WHITE, False)
+        M.m('concreto'); M.prism([(px - 0.7, ZW - 0.7), (px + 0.7, ZW - 0.7), (px + 0.7, ZW + 0.7), (px - 0.7, ZW + 0.7)], y + 0.95, y + 1.08, (236, 232, 222), True)
         M.free()
         # ------------------------------------------------------------ coqueiros, postes, bancos, lixeiras
         x = xa + 6; k = 0
@@ -134,7 +158,6 @@ def umbrella(M, x, z, col, r, chairs=True):
             cx = x + s * 0.95; cc = r.choice(((250, 250, 250), col))
             M.box(cx - 0.32, cx + 0.32, yb + 0.22, yb + 0.3, z - 0.2, z + 1.5, cc)
             M.quad((cx - 0.32, yb + 0.3, z - 0.2), (cx + 0.32, yb + 0.3, z - 0.2), (cx + 0.32, yb + 0.85, z - 0.75), (cx - 0.32, yb + 0.85, z - 0.75), cc, (0, 0.6, 1))
-            M.quad((cx + 0.32, yb + 0.3, z - 0.2), (cx - 0.32, yb + 0.3, z - 0.2), (cx - 0.32, yb + 0.85, z - 0.75), (cx + 0.32, yb + 0.85, z - 0.75), shade(cc, -30), (0, -0.6, -1))
     M.free()
 
 
@@ -154,8 +177,6 @@ def volley(M, x, z, r):
         M.poly([(a, yb, c), (b, yb, c), (b, yb, d), (a, yb, d)], (40, 90, 200), (0, 1, 0))
     for zz in (z - 5.0, z + 5.0): M.cyl(x, zz, 0.07, yb - 0.3, yb + 2.5, (240, 200, 60), 5, False)
     M.quad((x, yb + 1.45, z - 5.0), (x, yb + 1.45, z + 5.0), (x, yb + 2.43, z + 5.0), (x, yb + 2.43, z - 5.0), (250, 250, 250), (1, 0, 0))
-    M.quad((x, yb + 1.45, z + 5.0), (x, yb + 1.45, z - 5.0), (x, yb + 2.43, z - 5.0), (x, yb + 2.43, z + 5.0), (240, 240, 240), (-1, 0, 0))
-    M.m('cerca'); M.quad((x + 0.01, yb + 1.5, z - 5.0), (x + 0.01, yb + 1.5, z + 5.0), (x + 0.01, yb + 2.38, z + 5.0), (x + 0.01, yb + 2.38, z - 5.0), (90, 90, 96), (1, 0, 0))
     M.m('liso'); M.sphere(x + 3, yb + 0.12, z + 1, 0.11, (250, 240, 120), 5, 3)
     M.free()
 
@@ -184,7 +205,6 @@ def lifeguard(M, x, z, r):
     M.m('madeira'); M.quad((x - 0.5, yb + 2.6, z + 2.6), (x + 0.5, yb + 2.6, z + 2.6), (x + 0.5, yb + 0.05, z + 5.6), (x - 0.5, yb + 0.05, z + 5.6), WHITE, (0, 1, 0.8))
     M.m('liso'); M.cyl(x + 1.7, z + 2.4, 0.03, yb + 2.7, yb + 6.2, (220, 220, 220), 4, False)
     M.quad((x + 1.7, yb + 5.5, z + 2.4), (x + 2.6, yb + 5.5, z + 2.4), (x + 2.6, yb + 6.1, z + 2.4), (x + 1.7, yb + 6.1, z + 2.4), (236, 70, 50), (0, 0, 1))
-    M.quad((x + 2.6, yb + 5.5, z + 2.4), (x + 1.7, yb + 5.5, z + 2.4), (x + 1.7, yb + 6.1, z + 2.4), (x + 2.6, yb + 6.1, z + 2.4), (236, 70, 50), (0, 0, -1))
     M.free()
 
 

@@ -153,6 +153,10 @@ class Plan:
             if z in (140, 640): self.add(f'Rua Nz{z}', 'rua', [(600, z), (1560, z)]); continue
             wavy(f'Rua Nz{z}', (600, z), (1560, z), 10, 18); ew_streets.append((self.roads[-1], 600, 1560))
         self.add('Rua 1440 sul', 'centro', [(1440, 640), (1440, Z_ORLA)])
+        # faixa entre o centro e o rio: mais uma coluna de quadras (o parque ribeirinho vira um parque linear junto ao cais)
+        self.add('Rua do Cais', 'centro', [(1560, 640), (1560, Z_ORLA)])
+        for z in (750, 880, 1000, 1120, 1345, 1470, 1590):
+            self.add(f'Rua z{z}.cais', 'centro', [(1440, z), (1560, z)])
         # leste do rio
         XE0 = 1800
         self.add('Rua Ribeirinha Leste', 'rua', wave((XE0, 140), (XE0, Z_ORLA), 9, 1.4, 0.4))
@@ -210,20 +214,29 @@ class Plan:
             c = g.representative_point(); cx, cz = c.x, c.y
             zn = self.zone(g, cx, cz)
             if zn == 'ribeirinho':                                  # so a faixa junto ao rio (sem a mata do norte)
-                g2 = g.intersection(sbox(1452, 132, 1808, H))
+                g2 = g.intersection(sbox(1452, 132, 1808, 1690))
                 parts = [q for q in getattr(g2, 'geoms', [g2]) if q.geom_type == 'Polygon' and q.area > 200]
                 for q in parts:
                     c2 = q.representative_point(); self.blocks.append({'poly': q, 'cx': c2.x, 'cz': c2.y, 'zone': 'ribeirinho'})
                 continue
+            if zn == 'mata':                                        # a margem do rio colada na mata do norte tambem e parque ribeirinho
+                rb = sbox(1452, 132, 1808, 1690)
+                g2 = g.intersection(rb)
+                parts = [q for q in getattr(g2, 'geoms', [g2]) if q.geom_type == 'Polygon' and q.area > 200]
+                if parts:
+                    for q in parts:
+                        c2 = q.representative_point(); self.blocks.append({'poly': q, 'cx': c2.x, 'cz': c2.y, 'zone': 'ribeirinho'})
+                    g = g.difference(rb)
+                    if g.is_empty: continue
             self.blocks.append({'poly': g, 'cx': cx, 'cz': cz, 'zone': zn})
 
     def zone(self, g, cx, cz):
         minx, minz, maxx, maxz = g.bounds
         if cz > 1700: return 'praia'
-        if abs(cx - river_x(cz)) < 140 and (cx > 1450 and cx < 1800): return 'ribeirinho'
+        if abs(cx - river_x(cz)) < 112 and (cx > 1450 and cx < 1800) and not (cx < 1552 and cz > 640): return 'ribeirinho'
         if 840 <= cx <= 1080 and 880 <= cz <= 1120: return 'parque'
-        if 600 <= cx <= 1440 and 640 <= cz <= 1345: return 'centro'
-        if 600 <= cx <= 1440 and 1345 < cz <= 1690: return 'orla'
+        if 600 <= cx <= 1560 and 640 <= cz <= 1345: return 'centro'
+        if 600 <= cx <= 1560 and 1345 < cz <= 1690: return 'orla'
         if cz < 140 or cx < 120 or cx > 2440: return 'mata'
         if cx > 1800 and cz > 1540: return 'marina'
         return 'suburbio'

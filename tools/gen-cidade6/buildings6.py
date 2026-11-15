@@ -48,14 +48,14 @@ class Builder:
 
     def window(self, F, u, v, y, w, h, side=-1, shutters=None, face='v', trim=True):
         if face == 'v':
-            if trim: self.panel(F, u - w / 2 - 0.12, u + w / 2 + 0.12, v, y - 0.14, y + h + 0.12, TRIM, 'liso', side, 0.03)
-            self.panel(F, u - w / 2, u + w / 2, v, y, y + h, WHITE, 'janela', side, 0.05)
+            if trim: self.panel(F, u - w / 2 - 0.12, u + w / 2 + 0.12, v, y - 0.14, y + h + 0.12, TRIM, 'liso', side, 0.05)
+            self.panel(F, u - w / 2, u + w / 2, v, y, y + h, WHITE, 'janela', side, 0.1)
             if shutters:
                 for s in (-1, 1):
                     c0 = u + s * (w / 2 + 0.2); self.panel(F, min(c0, c0 + s * 0.45), max(c0, c0 + s * 0.45), v, y, y + h, shutters, 'liso', side, 0.05)
         else:
-            if trim: self.panel_u(F, v - w / 2 - 0.12, v + w / 2 + 0.12, u, y - 0.14, y + h + 0.12, TRIM, 'liso', side, 0.03)
-            self.panel_u(F, v - w / 2, v + w / 2, u, y, y + h, WHITE, 'janela', side, 0.05)
+            if trim: self.panel_u(F, v - w / 2 - 0.12, v + w / 2 + 0.12, u, y - 0.14, y + h + 0.12, TRIM, 'liso', side, 0.05)
+            self.panel_u(F, v - w / 2, v + w / 2, u, y, y + h, WHITE, 'janela', side, 0.1)
 
     # ------------------------------------------------------------ telhados
     def gable(self, F, u0, u1, v0, v1, y, rh, col, along_u=True, over=0.45, mat='telha', wallc=None, wallm='siding'):
@@ -67,7 +67,6 @@ class Builder:
                 M.m(mat); n = (F.vx * s * 0.6, 0.8, F.vz * s * 0.6)
                 L = math.hypot(vm - va, rh + over * rh / ((v1 - v0) / 2)); W_ = u1 - u0 + 2 * over
                 M.quad(*q, col, n, [(0, 0), (W_ / 3, 0), (W_ / 3, L / 3), (0, L / 3)])
-                M.m('liso'); M.quad(*q, shade(col, -45), (-n[0], -0.8, -n[2]))
             if wallc:
                 M.m(wallm)
                 for (ua, s) in ((u0, -1), (u1, 1)):
@@ -79,7 +78,6 @@ class Builder:
                 M.m(mat); n = (F.ux * s * 0.6, 0.8, F.uz * s * 0.6)
                 L = math.hypot(um - ua, rh); W_ = v1 - v0 + 2 * over
                 M.quad(*q, col, n, [(0, 0), (W_ / 3, 0), (W_ / 3, L / 3), (0, L / 3)])
-                M.m('liso'); M.quad(*q, shade(col, -45), (-n[0], -0.8, -n[2]))
             if wallc:
                 M.m(wallm)
                 for (va, s) in ((v0, -1), (v1, 1)):
@@ -259,7 +257,7 @@ class Builder:
                 self.panel(F, 0.3, w - 0.3, 0, y0 + 0.4, yg - 0.5, WHITE, 'vitrine', -1, 0.05, [(0, 1), (w / 3.0, 1), (w / 3.0, 0), (0, 0)])
             if awn:
                 q = [F.p(0.4, -0.05, yg - 0.3), F.p(w - 0.4, -0.05, yg - 0.3), F.p(w - 0.4, -1.6, yg - 0.9), F.p(0.4, -1.6, yg - 0.9)]
-                M.m('liso'); M.quad(*q, awn, (F.vx * -0.5, 0.85, F.vz * -0.5)); M.quad(*q, shade(awn, -40), (F.vx * 0.5, -0.85, F.vz * 0.5))
+                M.m('liso'); M.quad(*q, awn, (F.vx * -0.5, 0.85, F.vz * -0.5))
             self.box(F, -0.1, w + 0.1, -0.15, d, yg - 0.3, yg, shade(wall, -20), 'concreto', top=False)
         self.box(F, 0, w, 0, d, yg, y1, wall, facade, top=False, wall_uv=(3.0, fh, y1))
         self.box(F, -0.15, w + 0.15, -0.15, d + 0.15, y1, y1 + 0.35, shade(wall, -12), 'concreto', top=False)
@@ -303,13 +301,13 @@ class Builder:
     def parking(self, F, u0, u1, v0, v1, cars=None, y=Y0):
         """estacionamento: asfalto com vagas pintadas; cars(callback x,z,dx,dz) para os carros"""
         M = self.M
-        M.m('asfalto'); M.poly([F.p(u0, v0, y + 0.02), F.p(u1, v0, y + 0.02), F.p(u1, v1, y + 0.02), F.p(u0, v1, y + 0.02)], WHITE, (0, 1, 0))
+        M.m('asfalto'); M.poly([F.p(u0, v0, y + 0.05), F.p(u1, v0, y + 0.05), F.p(u1, v1, y + 0.05), F.p(u0, v1, y + 0.05)], WHITE, (0, 1, 0))
         M.m('liso')
         for row in ((v0 + 0.5, v0 + 5.5), (v1 - 5.5, v1 - 0.5)):
             u = u0 + 1
             while u < u1 - 2.5:
-                M.poly([F.p(u, row[0], y + 0.035), F.p(u + 0.12, row[0], y + 0.035), F.p(u + 0.12, row[1], y + 0.035), F.p(u, row[1], y + 0.035)], (245, 245, 240), (0, 1, 0))
-                if cars and self.rnd.random() < 0.45: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz, y + 0.02)
+                M.poly([F.p(u, row[0], y + 0.1), F.p(u + 0.12, row[0], y + 0.1), F.p(u + 0.12, row[1], y + 0.1), F.p(u, row[1], y + 0.1)], (245, 245, 240), (0, 1, 0))
+                if cars and self.rnd.random() < 0.45: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz, y + 0.05)
                 u += 2.6
 
     def shop_row(self, F, w, d, sign, wall, hgt=5.5, glass=True):

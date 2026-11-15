@@ -101,8 +101,8 @@ class House:
         """janela: vidro texturizado; na fachada (deep) ganha verga e peitoril em volume, venezianas e floreira"""
         B, F = self.B, self.F
         if face == 'v':
-            B.panel(F, u - w / 2 - 0.1, u + w / 2 + 0.1, v, y - 0.1, y + h + 0.1, self.trim, 'liso', side, 0.025)
-            B.panel(F, u - w / 2, u + w / 2, v, y, y + h, WHITE, 'janela', side, 0.045)
+            B.panel(F, u - w / 2 - 0.1, u + w / 2 + 0.1, v, y - 0.1, y + h + 0.1, self.trim, 'liso', side, 0.05)
+            B.panel(F, u - w / 2, u + w / 2, v, y, y + h, WHITE, 'janela', side, 0.1)
             if deep:
                 va, vb = (v - 0.1, v) if side < 0 else (v, v + 0.1)
                 self.box(u - w / 2 - 0.16, u + w / 2 + 0.16, va, vb, y + h + 0.06, y + h + 0.18, self.trim, 'liso')
@@ -115,8 +115,8 @@ class House:
                 fc = self.r.choice(FLOWERS)
                 self.M.m('folhagem'); self.M.prism(F.rect(u - w / 2 + 0.03, u + w / 2 - 0.03, v - 0.28, v - 0.06), y - 0.14, y + 0.02, mix(fc, (90, 150, 70), 0.35), True)
         else:
-            B.panel_u(F, v - w / 2 - 0.1, v + w / 2 + 0.1, u, y - 0.1, y + h + 0.1, self.trim, 'liso', side, 0.025)
-            B.panel_u(F, v - w / 2, v + w / 2, u, y, y + h, WHITE, 'janela', side, 0.045)
+            B.panel_u(F, v - w / 2 - 0.1, v + w / 2 + 0.1, u, y - 0.1, y + h + 0.1, self.trim, 'liso', side, 0.05)
+            B.panel_u(F, v - w / 2, v + w / 2, u, y, y + h, WHITE, 'janela', side, 0.1)
 
     def volume(self, u0, u1, v0, v1, floors, yb=None, corner_boards=True):
         yb = self.yb if yb is None else yb; y1 = yb + floors * self.fh
@@ -154,8 +154,8 @@ class House:
 
     def door(self, u, v, wide=1.0, sidelights=False, fan=False):
         B, F = self.B, self.F; yb = self.yb
-        B.panel(F, u - wide / 2 - 0.13, u + wide / 2 + 0.13, v, yb, yb + 2.24, self.trim, 'liso', -1, 0.025)
-        B.panel(F, u - wide / 2, u + wide / 2, v, yb, yb + 2.1, self.doorc, 'porta', -1, 0.05)
+        B.panel(F, u - wide / 2 - 0.13, u + wide / 2 + 0.13, v, yb, yb + 2.24, self.trim, 'liso', -1, 0.05)
+        B.panel(F, u - wide / 2, u + wide / 2, v, yb, yb + 2.1, self.doorc, 'porta', -1, 0.1)
         if sidelights:
             for s in (-1, 1): B.panel(F, u + s * (wide / 2 + 0.2) - 0.14, u + s * (wide / 2 + 0.2) + 0.14, v, yb + 0.3, yb + 2.1, WHITE, 'janela', -1, 0.05)
         if fan: B.panel(F, u - wide / 2, u + wide / 2, v, yb + 2.14, yb + 2.5, WHITE, 'janela', -1, 0.05)
@@ -202,11 +202,11 @@ class House:
         gw = gu1 - gu0
         if double and gw > 5.6 and self.r.random() < 0.5:                 # duas portas
             for c in (gu0 + gw * 0.27, gu0 + gw * 0.73):
-                B.panel(F, c - 1.35, c + 1.35, v0, yg, yg + 2.3, self.trim, 'liso', -1, 0.025)
-                B.panel(F, c - 1.25, c + 1.25, v0, yg, yg + 2.2, (246, 244, 240) if self.style != 'moderna' else (70, 72, 76), 'garagem', -1, 0.05)
+                B.panel(F, c - 1.35, c + 1.35, v0, yg, yg + 2.3, self.trim, 'liso', -1, 0.05)
+                B.panel(F, c - 1.25, c + 1.25, v0, yg, yg + 2.2, (246, 244, 240) if self.style != 'moderna' else (70, 72, 76), 'garagem', -1, 0.1)
         else:
-            B.panel(F, gu0 + 0.4, gu1 - 0.4, v0, yg, yg + 2.32, self.trim, 'liso', -1, 0.025)
-            B.panel(F, gu0 + 0.5, gu1 - 0.5, v0, yg, yg + 2.22, (246, 244, 240) if self.style != 'moderna' else (70, 72, 76), 'garagem', -1, 0.05, [(0, 1), (max(1, round(gw / 3)), 1), (max(1, round(gw / 3)), 0), (0, 0)])
+            B.panel(F, gu0 + 0.4, gu1 - 0.4, v0, yg, yg + 2.32, self.trim, 'liso', -1, 0.05)
+            B.panel(F, gu0 + 0.5, gu1 - 0.5, v0, yg, yg + 2.22, (246, 244, 240) if self.style != 'moderna' else (70, 72, 76), 'garagem', -1, 0.1, [(0, 1), (max(1, round(gw / 3)), 1), (max(1, round(gw / 3)), 0), (0, 0)])
         self.box((gu0 + gu1) / 2 - 0.12, (gu0 + gu1) / 2 + 0.12, v0 - 0.14, v0, yg + 2.45, yg + 2.7, (40, 40, 42), 'liso')
         if roof == 'gable': self.gable(gu0, gu1, v0, v0 + depth, y1, 1.5, False, 0.4)
         elif roof == 'gable_u': self.gable(gu0, gu1, v0, v0 + depth, y1, 1.5, True, 0.4)
@@ -229,7 +229,7 @@ class House:
         # juntas de dilatacao
         M.m('liso')
         for vv in (v_end * 0.33, v_end * 0.66):
-            y = yw + (Y0 + 0.07 - yw) * vv / max(v_end, 0.1) + 0.006
+            y = yw + (Y0 + 0.07 - yw) * vv / max(v_end, 0.1) + 0.03
             M.poly([F.p(u0, vv - 0.03, y), F.p(u1, vv - 0.03, y), F.p(u1, vv + 0.03, y), F.p(u0, vv + 0.03, y)], (170, 168, 162), (0, 1, 0))
         cx, cz = F.xz((u0 + u1) / 2, -2.6)
         self.B.drives.append((cx, cz, (u1 - u0) / 2 + 1.6))
