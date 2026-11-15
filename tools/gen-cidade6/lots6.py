@@ -6,6 +6,7 @@ from mesh import rgb, shade, mix, WHITE, Frame
 from plan6 import *
 from roads6 import Y_LAWN, Y_WALK
 import buildings6 as B6
+import houses6 as H6
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CITY2 = os.path.join(HERE, '..', '..', 'app', 'src', 'main', 'assets', 'hds', 'city2.json')
@@ -20,7 +21,8 @@ HOUSE_BAIRRO = {0: 'Vila Esperança', 11: 'Vila Esperança', 7: 'Vila Esperança
 BAIRRO_REG = {'Vila Esperança': (120, 600, 1340, 1650), 'Parque das Flores': (600, 1560, 240, 640), 'Jardim Central': (1800, 2440, 540, 1040),
               'Recanto do Sul': (1800, 2440, 1340, 1540), 'Alto da Colina': (600, 1560, 140, 240), 'Península Real': (1800, 2440, 1040, 1240)}
 FRONT_SB = 7.0       # recuo da frente dos lotes das casas do jogador
-FAMILIES = (('ranch', 'craftsman'), ('colonial', 'cape'), ('craftsman', 'ranch'), ('cape', 'colonial'), ('ranch', 'moderna'), ('colonial', 'ranch'), ('craftsman', 'colonial'))
+FAMILIES = (('ranch', 'craftsman'), ('colonial', 'cape'), ('craftsman', 'farmhouse'), ('cape', 'colonial'), ('ranch', 'moderna'), ('colonial', 'farmhouse'),
+            ('craftsman', 'colonial'), ('farmhouse', 'ranch'), ('mediterranea', 'ranch'), ('moderna', 'mediterranea'), ('cape', 'craftsman'))
 
 
 class Lots:
@@ -54,7 +56,7 @@ class Lots:
         M.free()
 
     # ------------------------------------------------------------ especiais
-    SPECIAL = {'prefeitura': (1140, 940, 'W'), 'igreja': (780, 1060, 'E'), 'hospital': (1380, 700, 'N'),
+    SPECIAL = {'prefeitura': (1140, 940, 'W'), 'igreja': (770, 1060, 'E'), 'hospital': (1375, 695, 'N'),
                'escola_o': (240, 790, 'N'), 'escola_n': (960, 390, 'N'), 'escola_l': (2160, 790, 'N')}
 
     def find_specials(self):
@@ -171,8 +173,8 @@ class Lots:
                     B.shop_row(Fs, w - 2, bd, r.choice(signs), r.choice(walls), 7.5 if kind == 'mercado' else 5.0)
             s += w; first = False
 
-    def park_car(self, x, z, dx, dz):
-        self.parked.append((x, z, dx, dz))
+    def park_car(self, x, z, dx, dz, y=None):
+        self.parked.append((x, z, dx, dz, y if y is not None else Y_LAWN + 0.04))
 
     def special_block(self, bi, blk, nm, side):
         poly = blk['poly']; minx, minz, maxx, maxz = poly.bounds; B = self.B; r = self.rnd
@@ -225,8 +227,8 @@ class Lots:
         B.box(F, w - 0.12, w, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
         B.box(F, 0, 0.12, vf, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
         B.box(F, 0, w, d - 0.22, d - 0.1, Y_LAWN, Y_LAWN + 1.8, fc, 'cerca')
-        B.box(F, 1.0, 1.1, 0.4, 0.5, Y_LAWN, Y_LAWN + 1.05, (90, 90, 92), 'metal')
-        B.box(F, 0.83, 1.27, 0.3, 0.75, Y_LAWN + 1.0, Y_LAWN + 1.3, rgb('#7A2E2E'), 'metal')
+        hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r      # entrada de carro e caixa de correio do lote
+        hh.driveway(w - 3.7, w - 0.7, sb + 4.5); hh.mailbox(w - 4.5)
         cx, cz = F.xz(w / 2, sb + hd / 2)
         fx, fz = -F.vx, -F.vz                                     # frente da casa: para a rua
         self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': self.plots[k]['name'], 'bairro': HOUSE_BAIRRO[k],
@@ -237,7 +239,45 @@ class Lots:
         if d < sb + hd + 2: print(f'  aviso: lote da casa {k + 1} raso ({d:.1f} m para {hd:.1f} m de casa)')
 
     # ------------------------------------------------------------ centro
-    def centro(self, bi, blk):
+    def fountain(self, x, z, R=4.5, y=Y_WALK):
+        M = self.M; M.at(x, z, 'lotes')
+        M.m('pedra'); M.cyl(x, z, R, y, y + 0.55, WHITE, 16, True)
+        M.m('agua'); M.cyl(x, z, R - 0.45, y + 0.55, y + 0.57, (200, 232, 240), 16, True)
+        M.m('pedra'); M.cyl(x, z, 0.5, y + 0.5, y + 1.8, WHITE, 8, True); M.cyl(x, z, 1.5, y + 1.8, y + 2.0, WHITE, 10, True)
+        M.m('agua'); M.cyl(x, z, 1.25, y + 2.0, y + 2.03, (200, 232, 240), 10, True)
+        M.m('liso'); M.cyl(x, z, 0.12, y + 2.0, y + 3.4, (225, 240, 248), 5, False, 0.02)
+        M.free('lotes')
+
+    def planter(self, x0, z0, x1, z1, y=Y_WALK, trees=True, flowers=True):
+        """canteiro elevado com borda de pedra, grama, flores e arvores"""
+        r = self.rnd; M = self.M; M.at((x0 + x1) / 2, (z0 + z1) / 2, 'lotes')
+        M.m('pedra'); M.prism([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], y, y + 0.42, WHITE, False)
+        M.m('grama'); M.poly([(x0 + 0.25, y + 0.4, z0 + 0.25), (x1 - 0.25, y + 0.4, z0 + 0.25), (x1 - 0.25, y + 0.4, z1 - 0.25), (x0 + 0.25, y + 0.4, z1 - 0.25)], WHITE, (0, 1, 0))
+        M.free('lotes')
+        if trees:
+            n = max(1, int((x1 - x0) * (z1 - z0) / 60))
+            for _ in range(n): self.trees.append((r.uniform(x0 + 1.5, x1 - 1.5), r.uniform(z0 + 1.5, z1 - 1.5), r.choice(('folhosa', 'oval', 'florida', 'ornamental')), r.uniform(0.8, 1.05), y + 0.4))
+        if flowers:
+            for _ in range(int((x1 - x0 + z1 - z0) / 3)):
+                self.trees.append((r.uniform(x0 + 0.7, x1 - 0.7), r.choice((z0 + 0.7, z1 - 0.7)), 'flores', 0.7, y + 0.4))
+
+    def plaza(self, x0, z0, x1, z1, fountain=True):
+        """praca: fonte no centro, quatro canteiros, bancos virados para a fonte, postes baixos"""
+        r = self.rnd; cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+        w, d = x1 - x0, z1 - z0
+        if w < 16 or d < 16:
+            self.planter(x0 + 2, z0 + 2, x1 - 2, z1 - 2); return
+        g = 5.0 if fountain else 2.0
+        for (a, b, c, e) in ((x0 + 3, z0 + 3, cx - g, cz - g), (cx + g, z0 + 3, x1 - 3, cz - g), (x0 + 3, cz + g, cx - g, z1 - 3), (cx + g, cz + g, x1 - 3, z1 - 3)):
+            if c - a > 4 and e - b > 4: self.planter(a, b, c, e)
+        if fountain and min(w, d) > 26: self.fountain(cx, cz, min(4.5, min(w, d) / 8))
+        else: self.trees.append((cx, cz, 'folhosa', 1.2, Y_WALK))
+        for (dx, dz) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            self.benches.append((cx + dx * 7.5, cz + dz * 7.5, -dx, -dz, Y_WALK))
+            if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
+
+    def centro(self, bi, blk, resid=False):
+        import centro6 as C6
         poly = blk['poly']; r = self.rnd; B = self.B
         minx, minz, maxx, maxz = poly.bounds
         self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
@@ -245,76 +285,110 @@ class Lots:
         dc = math.hypot(cx - 1140, cz - 1000)
         hmax = int(max(5, 30 - dc / 22))
         w, d = maxx - minx, maxz - minz
-        # quadras de torres: 2 a 4 torres de 30-40 m sobre praca, com jardins e espelho d'agua
-        if dc < 360 and r.random() < 0.62:
-            tints = ((205, 215, 222), (225, 225, 215), (190, 208, 200), (215, 205, 190), (175, 190, 210))
-            pods = ((70, 75, 82), (150, 140, 128), (205, 200, 190), (110, 100, 92))
-            n = r.choice((2, 2, 3, 4)); placed = []
-            slots = [(minx + 4, minz + 4), (maxx - 4, minz + 4), (minx + 4, maxz - 4), (maxx - 4, maxz - 4)]
-            r.shuffle(slots)
-            for (sx, sz) in slots[:n]:
-                tw = r.uniform(30, 40); td = r.uniform(28, 38)
-                x0 = sx if sx < cx else sx - tw; z0 = sz if sz < cz else sz - td
-                B.tower(Frame((x0, z0), (1, 0)), tw, td, r.randint(max(12, hmax - 8), hmax + 10), r.choice(tints), r.choice(pods), r.choice(((230, 228, 222), (60, 64, 70), (180, 160, 120))))
-                placed.append(sbox(x0 - 3, z0 - 3, x0 + tw + 3, z0 + td + 3))
-            from shapely.ops import unary_union
-            free = sbox(minx + 3, minz + 3, maxx - 3, maxz - 3).difference(unary_union(placed))
-            self.M.free('lotes'); self.M.m('grama')
-            for g in getattr(free, 'geoms', [free]):
-                if g.area < 60: continue
-                gg = g.buffer(-3)
-                if gg.is_empty: continue
-                self.M.shp(gg, Y_WALK + 0.03, WHITE)
-                for _ in range(int(gg.area / 90)):
-                    p = gg.representative_point() if False else None
-                    x = r.uniform(gg.bounds[0], gg.bounds[2]); z = r.uniform(gg.bounds[1], gg.bounds[3])
-                    if gg.contains(Point(x, z)): self.trees.append((x, z, 'folhosa', r.uniform(0.9, 1.2)))
+        kind = r.random()
+        self.M.free('lotes')
+        # ---- quadra-praca
+        if kind < 0.07 and dc > 150:
+            self.plaza(minx + 2, minz + 2, maxx - 2, maxz - 2)
+            # quiosques / bancas nos cantos
+            for (kx, kz) in ((minx + 7, minz + 7), (maxx - 7, maxz - 7)):
+                Fk = Frame((kx - 2.5, kz - 2), (1, 0))
+                B.box(Fk, 0, 5, 0, 4, Y_WALK, Y_WALK + 2.7, r.choice(C6.SIGNS), 'liso', top=False)
+                B.panel(Fk, 0.4, 4.6, 0, Y_WALK + 1.0, Y_WALK + 2.2, (60, 64, 70), 'liso', -1, 0.04)
+                B.box(Fk, -0.5, 5.5, -1.2, 4.3, Y_WALK + 2.7, Y_WALK + 2.9, (240, 238, 232), 'concreto'); B.solid(Fk, 0, 5, 0, 4)
             return
-        # perimetro de predios colados (frente para as 4 ruas), patio no miolo
-        Dp = r.uniform(17, 22)
-        walls = [rgb(c) for c in ('#F2ECE0', '#E7D9C4', '#D9DDE2', '#F4E8D8', '#E2CFC0', '#CFD8D2', '#EADFCF', '#DCD3E3', '#C9B8A6', '#E8E1D5')]
-        awns = [rgb(c) for c in ('#B83A3A', '#2E6A4A', '#2F4A7A', '#C9822E', '#6A2E5A', '#3A3A3A')]
+        # ---- quadra de torres sobre praca
+        if dc < 380 and kind < 0.55 and min(w, d) > 80:
+            n = r.choice((1, 2, 2, 3, 3, 4)); sides = ['N', 'S', 'E', 'W']; r.shuffle(sides); used = []
+            for side in sides[:n]:
+                tw = r.uniform(30, 42); td = r.uniform(28, 38)
+                if n == 1: tw, td = r.uniform(44, 56), r.uniform(40, 50)
+                Ls = w if side in ('N', 'S') else d
+                s0 = 2.0 if n > 1 else (Ls - tw) / 2
+                F = self.frame(side, minx, maxx, minz, maxz, s0)
+                fp = Polygon(F.rect(0, tw, 0, td))
+                if any(fp.buffer(4).intersects(u) for u in used): continue
+                fl = r.randint(max(12, hmax - 10), hmax + 12)
+                self.M.at(*F.xz(tw / 2, td / 2), 'lotes'); C6.tower(B, F, tw, td, fl); self.M.free('lotes')
+                used.append(fp)
+            from shapely.ops import unary_union
+            free = sbox(minx + 2, minz + 2, maxx - 2, maxz - 2).difference(unary_union(used).buffer(3))
+            for g in getattr(free, 'geoms', [free]):
+                if g.area < 150: continue
+                # maior retangulo simples dentro da sobra: tenta os 4 quadrantes
+                bx0, bz0, bx1, bz1 = g.bounds
+                for (a, b_, c, e) in ((bx0, bz0, cx - 2, cz - 2), (cx + 2, bz0, bx1, cz - 2), (bx0, cz + 2, cx - 2, bz1), (cx + 2, cz + 2, bx1, bz1)):
+                    q = sbox(a + 1, b_ + 1, c - 1, e - 1)
+                    if c - a > 12 and e - b_ > 12 and q.within(g): self.plaza(a + 1, b_ + 1, c - 1, e - 1, r.random() < 0.4)
+            return
+        # ---- edificio-garagem em meia quadra
+        garage = kind > 0.94 and w > 70
+        # ---- perimetro de predios colados (frente para as 4 ruas)
+        depths = {sd: r.uniform(16, 23) for sd in 'NESW'}
         for side in ('N', 'E', 'S', 'W'):
             Lside = w if side in ('N', 'S') else d
-            s = 0.0
-            start, end = (0.0, Lside - Dp)                       # cada lado comeca na sua quina (quinas sem sobreposicao)
-            s = start
+            nxt = {'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N'}[side]
+            s = 0.0; end = Lside - depths[nxt]
+            if garage and side == 'S':
+                F = self.frame(side, minx, maxx, minz, maxz, 0.5)
+                self.M.at(*F.xz(20, 15), 'lotes')
+                for ((px, pz), py) in C6.parking_garage(B, F, min(end - 1, 46), 30, r.choice((4, 5, 6))): self.parked.append((px, pz, F.vx, F.vz, py))
+                self.M.free('lotes'); s = min(end - 1, 46) + 1.5
             while s < end - 6:
-                pw = min(r.uniform(14, 28), end - s)
+                pw = min(r.uniform(13, 30), end - s)
                 if end - s - pw < 9: pw = end - s
                 F = self.frame(side, minx, maxx, minz, maxz, s)
-                fl = max(3, min(hmax, int(r.uniform(0.45, 1.0) * hmax)))
-                fac = 'janelas' if r.random() < 0.6 else 'escritorio'
-                if fac == 'escritorio': fl = max(3, int(fl * 0.85))
-                B.midrise(F, pw - 0.15, Dp, fl, r.choice(walls), fac, True, r.choice(awns) if r.random() < 0.6 else None)
+                fl = max(3, min(hmax + 3, int(r.uniform(0.35, 1.1) * hmax)))
+                if resid: fl = max(4, int(fl * 0.9))
+                self.M.at(*F.xz(pw / 2, depths[side] / 2), 'lotes')
+                C6.midrise(B, F, pw - 0.15, depths[side] - r.choice((0, 0, 1.5, 3.0)), fl, None, None, True, None, True, r.choice(('moderna', 'janelas', 'moderna', 'classica')) if resid else None)
+                self.M.free('lotes')
                 s += pw
-        # miolo: patio ajardinado
-        inner = sbox(minx + Dp + 1, minz + Dp + 1, maxx - Dp - 1, maxz - Dp - 1)
-        if inner.area > 50:
-            self.M.free('lotes'); self.M.m('grama'); self.M.shp(inner, Y_WALK + 0.02, WHITE)
-            for _ in range(int(inner.area / 120)):
-                x = r.uniform(inner.bounds[0] + 2, inner.bounds[2] - 2); z = r.uniform(inner.bounds[1] + 2, inner.bounds[3] - 2)
-                self.trees.append((x, z, 'folhosa', r.uniform(0.8, 1.1)))
+        # ---- miolo: jardim, estacionamento ou parquinho
+        ix0, iz0, ix1, iz1 = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5, maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5
+        if garage: iz1 -= 12
+        if ix1 - ix0 > 10 and iz1 - iz0 > 10:
+            opt = r.random()
+            if opt < 0.4:
+                Fp = Frame((ix0, iz0), (1, 0)); self.M.at((ix0 + ix1) / 2, (iz0 + iz1) / 2, 'lotes')
+                B.parking(Fp, 0.5, ix1 - ix0 - 0.5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes')
+            elif opt < 0.85: self.plaza(ix0, iz0, ix1, iz1, False)
+            else:
+                self.M.free('lotes'); self.M.m('grama'); self.M.shp(sbox(ix0, iz0, ix1, iz1), Y_WALK + 0.03, WHITE)
+                for _ in range(int((ix1 - ix0) * (iz1 - iz0) / 110)): self.trees.append((r.uniform(ix0 + 2, ix1 - 2), r.uniform(iz0 + 2, iz1 - 2), r.choice(('folhosa', 'oval', 'florida')), r.uniform(0.8, 1.1), Y_WALK))
 
     def orla(self, bi, blk):
+        import centro6 as C6
         poly = blk['poly']; r = self.rnd; B = self.B
         minx, minz, maxx, maxz = poly.bounds
-        self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
         w, d = maxx - minx, maxz - minz
-        near_sea = maxz > 1650
-        if near_sea:      # hotel/residencial de frente para o mar: podio + 2 laminas, deck com piscina
-            F = Frame((maxx - 2, maxz - 2), (-1, 0))
-            hw = (w - 10) / 2
-            for k in range(2):
-                Fk = Frame(F.xz(2 + k * (hw + 6), 0), (-1, 0))
-                B.midrise(Fk, hw, min(18, d - 6), r.randint(14, 24), r.choice([rgb(c) for c in ('#F4F1EA', '#EFE6D6', '#E2ECEF', '#F2E9E1')]), 'janelas', True, r.choice(((40, 110, 160), (200, 120, 60), (60, 140, 110))))
-            pu0, pu1 = 6, w - 6; pv0, pv1 = min(18, d - 6) + 4, d - 6
-            if pv1 - pv0 > 6:
-                B.box(F, pu0, pu1, pv0, pv1, Y_WALK, Y_WALK + 0.15, WHITE, 'madeira')
-                self.M.m('agua'); self.M.poly([F.p(pu0 + 3, pv0 + 2, Y_WALK + 0.26), F.p(pu1 - 3, pv0 + 2, Y_WALK + 0.26), F.p(pu1 - 3, pv1 - 2, Y_WALK + 0.26), F.p(pu0 + 3, pv1 - 2, Y_WALK + 0.26)], (150, 230, 240), (0, 1, 0))
-                for _ in range(4): self.trees.append((*F.xz(r.uniform(pu0, pu1), r.choice((pv0 - 1, pv1 + 1))), 'palmeira', r.uniform(0.9, 1.2)))
-        else:
-            self.centro(bi, blk)
+        if maxz < 1650: self.centro(bi, blk, True); return
+        self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+        # frente para o mar (lado sul): 1 ou 2 hoteis/residenciais; fundos (lado norte): predios; miolo: jardim com palmeiras e estacionamento
+        n = 2 if w > 84 else 1; gap = 8.0; hw = (w - 4 - gap * (n - 1)) / n
+        hd = min(30.0, d * 0.45)
+        for k in range(n):
+            F = self.frame('S', minx, maxx, minz, maxz, 2 + k * (hw + gap))
+            self.M.at(*F.xz(hw / 2, hd / 2), 'lotes')
+            C6.beach_hotel(B, F, hw, hd, r.randint(10, 22)); self.M.free('lotes')
+            if k: 
+                gx = maxx - (2 + k * (hw + gap)) + gap / 2
+                for zz in (maxz - 4, maxz - 12, maxz - 20): self.trees.append((gx, zz, 'palmeira', r.uniform(0.9, 1.15), Y_WALK))
+        Dn = r.uniform(16, 20); s = 0.0
+        while s < w - 6:
+            pw = min(r.uniform(16, 30), w - s)
+            if w - s - pw < 10: pw = w - s
+            F = self.frame('N', minx, maxx, minz, maxz, s)
+            self.M.at(*F.xz(pw / 2, Dn / 2), 'lotes')
+            C6.midrise(B, F, pw - 0.15, Dn, r.randint(4, 9), None, None, True, None, True, r.choice(('moderna', 'janelas', 'moderna'))); self.M.free('lotes')
+            s += pw
+        iz0, iz1 = minz + Dn + 2, maxz - hd - 2
+        if iz1 - iz0 > 12:
+            half = (minx + maxx) / 2
+            Fp = Frame((minx + 3, iz0), (1, 0)); self.M.at(minx + w / 4, (iz0 + iz1) / 2, 'lotes')
+            B.parking(Fp, 0, half - minx - 5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes')
+            self.plaza(half + 1, iz0, maxx - 3, iz1, False)
+            for xx in (half + 2, maxx - 4): self.trees.append((xx, (iz0 + iz1) / 2, 'palmeira', 1.0, Y_WALK))
 
     # ------------------------------------------------------------ suburbios: lotes ao longo das ruas curvas
     def _depth_to_middle(self, mx, mz, nx, nz, dmax=46.0):
@@ -437,8 +511,8 @@ class Lots:
                 elif avenue: self.commercial_lot(F, cl, Dq)
                 else:
                     style = fam[0] if r.random() < 0.68 else fam[1]
-                    info = B.house(F, cl, Dq, style, self.palette(style, pal_base), sf, 1 if q % 2 == 0 else -1, picket, True, True, False)
-                    self.yard_plants(F, cl, Dq, info)
+                    r3 = r.random(); style = fam[0] if r3 < 0.55 else (fam[1] if r3 < 0.9 else r.choice(H6.STYLES))
+                    self.put_house(F, cl, Dq, style, pal_base, sf, 1 if q % 2 == 0 else -1, picket, True, q == 0)
                 placed = True; q += 1; break
             if not placed and kres is not None: res.insert(0, kres); res_at.insert(0, pos + 3); self.retry = getattr(self, 'retry', {}); self.retry[kres] = self.retry.get(kres, 0) + 1
             pos += (cl + 0.3) if placed else 3.0
@@ -483,8 +557,7 @@ class Lots:
                 if not self._free(poly): continue
                 self._take(poly)
                 style = fam[0] if r.random() < 0.6 else fam[1]
-                info = B.house(F, cl, Dq, style, self.palette(style, pal_base), sf, 1, False, False, False, False)
-                self.yard_plants(F, cl, Dq, info)
+                self.put_house(F, cl, min(Dq, 30.0), style, pal_base, sf, 1 if q % 2 == 0 else -1, False, False, False)
                 break
 
     def pocket_parks(self):
@@ -518,6 +591,16 @@ class Lots:
                     self.trees.append((x, z, r.choice(('folhosa', 'folhosa', 'oval', 'conifera', 'arbusto')), r.uniform(0.9, 1.3)))
             self.benches.append((c.x + 3, c.y + 2.2, 0, -1)); self.benches.append((c.x - 3, c.y - 2.2, 0, 1))
         print(f'  pracinhas no miolo das quadras: {n}')
+
+    def put_house(self, F, w, d, style, pal_base, sf, gside, picket, fence, first):
+        r = self.rnd
+        cx, cz = F.xz(w / 2, min(d, 30) / 2)
+        self.M.at(cx, cz, 'lotes')
+        self.B.M.ao = True
+        h = H6.House(self.B, F, w, d, style, H6.palette(style, r, pal_base), sf, gside, r, fence, first, picket)
+        info = h.build()
+        self.M.free('lotes')
+        for (pu, pv, kind, sc) in info['plants']: self.trees.append((*F.xz(pu, pv), kind, sc))
 
     def yard_plants(self, F, w, d, info):
         r = self.rnd
@@ -553,6 +636,6 @@ class Lots:
             elif z == 'centro': self.centro(bi, blk)
             elif z == 'orla': self.orla(bi, blk)
             elif z in ('parque', 'ribeirinho'): self.lawn(blk['poly'])
-            elif z == 'praia': self.lawn(blk['poly'], 'paver', Y_WALK, (240, 236, 228))
+            elif z == 'praia': pass                     # calcadao, mureta e areia: orla6.py
         self.suburbs()
         return self

@@ -93,20 +93,25 @@ class Plan:
         Z_ORLA = 1688.0
         XR = lambda z: river_x(z)
         # centro: grade 120 m
-        DX = [600, 720, 840, 960, 1080, 1200, 1320, 1440]
-        DZ = [640, 760, 880, 1000, 1120, 1240, 1360, 1480, 1590]
+        # centro: grade IRREGULAR (quadras de tamanhos diferentes) com trechos de rua suprimidos (superquadras)
+        DX = [600, 705, 840, 960, 1080, 1200, 1310, 1440]
+        DZ = [640, 750, 880, 1000, 1120, 1240, 1345, 1470, 1590]
         park = (840, 1080, 880, 1120)                                   # Parque Central (2x2 quadras)
+        cutx = {960: [(park[2], park[3]), (640, 750)], 705: [(1345, 1470)]}      # rua N-S x: trechos sem rua
+        cutz = {1000: [(park[0], park[1])], 1470: [(1310, 1440)], 750: [(600, 705)]}
+        def pieces(lo, hi, cuts):
+            out = []; cur = lo
+            for (c0, c1) in sorted(cuts):
+                if c0 > cur: out.append((cur, c0))
+                cur = max(cur, c1)
+            if cur < hi: out.append((cur, hi))
+            return out
         for x in DX:
             if x == 1200: continue                                      # Av. Central (abaixo)
-            zz0, zz1 = 640, Z_ORLA
-            if park[0] < x < park[1]:                                   # x=960 interrompida pelo parque
-                self.add(f'Rua {x}', 'centro', [(x, zz0), (x, park[2])]); self.add(f'Rua {x}b', 'centro', [(x, park[3]), (x, zz1)]); continue
-            self.add(f'Rua {x}', 'centro' if x not in (600, 1440) else 'centro', [(x, zz0), (x, zz1)])
+            for k, (z0_, z1_) in enumerate(pieces(640, Z_ORLA, cutx.get(x, []))): self.add(f'Rua {x}.{k}', 'centro', [(x, z0_), (x, z1_)])
         for z in DZ:
             if z == 1240: continue                                      # Av. das Nacoes (abaixo)
-            if park[2] < z < park[3]:
-                self.add(f'Rua z{z}', 'centro', [(600, z), (park[0], z)]); self.add(f'Rua z{z}b', 'centro', [(park[1], z), (1440, z)]); continue
-            self.add(f'Rua z{z}', 'centro', [(600, z), (1440, z)])
+            for k, (x0_, x1_) in enumerate(pieces(600, 1440, cutz.get(z, []))): self.add(f'Rua z{z}.{k}', 'centro', [(x0_, z), (x1_, z)])
         # avenidas
         self.add('Av. Central', 'av', [(1200, 0), (1200, Z_ORLA)])
         self.add('Av. das Nacoes', 'av', [(0, 1240), (W, 1240)])
@@ -210,8 +215,8 @@ class Plan:
         if cz > 1700: return 'praia'
         if abs(cx - river_x(cz)) < 140 and (cx > 1450 and cx < 1800): return 'ribeirinho'
         if 840 <= cx <= 1080 and 880 <= cz <= 1120: return 'parque'
-        if 600 <= cx <= 1440 and 640 <= cz <= 1360: return 'centro'
-        if 600 <= cx <= 1440 and 1360 < cz <= 1690: return 'orla'
+        if 600 <= cx <= 1440 and 640 <= cz <= 1345: return 'centro'
+        if 600 <= cx <= 1440 and 1345 < cz <= 1690: return 'orla'
         if cz < 140 or cx < 120 or cx > 2440: return 'mata'
         if cx > 1800 and cz > 1540: return 'marina'
         return 'suburbio'

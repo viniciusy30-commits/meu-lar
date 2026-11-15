@@ -81,10 +81,10 @@ class Ground:
         h += hh * np.clip((d - 6) / 30, 0, 1)
         # praia e mar
         sz = np.vectorize(shore_z)(X)
-        beach0 = sz - 78
-        t = np.clip((Z - beach0) / 78, 0, 1)
-        hb = 0.12 - 1.0 * t ** 1.3
-        h = np.where(Z > beach0 + 2, hb, h)
+        ZW = 1718.0                                              # mureta do calcadao: dali para o sul e areia
+        t = np.clip((Z - ZW) / np.maximum(sz - ZW, 1.0), 0, 1)
+        hb = -0.35 - 0.55 * t ** 1.2
+        h = np.where(Z > ZW, hb, h)
         h = np.where(Z > sz, -0.9 - np.clip((Z - sz) / 120, 0, 1) * 6.0, h)
         # rio (leito)
         rx = np.vectorize(river_x)(Z)
@@ -108,7 +108,7 @@ class Ground:
         C[:] = grass * (1 - 0.25 * nn[..., None]) + dark * 0.25 * nn[..., None]
         C = np.where((Hh > 6)[..., None], C * 0.85 + dark * 0.15, C)
         C = np.where((slope > 0.75)[..., None], C * 0.45 + rock * 0.55, C)
-        C = np.where((Z > sz - 80)[..., None] & (Hh < 0.3)[..., None], sand, C)
+        C = np.where((Z > 1712)[..., None] & (Hh < 0.3)[..., None], sand, C)
         C = np.where((Hh < -1.0)[..., None], bed, C)
         P3 = np.dstack([X, Hh, Z])
         self.H = Hh; self.st = st

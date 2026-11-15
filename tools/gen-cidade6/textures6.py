@@ -200,7 +200,7 @@ def cerca():
     v = v * light(np.where(u < 0.04, 0.0, 1.0) + 0.1 * fbm(N, 40, 2, 47), 0.9) * np.where(u < 0.035, 0.5, 1.0)
     rail = (np.abs(Y - N * 0.18) < 10) | (np.abs(Y - N * 0.82) < 10)
     v = np.where(rail, v * 0.88, v)
-    return np.dstack([v * 238, v * 214, v * 182])
+    return rgb3((255, 255, 255), v * 1.08)
 
 
 def metal():
@@ -259,14 +259,16 @@ def fachada_classica():
 
 
 def fachada_vidro():
-    sky = 0.50 + 0.40 * (1 - Y / N) + 0.10 * fbm(N, 3, 3, 52)
-    cloud = np.clip((fbm(N, 4, 4, 53) - 0.5) * 2, 0, 1) * 0.25
-    pane = ((X // (N / 2)) % 2) * 0.04
-    img = np.dstack([(sky + cloud + pane) * 82, (sky + cloud + pane) * 118, (sky + cloud * 0.8 + pane) * 150 + 18])
+    """parede-cortina clara (reflete o ceu): 2 baias de 1,5 m x 1 andar de 3,6 m; a cor do vertice da o tom do vidro"""
+    sky = 0.62 + 0.30 * (1 - Y / N) + 0.06 * fbm(N, 3, 3, 52)
+    cloud = np.clip((fbm(N, 4, 4, 53) - 0.5) * 2, 0, 1) * 0.22
+    pane = ((X // (N / 2)) % 2) * 0.035
+    v = sky + cloud + pane
+    img = np.dstack([v * 150, v * 190, v * 226])
     spand = Y > N * 0.80
-    img[spand] = np.array([92.0, 104.0, 116.0]) * (0.9 + 0.1 * fbm(N, 8, 2, 54)[spand][:, None])
-    img[((X % (N / 2)) < 9) | ((Y % N) < 10) | (np.abs(Y - N * 0.80) < 5)] = (196, 200, 206)
-    img[((X % (N / 2)) >= 9) & ((X % (N / 2)) < 14)] *= 0.75
+    img[spand] = np.array([120.0, 140.0, 158.0]) * (0.9 + 0.1 * fbm(N, 8, 2, 54)[spand][:, None])
+    img[((X % (N / 2)) < 9) | ((Y % N) < 10) | (np.abs(Y - N * 0.80) < 5)] = (214, 218, 224)
+    img[((X % (N / 2)) >= 9) & ((X % (N / 2)) < 14)] *= 0.8
     return img
 
 
@@ -331,10 +333,13 @@ def garagem():
 
 # ================================================================ natureza
 def folhagem():
-    idx, edge = voronoi(512, 1400, 66)
+    """massa de folhas suave: tufos claros/escuros sem contraste duro (a forma vem da geometria)"""
+    idx, edge = voronoi(512, 900, 66)
     idx = np.tile(idx, (2, 2)); edge = np.tile(edge, (2, 2))
-    v = (0.60 + 0.30 * hash01(idx, 15)) * light(np.clip(edge / 6, 0, 1), 1.2) * np.where(edge < 1.2, 0.55, 1.0)
-    return rgb3((255, 255, 255), v * (0.85 + 0.15 * fbm(N, 6, 3, 67)))
+    tone = 0.80 + 0.16 * hash01(idx, 15)
+    v = tone * (0.92 + 0.08 * np.clip(edge / 5, 0, 1)) * light(np.clip(edge / 8, 0, 1), 0.5)
+    v *= 0.9 + 0.1 * fbm(N, 5, 3, 67)
+    return rgb3((255, 255, 255), v)
 
 
 def casca():
@@ -354,6 +359,16 @@ def terreno():
     return rgb3((255, 255, 255), v)
 
 
+def ondas():
+    """calcadao de pedra portuguesa em ondas pretas e brancas"""
+    idx, edge = voronoi(256, 1100, 77)
+    idx = np.tile(idx, (4, 4)); edge = np.tile(edge, (4, 4))
+    band = np.sin(2 * math.pi * (Y / N) * 4 + 1.5 * np.sin(2 * math.pi * (X / N) * 2)) > 0
+    tone = np.where(band, 0.30, 0.90) + 0.06 * (hash01(idx, 31) - 0.5)
+    v = tone * light(np.clip(edge / 2.5, 0, 1), 0.6) * np.where(edge < 0.8, 0.8, 1.0)
+    return rgb3((250, 246, 236), v)
+
+
 def branco():
     return np.full((64, 64, 3), 255.0)
 
@@ -367,7 +382,7 @@ MATS = {
     'vitrine': (vitrine, (3.0, 3.0)), 'madeira': (madeira, (2.0, 2.0)), 'pedra': (pedra, (2.5, 2.5)), 'concreto': (concreto, (3.0, 3.0)),
     'cascalho': (cascalho, (2.0, 2.0)), 'folhagem': (folhagem, (2.0, 2.0)), 'janela': (janela_casa, (1.0, 1.0)), 'porta': (porta, (1.0, 1.0)),
     'garagem': (garagem, (1.0, 1.0)), 'metal': (metal, (2.0, 2.0)), 'casca': (casca, (1.0, 1.0)), 'quadra': (quadra, (4.0, 4.0)),
-    'cerca': (cerca, (1.6, 1.8)), 'terreno': (terreno, (8.0, 8.0)), 'liso': (branco, (1.0, 1.0)),
+    'cerca': (cerca, (1.6, 1.8)), 'ondas': (ondas, (8.0, 8.0)), 'terreno': (terreno, (8.0, 8.0)), 'liso': (branco, (1.0, 1.0)),
 }
 
 

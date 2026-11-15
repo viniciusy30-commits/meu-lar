@@ -309,7 +309,7 @@ class Builder:
             u = u0 + 1
             while u < u1 - 2.5:
                 M.poly([F.p(u, row[0], y + 0.035), F.p(u + 0.12, row[0], y + 0.035), F.p(u + 0.12, row[1], y + 0.035), F.p(u, row[1], y + 0.035)], (245, 245, 240), (0, 1, 0))
-                if cars and self.rnd.random() < 0.45: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz)
+                if cars and self.rnd.random() < 0.45: cars(*F.xz(u + 1.3, (row[0] + row[1]) / 2), F.vx, F.vz, y + 0.02)
                 u += 2.6
 
     def shop_row(self, F, w, d, sign, wall, hgt=5.5, glass=True):
