@@ -136,13 +136,13 @@ object Water {
         #endif
         varying vec3 vW; varying vec3 vN; varying float vFoam;
         uniform vec3 uEye; uniform float uTime; uniform float uMode; uniform float uShoreZ; uniform vec3 uLake;
-        uniform vec3 uDeep; uniform vec3 uShal; uniform float uNight;
+        uniform vec3 uDeep; uniform vec3 uShal; uniform float uNight; uniform vec4 uIsl;
         float shore6(float x) { return 1832.0 + 14.0 * sin(x / 290.0) + 9.0 * sin(x / 117.0 + 1.3); }
         float river6(float z) { return 1688.0 + 26.0 * sin(z / 300.0 + 0.5) + 8.0 * sin(z / 97.0); }
         void main() {
             vec2 p = vW.xz; float t = uTime;
             bool c6s = uMode > 3.5 && uMode < 4.5;      // Cidade 6: mar (linha da praia real, canal do rio recortado)
-            bool riv = uMode > 4.5;                     // Cidade 6: rio com correnteza para o mar
+            bool riv = uMode > 4.5 && uMode < 5.5;                   // Cidade 6: rio com correnteza para o mar
             bool sea = uMode < 1.5 || c6s;
             vec2 gp = p - uLake.xy;
             float inCh = 23.0 - abs(gp.x - river6(gp.y));
@@ -152,6 +152,18 @@ object Water {
             if (c6s && d6 < -40.0) discard;                               // rio adentro: só a água do rio
             float mouth = c6s ? chn * (1.0 - smoothstep(20.0, 90.0, d6)) : 0.0;
             if (uMode > 2.5 && uMode < 3.5 && length(p - uLake.xy) > uLake.z) discard;   // tanque redondo (chafariz)
+            // Cidade 6: lagoa do Parque Central (contorno organico igual ao do gerador, ilha recortada)
+            bool lag = uMode > 5.5;
+            float dl = 0.0;
+            if (lag) {
+                vec2 e = (p - uLake.xy) / vec2(uLake.z, uShoreZ);
+                float an = atan(e.y, e.x);
+                float sl = length(vec2(e.x / (1.0 + 0.10 * sin(3.0 * an + 0.7)), e.y / (1.0 + 0.12 * cos(2.0 * an))));
+                if (sl > 0.985) discard;
+                float di = length(p - uIsl.xy) - uIsl.z;
+                if (di < 0.0) discard;
+                dl = min((0.985 - sl) * min(uLake.z, uShoreZ), di);
+            }
             vec3 dv = uEye - vW; float dist = length(dv); vec3 V = dv / dist;
             float fade = 1.0 / (1.0 + dist * 0.025);
             vec2 g = vec2(0.0); float a;
@@ -168,7 +180,7 @@ object Water {
             float f1 = 1.0 - cosv; float f2 = f1 * f1;
             float fres = 0.02 + 0.98 * f2 * f2 * f1;
             // distância da margem: mar = da linha da praia; lago = do contorno
-            float d = c6s ? mix(d6, max(d6, 22.0), chn) : riv ? inCh : uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
+            float d = lag ? dl : c6s ? mix(d6, max(d6, 22.0), chn) : riv ? inCh : uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
             float k = 1.0 - exp(-max(d, 0.0) * (sea ? 0.12 : riv ? 0.18 : 0.35));
             vec3 body = mix(uShal, uDeep, k);
             // foz: a agua do rio entra no mar entre os molhes (mais verde, com riscos de correnteza)
@@ -197,7 +209,7 @@ object Water {
                 float edge = smoothstep(1.6, 0.0, d + 0.4 * sin(p.x * 0.7 + t * 1.3));
                 float spec = 0.5 + 0.5 * sin(p.x * 3.1 + p.y * 2.3 + t) * sin(p.x * 1.7 - p.y * 3.7 - t * 1.3);
                 foam = clamp(band * (0.55 + 0.45 * spec) + edge * 0.9, 0.0, 1.0);
-            } else if (uMode < 2.5) {
+            } else if (uMode < 2.5 || lag) {
                 foam = smoothstep(0.35, 0.0, d) * 0.35;
             } else {
                 // chafariz: espuma na borda e onde os jatos caem (anel em uShoreZ), borbulhando
@@ -227,7 +239,7 @@ object Water {
 
     private var progN = 0
     private var nVP = 0; private var nEye = 0; private var nTime = 0; private var nBox = 0; private var nRip = 0; private var nWav = 0
-    private var nMode = 0; private var nNight = 0; private var nShore = 0; private var nLake = 0; private var nDeep = 0; private var nShal = 0
+    private var nIsl = 0; private var nMode = 0; private var nNight = 0; private var nShore = 0; private var nLake = 0; private var nDeep = 0; private var nShal = 0
 
     private fun buildN() {
         progN = GLES20.glCreateProgram()
@@ -240,7 +252,7 @@ object Water {
         if (ok[0] == 0) { GLES20.glDeleteProgram(progN); progN = 0; return }
         fun u(n: String) = GLES20.glGetUniformLocation(progN, n)
         nVP = u("uVP"); nEye = u("uEye"); nTime = u("uTime"); nBox = u("uBox"); nRip = u("uRip"); nWav = u("uWav")
-        nMode = u("uMode"); nNight = u("uNight"); nShore = u("uShoreZ"); nLake = u("uLake"); nDeep = u("uDeep"); nShal = u("uShal")
+        nMode = u("uMode"); nNight = u("uNight"); nShore = u("uShoreZ"); nLake = u("uLake"); nDeep = u("uDeep"); nShal = u("uShal"); nIsl = u("uIsl")
     }
 
     private fun sh(type: Int, src: String): Int {
@@ -439,6 +451,53 @@ object Water {
     private const val LN = 28
 
     /** Etapa 127: lago (malha unitária −1..1 escalada no shader pelo uWav/uBox? não: refeita por lago). */
+    // Cidade 6: lagoa do Parque Central (modo 6): malha cobrindo a elipse, recorte no shader
+    private var lagVbo = 0; private var lagIbo = 0; private var lagCount = 0; private var lagKey = ""
+    fun drawLagoa6(vp: FloatArray, ex: Float, ey: Float, ez: Float, g: FloatArray): Boolean {
+        if (progN == 0 || nGen != GlGen.gen) { nGen = GlGen.gen; buildN() }
+        if (progN == 0) return false
+        val cx = g[0]; val cz = g[1]; val rx = g[2] * 1.15f; val rz = g[3] * 1.15f
+        val key = "$cx|$cz|$rx|$rz|${GlGen.gen}"
+        if (key != lagKey || lagVbo == 0) {
+            if (lagVbo != 0) GLES20.glDeleteBuffers(2, intArrayOf(lagVbo, lagIbo), 0)
+            val n = 40
+            val fb = ByteBuffer.allocateDirect((n + 1) * (n + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (j in 0..n) for (i in 0..n) { fb.put(cx - rx + 2 * rx * i / n); fb.put(cz - rz + 2 * rz * j / n) }
+            fb.position(0)
+            lagCount = n * n * 6
+            val ib = ByteBuffer.allocateDirect(lagCount * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (j in 0 until n) for (i in 0 until n) {
+                val a = (j * (n + 1) + i).toShort(); val b = (a + 1).toShort(); val c = ((j + 1) * (n + 1) + i).toShort(); val d = (c + 1).toShort()
+                ib.put(a); ib.put(c); ib.put(b); ib.put(b); ib.put(c); ib.put(d)
+            }
+            ib.position(0)
+            val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); lagVbo = ids[0]; lagIbo = ids[1]
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, lagVbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, fb.capacity() * 4, fb, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, lagIbo); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, lagCount * 2, ib, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+            lagKey = key
+        }
+        GLES20.glUseProgram(progN)
+        GLES20.glUniformMatrix4fv(nVP, 1, false, vp, 0)
+        GLES20.glUniform3f(nEye, ex, ey, ez)
+        GLES20.glUniform1f(nTime, now())
+        GLES20.glUniform4f(nBox, cx - rx - 50f, cz - rz - 50f, cx + rx + 50f, cz + rz + 50f)
+        GLES20.glUniform3f(nWav, g[7], 0.4f, 1.0f)
+        GLES20.glUniform1f(nNight, DayNight.night)
+        GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
+        GLES20.glUniform1f(nMode, 6f); GLES20.glUniform1f(nShore, g[3]); GLES20.glUniform3f(nLake, cx, cz, g[2])
+        GLES20.glUniform4f(nIsl, g[4], g[5], g[6], 0f)
+        GLES20.glUniform3f(nDeep, 0.04f, 0.26f, 0.34f); GLES20.glUniform3f(nShal, 0.30f, 0.62f, 0.60f)
+        GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, lagVbo)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, lagIbo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, lagCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)
+        return true
+    }
+
     fun drawLake(vp: FloatArray, ex: Float, ey: Float, ez: Float, cx: Float, cz: Float, r0: Float, y: Float): Boolean {
         val round = r0 < 0f   // Etapa 127: raio negativo = tanque redondo de chafariz
         val r = abs(r0)

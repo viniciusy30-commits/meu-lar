@@ -129,17 +129,25 @@ def pantry(R):
     j = R.j
     side = 's'
     bw = min(R.w - 1.1, 2.8)
-    if bw >= 1.2:
-        pos = R.u0 + 0.2 + bw / 2
+    placed = False
+    for pos in ([R.u0 + 0.2 + bw / 2, R.u1 - 0.2 - bw / 2] if bw >= 1.2 else []):
         (u, v, rot), fp = R.on_wall(side, pos, bw, 0.62)
-        if R.fits(*fp):
+        if not placed and R.fits(*fp):
+            placed = True
             j.counter(u, v, rot, bw, 0.62, (236, 232, 222), (90, 90, 96), 0.92)
             j.bx(fp[0], fp[1], R.v1 - 0.36, R.v1 - 0.02, Y0 + 1.55, Y0 + 2.25, (236, 232, 222), 'liso')
             j.bx(fp[0] + 0.3, fp[0] + 0.75, R.v1 - 0.5, R.v1 - 0.12, Y0 + 0.92, Y0 + 1.2, (40, 40, 44))           # micro-ondas
             j.bx(fp[0] + 0.95, fp[0] + 1.15, R.v1 - 0.42, R.v1 - 0.15, Y0 + 0.92, Y0 + 1.27, (30, 30, 30))         # cafeteira
             j.bx(fp[1] - 0.7, fp[1] - 0.2, R.v1 - 0.5, R.v1 - 0.12, Y0 + 0.92, Y0 + 0.93, (200, 204, 208), 'metal')   # pia
             R.take(*fp)
-    (u, v, rot), fp = R.on_wall('e', R.v1 - 0.45, 0.7, 0.7)
+    if not placed:                                                    # parede s ocupada pela porta: bancada na parede w
+        bw = min(R.d - 1.6, 2.6)
+        if bw >= 1.2:
+            (u, v, rot), fp = R.on_wall('w', R.cv, bw, 0.62)
+            R.put(*fp, lambda: j.counter(u, v, rot, bw, 0.62, (236, 232, 222), (90, 90, 96), 0.92))
+    for vv in (R.v1 - 0.45, R.v0 + 0.45, R.cv):
+        (u, v, rot), fp = R.on_wall('e', vv, 0.7, 0.7)
+        if R.fits(*fp): break
     R.put(*fp, lambda: (j.bx(fp[0], fp[1], fp[2], fp[3], Y0, Y0 + 1.85, (232, 232, 234), 'metal'), j.bx(fp[0] - 0.01, fp[0], fp[2] + 0.1, fp[2] + 0.14, Y0 + 0.9, Y0 + 1.6, (160, 160, 164), 'metal')))
     if R.w > 2.2 and R.d > 2.6: round_set(R, R.cu, R.v0 + (R.d - 0.62) / 2, 0.45, 3, (120, 160, 190))
 
@@ -163,6 +171,7 @@ def build(j, jid, w, d, spec, door_u, garage_doors=()):
     if jid in ('bombeiro', 'mecanico', 'lixeiro', 'entregador'): return garage(j, jid, w, d, acc, door_u, garage_doors)
     if jid in ('repositor', 'frentista'): return market(j, jid, w, d, acc, door_u)
     if jid == 'atendente': return diner(j, w, d, acc, door_u)
+    if jid == 'professor': return school(j, w, d, acc, door_u)
     # ---- planta padrao
     vf = round(min(d * 0.4, 7.0), 2)
     ua = round(w * 0.64, 2)
@@ -198,10 +207,18 @@ def reception(R, jid, acc, door_u):
     for pos in (R.u0 + 1.2, R.u1 - 1.2):
         if abs(pos - door_u) > 2.4: seats(R, 'n', pos, 3, shade(acc, 15))
     seats(R, 'w', R.cv, 3, shade(acc, 15))
+    if R.w > 18 and R.d > 6:                                         # recepcao grande: fileiras de espera no meio
+        for s_ in (-1, 1):
+            for q in range(2):
+                cu = door_u + s_ * (5.5 + q * 3.2); cv = R.v0 + R.d * 0.55
+                for vv in (cv, cv + 1.2):
+                    R.put(cu - 1.0, cu + 1.0, vv - 0.35, vv + 0.35, lambda cu=cu, vv=vv: R.j.seats_row(cu, vv, 0, 3, shade(acc, 15)), gap=0.3)
     corners(R, 1.1, 'abcd')
     wall_items(R, 'e', R.cv, 'art', w=1.4, h=0.9)
     wall_items(R, 'w', R.cv, 'tv', w=1.2, y=2.0)
     wall_items(R, 's', door_u, 'clock', y=2.9)
+    if R.w > 18:
+        for s_ in (-1, 1): wall_items(R, 's', door_u + s_ * 3.0, 'art', w=1.4, h=0.9, y=1.7); wall_items(R, 's', door_u + s_ * 6.4, 'tv', w=1.3, y=2.0)
     j.rug(door_u - 1.3, door_u + 1.3, R.v0 + 0.3, R.v0 + 1.5, shade(acc, 45))
     (u, v, rot), fp = R.on_wall('e', R.v0 + 0.9, 0.4, 0.4)
     R.put(*fp, lambda: j.water_cooler(u, v))
@@ -287,9 +304,28 @@ def clinic(R, jid, acc):
         if not R.fits(mu - 0.55, mu + 0.55, R.v1 - 2.2, R.v1): continue
         bed(j, mu, R.v1); R.take(mu - 0.55, mu + 1.25, R.v1 - 2.2, R.v1)
         if k < n - 1: j.bx(mu + 1.22, mu + 1.24, R.v1 - 2.4, R.v1 - 0.1, Y0 + 0.3, Y0 + 2.1, (150, 210, 200), 'liso')     # cortina
-    workstation(R, R.u0 + 1.2, R.v0 + 1.8, 0, acc)
+    # posto de enfermagem no meio (balcao em L com computadores), armarios de remedio, cadeira de rodas, poltronas
+    cu, cv = R.cu, R.v0 + (R.d - 2.4) * 0.45
+    def station():
+        j.counter(cu, cv, 0, 3.0, 0.6, (240, 244, 246), acc, 1.05)
+        j.counter(cu + 1.2, cv + 0.9, 1, 1.2, 0.6, (240, 244, 246), acc, 1.05)
+        for k in range(2):
+            x0 = cu - 0.9 + k * 1.1; j.bx(x0 - 0.25, x0 + 0.25, cv + 0.05, cv + 0.1, Y0 + 1.07, Y0 + 1.42, (30, 30, 34), 'liso')
+            G = j.sub(x0, cv + 0.75, 0); J(j.L, G).chair(0, 0, 0, acc)
+    R.put(cu - 1.6, cu + 1.6, cv - 0.4, cv + 1.6, station, gap=0.6)
+    for vv in (R.v0 + 1.2, R.v0 + 2.8):
+        shelf(R, 'w', vv, 1.4, 1.9, 0.42, (240, 240, 240), 'caixas')
     shelf(R, 'e', R.v0 + 1.4, 1.4, 1.8, 0.42, (240, 240, 240), 'caixas')
-    corners(R, 0.9, 'a')
+    (u, v, rot), fp = R.on_wall('e', R.v0 + 3.0, 0.7, 0.9)
+    R.put(*fp, lambda: wheelchair(j, u, v))
+    seats(R, 'n', R.u0 + 1.6, 3, shade(acc, 20))
+    if R.d > 11:                                                     # sala grande (hospital): ala extra de leitos no meio
+        vl = R.v1 - 5.0
+        for k in range(n):
+            mu = R.u0 + 0.3 + 2.5 * (k + 0.5)
+            if R.fits(mu - 0.95, mu + 0.95, vl - 2.2, vl, 0.3):
+                bed(j, mu, vl); R.take(mu - 0.95, mu + 0.95, vl - 2.2, vl)
+    corners(R, 0.9, 'ab')
 
 
 def bed(j, u, v1):
@@ -339,6 +375,17 @@ def cleaning(R, jid, acc):
         R.put(cu - 0.4, cu + 0.4, R.v0 + 0.6, R.v0 + 1.4, lambda cu=cu: (j.bx(cu - 0.35, cu + 0.35, R.v0 + 0.7, R.v0 + 1.3, Y0 + 0.1, Y0 + 0.9, (64, 170, 200), 'metal'), j.cyl(cu - 0.15, R.v0 + 1.0, 0.18, Y0 + 0.9, Y0 + 1.2, (240, 200, 40), 'liso', 10), j.cyl(cu + 0.2, R.v0 + 1.0, 0.02, Y0 + 0.9, Y0 + 1.7, STEEL, 'metal', 6)))
     table_chairs(R, R.cu + 0.6, R.cv + 0.4, 1.6, 0.8, 2)
     lockers(R, 'e', R.cv, 4, (64, 170, 200))
+    # lavanderia: maquinas de lavar e secar na parede w, mesa de dobrar, tabuas de passar, carrinhos extras
+    v = R.v0 + 2.0
+    while v < R.v1 - 1.2:
+        (u, vv, rot), fp = R.on_wall('w', v, 0.7, 0.7)
+        R.put(*fp, lambda fp=fp, vv=vv: washer(j, fp, vv))
+        v += 0.8
+    (u, vv, rot), fp = R.on_wall('n', R.u1 - 2.2, 2.0, 0.8)
+    R.put(*fp, lambda: (j.table(R.u1 - 2.2, R.v0 + 0.4, 0, 2.0, 0.8, (230, 230, 232), 0.9), [j.bx(R.u1 - 3.0 + q * 0.45, R.u1 - 2.65 + q * 0.45, R.v0 + 0.2, R.v0 + 0.6, Y0 + 0.92, Y0 + 0.92 + 0.05 * (q + 1), ((240, 240, 250), (150, 200, 230), (250, 200, 210), (200, 230, 200))[q], 'liso') for q in range(4)]))
+    for k in range(2):
+        tu = R.cu - 1.8 + k * 1.6; tv = R.v1 - 2.2
+        R.put(tu - 0.25, tu + 0.25, tv - 0.7, tv + 0.7, lambda tu=tu, tv=tv: (j.bx(tu - 0.18, tu + 0.18, tv - 0.65, tv + 0.6, Y0 + 0.88, Y0 + 0.92, (220, 220, 230), 'liso'), j.bx(tu - 0.02, tu + 0.02, tv - 0.4, tv + 0.4, Y0, Y0 + 0.88, STEEL, 'metal'), j.bx(tu - 0.08, tu + 0.08, tv - 0.55, tv - 0.35, Y0 + 0.92, Y0 + 1.0, (60, 60, 64), 'metal')), gap=0.5)
 
 
 MAIN = {'professor': classroom, 'policial': police, 'enfermeiro': clinic, 'medico': clinic, 'juiz': court, 'diarista': cleaning}
@@ -539,3 +586,149 @@ def workbench(j, fp):
     j.bx(a, b, e - 0.04, e - 0.01, Y0 + 1.1, Y0 + 2.2, (200, 204, 208), 'metal')
     for k in range(int((b - a) / 0.25)): j.bx(a + 0.1 + k * 0.25, a + 0.14 + k * 0.25, e - 0.06, e - 0.04, Y0 + 1.4 + (k % 3) * 0.22, Y0 + 1.62 + (k % 3) * 0.22, (60, 60, 64), 'metal')
     j.solid(a, b, c, e)
+
+
+# ==================================================================== escola (planta propria)
+def school(j, w, d, acc, door_u):
+    """Escola: na frente o saguao de entrada (bancos, trofeus, mural, bebedouro) com a secretaria de um lado (parede de
+    vidro com balcao de atendimento) e a diretoria do outro; corredor de ponta a ponta com armarios dos alunos;
+    nos fundos 3 salas de aula (lousa, mesa do professor, carteiras em fileiras, estante, cartazes, cabideiro) e os
+    banheiros feminino e masculino. Sala dos professores ao lado da diretoria, com porta para o corredor."""
+    U0, U1, V0, V1 = 0.2, w - 0.2, 0.2, d - 0.2
+    vf = 7.0; vc = 9.6
+    us = round(door_u - 6.0, 2); ud = round(door_u + 6.0, 2); upf = round(ud + (U1 - ud) * 0.5, 2)
+    nrest = 2; rw = 2.9; ur = round(U1 - nrest * rw, 2)
+    cw = (ur - U0) / 3; uc = [round(U0 + cw * k, 2) for k in range(4)]
+    # ---- paredes
+    wall(j, 'v', us, V0, vf, [(4.6, 1.0, 'vidro')], glass=True)                 # secretaria x saguao
+    wall(j, 'v', ud, V0, vf, [(4.6, 1.0, 'madeira')])                           # diretoria x saguao
+    wall(j, 'v', upf, V0, vf, [])                                                # diretoria x professores
+    wall(j, 'u', vf, U0, us, [])                                                 # fundo da secretaria
+    wall(j, 'u', vf, ud, U1, [(round((upf + U1) / 2, 2), 0.9, 'madeira')])      # professores -> corredor
+    doors_c = [(round(uc[k] + 1.3, 2), 1.0, 'madeira') for k in range(3)] + [(round(ur + rw * (k + 0.5), 2), 0.85, 'banheiro') for k in range(nrest)]
+    wall(j, 'u', vc, U0, U1, doors_c, swing=-1)
+    for k in (1, 2, 3): wall(j, 'v', uc[k], vc, V1, [])
+    wall(j, 'v', round(ur + rw, 2), vc, V1, [])
+    # ---- salas
+    Rs = Room(j, U0, us - 0.07, V0, vf - 0.07, 'secretaria').door('e', 4.6, 1.0)
+    Rh = Room(j, us + 0.07, ud - 0.07, V0, vf, 'saguao').door('n', door_u, 2.4).door('w', 4.6, 1.0).door('e', 4.6, 1.0)
+    Rh.keep.append((us + 0.07, ud - 0.07, vf - 1.6, vf))                       # passagem livre para o corredor
+    Rd = Room(j, ud + 0.07, upf - 0.07, V0, vf - 0.07, 'diretoria').door('w', 4.6, 1.0)
+    Rp = Room(j, upf + 0.07, U1, V0, vf - 0.07, 'professores').door('s', (upf + U1) / 2, 0.9)
+    Rc = Room(j, U0, U1, vf + 0.07, vc - 0.07, 'corredor').door('n', (upf + U1) / 2, 0.9)
+    Rc.keep.append((us, ud, vf, vc))
+    for (u_, w_, _) in doors_c: Rc.door('s', u_, w_)
+    Rcls = [Room(j, uc[k] + 0.07, uc[k + 1] - 0.07, vc + 0.07, V1, f'sala{k + 1}').door('n', uc[k] + 1.3, 1.0) for k in range(3)]
+    Rb = [Room(j, ur + rw * k + 0.07, ur + rw * (k + 1) - 0.07, vc + 0.07, V1, 'banheiro').door('n', ur + rw * (k + 0.5), 0.85) for k in range(nrest)]
+    for R in [Rs, Rh, Rd, Rp, Rc] + Rcls + Rb: lights(j, R)
+    # ---- saguao
+    j.rug(door_u - 1.4, door_u + 1.4, V0 + 0.3, V0 + 1.6, shade(acc, 40))
+    for s_ in (-1, 1):
+        seats(Rh, 'n', door_u + s_ * 3.6, 3, (60, 140, 200))
+    (u, v, rot), fp = Rh.on_wall('w', 2.3, 1.6, 0.45)
+    Rh.put(*fp, lambda: trophy_case(j, u, v, rot))
+    plant(Rh, us + 0.5, vf - 2.0, 1.1); plant(Rh, ud - 0.5, vf - 2.0, 1.1)
+    for s_ in (-1, 1):                                                        # floreira com banco em volta no saguao
+        cu_ = door_u + s_ * 3.4; cv_ = 3.6
+        def planter(cu_=cu_, cv_=cv_):
+            j.bx(cu_ - 0.6, cu_ + 0.6, cv_ - 0.6, cv_ + 0.6, Y0, Y0 + 0.45, (200, 170, 120), 'madeira')
+            j.bx(cu_ - 0.45, cu_ + 0.45, cv_ - 0.45, cv_ + 0.45, Y0 + 0.45, Y0 + 0.75, (90, 140, 90), 'liso')
+            j.plant(cu_, cv_, 1.2)
+        Rh.put(cu_ - 0.6, cu_ + 0.6, cv_ - 0.6, cv_ + 0.6, planter, gap=0.6)
+    j.bx(door_u - 2.2, door_u + 2.2, vf + 0.0, vf + 0.02, Y0 + 2.35, Y0 + 2.85, acc, 'liso') if False else None
+    mural(j, ud - 0.07, 2.4, 'e')
+    wall_items(Rh, 'n', door_u, 'clock', y=3.0)
+    # ---- secretaria: balcao de atendimento junto do vidro, mesas com computador, arquivos, impressora
+    (u, v, rot), fp = Rs.on_wall('e', 2.2, 2.6, 0.62)
+    Rs.put(*fp, lambda: j.counter(u, v, rot, 2.6, 0.62, (246, 244, 238), shade(acc, -10), 1.05))
+    workstation(Rs, Rs.u0 + 2.2, 3.4, 1, (60, 70, 90)); workstation(Rs, Rs.u0 + 2.2, 5.6, 1, (60, 70, 90))
+    for p_ in (Rs.u0 + 1.2, Rs.u0 + 3.2, Rs.u0 + 5.2): shelf(Rs, 's', p_, 1.6, 2.0, 0.42, (150, 150, 156), 'pastas')
+    (u, v, rot), fp = Rs.on_wall('n', Rs.u1 - 2.4, 0.6, 0.5)
+    Rs.put(*fp, lambda: j.bx(fp[0], fp[1], fp[2], fp[3], Y0, Y0 + 1.0, (230, 230, 232), 'liso'))
+    corners(Rs, 1.0, 'a')
+    wall_items(Rs, 'w', 3.8, 'board', w=1.6, h=1.0, col=(200, 170, 120))
+    # ---- diretoria: mesa da diretora virada para a porta, cadeiras de visita, estante, bandeira
+    mid = (Rd.v0 + Rd.v1) / 2
+    def director():
+        j.desk(Rd.u1 - 1.4, mid, 1, 1.6, 0.8, True, WOOD)
+        x, z = j.sub(Rd.u1 - 1.4, mid, 1).xz(0, 0.75); j.chair_at(x, z, 3, (40, 40, 50))
+        for dv in (-0.5, 0.5): x, z = j.sub(Rd.u1 - 1.4, mid + dv, 1).xz(0, -0.85); j.chair_at(x, z, 1, (130, 40, 40))
+    Rd.put(Rd.u1 - 2.5, Rd.u1, mid - 1.0, mid + 1.0, director)
+    shelf(Rd, 'n', (Rd.u0 + Rd.u1) / 2, 2.0, 2.0, 0.42, WOOD, 'livros')
+    shelf(Rd, 's', (Rd.u0 + Rd.u1) / 2 + 0.6, 1.6, 2.0, 0.42, WOOD, 'pastas')
+    (u, v, rot), fp = Rd.on_wall('e', Rd.v0 + 0.6, 0.5, 0.5)
+    Rd.put(*fp, lambda: flag(j, Rd.u1 - 0.3, Rd.v0 + 0.5))
+    wall_items(Rd, 'e', mid, 'art', w=1.2, h=0.8, y=1.9)
+    # ---- sala dos professores: mesa grande, armarios, sofa, cafe
+    table_chairs(Rp, (Rp.u0 + Rp.u1) / 2, Rp.v0 + 2.6, 2.4, 1.0, 3, WOOD_L, (60, 110, 160))
+    lockers(Rp, 'e', Rp.v0 + 1.4, 4, (150, 160, 120))
+    counter(Rp, 'n', Rp.u0 + 1.2, 1.6, 0.6, (236, 232, 222), (90, 90, 96), 0.92)
+    sofa(Rp, 'w', Rp.v1 - 1.9, 1.8, (110, 90, 140))
+    wall_items(Rp, 's', Rp.u0 + 0.8, 'board', w=1.0, h=0.8, col=(200, 170, 120))
+    # ---- corredor: armarios dos alunos entre as portas, bebedouro e extintor
+    p_ = Rc.u0 + 1.0
+    while p_ < Rc.u1 - 1.0:
+        for side in ('s', 'n'): lockers(Rc, side, p_, 4, ((230, 90, 70), (60, 130, 200), (240, 190, 50), (80, 160, 90))[int(p_ / 2) % 4])
+        p_ += 2.2
+    (u, v, rot), fp = Rc.on_wall('n', us - 0.6, 0.4, 0.4)
+    Rc.put(*fp, lambda: j.water_cooler(u, v))
+    j.bx(U1 - 0.6, U1 - 0.3, vc - 0.18, vc - 0.06, Y0 + 0.3, Y0 + 0.9, (210, 30, 30), 'metal')
+    # ---- salas de aula: cada uma com sua cor de cadeira e cartazes
+    ccol = ((60, 120, 200), (220, 90, 60), (70, 160, 90))
+    for k, R in enumerate(Rcls):
+        classroom(R, 'professor', acc)
+        lockers(R, 'n', R.u1 - 1.4, 4, shade(ccol[k], 20))
+        wall_items(R, 'w', R.v1 - 2.0, 'art', w=1.0, h=0.7, y=1.8)
+        x0 = R.u0 + 0.4                                                        # varal de cartazes coloridos na parede norte
+        for q in range(4):
+            j.bx(R.u0 + 2.6 + q * 0.7, R.u0 + 3.1 + q * 0.7, R.v0 + 0.0, R.v0 + 0.02, Y0 + 2.0, Y0 + 2.5, ((240, 200, 60), (90, 170, 230), (240, 120, 140), (120, 200, 120))[q], 'liso')
+    for k, R in enumerate(Rb):
+        restroom(R)
+        if k == 1:
+            for q in range(3):
+                vv = R.v0 + 3.4 + q * 0.8
+                if R.fits(R.u1 - 0.4, R.u1, vv - 0.3, vv + 0.3): j.bx(R.u1 - 0.32, R.u1 - 0.02, vv - 0.2, vv + 0.2, Y0 + 0.45, Y0 + 1.1, (250, 250, 250), 'ceramica'); R.take(R.u1 - 0.4, R.u1, vv - 0.3, vv + 0.3)
+        j.bx(R.cu - 0.15, R.cu + 0.15, vc - 0.1, vc - 0.08, Y0 + 2.3, Y0 + 2.6, ((220, 80, 140), (40, 90, 160))[k], 'liso')
+
+
+def trophy_case(j, u, v, rot):
+    """estante de trofeus com porta de vidro"""
+    G = j.sub(u, v, rot)
+    j.bx(-0.8, 0.8, -0.22, 0.22, Y0, Y0 + 1.9, WOOD, 'madeira', F=G)
+    for q in range(3):
+        y = Y0 + 0.5 + q * 0.5; j.bx(-0.76, 0.76, -0.2, 0.2, y, y + 0.03, WOOD_L, 'madeira', F=G)
+        for t in range(4):
+            uu = -0.55 + t * 0.37; x, z = G.xz(uu, 0.0)
+            j.L.M.m('metal'); j.L.M.cyl(x, z, 0.05, y + 0.03, y + 0.2, (220, 180, 60), 8); j.L.M.cyl(x, z, 0.1, y + 0.2, y + 0.32, (230, 190, 70), 8, True, 0.04)
+    j.bx(-0.78, 0.78, -0.24, -0.22, Y0 + 0.4, Y0 + 1.85, (190, 214, 226), 'vidro', F=G)
+    j.solid(-0.8, 0.8, -0.22, 0.22, F=G)
+
+
+def mural(j, u, v, side):
+    """mural de cortica com recados coloridos na parede"""
+    sg = 1 if side == 'w' else -1; a, b = (u, u + 0.03) if sg > 0 else (u - 0.03, u); c_ = b if sg > 0 else a - 0.005
+    j.bx(a, b, v - 1.0, v + 1.0, Y0 + 1.1, Y0 + 2.2, (190, 150, 100), 'madeira')
+    for q in range(8):
+        vv = v - 0.8 + (q % 4) * 0.42; yy = Y0 + 1.3 + (q // 4) * 0.45
+        j.bx(c_, c_ + 0.005, vv, vv + 0.28, yy, yy + 0.3, ((250, 240, 120), (250, 180, 200), (170, 220, 250), (255, 255, 255))[q % 4], 'liso')
+
+
+def flag(j, u, v):
+    """mastro com a bandeira (na sala da diretoria)"""
+    j.cyl(u, v, 0.18, Y0, Y0 + 0.08, (60, 60, 64), 'metal', 10); j.cyl(u, v, 0.025, Y0 + 0.08, Y0 + 2.3, (200, 180, 90), 'metal', 6)
+    j.bx(u - 0.02, u + 0.02, v + 0.03, v + 0.95, Y0 + 1.6, Y0 + 2.2, (40, 150, 70), 'liso')
+    j.bx(u - 0.025, u + 0.025, v + 0.3, v + 0.68, Y0 + 1.75, Y0 + 2.05, (250, 210, 40), 'liso')
+
+
+def wheelchair(j, u, v):
+    for s_ in (-1, 1): j.cyl(u + s_ * 0.3, v, 0.3, Y0, Y0 + 0.02, (40, 40, 44), 'metal', 12)
+    for s_ in (-1, 1): j.bx(u + s_ * 0.3 - 0.02, u + s_ * 0.3 + 0.02, v - 0.3, v + 0.3, Y0 + 0.02, Y0 + 0.6, (40, 40, 44), 'metal')
+    j.bx(u - 0.28, u + 0.28, v - 0.25, v + 0.25, Y0 + 0.45, Y0 + 0.5, (40, 90, 160), 'liso'); j.bx(u - 0.28, u + 0.28, v + 0.22, v + 0.27, Y0 + 0.5, Y0 + 1.0, (40, 90, 160), 'liso')
+
+
+def washer(j, fp, v):
+    """maquina de lavar/secar de frente (porta redonda de vidro)"""
+    j.bx(fp[0], fp[1], fp[2] + 0.02, fp[3] - 0.02, Y0, Y0 + 0.9, (246, 246, 248), 'metal')
+    j.bx(fp[1], fp[1] + 0.01, v - 0.2, v + 0.2, Y0 + 0.25, Y0 + 0.65, (150, 190, 210), 'vidro')
+    j.bx(fp[1], fp[1] + 0.01, v - 0.3, v + 0.3, Y0 + 0.75, Y0 + 0.85, (60, 60, 64), 'liso')
+    j.solid(fp[0], fp[1], fp[2], fp[3])
