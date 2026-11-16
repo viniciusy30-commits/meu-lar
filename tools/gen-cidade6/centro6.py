@@ -26,6 +26,7 @@ def storefronts(B, F, w, gh, wall, v=0.0, u0=0.0):
         if kind < 0.12:                                                    # portaria / entrada do predio
             B.panel(F, a, b, v, y0, y0 + gh - 1.0, (60, 62, 66), 'liso', -1, 0.04)
             B.panel(F, (a + b) / 2 - 1.1, (a + b) / 2 + 1.1, v, y0, y0 + 2.6, WHITE, 'janela', -1, 0.07)
+            B.drives.append((*F.xz((a + b) / 2, v - 2.2), 2.4))                # portaria: nada de arvore/poste na frente
             B.box(F, (a + b) / 2 - 1.6, (a + b) / 2 + 1.6, v - 1.5, v, y0 + 2.9, y0 + 3.05, (226, 224, 218), 'concreto')
         else:
             n = max(1, round((b - a) / 3.0))
@@ -33,6 +34,7 @@ def storefronts(B, F, w, gh, wall, v=0.0, u0=0.0):
             B.panel(F, a, b, v, y0, y0 + 0.45, shade(wall, -40), 'concreto', -1, 0.06)
             dz = a + (b - a) * r.choice((0.2, 0.5, 0.8))                   # porta de vidro
             B.panel(F, dz - 0.55, dz + 0.55, v, y0, y0 + 2.35, (40, 44, 50), 'liso', -1, 0.1)
+            B.drives.append((*F.xz(dz, v - 2.0), 1.8))                       # porta da loja
             B.panel(F, dz - 0.47, dz + 0.47, v, y0 + 0.08, y0 + 2.27, (74, 96, 110), 'liso', -1, 0.16)
             sc = r.choice(SIGNS)
             B.box(F, a - 0.1, b + 0.1, v - 0.16, v, y0 + gh - 1.15, y0 + gh - 0.35, sc, 'liso', top=True)                # letreiro

@@ -160,7 +160,7 @@ def run(P, G, L, M, assets):
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
-    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'solid': [], 'solidr': solidr,
+    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'solid': [], 'solidr': solidr,
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
     json.dump(js, open(os.path.join(assets, 'c6.json'), 'w'), separators=(',', ':'))
     print(f'  {len(houses)} casas, {len(trees) // 6} arvores do app, {len(solidr) // 8} colisoes')

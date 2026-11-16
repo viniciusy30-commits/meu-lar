@@ -21,13 +21,12 @@ def sand_y(x, z):
 def build(P, G, L, M, pr):
     r = pr.rnd
     rx = river_x(1760)
-    def in_river(x, pad=36): return abs(x - rx) < pad
     QW = RIVER_W / 2 + RIVER_WALL                                  # do eixo do rio ate a face de fora do cais
     spans = [(2.0, river_x(ZW) - QW), (river_x(ZW) + QW, W - 2.0)]   # o calcadao e a mureta encostam no cais do rio
     y = Y_WALK
-    # ------------------------------------------------------------ calcadao + ciclovia + mureta
+    pr.luzes = getattr(pr, 'luzes', [])
     for si, (xa, xb) in enumerate(spans):
-        # piso de pedra portuguesa, recortado pela margem (fecha certinho contra o cais curvo)
+        # ------------------------------------------------------------ calcadao de pedra portuguesa
         x = xa - (6.0 if si == 1 else 0.0)
         xe = xb + (6.0 if si == 0 else 0.0)
         while x < xe:
@@ -35,8 +34,9 @@ def build(P, G, L, M, pr):
             g = sbox(x, Z0, x1, ZW - 0.25).intersection(P.land)
             M.free('orla'); M.m('ondas'); M.shp(g, y, WHITE)
             x = x1
-        # ciclovia: termina num retorno redondo antes do rio (nada de faixa cortada no fim)
-        ca, cb = (xa, xb - 16.0) if si == 0 else (xa + 16.0, xb)
+        # ------------------------------------------------------------ ciclovia continua: na ponta do rio ela sobe na ponte da ciclovia
+        rq = river_x(Z0 + 2.2) - QW if si == 0 else river_x(Z0 + 2.2) + QW
+        ca, cb = (xa, rq) if si == 0 else (rq, xb)
         x = ca
         while x < cb:
             x1 = min(x + 25.0, cb)
@@ -46,17 +46,9 @@ def build(P, G, L, M, pr):
             for k in range(int((x1 - x) / 5)):
                 xd = x + k * 5 + 1; M.poly([(xd, y + 0.06, Z0 + 2.15), (xd + 2, y + 0.06, Z0 + 2.15), (xd + 2, y + 0.06, Z0 + 2.25), (xd, y + 0.06, Z0 + 2.25)], (250, 220, 80), (0, 1, 0))
             x = x1
-        ex = cb if si == 0 else ca; ez = Z0 + 2.2; R = 3.4
-        M.at(ex, ez, 'orla'); M.m('asfalto')
-        ring = [(ex + math.cos(t) * R, ez + math.sin(t) * R) for t in np.linspace(0, 2 * math.pi, 20, endpoint=False)]
-        M.poly([(px, y + 0.035, pz) for px, pz in ring], (255, 150, 120), (0, 1, 0))
-        M.m('liso')
-        for k in range(20):
-            (p0, p1) = ring[k], ring[(k + 1) % 20]; f = (R - 0.12) / R
-            M.poly([(p0[0], y + 0.065, p0[1]), (p1[0], y + 0.065, p1[1]), (ex + (p1[0] - ex) * f, y + 0.065, ez + (p1[1] - ez) * f), (ex + (p0[0] - ex) * f, y + 0.065, ez + (p0[1] - ez) * f)], (250, 250, 246), (0, 1, 0))
-        M.m('folhagem'); M.cyl(ex, ez, 1.1, y, y + 0.5, (70, 120, 60), 10, True)                     # canteiro no meio do retorno
-        M.free()
-        # mureta com aberturas e escadas a cada ~70 m, de ponta a ponta (ate o cais do rio)
+        # bicicleta pintada no chao a cada ~60 m
+        for bx in np.arange(ca + 20, cb - 10, 60.0): bike_icon(M, bx, Z0 + 2.2, y + 0.07)
+        # ------------------------------------------------------------ mureta com aberturas e escadas a cada ~70 m
         gaps = [g for g in np.arange(xa + 35, xb - 22, 70.0)]
         cur = xa
         for g in gaps + [None]:
@@ -69,45 +61,438 @@ def build(P, G, L, M, pr):
                 x = x1
             if g is not None:
                 stairs(M, pr, g, y); cur = g + 3.0
-        # pilar de arremate onde a mureta encontra o cais
         px = xb if si == 0 else xa
         M.at(px, ZW, 'orla'); M.m('pedra'); M.prism([(px - 0.6, ZW - 0.6), (px + 0.6, ZW - 0.6), (px + 0.6, ZW + 0.6), (px - 0.6, ZW + 0.6)], -1.0, y + 0.95, WHITE, False)
         M.m('concreto'); M.prism([(px - 0.7, ZW - 0.7), (px + 0.7, ZW - 0.7), (px + 0.7, ZW + 0.7), (px - 0.7, ZW + 0.7)], y + 0.95, y + 1.08, (236, 232, 222), True)
         M.free()
-        # ------------------------------------------------------------ coqueiros, postes, bancos, lixeiras
+        # ------------------------------------------------------------ calcadao: postes, bancos para o mar, lixeiras, canteiros, bicicletarios,
+        # carrinhos de coco, bebedouros, totens; quiosques de dois tipos (nada de coqueiro no meio da calcada)
+        kx_list = [kx + (12 if any(abs(kx - g) < 9 for g in gaps) else 0) for kx in np.arange(xa + 60, xb - 40, 115.0)]
+        busy = [(kx - 11, kx + 11) for kx in kx_list]
+        free_x = lambda xx, pad=0: not any(a_ - pad < xx < b_ + pad for (a_, b_) in busy) and not any(abs(xx - g) < 4.5 + pad for g in gaps)
         x = xa + 6; k = 0
         while x < xb - 4:
-            if not any(abs(x - g) < 5 for g in gaps):
-                pr.tree(x, ZW - 1.9, 'palmeira', r.uniform(0.95, 1.2), y)
-            if k % 2 == 0: pr.tree(x + 6, Z0 + 5.2, 'palmeira', r.uniform(0.85, 1.05), y)
             if k % 3 == 0: pr.streetlight(x + 3, Z0 + 4.6, 0, -1)
-            if k % 2 == 1:
-                pr.bench(x + 3, ZW - 1.2, 0, 1, y)
-                if k % 4 == 1: pr.bin(x + 5, ZW - 1.2)
+            if k % 2 == 1 and free_x(x + 3): pr.bench(x + 3, ZW - 1.2, 0, 1, y)
+            if k % 4 == 1 and free_x(x + 5.5): pr.bin(x + 5.5, ZW - 1.2)
             x += 12; k += 1
-        # ------------------------------------------------------------ quiosques com mesas
-        for kx in np.arange(xa + 60, xb - 40, 115.0):
-            if any(abs(kx - g) < 9 for g in gaps): kx += 12
-            kiosk(M, pr, kx, Z0 + 9.5, y, r)
-    # ------------------------------------------------------------ areia: esportes, salva-vidas, guarda-sois, coqueiros
-    for (xa, xb) in spans:
+        x = xa + 30; k = 0
+        while x < xb - 20:
+            if free_x(x, 6):
+                what = ('canteiro', 'bici', 'canteiro', 'coco', 'canteiro', 'bebedouro', 'canteiro', 'totem')[k % 8]
+                if what == 'canteiro': planter_orla(M, pr, x, Z0 + 7.4, y, r)
+                elif what == 'bici': bike_rack(M, x, Z0 + 6.2, y)
+                elif what == 'coco': coconut_cart(M, x, Z0 + 7.0, y, r)
+                elif what == 'bebedouro': drinking_fountain(M, x, Z0 + 6.4, y)
+                else: totem(M, x, Z0 + 6.4, y, r)
+                k += 1
+            x += 24
+        for j, kx in enumerate(kx_list):
+            if j % 2 == 0: kiosk(M, pr, kx, Z0 + 9.5, y, r)
+            else: kiosk_glass(M, pr, kx, Z0 + 9.5, y, r)
+    # ------------------------------------------------------------ areia
+    for si, (xa, xb) in enumerate(spans):
+        wet_sand(M, xa, xb)
+        # coqueiros na areia, em grupos de 2 a 5 com alturas bem diferentes, logo depois da mureta (sombra para quem chega)
+        x = xa + r.uniform(8, 16)
+        while x < xb - 8:
+            if abs(x - 1000) > 10 and not any(abs(x - g) < 5 for g in np.arange(xa + 35, xb - 22, 70.0)):
+                for _ in range(r.randint(2, 5)):
+                    px, pz = x + r.uniform(-4.5, 4.5), ZW + r.uniform(2.5, 9.0)
+                    pr.tree(px, pz, 'palmeira', r.choice((0.85, 1.0, 1.15, 1.3, 1.5, 1.75)) * r.uniform(0.95, 1.05), sand_y(px, pz) - 0.05)
+            x += r.uniform(14, 26)
+        # faixas de uso: esportes e postos perto da mureta, barracas no meio, brincadeira na areia molhada
         x = xa + 30; k = 0
         while x < xb - 30:
             if abs(x - 1000) < 26: x += 30; continue                 # pier
-            what = ('volei', 'sois', 'futebol', 'sois', 'salva', 'sois', 'coqueiros')[k % 7]
+            what = ('volei', 'barraca', 'futebol', 'barraca', 'salva', 'barraca', 'tenis', 'barraca', 'aluguel', 'barraca')[k % 10]
             if what == 'volei': volley(M, x, ZW + 22, r)
             elif what == 'futebol': soccer(M, x, ZW + 26, r)
-            elif what == 'salva': lifeguard(M, x, shore_z(x) - 34, r)
-            elif what == 'coqueiros':
-                for _ in range(5):
-                    px, pz = x + r.uniform(-9, 9), ZW + r.uniform(5, 16); pr.tree(px, pz, 'palmeira', r.uniform(0.9, 1.25), sand_y(px, pz))
+            elif what == 'tenis': beach_tennis(M, x, ZW + 22, r)
+            elif what == 'salva': lifeguard(M, x, shore_z(x) - 34, r); flags(M, x + 6, shore_z(x) - 30, r)
+            elif what == 'aluguel': rental(M, pr, x, r)
             else: sunset(M, x, r)
-            x += r.uniform(32, 44); k += 1
-        for _ in range(int((xb - xa) / 14)):                           # guarda-sois avulsos
+            x += r.uniform(34, 46); k += 1
+        # gente "de passagem": guarda-sois avulsos com canga, cooler e bolsa; castelos e baldes na areia molhada; pranchas
+        for _ in range(int((xb - xa) / 11)):
             x = r.uniform(xa + 10, xb - 10)
             if abs(x - 1000) < 12: continue
-            umbrella(M, x, r.uniform(ZW + 8, shore_z(x) - 12), r.choice(COLS), r)
+            z = r.uniform(ZW + 30, shore_z(x) - 10)
+            family(M, x, z, r)
+        for _ in range(int((xb - xa) / 45)):
+            x = r.uniform(xa + 10, xb - 10)
+            if abs(x - 1000) < 12: continue
+            sandcastle(M, x, shore_z(x) - r.uniform(3, 7), r)
+        for _ in range(int((xb - xa) / 60)):
+            x = r.uniform(xa + 10, xb - 10)
+            if abs(x - 1000) < 14: continue
+            vendor_cart(M, x, r.uniform(ZW + 14, shore_z(x) - 20), r)
     pier(M, pr, 1000.0, y, r)
+    bike_bridge(M, pr, spans, y, r)
+    jetties_and_lighthouse(M, pr, r)
+
+
+# ================================================================ pecas novas da orla
+def bike_icon(M, x, z, y):
+    """bicicleta branca pintada no asfalto da ciclovia"""
+    M.at(x, z, 'orla'); M.m('liso'); c = (250, 250, 246)
+    for cx in (x - 0.55, x + 0.55):
+        for k in range(10):
+            a0, a1 = 2 * math.pi * k / 10, 2 * math.pi * (k + 1) / 10
+            M.quad((cx + math.cos(a0) * 0.38, y, z + math.sin(a0) * 0.38), (cx + math.cos(a1) * 0.38, y, z + math.sin(a1) * 0.38), (cx + math.cos(a1) * 0.3, y, z + math.sin(a1) * 0.3), (cx + math.cos(a0) * 0.3, y, z + math.sin(a0) * 0.3), c, (0, 1, 0))
+    for (a, b) in (((x - 0.55, z), (x, z - 0.35)), ((x, z - 0.35), (x + 0.55, z)), ((x - 0.55, z), (x + 0.15, z)), ((x + 0.15, z), (x, z - 0.35))):
+        dx, dz = b[0] - a[0], b[1] - a[1]; L = math.hypot(dx, dz) or 1; nx, nz = -dz / L * 0.04, dx / L * 0.04
+        M.quad((a[0] - nx, y, a[1] - nz), (b[0] - nx, y, b[1] - nz), (b[0] + nx, y, b[1] + nz), (a[0] + nx, y, a[1] + nz), c, (0, 1, 0))
+    M.free()
+
+
+def planter_orla(M, pr, x, z, y, r):
+    """canteiro elevado de pedra no calcadao: forracao, flores tropicais e arbustos baixos"""
+    M.at(x, z, 'orla'); L = r.uniform(7, 10); D = 2.2
+    M.m('pedra'); M.prism([(x - L / 2, z - D / 2), (x + L / 2, z - D / 2), (x + L / 2, z + D / 2), (x - L / 2, z + D / 2)], y, y + 0.45, (214, 206, 192), False)
+    M.m('concreto'); M.prism([(x - L / 2 - 0.08, z - D / 2 - 0.08), (x + L / 2 + 0.08, z - D / 2 - 0.08), (x + L / 2 + 0.08, z - D / 2 + 0.12), (x - L / 2 - 0.08, z - D / 2 + 0.12)], y + 0.45, y + 0.52, (236, 232, 222))
+    M.prism([(x - L / 2 - 0.08, z + D / 2 - 0.12), (x + L / 2 + 0.08, z + D / 2 - 0.12), (x + L / 2 + 0.08, z + D / 2 + 0.08), (x - L / 2 - 0.08, z + D / 2 + 0.08)], y + 0.45, y + 0.52, (236, 232, 222))
+    M.m('grama'); M.poly([(x - L / 2 + 0.1, y + 0.42, z - D / 2 + 0.1), (x + L / 2 - 0.1, y + 0.42, z - D / 2 + 0.1), (x + L / 2 - 0.1, y + 0.42, z + D / 2 - 0.1), (x - L / 2 + 0.1, y + 0.42, z + D / 2 - 0.1)], WHITE, (0, 1, 0))
+    M.free()
+    u = x - L / 2 + 0.8
+    while u < x + L / 2 - 0.6:
+        pr.tree(u, z + r.uniform(-0.45, 0.45), r.choice(('flores', 'flores', 'arbusto', 'buxo')), r.uniform(0.6, 0.85), y + 0.42); u += r.uniform(0.9, 1.4)
+    pr.bench(x - L / 2 - 1.2, z, 1, 0, y); pr.bench(x + L / 2 + 1.2, z, -1, 0, y)
+
+
+def bike_rack(M, x, z, y):
+    M.at(x, z, 'orla'); M.m('metal')
+    for k in range(6):
+        u = x - 3 + k * 1.2
+        for s in (-0.35, 0.35): M.box(u - 0.03, u + 0.03, y, y + 0.75, z + s - 0.03, z + s + 0.03, (90, 96, 104))
+        M.box(u - 0.03, u + 0.03, y + 0.72, y + 0.8, z - 0.38, z + 0.38, (90, 96, 104))
+    M.free()
+
+
+def coconut_cart(M, x, z, y, r):
+    """carrinho de agua de coco com guarda-sol e cocos empilhados"""
+    M.at(x, z, 'orla'); col = r.choice(((40, 140, 80), (240, 190, 40), (220, 70, 50)))
+    M.m('liso'); M.box(x - 1.0, x + 1.0, y + 0.45, y + 1.1, z - 0.6, z + 0.6, col)
+    M.box(x - 1.05, x + 1.05, y + 1.1, y + 1.16, z - 0.65, z + 0.65, (245, 245, 242))
+    for s in (-1, 1): M.cyl(x + s * 0.7, z + 0.62, 0.32, y, y + 0.64, (30, 30, 32), 8)
+    for k in range(9): M.sphere(x - 0.6 + (k % 3) * 0.6, y + 1.32 + (k // 3) * 0.05, z - 0.3 + (k // 3) * 0.3, 0.17, (96, 140, 50), 5, 3)
+    M.m('metal'); M.cyl(x + 0.9, z, 0.03, y + 1.1, y + 2.6, (220, 220, 220), 4, False)
+    M.m('liso'); M.cyl(x + 0.9, z, 1.2, y + 2.3, y + 2.65, (250, 250, 246) if col != (240, 190, 40) else (230, 70, 50), 8, False, 0.04)
+    M.free()
+
+
+def drinking_fountain(M, x, z, y):
+    M.at(x, z, 'orla'); M.m('metal')
+    M.cyl(x, z, 0.16, y, y + 0.9, (70, 120, 160), 8); M.cyl(x, z, 0.28, y + 0.9, y + 1.0, (200, 206, 212), 10)
+    M.box(x + 0.6 - 0.12, x + 0.6 + 0.12, y, y + 0.55, z - 0.12, z + 0.12, (70, 120, 160))
+    M.free()
+
+
+def totem(M, x, z, y, r):
+    """totem de informacao / mapa da praia"""
+    M.at(x, z, 'orla'); M.m('metal'); M.box(x - 0.6, x + 0.6, y, y + 2.2, z - 0.12, z + 0.12, (40, 80, 120))
+    M.m('liso'); M.box(x - 0.5, x + 0.5, y + 0.9, y + 2.0, z - 0.15, z + 0.15, (230, 236, 240))
+    M.box(x - 0.45, x + 0.45, y + 1.85, y + 1.95, z - 0.17, z + 0.17, (240, 190, 40))
+    M.free()
+
+
+def kiosk_glass(M, pr, x, z, y, r):
+    """quiosque moderno: caixa envidracada, deck de madeira, telhado plano em balanco e mesas com ombrelones"""
+    M.at(x, z, 'orla'); ac = r.choice(COLS)
+    M.m('madeira'); M.prism([(x - 7, z - 3.5), (x + 7, z - 3.5), (x + 7, z + 4.5), (x - 7, z + 4.5)], y, y + 0.18, (176, 132, 92))
+    M.m('reboco'); M.box(x - 2.8, x + 2.8, y + 0.18, y + 3.0, z - 2.0, z + 2.0, (246, 244, 238), top=False)
+    M.m('vidro'); M.quad((x - 2.6, y + 1.1, z - 2.03), (x + 2.6, y + 1.1, z - 2.03), (x + 2.6, y + 2.7, z - 2.03), (x - 2.6, y + 2.7, z - 2.03), WHITE, (0, 0, -1))
+    M.quad((x + 2.6, y + 1.1, z + 2.03), (x - 2.6, y + 1.1, z + 2.03), (x - 2.6, y + 2.7, z + 2.03), (x + 2.6, y + 2.7, z + 2.03), WHITE, (0, 0, 1))
+    M.m('madeira'); M.box(x - 2.9, x + 2.9, y + 1.0, y + 1.1, z + 2.0, z + 2.6, (150, 108, 70))
+    M.m('concreto'); M.box(x - 4.5, x + 4.5, y + 3.0, y + 3.35, z - 3.2, z + 3.8, (240, 238, 232))
+    M.m('liso'); M.box(x - 4.55, x + 4.55, y + 3.05, y + 3.3, z + 3.8, z + 3.86, ac)
+    for k in range(4):
+        tx = x - 5.2 + k * 3.5; tz = z + 3.6 + (k % 2) * 0.3
+        M.cyl(tx, tz, 0.45, y + 0.86, y + 0.9, (250, 250, 248), 10); M.cyl(tx, tz, 0.05, y + 0.18, y + 0.86, (60, 60, 64), 5, False)
+        for s in (-1, 1): M.box(tx + s * 0.75 - 0.2, tx + s * 0.75 + 0.2, y + 0.18, y + 0.62, tz - 0.2, tz + 0.2, (60, 62, 66))
+    M.free()
+    for k in (0, 2): umbrella(M, x - 5.2 + k * 3.5, z + 3.6, ac, r, False, y_fix=y + 0.18)
+
+
+def wet_sand(M, xa, xb):
+    """faixa de areia molhada (mais escura) junto da agua"""
+    M.free('orla'); M.m('areia'); x = xa
+    while x < xb:
+        x1 = min(x + 6.0, xb)
+        za, zb = shore_z(x), shore_z(x1)
+        M.quad((x, sand_y(x, za - 9) + 0.015, za - 9), (x1, sand_y(x1, zb - 9) + 0.015, zb - 9), (x1, Y_SEA + 0.02, zb - 1.0), (x, Y_SEA + 0.02, za - 1.0), (176, 158, 124), (0, 1, 0))
+        x = x1
+    M.free()
+
+
+def lounger(M, x, z, ang, col, yb):
+    """espreguicadeira: estrutura branca, assento e encosto inclinado em lona colorida"""
+    F = Frame((x, z), (math.cos(ang), math.sin(ang)))
+    M.m('liso')
+    for (u, v) in ((-0.85, -0.3), (-0.85, 0.3), (0.85, -0.3), (0.85, 0.3)): M.prism(F.rect(u - 0.03, u + 0.03, v - 0.03, v + 0.03), yb, yb + 0.3, (245, 245, 242))
+    M.prism(F.rect(-0.9, 0.35, -0.32, 0.32), yb + 0.3, yb + 0.36, col)
+    M.quad(F.p(0.35, -0.32, yb + 0.36), F.p(0.35, 0.32, yb + 0.36), F.p(0.95, 0.32, yb + 0.95), F.p(0.95, -0.32, yb + 0.95), col, (-0.7, 0.7, 0))
+
+
+def umbrella(M, x, z, col, r, chairs=True, y_fix=None, col2=None):
+    """guarda-sol de 8 gomos (cores alternadas), haste inclinada levemente, com espreguicadeiras"""
+    yb = sand_y(x, z) if y_fix is None else y_fix
+    col2 = col2 or ((250, 250, 246) if r.random() < 0.7 else r.choice(COLS))
+    M.at(x, z, 'orla'); M.m('liso')
+    tilt = r.uniform(-0.25, 0.25) if y_fix is None else 0.0
+    tx, tz = x + tilt, z + tilt * 0.5
+    M.quad((x - 0.02, yb - 0.2, z), (x + 0.02, yb - 0.2, z), (tx + 0.02, yb + 2.35, tz), (tx - 0.02, yb + 2.35, tz), (230, 230, 230), (0, 0, 1))
+    M.quad((x, yb - 0.2, z - 0.02), (x, yb - 0.2, z + 0.02), (tx, yb + 2.35, tz + 0.02), (tx, yb + 2.35, tz - 0.02), (230, 230, 230), (1, 0, 0))
+    R = r.uniform(1.3, 1.6); apex = (tx, yb + 2.5, tz)
+    for k in range(8):
+        a0, a1 = 2 * math.pi * k / 8, 2 * math.pi * (k + 1) / 8
+        p0 = (tx + math.cos(a0) * R, yb + 2.0, tz + math.sin(a0) * R); p1 = (tx + math.cos(a1) * R, yb + 2.0, tz + math.sin(a1) * R)
+        M.tri(apex, p1, p0, col if k % 2 == 0 else col2, (0, 1, 0))
+        pm = (tx + math.cos((a0 + a1) / 2) * R * 0.97, yb + 1.88, tz + math.sin((a0 + a1) / 2) * R * 0.97)       # babado
+        M.tri(p0, p1, pm, shade(col if k % 2 == 0 else col2, -18), (math.cos((a0 + a1) / 2), 0.2, math.sin((a0 + a1) / 2)))
+    if chairs:
+        cc = col if r.random() < 0.6 else (250, 250, 248)
+        for s in (-1, 1): lounger(M, x + s * 0.9, z + 0.6, math.pi / 2 + r.uniform(-0.15, 0.15), cc, yb)
+    M.free()
+
+
+def towel(M, x, z, ang, r):
+    yb = sand_y(x, z) + 0.02
+    F = Frame((x, z), (math.cos(ang), math.sin(ang))); c1, c2 = r.sample(COLS, 2)
+    M.at(x, z, 'orla'); M.m('liso')
+    for k in range(5):
+        M.poly([F.p(-0.9 + k * 0.36, -0.45, yb), F.p(-0.54 + k * 0.36, -0.45, yb), F.p(-0.54 + k * 0.36, 0.45, yb), F.p(-0.9 + k * 0.36, 0.45, yb)], c1 if k % 2 == 0 else c2, (0, 1, 0))
+    M.free()
+
+
+def cooler(M, x, z, r):
+    yb = sand_y(x, z); col = r.choice(((40, 110, 200), (220, 60, 50), (240, 190, 40)))
+    M.at(x, z, 'orla'); M.m('liso'); M.box(x - 0.3, x + 0.3, yb, yb + 0.38, z - 0.2, z + 0.2, col)
+    M.box(x - 0.32, x + 0.32, yb + 0.38, yb + 0.45, z - 0.22, z + 0.22, (250, 250, 248)); M.free()
+
+
+def surfboard(M, x, z, ang, r, flat=False):
+    """prancha: casco alongado com bico; em pe na areia ou deitada"""
+    yb = sand_y(x, z); col = r.choice(COLS + [(250, 250, 248), (250, 250, 248)]); L = r.uniform(1.8, 2.6); Wb = 0.27
+    c, s = math.cos(ang), math.sin(ang)
+    out = [(-L / 2, 0), (-L / 2 + 0.1, Wb), (L * 0.15, Wb), (L / 2, 0), (L * 0.15, -Wb), (-L / 2 + 0.1, -Wb)]
+    M.at(x, z, 'orla'); M.m('liso')
+    if flat:
+        pts = [(x + c * u - s * v, z + s * u + c * v) for (u, v) in out]
+        M.prism(pts, yb + 0.02, yb + 0.08, col)
+    else:
+        for side in (-1, 1):
+            M.poly([(x + c * v * 1.0 + c * 0.03 * side * 0, yb - 0.3 + (u + L / 2), z + s * v) for (u, v) in out][::side], col, (-s * side, 0, c * side))
+    M.free()
+
+
+def family(M, x, z, r):
+    """grupo de banhistas sem gente: guarda-sol, cangas, cooler, bolsa, prancha ou bola"""
+    umbrella(M, x, z, r.choice(COLS), r, r.random() < 0.6)
+    for k in range(r.randint(1, 3)): towel(M, x + r.uniform(-2.2, 2.2), z + r.uniform(1.2, 3.0), r.uniform(-0.4, 0.4) + math.pi / 2, r)
+    if r.random() < 0.6: cooler(M, x + r.uniform(-1.4, 1.4), z - r.uniform(0.6, 1.4), r)
+    if r.random() < 0.35: surfboard(M, x + r.uniform(-2.5, 2.5), z + r.uniform(-2.0, 0.0), r.uniform(0, 6.28), r, True)
+    if r.random() < 0.3:
+        bx, bz = x + r.uniform(-3, 3), z + r.uniform(2, 4); yb = sand_y(bx, bz)
+        M.at(bx, bz, 'orla'); M.m('liso'); M.sphere(bx, yb + 0.18, bz, 0.18, r.choice(COLS), 6, 4); M.free()
+
+
+def sandcastle(M, x, z, r):
+    """castelo de areia: torres, muralha e um balde virado"""
+    yb = sand_y(x, z); M.at(x, z, 'orla'); M.m('areia'); c = (214, 190, 140)
+    M.cyl(x, z, 0.75, yb - 0.05, yb + 0.25, c, 10)
+    for k in range(4):
+        a = k * math.pi / 2 + 0.4; M.cyl(x + math.cos(a) * 0.6, z + math.sin(a) * 0.6, 0.2, yb + 0.2, yb + 0.6, c, 8); M.cyl(x + math.cos(a) * 0.6, z + math.sin(a) * 0.6, 0.22, yb + 0.6, yb + 0.68, c, 8)
+    M.cyl(x, z, 0.3, yb + 0.25, yb + 0.85, c, 8); M.cyl(x, z, 0.32, yb + 0.85, yb + 1.1, c, 8, True, 0.02)
+    M.m('liso'); col = r.choice(COLS); bx, bz = x + 1.3, z + 0.4
+    M.cyl(bx, bz, 0.18, yb, yb + 0.25, col, 8, True, 0.13); M.free()
+
+
+def vendor_cart(M, x, z, r):
+    """carrinho de ambulante (mate, picole) com guarda-sol"""
+    yb = sand_y(x, z); M.at(x, z, 'orla'); col = r.choice(((40, 110, 200), (250, 196, 50), (230, 70, 50)))
+    M.m('liso'); M.box(x - 0.6, x + 0.6, yb + 0.35, yb + 1.15, z - 0.4, z + 0.4, col)
+    M.box(x - 0.62, x + 0.62, yb + 1.15, yb + 1.22, z - 0.42, z + 0.42, (250, 250, 248))
+    for s in (-1, 1): M.cyl(x + s * 0.45, z + 0.42, 0.3, yb, yb + 0.6, (30, 30, 32), 8)
+    M.free()
+    umbrella(M, x + 0.7, z, (250, 250, 246), r, False, col2=col)
+
+
+def flags(M, x, z, r):
+    """bandeiras do salva-vidas (vermelha e amarela)"""
+    yb = sand_y(x, z); M.at(x, z, 'orla'); M.m('liso')
+    for k, col in enumerate(((220, 40, 40), (250, 210, 40))):
+        fx = x + k * 2.5; M.cyl(fx, z, 0.04, yb - 0.4, yb + 4.0, (230, 230, 230), 5, False)
+        M.box(fx + 0.04, fx + 1.2, yb + 3.2, yb + 3.95, z - 0.01, z + 0.01, col)
+    M.free()
+
+
+def beach_tennis(M, x, z, r):
+    yb = sand_y(x, z) + 0.04
+    M.at(x, z, 'orla'); M.m('liso')
+    for (a, b, c, d) in ((x - 8, x + 8, z - 4, z - 3.92), (x - 8, x + 8, z + 3.92, z + 4), (x - 8, x - 7.92, z - 4, z + 4), (x + 7.92, x + 8, z - 4, z + 4)):
+        M.poly([(a, yb, c), (b, yb, c), (b, yb, d), (a, yb, d)], (230, 70, 50), (0, 1, 0))
+    for zz in (z - 4.4, z + 4.4): M.cyl(x, zz, 0.05, yb - 0.3, yb + 1.85, (250, 250, 250), 5, False)
+    M.box(x - 0.015, x + 0.015, yb + 1.0, yb + 1.75, z - 4.4, z + 4.4, (40, 42, 46)); M.box(x - 0.03, x + 0.03, yb + 1.75, yb + 1.82, z - 4.4, z + 4.4, (250, 250, 248))
+    M.free()
+
+
+def kayak(M, x, z, ang, col):
+    yb = sand_y(x, z); c, s = math.cos(ang), math.sin(ang); L = 3.6
+    out = [(-L / 2, 0), (-L * 0.25, 0.35), (L * 0.25, 0.35), (L / 2, 0), (L * 0.25, -0.35), (-L * 0.25, -0.35)]
+    pts = [(x + c * u - s * v, z + s * u + c * v) for (u, v) in out]
+    M.at(x, z, 'orla'); M.m('liso'); M.prism(pts, yb, yb + 0.32, col, True, False, shade(col, 20))
+    M.cyl(x, z, 0.28, yb + 0.32, yb + 0.36, (30, 30, 34), 8); M.free()
+
+
+def rental(M, pr, x, r):
+    """aluguel de caiaques e pranchas: barraca, prateleira de pranchas e caiaques na areia molhada"""
+    z = shore_z(x) - 18; yb = sand_y(x, z)
+    M.at(x, z, 'orla'); M.m('madeira')
+    for (dx, dz) in ((-1.8, -1.2), (1.8, -1.2), (1.8, 1.2), (-1.8, 1.2)): M.box(x + dx - 0.07, x + dx + 0.07, yb - 0.3, yb + 2.4, z + dz - 0.07, z + dz + 0.07, (150, 108, 70))
+    M.m('liso'); M.box(x - 2.1, x + 2.1, yb + 2.4, yb + 2.5, z - 1.5, z + 1.5, (40, 140, 180)); M.box(x - 1.6, x + 1.6, yb + 0.6, yb + 1.0, z - 1.2, z - 1.0, (245, 245, 240))
+    M.m('madeira')
+    for k in range(2): M.box(x + 3.0, x + 6.2, yb + 0.5 + k * 0.6, yb + 0.56 + k * 0.6, z - 0.05, z + 0.05, (150, 108, 70))
+    M.free()
+    for k in range(4): surfboard(M, x + 3.3 + k * 0.8, z + 0.3, 0.0, r, False)
+    for k in range(4): kayak(M, x - 4 + k * 2.4, shore_z(x) - 3.5, math.pi / 2 + r.uniform(-0.2, 0.2), r.choice(COLS))
+
+
+def bike_bridge(M, pr, spans, y, r):
+    """passarela da ciclovia sobre a foz do rio (liga as duas orlas): tabuleiro em arco, ciclovia vermelha, guarda-corpo e postes"""
+    za, zb = Z0 + 0.3, Z0 + 4.1; zm = (za + zb) / 2
+    xa = river_x(zm) - RIVER_W / 2 - RIVER_WALL - 0.4; xb = river_x(zm) + RIVER_W / 2 + RIVER_WALL + 0.4
+    n = 24; rise = 1.1
+    yy = lambda t: y + rise * math.sin(math.pi * t)
+    M.at((xa + xb) / 2, zm, 'orla')
+    for k in range(n):
+        t0, t1 = k / n, (k + 1) / n; x0, x1 = xa + (xb - xa) * t0, xa + (xb - xa) * t1; y0, y1 = yy(t0), yy(t1)
+        M.m('asfalto'); M.quad((x0, y0 + 0.03, za + 0.5), (x1, y1 + 0.03, za + 0.5), (x1, y1 + 0.03, zb - 0.5), (x0, y0 + 0.03, zb - 0.5), (255, 150, 120), (0, 1, 0))
+        M.m('concreto')
+        M.quad((x0, y0 + 0.03, za), (x1, y1 + 0.03, za), (x1, y1 + 0.03, za + 0.5), (x0, y0 + 0.03, za + 0.5), (236, 232, 224), (0, 1, 0))
+        M.quad((x0, y0 + 0.03, zb - 0.5), (x1, y1 + 0.03, zb - 0.5), (x1, y1 + 0.03, zb), (x0, y0 + 0.03, zb), (236, 232, 224), (0, 1, 0))
+        for zz, s in ((za, -1), (zb, 1)): M.quad((x0, y0 - 0.55, zz), (x1, y1 - 0.55, zz), (x1, y1 + 0.03, zz), (x0, y0 + 0.03, zz), (214, 210, 202), (0, 0, s))
+        M.quad((x0, y0 - 0.55, zb), (x1, y1 - 0.55, zb), (x1, y1 - 0.55, za), (x0, y0 - 0.55, za), (190, 186, 178), (0, -1, 0))
+        M.m('liso')
+        for zz in (za + 0.52, zb - 0.6): M.quad((x0, y0 + 0.06, zz), (x1, y1 + 0.06, zz), (x1, y1 + 0.06, zz + 0.08), (x0, y0 + 0.06, zz + 0.08), (250, 250, 246), (0, 1, 0))
+        M.m('metal')
+        for zz in (za + 0.08, zb - 0.08):
+            M.quad((x0, y0 + 1.05, zz), (x1, y1 + 1.05, zz), (x1, y1 + 1.15, zz), (x0, y0 + 1.15, zz), (60, 64, 70), (0, 0, 1))
+            M.quad((x0, y0 + 0.55, zz), (x1, y1 + 0.55, zz), (x1, y1 + 0.6, zz), (x0, y0 + 0.6, zz), (60, 64, 70), (0, 0, 1))
+            M.box(x0 - 0.04, x0 + 0.04, y0 + 0.03, y0 + 1.15, zz - 0.04, zz + 0.04, (60, 64, 70))
+    M.m('concreto')
+    for xp in (river_x(zm) - RIVER_W / 4, river_x(zm) + RIVER_W / 4): M.box(xp - 0.5, xp + 0.5, -3.5, yy((xp - xa) / (xb - xa)) - 0.55, za + 0.3, zb - 0.3, (196, 192, 184))
+    M.free()
+    for t in (0.25, 0.75):
+        xx = xa + (xb - xa) * t; M.at(xx, za, 'orla'); M.m('metal'); M.cyl(xx, za + 0.1, 0.06, yy(t), yy(t) + 4.2, (60, 64, 70), 6, False)
+        M.m('liso'); M.sphere(xx, yy(t) + 4.4, za + 0.1, 0.26, (255, 246, 214), 6, 4); M.free()
+
+
+def jetties_and_lighthouse(M, pr, r):
+    """molhes de pedra prolongando o cais mar adentro (dividem a agua do rio que chega na praia) e o farol na ponta
+    do molhe oeste; farolete verde na ponta do leste. Luzes registradas em pr.luzes para o ciclo de dia e noite."""
+    zs = shore_z(river_x(1840)) + 14.0
+    zt = zs + 70.0
+    for sgn in (-1, 1):
+        x0 = river_x(1840) + sgn * (RIVER_W / 2 + RIVER_WALL / 2)
+        # passeio de concreto em cima do molhe, levemente alargando ate a plataforma da ponta
+        z = zs - 2
+        while z < zt:
+            z1 = min(z + 6, zt); w = 2.2 + 1.8 * (z - zs) / (zt - zs)
+            M.at(x0, (z + z1) / 2, 'orla'); M.m('concreto')
+            M.prism([(x0 - w, z), (x0 + w, z), (x0 + w, z1), (x0 - w, z1)], -3.5, 0.9, (206, 202, 194), True)
+            M.m('pedra')                                                                            # enrocamento dos dois lados
+            for s in (-1, 1):
+                for zz in np.arange(z + 0.8, z1, 1.7):
+                    for j in range(2):
+                        rx_ = x0 + s * (w + 0.9 + j * 1.3) + r.uniform(-0.3, 0.3)
+                        M.sphere(rx_, -0.5 + (0.7 if j == 0 else 0.0) + r.uniform(-0.2, 0.2), zz + r.uniform(-0.4, 0.4), r.uniform(0.9, 1.4), r.choice(((150, 146, 138), (128, 124, 118), (170, 164, 152))), 6, 3, 0.75, 0.18, r)
+            M.m('metal')
+            for s in (-1, 1): M.box(x0 + s * (w - 0.1) - 0.04, x0 + s * (w - 0.1) + 0.04, 1.85, 1.95, z, z1, (200, 60, 50) if sgn < 0 else (40, 140, 80))
+            for s in (-1, 1): M.box(x0 + s * (w - 0.1) - 0.05, x0 + s * (w - 0.1) + 0.05, 0.9, 1.95, z - 0.05, z + 0.05, (90, 94, 100))
+            M.free(); z = z1
+        # plataforma redonda na ponta
+        cx, cz = x0, zt + 6.0
+        M.at(cx, cz, 'orla'); M.m('pedra')
+        for k in range(26):
+            a = 2 * math.pi * k / 26; M.sphere(cx + math.cos(a) * 9.8, -0.4 + r.uniform(-0.2, 0.3), cz + math.sin(a) * 9.8, r.uniform(1.2, 1.7), r.choice(((150, 146, 138), (128, 124, 118))), 6, 3, 0.75, 0.18, r)
+        M.m('concreto'); M.cyl(cx, cz, 8.4, -3.5, 1.1, (206, 202, 194), 24)
+        M.prism([(cx - 4.0, cz - 9.0), (cx + 4.0, cz - 9.0), (cx + 4.0, cz - 4.0), (cx - 4.0, cz - 4.0)], -3.5, 1.0, (206, 202, 194))
+        M.m('metal')
+        for k in range(24):
+            a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
+            if abs(math.sin((a0 + a1) / 2)) > 0.92 and math.sin((a0 + a1) / 2) < 0: continue           # entrada vinda do molhe
+            p0 = (cx + math.cos(a0) * 8.2, cz + math.sin(a0) * 8.2); p1 = (cx + math.cos(a1) * 8.2, cz + math.sin(a1) * 8.2)
+            M.quad((p0[0], 2.05, p0[1]), (p1[0], 2.05, p1[1]), (p1[0], 2.15, p1[1]), (p0[0], 2.15, p0[1]), (90, 94, 100), (math.cos(a0), 0, math.sin(a0)))
+            M.box(p0[0] - 0.05, p0[0] + 0.05, 1.1, 2.15, p0[1] - 0.05, p0[1] + 0.05, (90, 94, 100))
+        M.free()
+        if sgn < 0: lighthouse(M, pr, cx, cz, 1.1, r)
+        else: beacon(M, pr, cx, cz, 1.1)
+
+
+def lighthouse(M, pr, x, z, y0, r):
+    """farol: torre conica de 34 m em faixas brancas e vermelhas, porta, janelinhas, galeria com guarda-corpo,
+    lanterna envidracada com a lampada, cupula vermelha com cata-vento; casa do faroleiro ao lado"""
+    H = 34.0; R0, R1 = 3.6, 2.2
+    M.at(x, z, 'orla')
+    M.m('concreto'); M.cyl(x, z, R0 + 0.6, y0, y0 + 1.2, (214, 208, 198), 20)
+    nb = 7
+    for k in range(nb):
+        t0, t1 = k / nb, (k + 1) / nb
+        ya, yb_ = y0 + 1.2 + (H - 1.2) * t0, y0 + 1.2 + (H - 1.2) * t1
+        ra, rb = R0 + (R1 - R0) * t0, R0 + (R1 - R0) * t1
+        M.m('reboco'); M.cyl(x, z, ra, ya, yb_, (240, 238, 232) if k % 2 == 0 else (196, 40, 36), 24, False, rb)
+    yt = y0 + H
+    M.m('liso')
+    for k in range(5):                                                  # janelinhas subindo em espiral
+        a = k * 1.3 + 0.4; yy = y0 + 5 + k * 5.6; rr = R0 + (R1 - R0) * (yy - y0) / H + 0.05
+        wx, wz = x + math.cos(a) * rr, z + math.sin(a) * rr; tx_, tz_ = -math.sin(a), math.cos(a)
+        M.quad((wx - tx_ * 0.35, yy, wz - tz_ * 0.35), (wx + tx_ * 0.35, yy, wz + tz_ * 0.35), (wx + tx_ * 0.35, yy + 1.0, wz + tz_ * 0.35), (wx - tx_ * 0.35, yy + 1.0, wz - tz_ * 0.35), (40, 50, 62), (math.cos(a), 0, math.sin(a)))
+    a = -math.pi / 2; dx_, dz_ = math.cos(a) * (R0 + 0.06), math.sin(a) * (R0 + 0.06)
+    M.quad((x + dx_ - 0.6, y0 + 1.2, z + dz_), (x + dx_ + 0.6, y0 + 1.2, z + dz_), (x + dx_ + 0.6, y0 + 3.6, z + dz_), (x + dx_ - 0.6, y0 + 3.6, z + dz_), (60, 80, 70), (0, 0, -1))
+    # galeria
+    M.m('concreto'); M.cyl(x, z, R1 + 1.3, yt, yt + 0.35, (230, 226, 218), 24)
+    M.m('metal')
+    for k in range(32):
+        a0, a1 = 2 * math.pi * k / 32, 2 * math.pi * (k + 1) / 32; rr = R1 + 1.2
+        p0 = (x + math.cos(a0) * rr, z + math.sin(a0) * rr); p1 = (x + math.cos(a1) * rr, z + math.sin(a1) * rr)
+        M.quad((p0[0], yt + 1.35, p0[1]), (p1[0], yt + 1.35, p1[1]), (p1[0], yt + 1.45, p1[1]), (p0[0], yt + 1.45, p0[1]), (40, 44, 50), (math.cos(a0), 0, math.sin(a0)))
+        M.box(p0[0] - 0.04, p0[0] + 0.04, yt + 0.35, yt + 1.45, p0[1] - 0.04, p0[1] + 0.04, (40, 44, 50))
+    # lanterna
+    M.m('reboco'); M.cyl(x, z, R1 - 0.2, yt + 0.35, yt + 1.3, (196, 40, 36), 16)
+    M.m('vidro'); M.cyl(x, z, R1 - 0.35, yt + 1.3, yt + 4.2, (210, 236, 246), 16, False)
+    M.m('metal')
+    for k in range(8):
+        a = 2 * math.pi * k / 8; M.box(x + math.cos(a) * (R1 - 0.33) - 0.06, x + math.cos(a) * (R1 - 0.33) + 0.06, yt + 1.3, yt + 4.2, z + math.sin(a) * (R1 - 0.33) - 0.06, z + math.sin(a) * (R1 - 0.33) + 0.06, (40, 44, 50))
+    M.m('liso'); M.sphere(x, yt + 2.75, z, 0.75, (255, 244, 190), 10, 6)            # lampada (emissiva no ciclo de noite)
+    M.cyl(x, z, 0.18, yt + 1.3, yt + 2.2, (60, 60, 64), 8)
+    M.m('reboco'); M.cyl(x, z, R1 - 0.1, yt + 4.2, yt + 5.6, (196, 40, 36), 16, False, 0.25)
+    M.m('metal'); M.cyl(x, z, 0.05, yt + 5.6, yt + 7.0, (40, 44, 50), 5, False); M.sphere(x, yt + 5.7, z, 0.25, (40, 44, 50), 6, 4)
+    M.box(x - 0.6, x + 0.6, yt + 6.6, yt + 6.66, z - 0.03, z + 0.03, (40, 44, 50))
+    # casa do faroleiro
+    hx, hz = x + 5.0, z - 1.0
+    M.m('reboco'); M.box(hx - 2.0, hx + 2.0, y0, y0 + 3.0, hz - 2.6, hz + 2.6, (244, 242, 236), top=False)
+    M.m('telha'); M.quad((hx - 2.3, y0 + 3.0, hz - 2.9), (hx - 2.3, y0 + 3.0, hz + 2.9), (hx, y0 + 4.4, hz + 2.9), (hx, y0 + 4.4, hz - 2.9), (180, 70, 50), (-0.5, 0.85, 0))
+    M.quad((hx, y0 + 4.4, hz - 2.9), (hx, y0 + 4.4, hz + 2.9), (hx + 2.3, y0 + 3.0, hz + 2.9), (hx + 2.3, y0 + 3.0, hz - 2.9), (180, 70, 50), (0.5, 0.85, 0))
+    M.m('reboco')
+    for s in (-1, 1): M.tri((hx - 2.0, y0 + 3.0, hz + s * 2.6), (hx + 2.0, y0 + 3.0, hz + s * 2.6), (hx, y0 + 4.4, hz + s * 2.6), (244, 242, 236), (0, 0, s))
+    M.m('liso')
+    M.quad((hx - 0.5, y0, hz - 2.64), (hx + 0.5, y0, hz - 2.64), (hx + 0.5, y0 + 2.1, hz - 2.64), (hx - 0.5, y0 + 2.1, hz - 2.64), (60, 80, 70), (0, 0, -1))
+    for s in (-1, 1): M.quad((hx + 2.04, y0 + 1.1, hz + s * 1.2 - 0.5), (hx + 2.04, y0 + 1.1, hz + s * 1.2 + 0.5), (hx + 2.04, y0 + 2.1, hz + s * 1.2 + 0.5), (hx + 2.04, y0 + 2.1, hz + s * 1.2 - 0.5), (40, 50, 62), (1, 0, 0))
+    M.free()
+    pr.luzes.append({'tipo': 'farol', 'x': round(x, 2), 'y': round(yt + 2.75, 2), 'z': round(z, 2), 'cor': [255, 244, 190], 'alcance_m': 900, 'giro_s': 12.0})
+
+
+def beacon(M, pr, x, z, y0):
+    """farolete verde na ponta do molhe leste"""
+    M.at(x, z, 'orla'); M.m('reboco'); M.cyl(x, z, 1.4, y0, y0 + 7.5, (240, 238, 232), 12, False, 1.0)
+    M.cyl(x, z, 1.05, y0 + 3.0, y0 + 5.0, (40, 140, 80), 12, False, 0.95)
+    M.m('concreto'); M.cyl(x, z, 1.6, y0 + 7.5, y0 + 7.8, (230, 226, 218), 12)
+    M.m('vidro'); M.cyl(x, z, 0.6, y0 + 7.8, y0 + 9.0, (200, 240, 210), 10, False)
+    M.m('liso'); M.sphere(x, y0 + 8.4, z, 0.35, (140, 255, 160), 8, 5)
+    M.m('reboco'); M.cyl(x, z, 0.75, y0 + 9.0, y0 + 9.7, (40, 140, 80), 10, False, 0.1)
+    M.free()
+    pr.luzes.append({'tipo': 'farolete', 'x': round(x, 2), 'y': round(y0 + 8.4, 2), 'z': round(z, 2), 'cor': [140, 255, 160], 'alcance_m': 300, 'pisca_s': 3.0})
 
 
 def stairs(M, pr, x, y):
@@ -145,19 +530,6 @@ def kiosk(M, pr, x, z, y, r):
         M.cyl(tx, tz, 1.25, y + 2.0, y + 2.45, ac if k % 2 else (250, 250, 246), 8, False, 0.04)
         for j in range(3):
             b = j * 2.1 + k; M.box(tx + math.cos(b) * 0.85 - 0.2, tx + math.cos(b) * 0.85 + 0.2, y, y + 0.45, tz + math.sin(b) * 0.85 - 0.2, tz + math.sin(b) * 0.85 + 0.2, (250, 250, 248))
-    M.free()
-
-
-def umbrella(M, x, z, col, r, chairs=True):
-    yb = sand_y(x, z)
-    M.at(x, z, 'orla'); M.m('liso')
-    M.cyl(x, z, 0.035, yb, yb + 2.2, (230, 230, 230), 4, False)
-    M.cyl(x, z, 1.45, yb + 1.95, yb + 2.4, col, 8, False, 0.04)
-    if chairs:
-        for s in (-1, 1):
-            cx = x + s * 0.95; cc = r.choice(((250, 250, 250), col))
-            M.box(cx - 0.32, cx + 0.32, yb + 0.22, yb + 0.3, z - 0.2, z + 1.5, cc)
-            M.quad((cx - 0.32, yb + 0.3, z - 0.2), (cx + 0.32, yb + 0.3, z - 0.2), (cx + 0.32, yb + 0.85, z - 0.75), (cx - 0.32, yb + 0.85, z - 0.75), cc, (0, 0.6, 1))
     M.free()
 
 

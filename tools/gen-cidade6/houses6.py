@@ -502,10 +502,11 @@ class House:
         pa, pb = F.xz(ua, va), F.xz(ub, vb)
         line = _L([pa, pb])
         if line.length < 0.4: return
-        for q in reg:
+        dx, dz = pb[0] - pa[0], pb[1] - pa[1]; L = math.hypot(dx, dz); ux, uz = dx / L, dz / L
+        for (q, qu) in reg:                                   # so tira o trecho que corre junto (paralelo) a uma cerca que ja existe;
+            if abs(qu[0] * ux + qu[1] * uz) < 0.95: continue  # cerca que chega de lado (perpendicular) vai ate encostar, sem vao na quina
             if q.intersects(line): line = line.difference(q)
             if line.is_empty: return
-        dx, dz = pb[0] - pa[0], pb[1] - pa[1]; L = math.hypot(dx, dz); ux, uz = dx / L, dz / L
         Fs = Frame(pa, (ux, uz))
         for seg in getattr(line, 'geoms', [line]):
             if seg.geom_type != 'LineString' or seg.length < 0.4: continue
@@ -531,7 +532,7 @@ class House:
                     self.B.box(Fs, t - 0.08, t + 0.08, -0.08, 0.08, Y0, Y0 + h + 0.1, shade(fc, -18), fm, top=True)
             for (g0, g1) in cuts:                                  # folha do portao (recuada 15 cm da linha)
                 self.B.box(Fs, g0 + 0.06, g1 - 0.06, 0.1, 0.18, Y0 + 0.05, Y0 + h - 0.15, shade(fc, -10), fm, top=True)
-        reg.append(_L([pa, pb]).buffer(0.55, cap_style='flat'))
+        reg.append((_L([pa, pb]).buffer(0.55, cap_style='flat'), (ux, uz)))
 
     def fences(self):
         """quintal cercado por inteiro (laterais ate o fundo, fundo e os fechamentos entre a casa e as divisas, com portao),
