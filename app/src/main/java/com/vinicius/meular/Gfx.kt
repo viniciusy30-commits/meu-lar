@@ -59,8 +59,8 @@ object Mt {
     const val C6 = 26
     val C6_NAMES = arrayOf("agua", "areia", "asfalto", "calcada", "casca", "cascalho", "ceramica", "cerca", "classica", "concreto", "escritorio", "folhagem", "garagem", "grama", "janela", "janelas", "madeira", "metal", "moderna", "ondas", "paver", "pedra", "porta", "quadra", "reboco", "siding", "telha", "terreno", "tijolo", "vidro", "vitrine")
     /** fachadas com janelas (acendem à noite) */
-    private val FACADE = setOf("janela", "janelas", "vitrine", "escritorio", "classica", "moderna")
-    private val facadeMat: BooleanArray by lazy { BooleanArray(256).also { a -> for ((k, n) in C6_NAMES.withIndex()) if (n in FACADE && C6 + k < 256) a[C6 + k] = true } }
+    private val FACADE_NAMES = setOf("janela", "janelas", "vitrine", "escritorio", "classica", "moderna")
+    private val facadeMat: BooleanArray by lazy { BooleanArray(256).also { a -> for ((k, n) in C6_NAMES.withIndex()) if (n in FACADE_NAMES && C6 + k < 256) a[C6 + k] = true } }
     fun isFacade(m: Int): Boolean = m in 0..255 && facadeMat[m]
     /** Cidade 6: folhas e casca da árvore da Cidade 2 (álamo do city2.glb), em assets/hds/c6tex/arvore_*.png */
     const val TREE6_LEAF = 57
