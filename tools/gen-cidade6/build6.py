@@ -58,13 +58,18 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     if single:
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), h['yaw']) for h in L.player]
         # GLB unico em duas partes (cada uma < 100 MB): construcoes e (ruas + terreno + agua + orla + parques + vegetacao)
-        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario') + ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla', 'ruas')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla', 'ruas'))):
+        # (construcoes em duas metades, oeste e leste, para cada arquivo ficar abaixo de 100 MB)
+        nti = max(ti for (ti, tj) in tiles) + 1; half = nti // 2
+        BASE = ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla', 'ruas')
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay, ti: lay not in ('carros', 'mobiliario') + BASE and ti < half),
+                              ('cidade6_completa_leste.glb', lambda lay, ti: lay not in ('carros', 'mobiliario') + BASE and ti >= half),
+                              ('cidade6_vegetacao.glb', lambda lay, ti: lay in BASE)):
             spec = []
             for (ti, tj), lays in sorted(tiles.items()):
                 for lay, mats in sorted(lays.items()):
-                    if keep(lay): spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
+                    if keep(lay, ti): spec.append((f'{lay}_{ti:02d}_{tj:02d}', (ti * TILE, 0.0, tj * TILE), mats))
             fn = os.path.join(out, fname)
-            n = write_glb(fn, spec, tdir, embed=True, markers=mk if 'completa' in fname else None, quant=True)
+            n = write_glb(fn, spec, tdir, embed=True, markers=mk if fname == 'cidade6_completa.glb' else None, quant=True)
             print(f'{fname}: {n} triangulos, {os.path.getsize(fn) / 1e6:.1f} MB')
     return man
 

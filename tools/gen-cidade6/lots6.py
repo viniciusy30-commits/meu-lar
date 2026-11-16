@@ -78,21 +78,38 @@ class Lots:
         for nm, (x, z, side) in self.SPECIAL.items():
             for bi, blk in enumerate(self.P.blocks):
                 if blk['poly'].contains(Point(x, z)): self.special[bi] = (nm, side); break
-        # quadras das profissoes: as do centro mais perto do Paco, dois predios por quadra (frente norte e sul)
-        import jobs6
+        # predios das profissoes: um por quadra do centro, espalhados (cada um num canto diferente do centro),
+        # na fileira de predios do lado que da para a via mais importante (avenida > rua do centro)
+        import jobs2_6
+        from shapely.geometry import LineString as _LS
+        avs = [_LS(r_['pts']) for r_ in self.P.roads if r_['kind'] == 'av']
         cand = []
         for bi, blk in enumerate(self.P.blocks):
             if blk['zone'] != 'centro' or bi in self.special: continue
             x0, z0, x1, z1 = blk['poly'].bounds
-            if z1 > 1640 or x1 - x0 < 44 or z1 - z0 < 70: continue
-            cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
-            cand.append((math.hypot(cx - 1120, cz - 960), bi))
-        cand.sort()
-        ids = list(jobs6.ORDER)
-        for _, bi in cand:
-            if not ids: break
-            pair = ids[:2]; ids = ids[2:]
-            self.special[bi] = ('jobs:' + ','.join(pair), 'N')
+            if z1 > 1640 or x1 - x0 < 60 or z1 - z0 < 60: continue
+            cand.append((bi, (x0 + x1) / 2, (z0 + z1) / 2, (x0, z0, x1, z1)))
+        self.jobblk = {}
+        chosen = []
+        px_, pz_ = self.SPECIAL['prefeitura'][:2]
+        ids = list(jobs2_6.ORDER)
+        while ids and cand:
+            # o mais longe dos ja escolhidos (e da prefeitura), mas sem fugir do centro
+            def score(c):
+                dmin = min([math.hypot(c[1] - a, c[2] - b) for (a, b) in chosen + [(px_, pz_)]])
+                return dmin - 0.15 * math.hypot(c[1] - px_, c[2] - pz_)
+            c = max(cand, key=score); cand.remove(c)
+            bi, cx, cz, (x0, z0, x1, z1) = c
+            jid = ids.pop(0)
+            need = jobs2_6.width(jid) + 4
+            sides = []
+            for sd, mid, Ls in (('N', ((x0 + x1) / 2, z0 - 6), x1 - x0), ('S', ((x0 + x1) / 2, z1 + 6), x1 - x0), ('W', (x0 - 6, (z0 + z1) / 2), z1 - z0), ('E', (x1 + 6, (z0 + z1) / 2), z1 - z0)):
+                if Ls < need + 30: continue
+                dav = min([a.distance(Point(*mid)) for a in avs] or [999])
+                sides.append((dav, sd))
+            if not sides: ids.insert(0, jid); continue
+            sides.sort()
+            self.jobblk[bi] = (jid, sides[0][1]); chosen.append((cx, cz))
 
     def row_on_avenue(self, blk, side):
         minx, minz, maxx, maxz = blk['poly'].bounds
@@ -234,9 +251,11 @@ class Lots:
         if nm == 'hospital':
             import jobs6
             self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
-            jobs6.place_job(self, F, L, 'medico')
-            nm_, br, fl, w, d, _ = jobs6.JOBS['medico']; ww = min(w, L - 4); off = (L - ww) / 2
-            self.pocc.append(Polygon(F.rect(off - 4, off + ww + 4, 0, 6.0 + d + 2)))
+            import jobs2_6
+            ww = jobs2_6.width('medico'); dd = jobs2_6.depth('medico'); off = (L - ww) / 2
+            Fh = self.frame(side, minx, maxx, minz, maxz, off)
+            jobs2_6.place(self, Fh, 'medico')
+            self.pocc.append(Polygon(Fh.rect(-6, ww + 6, -1, dd + 2)))
             return
         if nm.startswith('escola'):
             self.lawn(poly); B.school(F, L, D, self.park_car)
@@ -455,6 +474,8 @@ class Lots:
         hmax = int(max(5, 30 - dc / 22))
         w, d = maxx - minx, maxz - minz
         kind = r.random()
+        job = getattr(self, 'jobblk', {}).get(bi)
+        if job: kind = 0.6                                  # quadra com predio de profissao: fileira de predios
         self.M.free('lotes')
         # ---- quadra-praca
         if kind < 0.07 and dc > 150:
@@ -467,7 +488,7 @@ class Lots:
                 B.box(Fk, -0.5, 5.5, -1.2, 4.3, Y_WALK + 2.7, Y_WALK + 2.9, (240, 238, 232), 'concreto'); B.solid(Fk, 0, 5, 0, 4)
             return
         # ---- quadra de torres sobre praca
-        if dc < 380 and kind < 0.55 and min(w, d) > 80:
+        if dc < 380 and kind < 0.55 and min(w, d) > 80 and not job:
             n = r.choice((1, 2, 2, 3, 3, 4)); sides = ['N', 'S', 'E', 'W']; r.shuffle(sides); used = []
             for side in sides[:n]:
                 tw = r.uniform(30, 42); td = r.uniform(28, 38)
@@ -491,11 +512,14 @@ class Lots:
                     if c - a > 12 and e - b_ > 12 and q.within(g): self.plaza(a + 1, b_ + 1, c - 1, e - 1, r.random() < 0.4)
             return
         # ---- edificio-garagem em meia quadra
-        garage = kind > 0.94 and w > 70
+        garage = kind > 0.94 and w > 70 and not job
         # ---- perimetro de predios colados (frente para as 4 ruas)
         depths = {sd: r.uniform(16, 23) for sd in 'NESW'}
+        if job:
+            import jobs2_6
+            depths[job[1]] = max(depths[job[1]], jobs2_6.depth(job[0]))
         # ---- o miolo vira estacionamento? entao duas aberturas no perimetro, no eixo do miolo (entrada e saida em lados opostos)
-        opt = r.random(); gaps = {}
+        opt = r.random() if not job else 0.6; gaps = {}
         ix0_, iz0_ = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5
         ix1_, iz1_ = maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5 - (12 if garage else 0)
         if opt < 0.4 and ix1_ - ix0_ > 12 and iz1_ - iz0_ > 12:
@@ -514,10 +538,21 @@ class Lots:
                 for ((px, pz), py) in C6.parking_garage(B, F, min(end - 1, 46), 30, r.choice((4, 5, 6))): self.parked.append((px, pz, F.vx, F.vz, py))
                 self.M.free('lotes'); s = min(end - 1, 46) + 1.5
             gap = gaps.get(side)
+            jdo = job is not None and job[1] == side
+            if jdo:
+                import jobs2_6
+                jw = jobs2_6.width(job[0]); s_job = max(s + 2.0, (end - jw) / 2)
             while s < end - 6:
+                if jdo and s >= s_job - 0.01:
+                    Fj = self.frame(side, minx, maxx, minz, maxz, s_job)
+                    jobs2_6.place(self, Fj, job[0]); self.M.free('lotes')
+                    s = s_job + jw; jdo = False; continue
                 if gap and gap[0] - 0.01 <= s < gap[1]: s = gap[1]; continue
                 pw = min(r.uniform(13, 30), end - s)
                 if end - s - pw < 9: pw = end - s
+                if jdo and s + pw > s_job - 0.01:
+                    pw = s_job - s
+                    if pw < 6: s = s_job; continue
                 if gap and s < gap[0] < s + pw:
                     pw = gap[0] - s
                     if pw < 6: s = gap[1]; continue
