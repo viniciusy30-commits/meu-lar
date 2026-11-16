@@ -150,9 +150,9 @@ class Plan:
         self.add('Rua Ribeirinha Oeste', 'rua', wave((1560, 140), (1560, 640), 10, 0.8, 1.0))
         for z in range(140, 641, 100):
             if z == 440: continue
-            if z in (140, 640): self.add(f'Rua Nz{z}', 'rua', [(600, z), (1560, z)]); continue
+            if z == 640: continue                                   # ja existe (grade do centro)
+            if z == 140: self.add(f'Rua Nz{z}', 'rua', [(600, z), (1560, z)]); continue
             wavy(f'Rua Nz{z}', (600, z), (1560, z), 10, 18); ew_streets.append((self.roads[-1], 600, 1560))
-        self.add('Rua 1440 sul', 'centro', [(1440, 640), (1440, Z_ORLA)])
         # faixa entre o centro e o rio: mais uma coluna de quadras (o parque ribeirinho vira um parque linear junto ao cais)
         self.add('Rua do Cais', 'centro', [(1560, 640), (1560, Z_ORLA)])
         for z in (750, 880, 1000, 1120, 1345, 1470, 1590):

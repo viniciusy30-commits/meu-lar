@@ -291,33 +291,54 @@ class Props:
             M.shp(walk.intersection(sbox(minx - 5, z0, maxx + 5, z0 + 60)), Y_LAWN + 0.05, (245, 238, 228))
             M.shp(paths.intersection(sbox(minx - 5, z0, maxx + 5, z0 + 60)), Y_LAWN + 0.05, (236, 226, 208))
         allpaths = unary_union([walk, paths])
-        # equipamentos: um de cada lado da trilha a cada ~46 m
-        names = list(park6.STATIONS); r.shuffle(names); ni = 0
-        occ = []
-        z = minz + 30
-        while z < maxz - 24:
-            for lane in (0, 1):
-                for _try in range(len(names)):
-                    nm = names[_try]
-                    fn, ha, hb = park6.STATIONS[nm]
-                    u0, u1 = (11.5, um(z) - 5.5 - 2) if lane == 0 else (um(z) + 5.5 + 2, wid(z) - 4)
-                    if u1 - u0 < 2 * hb: continue
-                    u = (u0 + u1) / 2 + r.uniform(-1, 1) * max(0.0, (u1 - u0) / 2 - hb) * 0.5
-                    zz = z + r.uniform(-3, 3)
-                    x, _ = pt(u, zz)
-                    tx = xq(zz + 2) - xq(zz - 2); tl = math.hypot(tx, 4.0)
-                    from shapely.geometry import Polygon as _Pg
-                    F = Frame((x, zz), (tx / tl, 4.0 / tl))
-                    fp = _Pg(F.rect(-ha, ha, -hb, hb))
-                    if not inner.contains(fp) or fp.intersects(allpaths) or any(fp.distance(o) < 3 for o in occ): continue
-                    park6.place(self, nm, x, zz, tx / tl, 4.0 / tl, r); occ.append(fp); names.remove(nm); names.append(nm)
-                    # acesso: do equipamento ate a trilha
-                    tp = trail_line.interpolate(trail_line.project(Point(x, zz)))
-                    acc = LineString([(x, zz), (tp.x, tp.y)]).buffer(1.1).difference(fp).difference(allpaths).intersection(poly)
-                    M.free('parques'); M.m('paver'); M.shp(acc, Y_LAWN + 0.05, (236, 226, 208))
-                    occ.append(acc.buffer(0.5))
-                    break
-            z += 40
+        # trechos tematicos entre as travessas: cada trecho e um parque com cara propria (equipamentos + plantio do tema)
+        from shapely.geometry import Polygon as _Pg
+        if not hasattr(self, 'theme_bag'): self.theme_bag = []; self.last_theme = None
+        occ = []; theme_areas = []; acc_all = []
+        zcs = sorted(zc)
+        bounds_z = [minz] + [(zcs[i] + zcs[i + 1]) / 2 if False else zcs[i] for i in range(len(zcs))] + [maxz]
+        secs = [(bounds_z[i], bounds_z[i + 1]) for i in range(len(bounds_z) - 1) if bounds_z[i + 1] - bounds_z[i] > 24]
+        for (za, zb) in secs:
+            if not self.theme_bag: self.theme_bag = list(park6.THEMES); r.shuffle(self.theme_bag)
+            th = self.theme_bag.pop()
+            if th == self.last_theme and self.theme_bag: self.theme_bag.insert(0, th); th = self.theme_bag.pop()
+            self.last_theme = th
+            names, plant = park6.THEMES[th]
+            todo = list(names)
+            # pontos candidatos: varre o trecho nos dois lados da trilha, do centro para as pontas
+            zmid = (za + zb) / 2; cand = []
+            for dz in sorted(np.arange(-(zb - za) / 2 + 12, (zb - za) / 2 - 11, 4.0), key=abs):
+                for lane in (0, 1): cand.append((zmid + dz, lane))
+            def place_one(nm):
+                fn, ha, hb = park6.STATIONS[nm]
+                for (zz, lane) in cand:
+                    u0, u1 = (11.5, um(zz) - 2.5) if lane == 0 else (um(zz) + 2.5, wid(zz) - 6.0)
+                    for rot in ((0, 1) if u1 - u0 >= 2 * hb + 1 else ()) + ((1,) if u1 - u0 >= 2 * ha + 1 else ()):
+                        aa, bb = (ha, hb) if rot == 0 else (hb, ha)
+                        if u1 - u0 < 2 * bb + 0.5: continue
+                        for frac in (0.5, 0.25, 0.75):
+                            u = u0 + bb + (u1 - u0 - 2 * bb) * frac
+                            x, _ = pt(u, zz)
+                            tx = xq(zz + 2) - xq(zz - 2); tl = math.hypot(tx, 4.0); ax, az = tx / tl, 4.0 / tl
+                            if rot: ax, az = az * side, -ax * side
+                            F = Frame((x, zz), (ax, az))
+                            fp = _Pg(F.rect(-ha, ha, -hb, hb))
+                            if zz - max(ha, hb) < za + 1 or zz + max(ha, hb) > zb - 1: continue
+                            if not inner.contains(fp) or fp.intersects(allpaths) or any(fp.distance(o) < 2.5 for o in occ): continue
+                            park6.place(self, nm, x, zz, ax, az, r); occ.append(fp)
+                            tp = trail_line.interpolate(trail_line.project(Point(x, zz)))
+                            acc = LineString([(x, zz), (tp.x, tp.y)]).buffer(1.1).difference(fp).difference(allpaths).intersection(poly)
+                            acc = acc.difference(unary_union(acc_all + [o for o in occ if o.geom_type == 'Polygon' and o.area > 30]))   # nao passa por cima de outro piso
+                            M.free('parques'); M.m('paver'); M.shp(acc, Y_LAWN + 0.05, (236, 226, 208)); acc_all.append(acc)
+                            occ.append(acc.buffer(0.5)); return True
+                return False
+            nst = 0
+            for nm in todo: nst += place_one(nm)
+            extra = ['canteiros', 'pergola', 'piquenique', 'fonte', 'quiosque', 'academia', 'canteiros', 'pergola']; r.shuffle(extra)
+            for nm in extra:
+                if nst >= 6: break
+                nst += place_one(nm)
+            theme_areas.append((za, zb, plant))
         occu = unary_union(occ).buffer(1.5) if occ else None
         blocked = allpaths.buffer(1.6) if occu is None else unary_union([allpaths.buffer(1.6), occu])
         # calcadao: postes junto ao guarda-corpo, bancos virados para o rio, palmeiras/arvores em fila
@@ -345,20 +366,50 @@ class Props:
                 else:
                     for j in range(3): self.tree(q.x + tx / tl * (j - 1) * 1.3 + nx * s * 0.8, q.y + tz / tl * (j - 1) * 1.3 + nz * s * 0.8, 'flores' if j != 1 else 'arbusto', r.uniform(0.85, 1.15))
             d += 9.0; k += 1
-        # fila de arvores do lado da rua e bosques no resto
+        # fila de arvores do lado da rua
         for z in np.arange(minz + 8, maxz - 6, 11.0):
             p = Point(*pt(wid(z) - 3.5, z))
-            if inner.contains(p) and not blocked.contains(p): self.tree(p.x, p.y, self.street_species(int(z // 200)) if hasattr(self, 'street_species') and False else 'oval', r.uniform(0.95, 1.2))
-        pts = []
-        for _ in range(int(poly.area / 85)):
-            x, z = r.uniform(minx, maxx), r.uniform(minz, maxz); p = Point(x, z)
-            if not inner.buffer(-1.5).contains(p) or blocked.buffer(1.2).contains(p): continue
-            u = abs(x - xq(z))
-            if u < 13.5 or u > wid(z) - 6: continue
-            if any((x - a) ** 2 + (z - b) ** 2 < 30 for (a, b) in pts): continue
-            pts.append((x, z))
-            kd = r.choice(('folhosa', 'folhosa', 'oval', 'conifera', 'florida', 'ornamental', 'frutifera', 'arbusto'))
-            self.tree(x, z, kd, r.uniform(0.9, 1.3))
+            if inner.contains(p) and not blocked.contains(p): self.tree(p.x, p.y, 'oval', r.uniform(0.95, 1.2))
+        # plantio de cada trecho conforme o tema: bosques em grupos (nao espalhado por igual), pomar em fileiras, mata densa...
+        free_pts = []
+        for (za, zb, plant) in theme_areas:
+            lo_u = 13.5
+
+            def ok(x, z, gap=5.5):
+                p = Point(x, z)
+                if not inner.buffer(-1.5).contains(p) or blocked.buffer(1.2).contains(p): return False
+                u = abs(x - xq(z))
+                if u < lo_u or u > wid(z) - 6 or z < za + 2 or z > zb - 2: return False
+                return not any((x - a) ** 2 + (z - b) ** 2 < gap * gap for (a, b) in free_pts)
+            if plant in ('grupos', 'bosque', 'mata', 'jardim'):
+                ng = {'grupos': 3, 'bosque': 4, 'mata': 7, 'jardim': 2}[plant]
+                per = {'grupos': 7, 'bosque': 9, 'mata': 14, 'jardim': 5}[plant]
+                kinds = {'grupos': ('folhosa', 'oval', 'florida', 'ornamental'), 'bosque': ('folhosa', 'folhosa', 'oval', 'conifera'),
+                         'mata': ('folhosa', 'conifera', 'oval', 'folhosa', 'conifera'), 'jardim': ('ornamental', 'florida', 'colunar')}[plant]
+                for _ in range(ng * 6):
+                    if ng <= 0: break
+                    cxg, czg = r.uniform(minx, maxx), r.uniform(za + 6, zb - 6)
+                    if not ok(cxg, czg, 9.0): continue
+                    ng -= 1; rad = r.uniform(7, 13); kind_main = r.choice(kinds)
+                    for _ in range(per * 3):
+                        a_ = r.uniform(0, 6.28); d_ = rad * math.sqrt(r.random())
+                        x, z = cxg + math.cos(a_) * d_, czg + math.sin(a_) * d_
+                        if ok(x, z, 4.2 if plant != 'mata' else 3.6):
+                            free_pts.append((x, z)); self.tree(x, z, kind_main if r.random() < 0.7 else r.choice(kinds), r.uniform(0.85, 1.3))
+                    for _ in range(6):                                      # orla do bosque: arbustos e flores
+                        a_ = r.uniform(0, 6.28); x, z = cxg + math.cos(a_) * (rad + 2), czg + math.sin(a_) * (rad + 2)
+                        if ok(x, z, 2.0): self.tree(x, z, r.choice(('arbusto', 'flores', 'arbusto')), r.uniform(0.8, 1.1))
+            # arvores soltas no gramado entre os grupos (parque, nao campo vazio)
+            for _ in range(int((zb - za) * 2.2)):
+                x, z = r.uniform(minx, maxx), r.uniform(za + 3, zb - 3)
+                if ok(x, z, 10.0): free_pts.append((x, z)); self.tree(x, z, r.choice(('folhosa', 'oval', 'florida', 'ornamental', 'folhosa')), r.uniform(0.9, 1.3))
+            if plant in ('fileiras', 'pomar', 'palmeiras'):
+                kind = {'fileiras': 'colunar', 'pomar': 'frutifera', 'palmeira': 'palmeira', 'palmeiras': 'palmeira'}[plant]
+                step = 6.5 if plant != 'pomar' else 5.0
+                for uu in np.arange(lo_u + 2, 80, step if plant == 'pomar' else 14.0):
+                    for z in np.arange(za + 4, zb - 4, step):
+                        x, _ = pt(uu, z)
+                        if ok(x, z, step * 0.7): free_pts.append((x, z)); self.tree(x, z, kind, r.uniform(0.9, 1.1))
 
     def beach(self):
         """calcadao da orla (ondas em paver), quiosques, postos de salva-vidas, guarda-sois, pier"""
@@ -454,6 +505,7 @@ class Props:
             Fp = Frame((minx + 6, pz0), (1, 0)); M.at((minx + maxx) / 2, (pz0 + pz1) / 2, 'lotes')
             B.parking(Fp, 0, (maxx - minx) * 0.55, 0, pz1 - pz0, L.park_car, Y_WALK + 0.01); M.free('lotes')
             L.pocc.append(sbox(minx + 5, pz0 - 1, minx + 7 + (maxx - minx) * 0.55, pz1 + 1))
+            zc = (pz0 + pz1) / 2; L.access(L.frame('W', minx, maxx, minz, maxz, maxz - zc - 3.6), 0.0, 7.2, 6.2)
         L.fill_free(poly, c0, (), True, 3, ('quiosque', 'jardim', 'coreto', 'piquenique'))
 
     def boat(self, x, z, dx, dz, y=Y_SEA):

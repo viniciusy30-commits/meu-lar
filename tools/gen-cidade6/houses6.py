@@ -13,6 +13,7 @@ SIDING = [rgb(c) for c in ('#F3F0E8', '#E6DFCC', '#DAE4E8', '#C4D4DA', '#E8D9BF'
 STUCCO = [rgb(c) for c in ('#F3ECDF', '#EEE2CE', '#F6F1E7', '#E6D6C0', '#F1DCC2', '#EFD9C8', '#E4E0D4')]
 DOORS = [rgb(c) for c in ('#8A2A2A', '#27445F', '#2B5A3C', '#33363A', '#9A6A34', '#F3F1EB', '#1D2C47', '#C7A13A', '#6A3E7A', '#C2552E')]
 SHUTTERS = [rgb(c) for c in ('#2C3C2C', '#2B3A52', '#353535', '#5A2828', '#F5F3ED', '#3E5A6A', '#6A4A2E')]
+ROW = None          # calcadas + faixas de grama das ruas (shapely), passado pelo Lots: rampas de garagem medidas na calcada real
 FENCES = [((252, 252, 250), 'cerca'), ((214, 186, 150), 'cerca'), ((190, 160, 124), 'cerca'), ((236, 224, 204), 'cerca'), ((168, 140, 110), 'cerca'), ((250, 248, 242), 'cerca')]
 FLOWERS = [(232, 78, 120), (250, 214, 80), (244, 244, 248), (190, 110, 224), (246, 148, 56), (236, 60, 60), (120, 150, 240)]
 STYLES = ('ranch', 'colonial', 'craftsman', 'cape', 'moderna', 'farmhouse', 'mediterranea')
@@ -222,9 +223,15 @@ class House:
         """entrada de carro: rampa na guia (abre em leque), cruza a faixa de grama e a calcada e sobe ate a garagem"""
         M = self.M; F = self.F; M.m(mat)
         yw = 0.185
-        M.poly([F.p(u0 - 0.9, -3.74, 0.05), F.p(u1 + 0.9, -3.74, 0.05), F.p(u1 + 0.25, -3.1, yw), F.p(u0 - 0.25, -3.1, yw)], col, (0, 1, 0))
-        M.poly([F.p(u0 - 0.25, -3.1, yw), F.p(u1 + 0.25, -3.1, yw), F.p(u1, -1.8, yw), F.p(u0, -1.8, yw)], col, (0, 1, 0))
-        M.poly([F.p(u0, -1.8, yw), F.p(u1, -1.8, yw), F.p(u1, 0.0, yw), F.p(u0, 0.0, yw)], col, (0, 1, 0))
+        if ROW is not None:     # trecho sobre a faixa de grama e a calcada: recortado na geometria real (sem dente de grama nem sobra)
+            from shapely.geometry import Polygon as _Pg
+            strip = _Pg(F.rect(u0, u1, -12.0, 0.05)).intersection(ROW)
+            seed = _Pg(F.rect(u0, u1, -0.6, 0.05))
+            for g in getattr(strip, 'geoms', [strip]):
+                if g.geom_type == 'Polygon' and g.intersects(seed): M.shp(g, yw, col)
+        else:
+            M.poly([F.p(u0, -3.1, yw), F.p(u1, -3.1, yw), F.p(u1, 0.0, yw), F.p(u0, 0.0, yw)], col, (0, 1, 0))
+        M.poly([F.p(u0, 0.0, yw), F.p(u1, 0.0, yw), F.p(u1, 0.05, yw), F.p(u0, 0.05, yw)], col, (0, 1, 0))
         M.poly([F.p(u0, 0.0, yw), F.p(u1, 0.0, yw), F.p(u1, v_end, Y0 + 0.07), F.p(u0, v_end, Y0 + 0.07)], col, (0, 1, 0))
         # juntas de dilatacao
         M.m('liso')
@@ -289,9 +296,9 @@ class House:
         elif abs(self.door_u - (du0 if self.door_u < du0 else du1)) < 4.5 and r.random() < 0.6:
             vv = self.walk_v0 - 0.7; edge = du0 if self.door_u < du0 else du1
             self.walk_L(self.door_u - 0.55 if self.door_u < edge else edge, edge if self.door_u < edge else self.door_u + 0.55, vv)
-            self.walkway(self.door_u, vv, self.walk_v0)
+            self.walkway(self.door_u, vv + 0.55, self.walk_v0)
         else:
-            self.walkway(self.door_u, 0.0, self.walk_v0, 1.2, r.choice(('concreto', 'concreto', 'paver')))
+            self.walkway(self.door_u, -0.2, self.walk_v0, 1.2, r.choice(('concreto', 'concreto', 'paver')))
             cx, cz = self.F.xz(self.door_u, -2.6); self.B.drives.append((cx, cz, 1.3))
         self.mailbox(du0 - 0.7 if du0 > 1.6 else du1 + 0.7)
         self.front_garden(); self.fences(); self.backyard()
@@ -345,7 +352,7 @@ class House:
         self.gable(du - 1.8, du + 1.8, v0 - 1.9, v0 + 0.5, yb + 3.0, 0.85, False, 0.2, walls=True, wallc=self.trim, wallm='liso')
         self.walk_v0 = self.steps(du, v0 - 2.0, 2.2)
         self.side_back_wins(u0, u1, v0, v1, 2, skip_side=(1 if self.gs > 0 else -1) if gu0 is not None else 0)
-        self.chimney(u0 - 0.0 if self.gs > 0 else u1 - 0.9, v0 + (v1 - v0) * 0.45, y1 + 3.4)
+        self.chimney(u0 - 0.55 if self.gs > 0 else u1 - 0.35, v0 + (v1 - v0) * 0.45, y1 + 3.4)
         if gu0 is not None: self.gv0 = v0 + 1.5; self.garage(gu0, gu1, self.gv0, 6.6, 'gable_u')
 
     def st_craftsman(self, u0, u1, v0, v1, gu0, gu1):
@@ -364,7 +371,7 @@ class House:
         self.rail(pu0 + 0.5, pu1 - 0.5, v0 - pd + 0.3, yb, gaps=[(du - 0.9, du + 0.9)])
         self.walk_v0 = self.steps(du, v0 - pd, 1.8)
         self.side_back_wins(u0, u1, v0, v1, 1, skip_side=(1 if self.gs > 0 else -1) if gu0 is not None else 0)
-        self.chimney(u1 - 0.9 if self.gs < 0 else u0, v0 + (v1 - v0) * 0.6, y1 + 3.2, mat='pedra' if r.random() < 0.5 else 'tijolo')
+        self.chimney(u1 - 0.35 if self.gs < 0 else u0 - 0.55, v0 + (v1 - v0) * 0.6, y1 + 3.2, mat='pedra' if r.random() < 0.5 else 'tijolo')
         if gu0 is not None: self.gv0 = v0 + 1.2; self.garage(gu0, gu1, self.gv0, 6.6, 'gable')
 
     def st_cape(self, u0, u1, v0, v1, gu0, gu1):
@@ -434,7 +441,7 @@ class House:
         self.rail(rest[0] + 0.2, rest[1] - 0.2, pv + 0.2, yb, gaps=[(du - 0.9, du + 0.9)])
         self.walk_v0 = self.steps(du, pv, 1.8)
         self.side_back_wins(u0, u1, v0, v1, 2, skip_side=(1 if self.gs > 0 else -1) if gu0 is not None else 0)
-        self.chimney(u1 - 0.9 if self.gs < 0 else u0, v0 + (v1 - v0) * 0.6, y1 + 3.0)
+        self.chimney(u1 - 0.35 if self.gs < 0 else u0 - 0.55, v0 + (v1 - v0) * 0.6, y1 + 3.0)
         if gu0 is not None: self.gv0 = v0 + 1.4; self.garage(gu0, gu1, self.gv0, 6.6, 'gable')
 
     def st_mediterranea(self, u0, u1, v0, v1, gu0, gu1):
@@ -487,24 +494,69 @@ class House:
             a, b = max(spans, key=lambda s: s[1] - s[0])
             self.plants.append(((a + b) / 2 + r.uniform(-0.6, 0.6), min(3.0, self.sf * 0.45), r.choice(('ornamental', 'florida', 'oval', 'ornamental')), r.uniform(0.75, 0.95)))
 
+    def _fence_run(self, ua, va, ub, vb, h, fc, fm, gate=None):
+        """trecho de cerca entre dois pontos locais; o que ja tiver cerca de um vizinho no mesmo lugar nao e repetido
+        (duas cercas coladas brigam na tela). gate=(u ou v do centro, largura): abertura com portao."""
+        from shapely.geometry import LineString as _L
+        F = self.F; reg = self.B.__dict__.setdefault('fence_reg', [])
+        pa, pb = F.xz(ua, va), F.xz(ub, vb)
+        line = _L([pa, pb])
+        if line.length < 0.4: return
+        for q in reg:
+            if q.intersects(line): line = line.difference(q)
+            if line.is_empty: return
+        dx, dz = pb[0] - pa[0], pb[1] - pa[1]; L = math.hypot(dx, dz); ux, uz = dx / L, dz / L
+        Fs = Frame(pa, (ux, uz))
+        for seg in getattr(line, 'geoms', [line]):
+            if seg.geom_type != 'LineString' or seg.length < 0.4: continue
+            c = list(seg.coords); s0 = (c[0][0] - pa[0]) * ux + (c[0][1] - pa[1]) * uz; s1 = (c[-1][0] - pa[0]) * ux + (c[-1][1] - pa[1]) * uz
+            s0, s1 = min(s0, s1), max(s0, s1)
+            cuts = []
+            if gate is not None:
+                g0, g1 = gate[0] - gate[1] / 2, gate[0] + gate[1] / 2
+                if s0 + 0.4 < g0 and g1 < s1 - 0.4: cuts = [(g0, g1)]
+            spans = []; cur = s0
+            for (g0, g1) in cuts: spans.append((cur, g0)); cur = g1
+            spans.append((cur, s1))
+            for (a_, b_) in spans:
+                if b_ - a_ < 0.15: continue
+                self.B.box(Fs, a_, b_, -0.05, 0.05, Y0, Y0 + h, fc, fm, top=True)
+                n = 1                                                   # postes so nas pontas (quinas e portao): a textura ja mostra as tabuas
+                posts = self.B.__dict__.setdefault('post_reg', {})
+                for k in range(n + 1):
+                    t = a_ + (b_ - a_) * k / n
+                    px, pz = Fs.xz(t, 0.0); key = (round(px / 0.5), round(pz / 0.5))
+                    if any((key[0] + i, key[1] + j) in posts for i in (-1, 0, 1) for j in (-1, 0, 1)): continue   # quina: um poste so
+                    posts[key] = 1
+                    self.B.box(Fs, t - 0.08, t + 0.08, -0.08, 0.08, Y0, Y0 + h + 0.1, shade(fc, -18), fm, top=True)
+            for (g0, g1) in cuts:                                  # folha do portao (recuada 15 cm da linha)
+                self.B.box(Fs, g0 + 0.06, g1 - 0.06, 0.1, 0.18, Y0 + 0.05, Y0 + h - 0.15, shade(fc, -10), fm, top=True)
+        reg.append(_L([pa, pb]).buffer(0.55, cap_style='flat'))
+
     def fences(self):
+        """quintal cercado por inteiro (laterais ate o fundo, fundo e os fechamentos entre a casa e as divisas, com portao),
+        ou sem cerca nenhuma; cercas de vizinhos nao se repetem"""
         if not self.fence: return
         r = self.r; w, d = self.w, self.d
         fc, fm = FENCES[r.randrange(len(FENCES))]
         vf = self.v0 + (self.v1 - self.v0) * 0.55
         if self.rear_garage: vf = self.v1 + 0.2
-        h = 1.8
-        self.box(w - 0.1, w, vf, d - 0.08, Y0, Y0 + h, fc, fm, top=True)
-        if self.first: self.box(0, 0.1, vf, d - 0.08, Y0, Y0 + h, fc, fm)
-        self.box(0, w, d - 0.18, d - 0.08, Y0, Y0 + h, fc, fm)
-        # fechamento entre a casa e a divisa (com portao) dos dois lados
-        hu0 = self.hu0 if self.gs > 0 or self.drive[0] > self.hu0 else self.drive[1]
-        if self.hu0 > 0.6: self.box(0.1, self.hu0, vf - 0.05, vf + 0.05, Y0, Y0 + h, fc, fm)
-        right0 = max(self.hu1, self.drive[1] if self.drive[0] >= self.hu1 - 0.5 else self.hu1)
-        if not self.rear_garage or self.gs < 0:
-            if w - 0.1 - right0 > 0.5: self.box(right0, w - 0.1, vf - 0.05, vf + 0.05, Y0, Y0 + h, fc, fm)
+        h = 1.8; e = 0.06; vb = d - 0.1
+        self._fence_run(e, vf, e, vb, h, fc, fm)
+        self._fence_run(w - e, vf, w - e, vb, h, fc, fm)
+        self._fence_run(e, vb, w - e, vb, h, fc, fm)
+        du0, du1 = self.drive
+        left1 = self.hu0; right0 = self.hu1
+        if not self.rear_garage and du0 < self.hu0 and du1 > self.hu0 - 1.0: left1 = min(self.hu0, du0)
+        if not self.rear_garage and du1 > self.hu1 and du0 < self.hu1 + 1.0: right0 = max(self.hu1, du1)
+        gL = left1 - e; gR = w - e - right0
+        if self.rear_garage:                                  # a entrada lateral passa pelo fechamento: portao de carro largo
+            if du0 < self.hu0: self._fence_run(e, vf, left1, vf, h, fc, fm, ((du0 + du1) / 2 - e, du1 - du0 + 0.6)); left1 = None
+            else: self._fence_run(right0, vf, w - e, vf, h, fc, fm, ((du0 + du1) / 2 - right0, du1 - du0 + 0.6)); right0 = None
+        big_left = gL >= gR
+        if left1 is not None and gL > 0.5: self._fence_run(e, vf, left1, vf, h, fc, fm, (gL / 2, 1.1) if big_left and gL > 2.2 else None)
+        if right0 is not None and gR > 0.5: self._fence_run(right0, vf, w - e, vf, h, fc, fm, (gR / 2, 1.1) if (not big_left) and gR > 2.2 else None)
         if self.picket:
-            du0, du1 = self.drive
             cuts = sorted([(du0 - 0.3, du1 + 0.3), (self.door_u - 0.8, self.door_u + 0.8)]); cur = 0.3
             for a, b in cuts + [(w - 0.3, w)]:
                 if a - cur > 0.8:

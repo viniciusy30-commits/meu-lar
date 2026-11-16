@@ -44,6 +44,7 @@ class Lots:
         self.lots = []
         self.plots = json.load(open(CITY2))['plots']
         self.ext = json.load(open(os.path.join(HERE, '..', 'gen-cidade5', 'house_extents.json')))
+        H6.ROW = P.row.difference(P.asphalt).buffer(0)                         # rampas de garagem medidas na calcada real
         self.gates = json.load(open(os.path.join(HERE, 'player_gates.json')))      # centro x do portao da cerca de cada casa (city2.glb)
 
     # ------------------------------------------------------------ chao das quadras
@@ -196,6 +197,7 @@ class Lots:
         F = self.frame(side, minx, maxx, minz, maxz, 0.0)
         if nm.startswith('escola'):
             self.lawn(poly); B.school(F, L, D, self.park_car)
+            self.access(F, 0.6, 5.6, min(D - 6, 52.0), Y_LAWN + 0.07)          # acesso ao estacionamento dos fundos, pela lateral
             bw = min(L * 0.45, 80)
             ex = [Polygon(F.rect(0, 10 + bw, 0, min(D - 6, 54) + 2))]
             if L - 8 - (10 + bw) > 50: ex.append(Polygon(F.rect(10 + bw, L - 8, 8, D - 8)))
@@ -251,21 +253,28 @@ class Lots:
         cu = (w - (umax - umin)) / 2 - umin; cv = 1.5 + zfront
         cx, cz = F.xz(cu, cv)
         yaw = math.atan2(F.vx * face, -F.vz * face)
-        gx, gw = self.gates[str(k)]
-        du = cu + su * (gx - pcx)                                          # portao da cerca (nao a porta): caminho reto ate a calcada
+        gx, gw, door_x, front_z = self.gates[str(k)][:4]
+        du = cu + su * (gx - pcx)                                          # portao da cerca
+        door_u = cu + su * (door_x - pcx)                                  # porta da casa
+        v_of = lambda zm: cv - face * (zm - pcz)                           # z do modelo -> v do lote
+        v_gate = v_of(pl['z']); v_front = v_of(front_z)
         hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r
-        # comeca dentro da calcada (rua curva: a borda da calcada nao e reta como a frente do lote) e para na linha da cerca
-        # frente do lote: calcada ate a cerca (como na Cidade 2), em vez de faixa de grama; caixa de correio ao lado do portao
-        vf = cv - zfront
-        # a faixa vai da borda real da calcada da rua (medida, sem filete de grama e sem sobrepor) ate a linha da cerca
         from shapely.geometry import Polygon as _Pg
-        front = _Pg(F.rect(0, w, -3.0, vf + 0.15))
-        band = front.difference(self.G.walks.buffer(0.0)).buffer(0)
-        band = band.intersection(_Pg(F.rect(0, w, -3.0, vf + 0.15)))
-        # so a parte que encosta no lote (descarta pedacos soltos do outro lado da calcada)
-        parts = [g for g in getattr(band, 'geoms', [band]) if g.geom_type == 'Polygon' and g.intersects(_Pg(F.rect(0, w, 0.2, vf)))]
-        M.at(*F.xz(w / 2, 2), 'lotes'); M.m('calcada')
-        for g in parts: M.shp(g, Y_WALK, WHITE)
+        M.at(*F.xz(w / 2, 2), 'lotes')
+        # calcada da rua -> portao: so a largura do portao, recortada na borda real da calcada
+        band = _Pg(F.rect(du - gw / 2 - 0.15, du + gw / 2 + 0.15, -3.0, v_gate + 0.1)).difference(self.G.walks)
+        M.m('concreto')
+        for g in getattr(band, 'geoms', [band]):
+            if g.geom_type == 'Polygon' and g.intersects(_Pg(F.rect(du - 0.3, du + 0.3, 0.2, v_gate))): M.shp(g, Y_WALK, WHITE)
+        # portao -> porta: reto; se a porta nao fica de frente para o portao, caminho em L no meio do jardim
+        wk = 1.2
+        if abs(door_u - du) < 0.7:
+            hh.walkway(du, v_gate + 0.1, v_front, wk)
+        else:
+            vm = v_gate + max(1.2, (v_front - v_gate) * 0.5)
+            hh.walkway(du, v_gate + 0.1, vm - wk / 2, wk)
+            hh.walk_L(min(du, door_u) - wk / 2, max(du, door_u) + wk / 2, vm, wk)
+            hh.walkway(door_u, vm + wk / 2, v_front, wk)
         hh.mailbox(du - (gw / 2 + 1.0)); M.free('lotes')
         # conferencia: portao do modelo (city2) levado ao mundo pelo mesmo giro do jogo, contra o fim do caminho
         c_, s_ = math.cos(yaw), math.sin(yaw); gzm = (pl['z'] - pcz)
@@ -375,6 +384,26 @@ class Lots:
             self.benches.append((cx + dx * 7.5, cz + dz * 7.5, -dx, -dz, Y_WALK))
             if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
 
+    def access(self, F, u0, u1, v_in, y=None):
+        """acesso de carros a um estacionamento: rebaixo na guia + faixa de concreto sobre a calcada (recortada na calcada
+        real) e pista de asfalto da divisa ate dentro do lote (v de 0 a v_in). F: frame na divisa, v para dentro."""
+        from shapely.geometry import Polygon as _Pg
+        M = self.M; y = Y_WALK + 0.035 if y is None else y
+        M.at(*F.xz((u0 + u1) / 2, v_in / 2), 'lotes')
+        strip = _Pg(F.rect(u0 - 0.4, u1 + 0.4, -14.0, 0.05)).intersection(H6.ROW)
+        seed = _Pg(F.rect(u0, u1, -0.6, 0.05)); M.m('concreto')
+        for g in getattr(strip, 'geoms', [strip]):
+            if g.geom_type == 'Polygon' and g.intersects(seed): M.shp(g, Y_WALK + 0.025, WHITE)
+        M.m('asfalto'); M.poly([F.p(u0, -0.02, y), F.p(u1, -0.02, y), F.p(u1, v_in, y), F.p(u0, v_in, y)], WHITE, (0, 1, 0))
+        M.m('liso'); um = (u0 + u1) / 2                          # faixa central tracejada
+        vv = 1.0
+        while vv < v_in - 1.5:
+            M.poly([F.p(um - 0.06, vv, y + 0.03), F.p(um + 0.06, vv, y + 0.03), F.p(um + 0.06, vv + 1.5, y + 0.03), F.p(um - 0.06, vv + 1.5, y + 0.03)], (245, 245, 240), (0, 1, 0))
+            vv += 3.0
+        M.free('lotes')
+        self.B.drives.append((*F.xz(um, -2.4), (u1 - u0) / 2 + 1.5))
+        self.pocc.append(_Pg(F.rect(u0 - 1, u1 + 1, -0.5, v_in)))
+
     def centro(self, bi, blk, resid=False):
         import centro6 as C6
         poly = blk['poly']; r = self.rnd; B = self.B
@@ -422,6 +451,15 @@ class Lots:
             return
         # ---- edificio-garagem em meia quadra
         garage = kind > 0.94 and w > 70
+        # ---- o miolo vira estacionamento? entao duas aberturas no perimetro (entrada e saida, em lados opostos)
+        opt = r.random(); gaps = {}
+        ix0_, iz0_, ix1_, iz1_ = minx + 24.5, minz + 24.5, maxx - 24.5, maxz - 24.5
+        if opt < 0.4 and ix1_ - ix0_ > 10 and iz1_ - iz0_ > 10:
+            pair = ('W', 'E') if (garage or w > d) else ('N', 'S')
+            for sd in pair:
+                Ls = w if sd in ('N', 'S') else d
+                gaps[sd] = (Ls / 2 - 3.6 + r.uniform(-4, 4), 0)
+                gaps[sd] = (gaps[sd][0], gaps[sd][0] + 7.2)
         # ---- perimetro de predios colados (frente para as 4 ruas)
         depths = {sd: r.uniform(16, 23) for sd in 'NESW'}
         for side in ('N', 'E', 'S', 'W'):
@@ -433,9 +471,14 @@ class Lots:
                 self.M.at(*F.xz(20, 15), 'lotes')
                 for ((px, pz), py) in C6.parking_garage(B, F, min(end - 1, 46), 30, r.choice((4, 5, 6))): self.parked.append((px, pz, F.vx, F.vz, py))
                 self.M.free('lotes'); s = min(end - 1, 46) + 1.5
+            gap = gaps.get(side)
             while s < end - 6:
+                if gap and gap[0] - 0.01 <= s < gap[1]: s = gap[1]; continue
                 pw = min(r.uniform(13, 30), end - s)
                 if end - s - pw < 9: pw = end - s
+                if gap and s < gap[0] < s + pw:
+                    pw = gap[0] - s
+                    if pw < 6: s = gap[1]; continue
                 F = self.frame(side, minx, maxx, minz, maxz, s)
                 fl = max(3, min(hmax + 3, int(r.uniform(0.35, 1.1) * hmax)))
                 if resid: fl = max(4, int(fl * 0.9))
@@ -447,8 +490,10 @@ class Lots:
         ix0, iz0, ix1, iz1 = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5, maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5
         if garage: iz1 -= 12
         if ix1 - ix0 > 10 and iz1 - iz0 > 10:
-            opt = r.random()
+            if opt < 0.4 and not gaps: opt = 0.5                     # sem abertura no perimetro nao ha estacionamento
             if opt < 0.4:
+                for sd, (g0, g1) in gaps.items():
+                    self.access(self.frame(sd, minx, maxx, minz, maxz, g0), 0.0, g1 - g0, depths[sd] + 1.6)
                 Fp = Frame((ix0, iz0), (1, 0)); self.M.at((ix0 + ix1) / 2, (iz0 + iz1) / 2, 'lotes')
                 B.parking(Fp, 0.5, ix1 - ix0 - 0.5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes'); self.pocc.append(sbox(ix0, iz0, ix1, iz1))
             elif opt < 0.85: self.plaza(ix0, iz0, ix1, iz1, False)
@@ -487,6 +532,8 @@ class Lots:
             half = (minx + maxx) / 2
             Fp = Frame((minx + 3, iz0), (1, 0)); self.M.at(minx + w / 4, (iz0 + iz1) / 2, 'lotes')
             B.parking(Fp, 0, half - minx - 5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes'); self.pocc.append(sbox(minx + 3, iz0, half - 2, iz1))
+            zc = (iz0 + iz1) / 2
+            self.access(self.frame('W', minx, maxx, minz, maxz, maxz - zc - 3.6), 0.0, 7.2, 3.2)
             self.plaza(half + 1, iz0, maxx - 3, iz1, False)
             for xx in (half + 2, maxx - 4): self.trees.append((xx, (iz0 + iz1) / 2, 'palmeira', 1.0, Y_WALK))
 
@@ -620,7 +667,7 @@ class Lots:
                 else:
                     style = fam[0] if r.random() < 0.68 else fam[1]
                     r3 = r.random(); style = fam[0] if r3 < 0.55 else (fam[1] if r3 < 0.9 else r.choice(H6.STYLES))
-                    self.put_house(F, cl, Dq, style, pal_base, sf, 1 if q % 2 == 0 else -1, picket, True, q == 0)
+                    self.put_house(F, cl, Dq, style, pal_base, sf, 1 if q % 2 == 0 else -1, picket, r.random() < 0.72, q == 0)
                 placed = True; q += 1; break
             if not placed and kres is not None: res.insert(0, kres); res_at.insert(0, pos + 3); self.retry = getattr(self, 'retry', {}); self.retry[kres] = self.retry.get(kres, 0) + 1
             pos += (cl + 0.3) if placed else 3.0
@@ -665,7 +712,7 @@ class Lots:
                 if not self._free(poly): continue
                 self._take(poly)
                 style = fam[0] if r.random() < 0.6 else fam[1]
-                self.put_house(F, cl, min(Dq, 30.0), style, pal_base, sf, 1 if q % 2 == 0 else -1, False, False, False)
+                self.put_house(F, cl, min(Dq, 30.0), style, pal_base, sf, 1 if q % 2 == 0 else -1, False, r.random() < 0.5, False)
                 break
 
     def pocket_parks(self):

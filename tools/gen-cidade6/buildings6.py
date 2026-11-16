@@ -408,8 +408,8 @@ class Builder:
         self.box(F, 6 + bw / 2 - 3, 6 + bw / 2 + 3, 7, 10, Y0 + 3.0, Y0 + 3.3, (230, 230, 228), 'concreto')
         self.box(F, 6 + bw / 2 - 3.2, 6 + bw / 2 + 3.2, 9.5, 10.05, Y0 + 6.6, Y0 + 7.8, (40, 70, 120), 'liso', top=False)
         # bandeira
-        cx, cz = F.xz(4, 5); M.m('metal'); M.cyl(cx, cz, 0.08, Y0, Y0 + 10, (230, 230, 230), 6)
-        M.m('liso'); M.quad(F.p(4, 5, Y0 + 8.4), F.p(6.4, 5, Y0 + 8.4), F.p(6.4, 5, Y0 + 9.9), F.p(4, 5, Y0 + 9.9), (40, 140, 70), F.nv(-1))
+        cx, cz = F.xz(8, 5); M.m('metal'); M.cyl(cx, cz, 0.08, Y0, Y0 + 10, (230, 230, 230), 6)
+        M.m('liso'); M.box(*(lambda a, b: (min(a[0], b[0]), max(a[0], b[0])))(F.xz(8.05, 5), F.xz(10.4, 5)), Y0 + 8.4, Y0 + 9.9, *(lambda a, b: (min(a[1], b[1]) - 0.02, max(a[1], b[1]) + 0.02))(F.xz(8.05, 5), F.xz(10.4, 5)), (40, 140, 70))
         # campo de futebol + pista
         fu0, fu1 = 10 + bw, w - 8; fv0, fv1 = 8, d - 8
         if fu1 - fu0 > 50:

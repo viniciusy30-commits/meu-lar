@@ -2,6 +2,7 @@
 Cada equipamento e desenhado num Frame centrado (a = comprimento, b = largura) e devolve nada; a tabela STATIONS
 da o meio-comprimento e a meia-largura de cada um para quem distribui (parque ribeirinho, pracas, escolas)."""
 import math
+import numpy as np
 from mesh import Frame, shade
 from roads6 import Y_LAWN
 
@@ -303,6 +304,150 @@ STATIONS = {
     'basquete': (basket, 16.5, 10.5), 'futsal': (futsal, 18.5, 11.5), 'tenis': (tennis, 18.5, 10.5), 'playground': (playground, 11, 10),
     'piquenique': (picnic, 11, 7.5), 'jardim': (garden, 12.5, 12.5), 'coreto': (gazebo, 8.6, 8.6), 'academia': (gym, 8.6, 5),
     'skate': (skate, 14.6, 8.6), 'quiosque': (kiosk, 10.5, 7.5), 'lago': (pond, 14.5, 10.5), 'caes': (dogpark, 11.6, 7.6), 'anfiteatro': (amphi, 11.2, 11.2),
+}
+
+
+
+def volley(pr, F, r):
+    """volei de areia: areia com borda de madeira, postes e rede"""
+    M = pr.M; _pad(M, F, 9.5, 5.5, 'areia', (250, 238, 210), 0.12)
+    M.m('madeira')
+    for (u0, v0, u1, v1) in ((-9.5, -5.5, 9.5, -5.5), (-9.5, 5.5, 9.5, 5.5), (-9.5, -5.5, -9.5, 5.5), (9.5, -5.5, 9.5, 5.5)): _bar(M, F, u0, v0, u1, v1, Y + 0.16, (150, 110, 74), 0.12)
+    y = Y + 0.12
+    _lines(M, F, [(-8, -4, 8, -4), (-8, 4, 8, 4), (-8, -4, -8, 4), (8, -4, 8, 4)], y, 0.05, (60, 120, 200))
+    M.m('metal'); _post(M, F, 0, -4.6, y, y + 2.5, STEEL, 0.06); _post(M, F, 0, 4.6, y, y + 2.5, STEEL, 0.06)
+    M.m('liso'); M.prism(F.rect(-0.015, 0.015, -4.6, 4.6), y + 1.55, y + 2.43, (36, 38, 42)); M.prism(F.rect(-0.03, 0.03, -4.6, 4.6), y + 2.43, y + 2.5, (245, 245, 245))
+    for v in (-7.2, 7.2): pr.bench(*F.xz(0, v), -F.vx * (1 if v > 0 else -1), -F.vz * (1 if v > 0 else -1), Y)
+
+
+def garden_beds(pr, F, r):
+    """horta comunitaria: canteiros elevados de madeira, caminhos de cascalho, galpao e composteira"""
+    M = pr.M; _pad(M, F, 10, 7.5, 'cascalho', (232, 222, 200), 0.05)
+    y = Y + 0.05
+    for i in range(4):
+        for j in range(2):
+            u = -7.5 + i * 4.2; v = -3.4 + j * 5.2
+            M.m('madeira'); M.prism(F.rect(u - 1.4, u + 1.4, v - 1.8, v + 1.8), y, y + 0.45, (150, 106, 70), False)
+            M.m('terreno'); M.prism(F.rect(u - 1.28, u + 1.28, v - 1.68, v + 1.68), y, y + 0.4, (110, 84, 60))
+            for k in range(4):
+                pr.tree(*F.xz(u + r.uniform(-0.8, 0.8), v - 1.2 + k * 0.8), r.choice(('flores', 'arbusto', 'flores')), r.uniform(0.45, 0.65), y + 0.4)
+    M.m('madeira'); M.prism(F.rect(7.6, 10.0, -7.3, -4.3), y, y + 2.3, (120, 92, 66))
+    M.m('telha'); M.prism(F.rect(7.4, 10.2, -7.5, -4.1), y + 2.3, y + 2.45, (90, 110, 80))
+    M.m('madeira'); M.prism(F.rect(7.9, 9.7, 4.3, 6.9), y, y + 0.9, (110, 84, 60), False)
+
+
+def pergola(pr, F, r):
+    """pergolado de madeira com trepadeiras, bancos e mesa"""
+    M = pr.M; _pad(M, F, 5.5, 3.6, 'paver', (232, 220, 200), 0.05)
+    y = Y + 0.05; wood = (150, 108, 72)
+    M.m('madeira')
+    for u in (-4.5, -1.5, 1.5, 4.5):
+        for v in (-2.6, 2.6): _post(M, F, u, v, y, y + 2.7, wood, 0.11)
+    for v in (-2.6, 2.6): M.prism(F.rect(-5.2, 5.2, v - 0.08, v + 0.08), y + 2.7, y + 2.95, wood)
+    for k in range(11): u = -5.0 + k; M.prism(F.rect(u - 0.05, u + 0.05, -3.2, 3.2), y + 2.95, y + 3.1, shade(wood, 12))
+    for u in (-4.5, 4.5):
+        for v in (-2.6, 2.6): pr.tree(*F.xz(u, v + (0.35 if v < 0 else -0.35)), 'arbusto', 0.75, y)
+    table(pr, F, 0, 0)
+    pr.bench(*F.xz(-2.6, 1.6), 0, 0, y) if False else None
+    for u in (-3, 3): pr.bench(*F.xz(u, 1.7), -F.vx, -F.vz, y); pr.bench(*F.xz(u, -1.7), F.vx, F.vz, y)
+
+
+def flower_field(pr, F, r):
+    """canteiros de flores em faixas coloridas com borda de pedra e caminho no meio"""
+    M = pr.M; y = Y
+    M.m('paver'); M.prism(F.rect(-0.9, 0.9, -7, 7), y, y + 0.05, (236, 226, 210))
+    for side in (-1, 1):
+        for k in range(3):
+            u0 = side * (1.4 + k * 2.9); u1 = u0 + side * 2.4
+            a_, b_ = min(u0, u1), max(u0, u1)
+            M.m('pedra'); M.prism(F.rect(a_, b_, -6.5, 6.5), y, y + 0.22, (196, 190, 180), False)
+            M.m('terreno'); M.prism(F.rect(a_ + 0.12, b_ - 0.12, -6.38, 6.38), y, y + 0.2, (96, 72, 54))
+            for v in np.arange(-5.8, 6.0, 1.1):
+                for uu in (a_ + 0.6, b_ - 0.6): pr.tree(*F.xz(uu, v), 'flores', r.uniform(0.75, 0.95), y + 0.2)
+    for v in (-7.6, 7.6): pr.bench(*F.xz(0, v), 0, 0, y) if False else None
+
+
+def fountain_plaza(pr, F, r):
+    """praca redonda com chafariz de tres niveis, bancos em roda e floreiras"""
+    M = pr.M; cx, cz = F.xz(0, 0); y = Y
+    M.m('paver'); M.cyl(cx, cz, 9.0, y, y + 0.06, (238, 228, 212), 24)
+    M.m('pedra'); M.cyl(cx, cz, 3.4, y + 0.06, y + 0.6, WHITE, 20); M.m('agua'); M.cyl(cx, cz, 3.0, y + 0.6, y + 0.64, (196, 228, 240), 20)
+    M.m('pedra'); M.cyl(cx, cz, 0.45, y + 0.6, y + 1.9, WHITE, 10); M.cyl(cx, cz, 1.6, y + 1.9, y + 2.05, WHITE, 14)
+    M.m('agua'); M.cyl(cx, cz, 1.4, y + 2.05, y + 2.09, (196, 228, 240), 14)
+    M.m('pedra'); M.cyl(cx, cz, 0.25, y + 2.05, y + 2.9, WHITE, 8); M.cyl(cx, cz, 0.7, y + 2.9, y + 3.0, WHITE, 10)
+    M.m('liso'); M.cyl(cx, cz, 0.06, y + 3.0, y + 3.7, (225, 240, 248), 5, False, 0.02)
+    for k in range(6):
+        a = k * math.pi / 3 + 0.26
+        bx, bz = F.xz(math.cos(a) * 7.2, math.sin(a) * 7.2); ox, oz = F.xz(0, 0)
+        pr.bench(bx, bz, ox - bx, oz - bz, y + 0.06)
+        fx, fz = F.xz(math.cos(a + 0.52) * 7.6, math.sin(a + 0.52) * 7.6)
+        M.m('pedra'); M.cyl(fx, fz, 0.6, y + 0.06, y + 0.55, WHITE, 10); M.m('terreno'); M.cyl(fx, fz, 0.5, y + 0.55, y + 0.58, (96, 72, 54), 10)
+        pr.tree(fx, fz, 'flores', 0.8, y + 0.58)
+
+
+def food_trucks(pr, F, r):
+    """food trucks com toldo, mesas com guarda-sol e luzes"""
+    M = pr.M; _pad(M, F, 10.5, 7, 'paver', (236, 226, 210), 0.05)
+    y = Y + 0.05
+    cols = [(230, 80, 60), (60, 150, 210), (250, 196, 50), (90, 180, 110)]; r.shuffle(cols)
+    for k, u in enumerate((-6.0, 0.0, 6.0)):
+        c = cols[k]; v = -4.2
+        M.m('liso'); M.prism(F.rect(u - 2.4, u + 2.4, v - 1.1, v + 1.1), y + 0.5, y + 2.9, c)
+        M.prism(F.rect(u - 2.45, u + 2.45, v - 1.15, v + 1.15), y + 2.9, y + 3.0, (245, 245, 242))
+        M.prism(F.rect(u - 1.6, u + 1.4, v + 1.12, v + 1.16), y + 1.4, y + 2.4, (40, 44, 52))
+        M.quad(F.p(u - 1.9, v + 1.15, y + 2.6), F.p(u + 1.7, v + 1.15, y + 2.6), F.p(u + 1.7, v + 2.4, y + 2.2), F.p(u - 1.9, v + 2.4, y + 2.2), shade(c, 30), (0, 1, 0.3))
+        for uu in (u - 1.5, u + 1.5):
+            for vv in (v - 1.1, v + 1.1): M.cyl(*F.xz(uu, vv), 0.38, y, y + 0.76, (30, 30, 32), 8)
+    for (u, v) in ((-6, 2.4), (0, 3.6), (6, 2.4), (-3, 5.6), (3, 5.6)): umbrella(pr, F, u, v, r.choice(TOY))
+    M.m('metal')
+    for u in (-10, 10): _post(M, F, u, 0, y, y + 4.0, STEEL, 0.06)
+    M.m('liso')
+    for k in range(21):
+        u = -10 + k; M.cyl(*F.xz(u, 0), 0.09, y + 3.75, y + 3.9, (255, 236, 160), 5)
+    M.prism(F.rect(-10, 10, -0.015, 0.015), y + 3.9, y + 3.93, (40, 40, 44))
+
+
+def bleachers(pr, F, r):
+    """arquibancada de 4 degraus"""
+    M = pr.M; c = (212, 208, 200)
+    for k in range(4):
+        M.m('concreto'); M.prism(F.rect(-8, 8, -1.6 + k * 0.8, -0.8 + k * 0.8), Y, Y + 0.45 * (k + 1), c if k % 2 else shade(c, 10))
+        M.m('madeira'); M.prism(F.rect(-7.8, 7.8, -1.5 + k * 0.8, -1.2 + k * 0.8), Y + 0.45 * (k + 1), Y + 0.45 * (k + 1) + 0.06, (170, 128, 88))
+
+
+def deck_rio(pr, F, r):
+    """solario de madeira com espreguicadeiras e guarda-sois"""
+    M = pr.M; M.m('madeira'); y = Y
+    M.prism(F.rect(-9, 9, -4.5, 4.5), y, y + 0.3, (166, 122, 82))
+    for k in range(6):
+        u = -7.5 + k * 3.0
+        M.m('liso'); col = TOY[k % len(TOY)]
+        M.prism(F.rect(u - 0.35, u + 0.35, -2.6, -0.8), y + 0.3, y + 0.62, (245, 245, 242))
+        M.quad(F.p(u - 0.35, -0.8, y + 0.62), F.p(u + 0.35, -0.8, y + 0.62), F.p(u + 0.35, -0.2, y + 1.1), F.p(u - 0.35, -0.2, y + 1.1), (245, 245, 242), (0, 0.7, -0.7))
+        if k % 2 == 0:
+            x, z = F.xz(u + 1.5, -1.4); M.m('metal'); M.cyl(x, z, 0.035, y + 0.3, y + 2.6, (230, 230, 230), 5)
+            M.m('liso'); M.cyl(x, z, 1.4, y + 2.25, y + 2.6, col, 8, False, 0.05)
+    for u in (-9, 9):
+        for v in (-4.5, 4.5): pr.tree(*F.xz(u * 0.92, v * 0.9), 'arbusto', 0.7, y + 0.3)
+
+
+STATIONS.update({
+    'volei': (volley, 10.2, 7.8), 'horta': (garden_beds, 10.6, 8.0), 'pergola': (pergola, 6.2, 4.2), 'canteiros': (flower_field, 10.4, 7.4),
+    'fonte': (fountain_plaza, 9.6, 9.6), 'foodtruck': (food_trucks, 11.0, 7.5), 'arquibancada': (bleachers, 8.4, 2.2), 'solario': (deck_rio, 9.6, 5.0),
+})
+
+# temas dos parques: lista de equipamentos (em ordem de prioridade) e jeito de plantar
+THEMES = {
+    'esportes': (['futsal', 'tenis', 'basquete', 'volei', 'academia', 'futsal', 'basquete'], 'fileiras'),
+    'jardim': (['fonte', 'canteiros', 'pergola', 'jardim', 'canteiros'], 'jardim'),
+    'lago': (['lago', 'piquenique', 'pergola', 'solario'], 'bosque'),
+    'infantil': (['playground', 'quiosque', 'playground', 'canteiros', 'piquenique'], 'grupos'),
+    'cultura': (['anfiteatro', 'foodtruck', 'coreto', 'fonte'], 'grupos'),
+    'radical': (['skate', 'basquete', 'academia', 'volei'], 'fileiras'),
+    'bosque': (['piquenique', 'pergola', 'piquenique'], 'mata'),
+    'horta': (['horta', 'horta', 'pergola', 'canteiros'], 'pomar'),
+    'pet': (['caes', 'caes', 'piquenique', 'academia'], 'grupos'),
+    'praia': (['solario', 'volei', 'quiosque', 'volei'], 'palmeiras'),
 }
 
 
