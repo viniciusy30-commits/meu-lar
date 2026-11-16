@@ -53,7 +53,7 @@ class Props:
         """poste detalhado: base de concreto com chanfro, pe de ferro fundido com portinhola, fuste conico com
         aneis, braco curvo (em arco, com tirante decorativo), luminaria LED achatada com vidro e tampa;
         nx, nz = direcao da pista"""
-        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z, 10.0)
+        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z, 15.0)
         y0 = Y_WALK; col = (58, 64, 72); dark = (40, 44, 50)
         M.m('concreto'); M.cyl(x, z, 0.32, y0 - 0.05, y0 + 0.12, (190, 188, 182), 8); M.cyl(x, z, 0.32, y0 + 0.12, y0 + 0.18, (200, 198, 192), 8, True, 0.26)
         M.m('metal')
@@ -150,7 +150,7 @@ class Props:
             if (a - x) ** 2 + (b - z) ** 2 < d * d: return True
         return False
 
-    def add_light(self, x, z, rad=7.0):
+    def add_light(self, x, z, rad=11.0):
         self.__dict__.setdefault('postes', []).append((round(x, 1), round(z, 1), rad))     # poça de luz no chão à noite (c6.json 'postes')
         li = self.__dict__.setdefault('light_idx', {})
         for i in range(int(x // 20) - 1, int(x // 20) + 2):

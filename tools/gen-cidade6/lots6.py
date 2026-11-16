@@ -41,6 +41,8 @@ class Lots:
         self.B = B6.Builder(M, self.rnd)
         self.player = []              # manifesto das casas do jogador
         self.trees = []               # (x, z, tipo, escala) -> props
+        self.jobs = []                # predios das profissoes e prefeitura (porta) -> c6.json 'jobs'
+        self.props_lights = []        # luminarias internas e das pracas dos predios -> pocas de luz
         self.lots = []
         self.plots = json.load(open(CITY2))['plots']
         self.ext = json.load(open(os.path.join(HERE, '..', 'gen-cidade5', 'house_extents.json')))
@@ -76,6 +78,21 @@ class Lots:
         for nm, (x, z, side) in self.SPECIAL.items():
             for bi, blk in enumerate(self.P.blocks):
                 if blk['poly'].contains(Point(x, z)): self.special[bi] = (nm, side); break
+        # quadras das profissoes: as do centro mais perto do Paco, dois predios por quadra (frente norte e sul)
+        import jobs6
+        cand = []
+        for bi, blk in enumerate(self.P.blocks):
+            if blk['zone'] != 'centro' or bi in self.special: continue
+            x0, z0, x1, z1 = blk['poly'].bounds
+            if z1 > 1640 or x1 - x0 < 44 or z1 - z0 < 70: continue
+            cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+            cand.append((math.hypot(cx - 1120, cz - 960), bi))
+        cand.sort()
+        ids = list(jobs6.ORDER)
+        for _, bi in cand:
+            if not ids: break
+            pair = ids[:2]; ids = ids[2:]
+            self.special[bi] = ('jobs:' + ','.join(pair), 'N')
 
     def row_on_avenue(self, blk, side):
         minx, minz, maxx, maxz = blk['poly'].bounds
@@ -196,6 +213,31 @@ class Lots:
             minx += 1.5; minz += 1.5; maxx -= 1.5; maxz -= 1.5
         L = (maxx - minx) if side in ('N', 'S') else (maxz - minz); D = (maxz - minz) if side in ('N', 'S') else (maxx - minx)
         F = self.frame(side, minx, maxx, minz, maxz, 0.0)
+        if nm.startswith('jobs:'):
+            import jobs6
+            self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+            ids = nm[5:].split(',')
+            for k, jid in enumerate(ids):
+                sd = 'N' if k == 0 else 'S'
+                Fk = self.frame(sd, minx, maxx, minz, maxz, 0.0)
+                jobs6.place_job(self, Fk, L, jid)
+                nm_, br, fl, w, d, _ = jobs6.JOBS[jid]
+                ww = min(w, L - 4); off = (L - ww) / 2
+                self.pocc.append(Polygon(Fk.rect(off - 4, off + ww + 4, 0, 6.0 + d + 2)))
+            return
+        if nm == 'prefeitura':
+            import jobs6
+            self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+            jobs6.prefeitura(self, F, L, D)
+            self.pocc.append(Polygon(F.rect(0, L, 0, D)))
+            return
+        if nm == 'hospital':
+            import jobs6
+            self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+            jobs6.place_job(self, F, L, 'medico')
+            nm_, br, fl, w, d, _ = jobs6.JOBS['medico']; ww = min(w, L - 4); off = (L - ww) / 2
+            self.pocc.append(Polygon(F.rect(off - 4, off + ww + 4, 0, 6.0 + d + 2)))
+            return
         if nm.startswith('escola'):
             self.lawn(poly); B.school(F, L, D, self.park_car)
             self.access(F, 0.6, 5.6, min(D - 6, 52.0), Y_LAWN + 0.07)          # acesso ao estacionamento dos fundos, pela lateral

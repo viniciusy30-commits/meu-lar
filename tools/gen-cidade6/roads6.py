@@ -342,7 +342,7 @@ class Ground:
                 import lights6
                 for x in np.linspace(xa + 3, xb - 3, nps):            # candelabro de globos no parapeito (ferro fundido)
                     lights6.globes(M, x, zz - sg * 0.6, Y_WALK, 3)
-                    self.__dict__.setdefault('bridge_lamps', []).append((round(x, 1), round(zz - sg * 0.6, 1), 7.0))
+                    self.__dict__.setdefault('bridge_lamps', []).append((round(x, 1), round(zz - sg * 0.6, 1), 11.0))
             # pilares no rio
             M.m('concreto')
             for xp in (river_x(z) - RIVER_W / 6, river_x(z) + RIVER_W / 6):

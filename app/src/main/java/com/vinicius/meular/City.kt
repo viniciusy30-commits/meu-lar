@@ -369,6 +369,7 @@ object City {
         if (!Relevo.on) places.add(0, Place("Sua casa", W / 2f, H + 4f, 0xFF4CAF50.toInt(), 'C'))
         places.add(Place("Praia", PIER_X - 40f, (BEACH_Z + SEA_Z) / 2f, 0xFFFFC107.toInt(), 'P'))
         places.add(Place("Píer", PIER_X, SEA_Z + 20f, 0xFF8D6E63.toInt(), 'Í'))
+        if (Relevo.on && C6) for (p in Relevo.jobPl) places.add(p)
         if (tk != token) return
         Shade.finish(); Shade.mesh?.gpuOnly()
         for (c in out) { c.near?.gpuOnly(); c.far?.gpuOnly() }
