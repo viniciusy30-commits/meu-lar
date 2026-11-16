@@ -25,7 +25,7 @@ object Updater {
     fun autoCheck(a: Activity) {
         val p = a.getSharedPreferences("updater", Context.MODE_PRIVATE)
         val agora = System.currentTimeMillis()
-        if (agora - p.getLong("ultima", 0L) < 6 * 3600 * 1000L) return
+        if (agora - p.getLong("ultima", 0L) < 60 * 1000L) return   // confere toda vez que o jogo abre
         p.edit().putLong("ultima", agora).apply()
         check(a, false)
     }
