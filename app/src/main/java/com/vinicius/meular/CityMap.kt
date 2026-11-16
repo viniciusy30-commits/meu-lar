@@ -191,6 +191,46 @@ object Gps {
         arrivedAt = 0L
     }
 
+    /** caminho para desenhar: deslocado para a mão direita da rua (sai do canteiro central das avenidas, sem mexer
+     *  nas pontas), cantos arredondados (Chaikin) e pontos a cada ~1 m para seguir o relevo. */
+    fun smoothPath(r: FloatArray, side: Float): FloatArray {
+        val n = r.size / 2
+        if (n < 2) return r
+        var xs = FloatArray(n) { r[it * 2] }; var zs = FloatArray(n) { r[it * 2 + 1] }
+        if (side != 0f && n > 2) {
+            val tot = FloatArray(n); for (i in 1 until n) tot[i] = tot[i - 1] + hypot(xs[i] - xs[i - 1], zs[i] - zs[i - 1])
+            val ox = FloatArray(n); val oz = FloatArray(n)
+            for (i in 0 until n) {
+                var nx = 0f; var nz = 0f
+                if (i > 0) { val dx = xs[i] - xs[i - 1]; val dz = zs[i] - zs[i - 1]; val l = hypot(dx, dz); if (l > 1e-3f) { nx += -dz / l; nz += dx / l } }
+                if (i < n - 1) { val dx = xs[i + 1] - xs[i]; val dz = zs[i + 1] - zs[i]; val l = hypot(dx, dz); if (l > 1e-3f) { nx += -dz / l; nz += dx / l } }
+                val l = hypot(nx, nz); if (l < 1e-3f) continue
+                val w = min(1f, min(tot[i], tot[n - 1] - tot[i]) / 6f)          // pontas (jogador e destino) ficam no lugar
+                ox[i] = nx / l * side * w; oz[i] = nz / l * side * w               // mão direita (x leste, z sul)
+            }
+            for (i in 0 until n) { xs[i] += ox[i]; zs[i] += oz[i] }
+        }
+        repeat(2) {
+            if (xs.size < 3) return@repeat
+            val nx = ArrayList<Float>(); val nz = ArrayList<Float>()
+            nx.add(xs[0]); nz.add(zs[0])
+            for (i in 0 until xs.size - 1) {
+                val l = hypot(xs[i + 1] - xs[i], zs[i + 1] - zs[i]); val c = if (l > 8f) 2f / l else 0.25f
+                if (i > 0) { nx.add(xs[i] + (xs[i + 1] - xs[i]) * c); nz.add(zs[i] + (zs[i + 1] - zs[i]) * c) }
+                if (i < xs.size - 2) { nx.add(xs[i + 1] - (xs[i + 1] - xs[i]) * c); nz.add(zs[i + 1] - (zs[i + 1] - zs[i]) * c) }
+            }
+            nx.add(xs.last()); nz.add(zs.last())
+            xs = nx.toFloatArray(); zs = nz.toFloatArray()
+        }
+        val out = ArrayList<Float>()
+        for (i in 0 until xs.size - 1) {
+            val l = hypot(xs[i + 1] - xs[i], zs[i + 1] - zs[i]); val k = max(1, (l / 1.2f).toInt())
+            for (q in 0 until k) { val t = q.toFloat() / k; out.add(xs[i] + (xs[i + 1] - xs[i]) * t); out.add(zs[i] + (zs[i + 1] - zs[i]) * t) }
+        }
+        out.add(xs.last()); out.add(zs.last())
+        return out.toFloatArray()
+    }
+
     fun distText(d: Float): String = if (d >= 1000f) String.format(java.util.Locale("pt", "BR"), "%.1f km", d / 1000f) else "${(d / 5f).toInt() * 5} m"
 }
 
@@ -210,8 +250,8 @@ object MapPaint {
     val roadEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFB9B9B9.toInt() }
     val bld = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD7CCC8.toInt() }
     val bldEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFA1887F.toInt(); style = Paint.Style.STROKE; strokeWidth = 1.5f }
-    val route = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1E88E5.toInt(); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
-    val routeEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0D47A1.toInt(); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    val route = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2979FF.toInt(); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    val routeEdge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
     val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF263238.toInt(); typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER }
     val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE6FFFFFF.toInt(); typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD); textAlign = Paint.Align.CENTER; style = Paint.Style.STROKE; strokeWidth = 5f }
@@ -294,12 +334,13 @@ object MapPaint {
             }
         }
         // rota
-        val r = Gps.route
+        val r = if (Gps.active && Gps.route.size >= 4) Gps.smoothPath(Gps.route, if (City.C6 && Relevo.on) 2.4f else 0f) else Gps.route
         if (Gps.active && r.size >= 4) {
             val p = Path(); p.moveTo(r[0], r[1])
             var i = 2; while (i < r.size) { p.lineTo(r[i], r[i + 1]); i += 2 }
-            routeEdge.strokeWidth = max(4f, 9f / s * 1.0f).coerceAtMost(9f); c.drawPath(p, routeEdge)
-            route.strokeWidth = max(2.6f, 6f / s).coerceAtMost(6f); c.drawPath(p, route)
+            val dn = android.content.res.Resources.getSystem().displayMetrics.density
+            routeEdge.strokeWidth = 6.5f * dn / s; c.drawPath(p, routeEdge)                 // linha fina de largura fixa na tela
+            route.strokeWidth = 4f * dn / s; c.drawPath(p, route)
         }
         c.restore()
     }

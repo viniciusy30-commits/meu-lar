@@ -819,7 +819,7 @@ object City {
         if (!on) return
         val dt = dt0.coerceIn(0f, 0.1f)
         tLight += dt; time += dt
-        if (HDS) return
+        if (HDS) { Gps.update(px, pz); return }   // Cidade 2/6: o GPS acompanha o jogador também aqui
         if (TOWN) { updateTown(dt, px, pz); return }
         val ph = lightPhase
         for (c in cars) {

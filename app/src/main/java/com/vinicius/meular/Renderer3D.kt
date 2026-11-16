@@ -1306,29 +1306,30 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val r = Gps.route
             if (Gps.active && r.size >= 4) {
                 val b = MB(); b.m(Mt.GLASS)
-                val n = r.size / 2
+                val p = Gps.smoothPath(r, if (City.C6 && Relevo.on) 2.4f else 0f)
+                val m = p.size / 2
+                // faixa fina e continua (cantos arredondados), com borda clara e setinhas discretas a cada 7 m
+                val hw = 0.32f
+                val nxA = FloatArray(m); val nzA = FloatArray(m)
+                for (i in 0 until m) {
+                    val a0 = max(0, i - 1); val a1 = min(m - 1, i + 1)
+                    var tx = p[a1 * 2] - p[a0 * 2]; var tz = p[a1 * 2 + 1] - p[a0 * 2 + 1]; val l = kotlin.math.hypot(tx, tz).coerceAtLeast(1e-4f)
+                    tx /= l; tz /= l; nxA[i] = -tz; nzA[i] = tx
+                }
                 var acc = 0f
-                for (i in 0 until n - 1) {
-                    val ax = r[i * 2]; val az = r[i * 2 + 1]; val bx = r[i * 2 + 2]; val bz = r[i * 2 + 3]
-                    val len = kotlin.math.hypot(bx - ax, bz - az)
-                    if (len < 0.05f) continue
-                    val ux = (bx - ax) / len; val uz = (bz - az) / len
-                    val nx = -uz * 0.6f; val nz = ux * 0.6f
-                    val steps = max(1, (len / 1.5f).toInt())
-                    for (k in 0 until steps) {
-                        val t0 = k.toFloat() / steps; val t1 = (k + 1).toFloat() / steps
-                        val x0 = ax + (bx - ax) * t0; val z0 = az + (bz - az) * t0; val x1 = ax + (bx - ax) * t1; val z1 = az + (bz - az) * t1
-                        val y0 = groundH(x0, z0) + 0.06f; val y1 = groundH(x1, z1) + 0.06f
-                        b.al = 0.78f
-                        CityGeo.q(b, CityGeo.P(x0 - nx, y0, z0 - nz) + CityGeo.P(x0 + nx, y0, z0 + nz) + CityGeo.P(x1 + nx, y1, z1 + nz) + CityGeo.P(x1 - nx, y1, z1 - nz), C("#29B6F6"), false)
-                        // setinhas brancas apontando o caminho
-                        val sAt = acc + len * t0
-                        if ((sAt % 5f) < (len / steps)) {
-                            b.al = 0.95f
-                            val cx = x0 + ux * 0.2f; val cz = z0 + uz * 0.2f
-                            CityGeo.q(b, CityGeo.P(cx - nx * 0.7f, y0 + 0.005f, cz - nz * 0.7f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.2f, y0 + 0.005f, cz + uz * 0.2f), C("#FFFFFF"), false)
-                            CityGeo.q(b, CityGeo.P(cx + nx * 0.7f, y0 + 0.005f, cz + nz * 0.7f) + CityGeo.P(cx + ux * 0.2f, y0 + 0.005f, cz + uz * 0.2f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f) + CityGeo.P(cx + ux * 0.55f, y0 + 0.005f, cz + uz * 0.55f), C("#FFFFFF"), false)
-                        }
+                for (i in 0 until m - 1) {
+                    val x0 = p[i * 2]; val z0 = p[i * 2 + 1]; val x1 = p[i * 2 + 2]; val z1 = p[i * 2 + 3]
+                    val len = kotlin.math.hypot(x1 - x0, z1 - z0); if (len < 0.01f) continue
+                    val y0 = groundH(x0, z0) + 0.07f; val y1 = groundH(x1, z1) + 0.07f
+                    b.al = 0.45f
+                    CityGeo.q(b, CityGeo.P(x0 - nxA[i] * (hw + 0.1f), y0 - 0.003f, z0 - nzA[i] * (hw + 0.1f)) + CityGeo.P(x0 + nxA[i] * (hw + 0.1f), y0 - 0.003f, z0 + nzA[i] * (hw + 0.1f)) + CityGeo.P(x1 + nxA[i + 1] * (hw + 0.1f), y1 - 0.003f, z1 + nzA[i + 1] * (hw + 0.1f)) + CityGeo.P(x1 - nxA[i + 1] * (hw + 0.1f), y1 - 0.003f, z1 - nzA[i + 1] * (hw + 0.1f)), C("#E3F2FD"), false)
+                    b.al = 0.85f
+                    CityGeo.q(b, CityGeo.P(x0 - nxA[i] * hw, y0, z0 - nzA[i] * hw) + CityGeo.P(x0 + nxA[i] * hw, y0, z0 + nzA[i] * hw) + CityGeo.P(x1 + nxA[i + 1] * hw, y1, z1 + nzA[i + 1] * hw) + CityGeo.P(x1 - nxA[i + 1] * hw, y1, z1 - nzA[i + 1] * hw), C("#2979FF"), false)
+                    if ((acc % 7f) + len >= 7f && acc > 3f) {
+                        val ux = (x1 - x0) / len; val uz = (z1 - z0) / len; val nx = -uz; val nz = ux; val yy = y0 + 0.004f
+                        b.al = 0.95f
+                        CityGeo.q(b, CityGeo.P(x0 - nx * 0.22f - ux * 0.1f, yy, z0 - nz * 0.22f - uz * 0.1f) + CityGeo.P(x0 + ux * 0.22f, yy, z0 + uz * 0.22f) + CityGeo.P(x0 + ux * 0.1f, yy, z0 + uz * 0.1f) + CityGeo.P(x0 - nx * 0.22f - ux * 0.22f, yy, z0 - nz * 0.22f - uz * 0.22f), C("#FFFFFF"), false)
+                        CityGeo.q(b, CityGeo.P(x0 + nx * 0.22f - ux * 0.22f, yy, z0 + nz * 0.22f - uz * 0.22f) + CityGeo.P(x0 + ux * 0.1f, yy, z0 + uz * 0.1f) + CityGeo.P(x0 + ux * 0.22f, yy, z0 + uz * 0.22f) + CityGeo.P(x0 + nx * 0.22f - ux * 0.1f, yy, z0 + nz * 0.22f - uz * 0.1f), C("#FFFFFF"), false)
                     }
                     acc += len
                 }
