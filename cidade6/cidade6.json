@@ -1092,14 +1092,14 @@
    "j": 7,
    "x0": 1500.0,
    "z0": 1750.0,
-   "triangulos": 14044,
+   "triangulos": 14100,
    "camadas": [
     "agua",
     "orla",
     "ruas",
     "terreno"
    ],
-   "bytes": 1030144
+   "bytes": 1034512
   },
   {
    "arquivo": "tiles/tile_07_00.glb",
