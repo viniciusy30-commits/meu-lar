@@ -41,6 +41,7 @@ JOBS = {
     'programador': ('Nova Tech', (110, 70, 200), 4, 26, 18, 'madeira'),
     'empresario': ('Grupo Atlas', (30, 40, 60), 6, 28, 20, 'pedra'),
 }
+EMOJI = {'diarista': '🧽', 'lixeiro': '♻️', 'atendente': '🍔', 'entregador': '📦', 'frentista': '⛽', 'repositor': '🛒', 'professor': '🏫', 'secretario': '🗂️', 'policial': '🚓', 'bombeiro': '🚒', 'mecanico': '🔧', 'enfermeiro': '🩺', 'medico': '🏥', 'advogado': '📜', 'juiz': '⚖️', 'engenheiro': '🏗️', 'programador': '💻', 'empresario': '🏢'}
 ORDER = ['repositor', 'professor', 'policial', 'bombeiro', 'juiz', 'empresario', 'programador', 'engenheiro', 'advogado',
          'secretario', 'enfermeiro', 'mecanico', 'entregador', 'lixeiro', 'atendente', 'diarista', 'frentista']
 
@@ -729,10 +730,11 @@ def place_job(L, F, lot_w, jid):
             j.bx(min(a, b), max(a, b), v0 - 0.3, v0 + 0.3, Y0 + 3.8, Y0 + 4.1, (200, 200, 204), 'metal')
             j.bx(min(a, b), max(a, b), 0.0, v0 - 0.2, Y_WALK + 0.006, Y_WALK + 0.025, (190, 190, 190), 'concreto')
     interior(j, jid, u0 + 0.15, v0 + 0.15, u1 - 0.15, v1 - 0.15, brand)
+    L.__dict__.setdefault('feet', []).append((Fb.rect(0, w, sv, sv + d), brand))
     j.forecourt(w, sv, brand, lot_w)
     L.M.free('lotes')
     dx, dz = Fb.xz(w / 2, sv - 2.0)
-    L.jobs.append({'id': jid, 'nome': nome, 'x': round(dx, 1), 'z': round(dz, 1), 'cor': 0xFF000000 | (brand[0] << 16) | (brand[1] << 8) | brand[2], 'icone': nome[0]})
+    L.jobs.append({'id': jid, 'nome': nome, 'x': round(dx, 1), 'z': round(dz, 1), 'cor': 0xFF000000 | (brand[0] << 16) | (brand[1] << 8) | brand[2], 'icone': nome[0], 'emoji': EMOJI.get(jid, '💼')})
     L.B.drives.append((*Fb.xz(w / 2, -1.5), 3.0))                   # nada de arvore/poste na frente da entrada
     return dx, dz
 
@@ -924,6 +926,7 @@ def prefeitura(L, F, Lw, D):
     j.bx(fc - 0.5, fc + 0.5, pv - 1.2, pv - 0.6, Y0, Y0 + 1.15, (110, 76, 50)); j.solid(fc - 0.5, fc + 0.5, pv - 1.2, pv - 0.6)
     M.free('lotes')
     dx, dz = Fb.xz(fc, v0 - 6.0)
-    L.jobs.append({'id': 'prefeito', 'nome': 'Prefeitura', 'x': round(dx, 1), 'z': round(dz, 1), 'cor': 0xFFC9A227, 'icone': 'P'})
+    L.jobs.append({'id': 'prefeito', 'nome': 'Prefeitura', 'x': round(dx, 1), 'z': round(dz, 1), 'cor': 0xFFC9A227, 'icone': 'P', 'emoji': '🏛️'})
     L.B.solid(Fb, -1.0, bw + 1.0, v0 + bd + 0.5, v0 + bd + 1.0)
+    L.__dict__.setdefault('feet', []).append((Fb.rect(-1.0, bw + 1.0, v0 - 4.6, v0 + bd + 1.0), (201, 162, 39)))
     Y0, HH = old

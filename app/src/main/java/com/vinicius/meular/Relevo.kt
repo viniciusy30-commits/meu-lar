@@ -58,7 +58,9 @@ object Relevo {
     private var walk = ShortArray(0)
     /** Cidade 5: 1 = vértice de areia de praia (o resto, mesmo baixo, é grama: margens de rio/lagoa sem "degraus" de areia) */
     private var sandMask = ByteArray(0)
+    private var amRef: AssetManager? = null
     private fun loadSand(am: AssetManager) {
+        amRef = am
         val bb = ByteBuffer.wrap(am.open(if (City.C6) "hds/c6_sand.bin" else "hds/c5_sand.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
         val sx = bb.getInt(); val sz = bb.getInt()
         sandMask = if (sx == nx && sz == nz) ByteArray(sx * sz).also { bb.get(it) } else ByteArray(0)
@@ -366,7 +368,14 @@ object Relevo {
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
-            js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optInt("cor", 0xFF1565C0.toInt()), o.optString("icone", "T").first())) } }   // Etapa 184: população (gen_pop.py)
+            js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optLong("cor", 0xFF1565C0L).toInt(), o.optString("icone", "T").first(), o.optString("emoji", ""))) } }
+            js.optJSONObject("mapa")?.let { m ->
+                C6Map.load(m, CX, CZ)
+                val cols = mapOf("parque" to 0xFF43A047.toInt(), "escola" to 0xFFF9A825.toInt(), "igreja" to 0xFF8D6E63.toInt(), "praia" to 0xFFFFB300.toInt(), "farol" to 0xFFE53935.toInt(), "rio" to 0xFF1E88E5.toInt())
+                val seen = HashSet<String>()
+                m.optJSONArray("pois")?.let { pa -> for (i in 0 until pa.length()) { val o = pa.getJSONArray(i); val nm = o.getString(2); if (o.getString(3) == "parque" && !seen.add(nm + i / 3)) continue
+                    jobPl.add(City.Place(nm, o.getDouble(0).toFloat() + CX, o.getDouble(1).toFloat() + CZ, cols[o.getString(3)] ?: 0xFF607D8B.toInt(), nm.first(), o.optString(4, ""))) } }
+            }   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
@@ -1463,6 +1472,12 @@ object Relevo {
 
     /** imagem do mapa (4 m por pixel): água, relevo sombreado, ruas e rotatórias */
     private fun buildMap() {
+        if (City.C6) {   // Cidade 6: mapa desenhado no gerador (ruas, quadras, prédios, árvores, praia, rio) em 0,8 m por pixel
+            try {
+                val o = android.graphics.BitmapFactory.Options().also { it.inPreferredConfig = Bitmap.Config.RGB_565 }
+                amRef?.open("hds/c6_map.png")?.use { s -> android.graphics.BitmapFactory.decodeStream(s, null, o) }?.let { mapBmp = it; return }
+            } catch (e: Throwable) { }
+        }
         val w = (worldW / 4f).toInt(); val hgt = (worldH / 4f).toInt()
         val px = IntArray(w * hgt)
         for (j in 0 until hgt) for (i in 0 until w) {
