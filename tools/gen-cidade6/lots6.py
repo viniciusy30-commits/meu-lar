@@ -366,7 +366,7 @@ class Lots:
                 if not free.contains(Point(x, z)) or any((x - a) ** 2 + (z - b) ** 2 < 36 for (a, b) in pts): continue
                 pts.append((x, z)); self.trees.append((x, z, r.choice(('folhosa', 'folhosa', 'oval', 'conifera', 'florida', 'frutifera')), r.uniform(0.9, 1.3), y))
 
-    def plaza(self, x0, z0, x1, z1, fountain=True):
+    def plaza(self, x0, z0, x1, z1, fountain=True, trees=True):
         """praca: fonte no centro, quatro canteiros, bancos virados para a fonte, postes baixos"""
         r = self.rnd; cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
         w, d = x1 - x0, z1 - z0
@@ -375,9 +375,9 @@ class Lots:
             self.planter(x0 + 2, z0 + 2, x1 - 2, z1 - 2); return
         g = 5.0 if fountain else 2.0
         for (a, b, c, e) in ((x0 + 3, z0 + 3, cx - g, cz - g), (cx + g, z0 + 3, x1 - 3, cz - g), (x0 + 3, cz + g, cx - g, z1 - 3), (cx + g, cz + g, x1 - 3, z1 - 3)):
-            if c - a > 4 and e - b > 4: self.planter(a, b, c, e)
+            if c - a > 4 and e - b > 4: self.planter(a, b, c, e, Y_WALK, trees)
         if fountain and min(w, d) > 26: self.fountain(cx, cz, min(4.5, min(w, d) / 8))
-        else: self.trees.append((cx, cz, 'folhosa', 1.2, Y_WALK))
+        elif trees: self.trees.append((cx, cz, 'folhosa', 1.2, Y_WALK))
         for (dx, dz) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             self.benches.append((cx + dx * 7.5, cz + dz * 7.5, -dx, -dz, Y_WALK))
             if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
@@ -495,11 +495,11 @@ class Lots:
                     self.access(self.frame(sd, minx, maxx, minz, maxz, g0), 0.0, g1 - g0, depths[sd] + 1.6)
                 Fp = Frame((ix0, iz0), (1, 0)); self.M.at((ix0 + ix1) / 2, (iz0 + iz1) / 2, 'lotes')
                 B.parking(Fp, 0.5, ix1 - ix0 - 0.5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes'); self.pocc.append(sbox(ix0, iz0, ix1, iz1))
-            elif opt < 0.85: self.plaza(ix0, iz0, ix1, iz1, False)
+            elif opt < 0.85: self.plaza(ix0, iz0, ix1, iz1, False, False)        # praca interna: canteiros so com flores
             else:
                 self.pocc.append(sbox(ix0, iz0, ix1, iz1))
                 self.M.free('lotes'); self.M.m('grama'); self.M.shp(sbox(ix0, iz0, ix1, iz1), Y_WALK + 0.06, WHITE)
-                for _ in range(int((ix1 - ix0) * (iz1 - iz0) / 110)): self.trees.append((r.uniform(ix0 + 2, ix1 - 2), r.uniform(iz0 + 2, iz1 - 2), r.choice(('folhosa', 'oval', 'florida')), r.uniform(0.8, 1.1), Y_WALK))
+                pass                                                  # miolo cercado de predios: gramado sem arvores (so peso)
 
     def orla(self, bi, blk):
         import centro6 as C6
