@@ -46,7 +46,15 @@ object Relevo {
     private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0, val vb: Int = 35, val cell: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
     private val subIdx = HashMap<Int, ArrayList<SubRec>>()
     private var subFile: java.io.RandomAccessFile? = null
-    private val subExtra = ArrayList<java.io.RandomAccessFile>()     // Etapa E: malhas extras (construções...); SubRec.src = posição + 1
+    /** leitor de uma malha: direto de dentro do APK (sem copiar nada para o celular) ou de uma cópia em arquivo */
+    class SubSrc(private val ch: java.nio.channels.FileChannel, private val base: Long, private val owner: java.io.Closeable) {
+        fun readAt(off: Long, b: ByteArray, len: Int = b.size) {
+            val bb = ByteBuffer.wrap(b, 0, len); var p = base + off
+            while (bb.hasRemaining()) { val n = ch.read(bb, p); if (n < 0) throw java.io.EOFException(); p += n }
+        }
+        fun close() { try { owner.close() } catch (e: Throwable) { } }
+    }
+    private val subExtra = ArrayList<SubSrc>()     // Etapa E: malhas extras (construções...); SubRec.src = posição + 1
     private var subSolR = FloatArray(0)                         // colisões girados das construções: cx, cz, cos, sen, x0, z0, x1, z1
     private var subMem: ByteArray? = null          // plano B: se não der para gravar o arquivo, mantém tudo na memória
     private val subLock = Any()
@@ -173,20 +181,33 @@ object Relevo {
     /** Etapa E: segunda malha (construções dos lotes), mesmo formato SUB1; os registros entram no mesmo índice de células */
     private fun loadExtraSub(am: AssetManager, name: String) {
         try {
-            val f = ensureSubFile(am, name) ?: run { if (lastErr == null) lastErr = "sem arquivo $name"; return }
-            val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-            val raf = java.io.RandomAccessFile(f, "r")
+            // 1) direto do APK (o arquivo fica guardado sem compressão): nenhuma cópia, nenhum espaço extra no celular
+            var src: SubSrc? = null
             try {
-                val src = subExtra.size + 1
-                hd.clear(); raf.readFully(hd.array(), 0, 8)
+                val afd = am.openFd(name)
+                val fis = java.io.FileInputStream(afd.fileDescriptor)
+                src = SubSrc(fis.channel, afd.startOffset, java.io.Closeable { try { fis.close() } catch (e: Throwable) { }; afd.close() })
+            } catch (e: Throwable) { }
+            // 2) se não der (arquivo comprimido), copia uma vez para a memória do app
+            if (src == null) {
+                val f = ensureSubFile(am, name) ?: run { if (lastErr == null) lastErr = "sem arquivo $name"; return }
+                val raf = java.io.RandomAccessFile(f, "r")
+                src = SubSrc(raf.channel, 0L, raf)
+
+            } else dataDir?.let { d -> try { java.io.File(d, name.substringAfterLast('/')).delete() } catch (e: Throwable) { } }   // cópia antiga não serve mais
+            val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            val raf = src!!
+            try {
+                val srcI = subExtra.size + 1
+                hd.clear(); raf.readAt(0L, hd.array(), 8)
                 val vb = if (hd.get(0) == 'S'.code.toByte() && hd.get(3) == '2'.code.toByte()) SUB2_VB else SUB_VB   // SUB2: vértice compacto
                 hd.position(4)
                 val n = hd.getInt()
                 var pos = 8L
                 for (r in 0 until n) {
-                    raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
+                    hd.clear(); raf.readAt(pos, hd.array(), 16)
                     val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
-                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, src, vb, cell))
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, srcI, vb, cell))
                     pos += 16L + nv.toLong() * vb
                 }
                 subExtra.add(raf)
@@ -216,7 +237,10 @@ object Relevo {
         val mem = subMem
         val bytes0 = if (mem != null && rc.src == 0) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
             val b = ByteArray(n)
-            synchronized(subLock) { val raf = (if (rc.src >= 1) subExtra.getOrNull(rc.src - 1) else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            synchronized(subLock) {
+                if (rc.src >= 1) { val sx = subExtra.getOrNull(rc.src - 1) ?: throw IllegalStateException("malha fechada"); sx.readAt(rc.off, b) }
+                else { val raf = subFile ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            }
             b
         }
         val bytes = if (rc.src >= 1 && rc.vb == SUB2_VB) expandSub2(bytes0, rc.nv, rc.cell) else bytes0
