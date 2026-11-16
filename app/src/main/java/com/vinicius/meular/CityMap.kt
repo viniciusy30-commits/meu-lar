@@ -314,6 +314,30 @@ object MapPaint {
         else { text.textSize = r * 1.05f; c.drawText(ch.toString(), x, y + r * 0.37f, text) }
     }
 
+    /** todos os lugares do mapa (lista da cidade + prédios das profissões/pontos da Cidade 6), sem repetir nome */
+    fun allPlaces(): List<City.Place> = (City.places + (if (Relevo.on && City.C6) Relevo.jobPl else emptyList())).distinctBy { it.name }
+
+    fun isHouse(p: City.Place) = p.name == "Sua casa" || p.name.startsWith("Casa ")
+    /** casa do jogador? ("Sua casa", a Casa 1 ou uma comprada) */
+    fun houseOwned(p: City.Place): Boolean {
+        if (p.name == "Sua casa" || p.name.contains("(sua)")) return true
+        val n = Regex("^Casa (\\d+)").find(p.name)?.groupValues?.get(1)?.toIntOrNull() ?: return false
+        return HdsEstate.isOwned(n - 1)
+    }
+
+    /** alfinete de casa: verde = sua, vermelho = à venda; desenho de casinha branca no meio */
+    fun housePin(c: Canvas, x: Float, y: Float, r: Float, owned: Boolean) {
+        val col = if (owned) 0xFF2E9E4A.toInt() else 0xFFD84336.toInt()
+        fill.color = 0x40000000; c.drawOval(RectF(x - r * 0.6f, y + r * 1.55f, x + r * 0.6f, y + r * 1.85f), fill)
+        val p = Path(); p.moveTo(x, y + r * 1.75f); p.lineTo(x - r * 0.62f, y + r * 0.7f); p.lineTo(x + r * 0.62f, y + r * 0.7f); p.close()
+        fill.color = Color.WHITE; c.drawPath(p, fill); c.drawCircle(x, y, r * 1.12f, fill)
+        fill.color = col; c.drawCircle(x, y, r * 0.95f, fill)
+        fill.color = Color.WHITE
+        val h = Path(); h.moveTo(x, y - r * 0.55f); h.lineTo(x + r * 0.55f, y - r * 0.05f); h.lineTo(x + r * 0.38f, y - r * 0.05f); h.lineTo(x + r * 0.38f, y + r * 0.48f)
+        h.lineTo(x - r * 0.38f, y + r * 0.48f); h.lineTo(x - r * 0.38f, y - r * 0.05f); h.lineTo(x - r * 0.55f, y - r * 0.05f); h.close(); c.drawPath(h, fill)
+        fill.color = col; c.drawRect(x - r * 0.1f, y + r * 0.12f, x + r * 0.1f, y + r * 0.48f, fill)
+    }
+
     fun tag(c: Canvas, t: String, x: Float, y: Float, size: Float) {
         label.textSize = size; halo.textSize = size; halo.strokeWidth = size * 0.35f
         c.drawText(t, x, y, halo); c.drawText(t, x, y, label)
@@ -356,12 +380,26 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
                 fun sx(x: Float) = width / 2f + (x - cx) * scale
                 fun sy(z: Float) = height / 2f + (z - cz) * scale
                 // lugares principais sempre; lojas e terrenos só com zoom (com o nome embaixo)
-                for (pl2 in City.places) {
+                // alfinetes (casas: casinha verde = sua, vermelha = à venda; trabalhos e lugares: o símbolo de cada um)
+                // e nomes só onde não encostam em outro nome
+                val used = ArrayList<RectF>()
+                val big = scale > 0.7f
+                val rr = dp(if (big) 11f else 8f)
+                val list = MapPaint.allPlaces().sortedBy { if (MapPaint.isHouse(it)) 1 else 0 }
+                for (pl2 in list) {
                     val main = pl2.name in MapPaint.MAIN || (Relevo.on && City.C6)
                     if (!main && scale < 2.2f) continue
-                    val big = scale > 0.7f
-                    MapPaint.pin(c, sx(pl2.x), sy(pl2.z) - dp(if (big) 18f else 12f), pl2.color, pl2.icon, dp(if (big) 11f else 7f), pl2.emoji)
-                    if (big) MapPaint.tag(c, pl2.name, sx(pl2.x), sy(pl2.z) + dp(14f), dp(11f))
+                    val px = sx(pl2.x); val py = sy(pl2.z) - rr * 1.7f
+                    if (px < -50 || py < -50 || px > width + 50 || py > height + 50) continue
+                    if (MapPaint.isHouse(pl2)) MapPaint.housePin(c, px, py, rr, MapPaint.houseOwned(pl2))
+                    else MapPaint.pin(c, px, py, pl2.color, pl2.icon, rr, pl2.emoji)
+                    if (big && scale > 1.1f) {
+                        val nm = pl2.name.substringBefore(" ·").let { if (MapPaint.isHouse(pl2)) it + (if (MapPaint.houseOwned(pl2)) " (sua)" else " · à venda") else it }
+                        MapPaint.label.textSize = dp(11f)
+                        val tw = MapPaint.label.measureText(nm)
+                        val box = RectF(px - tw / 2 - dp(3f), py + rr * 1.9f, px + tw / 2 + dp(3f), py + rr * 1.9f + dp(14f))
+                        if (used.none { RectF.intersects(it, box) }) { used.add(box); MapPaint.tag(c, nm, px, box.bottom - dp(3f), dp(11f)) }
+                    }
                 }
                 if (!selX.isNaN()) {
                     val x = sx(selX); val y = sy(selZ)
@@ -418,9 +456,12 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
         val hs = HorizontalScrollView(ctx); hs.isHorizontalScrollBarEnabled = false
         val chips = LinearLayout(ctx); chips.orientation = LinearLayout.HORIZONTAL
         val seen = HashSet<String>()
-        for (pl in City.places) {
+        val ordered = MapPaint.allPlaces().sortedWith(compareBy({ if (MapPaint.isHouse(it) && MapPaint.houseOwned(it)) 0 else if (MapPaint.isHouse(it)) 3 else if (it.emoji.isNotEmpty() && it.color != 0xFF43A047.toInt()) 1 else 2 }, { it.name }))
+        for (pl in ordered) {
             if (!seen.add(pl.name)) continue
-            chips.addView(chip(pl.name, pl.color) { cx = pl.x; cz = pl.z; scale = max(scale, 1.6f); select(pl.x, pl.z, pl.name); })
+            val label = (if (pl.emoji.isNotEmpty()) pl.emoji + " " else if (MapPaint.isHouse(pl)) "🏠 " else "") + pl.name.substringBefore(" (")
+            val col = if (MapPaint.isHouse(pl)) (if (MapPaint.houseOwned(pl)) 0xFF2E9E4A.toInt() else 0xFFD84336.toInt()) else pl.color
+            chips.addView(chip(label, col) { cx = pl.x; cz = pl.z; scale = max(scale, 1.6f); select(pl.x, pl.z, pl.name); })
         }
         hs.addView(chips)
         top.addView(hs, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8f).toInt() })
@@ -562,12 +603,12 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
             c.restore()
         }
         // lugares por perto no minimapa (ícone pequeno, sempre de pé)
-        if (Relevo.on && City.C6) for (q in City.places) {
+        if (Relevo.on && City.C6) for (q in MapPaint.allPlaces()) {
             val dx = q.x - pl[0]; val dz = q.z - pl[1]
             if (dx * dx + dz * dz > 52f * 52f) continue
             val ar = Math.toRadians(rot.toDouble()); val cs = kotlin.math.cos(ar).toFloat(); val sn = kotlin.math.sin(ar).toFloat()
             val sx2 = r + (dx * cs - dz * sn) * s; val sy2 = r + (dx * sn + dz * cs) * s
-            MapPaint.pin(c, sx2, sy2 - 9 * dens, q.color, q.icon, 6 * dens, q.emoji)
+            if (MapPaint.isHouse(q)) MapPaint.housePin(c, sx2, sy2 - 9 * dens, 6 * dens, MapPaint.houseOwned(q)) else MapPaint.pin(c, sx2, sy2 - 9 * dens, q.color, q.icon, 6 * dens, q.emoji)
         }
         c.restore()
         MapPaint.arrow(c, r, r, 0f, 6 * dens)

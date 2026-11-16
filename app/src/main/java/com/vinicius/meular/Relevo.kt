@@ -366,6 +366,7 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
+            fa("fauna").let { if (it.isNotEmpty() && c6) TownPark.buildC6(it, CX, CZ, 0.7f) }
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
             js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optLong("cor", 0xFF1565C0L).toInt(), o.optString("icone", "T").first(), o.optString("emoji", ""))) } }
@@ -379,7 +380,7 @@ object Relevo {
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
-                    for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
+                    for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_bld2.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
                     loadTree6(am)
                 } else {
                     loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")

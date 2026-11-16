@@ -388,7 +388,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             float diff = max(dot(n, L), 0.0) * (1.0 - 0.80 * N);
             vec3 amb = mix(vec3(0.40, 0.37, 0.36), vec3(0.60, 0.67, 0.78), 0.5 + 0.5 * n.y);
             amb = mix(amb, mix(vec3(0.20, 0.22, 0.30), vec3(0.28, 0.32, 0.46), 0.5 + 0.5 * n.y), N);      // lua: azulada (a cidade continua legível à noite)
-            amb += vec3(0.16, 0.05, -0.02) * uDN.y;                                                          // pôr do sol quente
+            amb += vec3(0.16, 0.05, -0.02) * uDN.y;
+            amb += vec3(0.30, 0.29, 0.28) * max(-n.y, 0.0) * (1.0 - 0.5 * N);   // forros e tetos (virados para baixo) recebem a luz que volta do piso                                                          // pôr do sol quente
             vec3 pl = uLight - vW;
             float d2 = dot(pl, pl);
             vec3 pL = vec3(0.0); float att = 0.0; float pd = 0.0;

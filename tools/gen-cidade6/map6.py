@@ -146,17 +146,22 @@ def build(P, G, L, assets):
 
     # ---- rotulos das ruas (pontos ao longo da via, com angulo), pontos de interesse
     labels = []
-    for r in P.roads:
+    placed = {}                                       # um nome a cada ~450 m (nada de nome repetido em cima de nome)
+    for r in sorted(P.roads, key=lambda r_: -LineString(r_['pts']).length):
         ls = LineString(r['pts']); L_ = ls.length
         if L_ < 60: continue
-        n = max(1, int(L_ // 260))
+        n = max(1, int(L_ // 300))
         for k in range(n):
             t = (k + 0.5) / n * L_
             p = ls.interpolate(t); q = ls.interpolate(min(L_, t + 4)); p0 = ls.interpolate(max(0, t - 4))
             ang = math.degrees(math.atan2(q.y - p0.y, q.x - p0.x))
             if ang > 90: ang -= 180
             if ang < -90: ang += 180
-            labels.append([round(p.x, 1), round(p.y, 1), round(ang, 1), names[id(r)], {'rua': 0, 'centro': 1, 'av': 2, 'orla': 3}[r['kind']]])
+            nm_ = names[id(r)]
+            if any(math.hypot(p.x - a_, p.y - b_) < 450 for (a_, b_) in placed.get(nm_, [])): continue
+            if any(math.hypot(p.x - l_[0], p.y - l_[1]) < 70 for l_ in labels): continue
+            placed.setdefault(nm_, []).append((p.x, p.y))
+            labels.append([round(p.x, 1), round(p.y, 1), round(ang, 1), nm_, {'rua': 0, 'centro': 1, 'av': 2, 'orla': 3}[r['kind']]])
     pois = []
     pass
     for b in P.blocks:

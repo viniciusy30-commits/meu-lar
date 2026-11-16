@@ -138,6 +138,33 @@ object TownPark {
     @Volatile var swimmers: Array<Swim> = arrayOf()
     @Volatile var swimMesh: Array<Mesh?> = arrayOfNulls(0)
     private val KOI = arrayOf("#FF7A1A", "#FFFFFF", "#E53935", "#FFB300", "#F5F5F5", "#2B2B2B")
+    /** Cidade 6: peixes, patos e cisnes da lagoa do Parque Central (c6.json "fauna": cx, cz, raio, fase, velocidade, modelo, y) */
+    fun buildC6(f: FloatArray, ox: Float, oz: Float, dy: Float) {
+        buildLife0()
+        val l = ArrayList<Swim>(); var k = 0
+        while (k + 6 < f.size) { l.add(Swim(f[k] + ox, f[k + 1] + oz, f[k + 2], f[k + 3], f[k + 4], f[k + 5].toInt(), f[k + 6] + dy)); k += 7 }
+        swimmers = l.toTypedArray()
+    }
+
+    /** modelos: 0-5 carpas, 6 pato branco, 7 marreco, 8 cisne */
+    private fun buildLife0() {
+        val ms = ArrayList<Mesh?>()
+        for (k in 0 until 6) { val b = MB(); b.m(Mt.PLAIN); val c = C(KOI[k]); val c2 = C(KOI[(k + 1) % 6])
+            b.box(0f, 0f, 0f, 0.15f, 0.09f, 0.5f, c); b.box(0f, 0.005f, 0.17f, 0.13f, 0.09f, 0.2f, c2); b.box(0f, 0f, 0.31f, 0.1f, 0.07f, 0.14f, c)
+            b.box(0f, 0f, -0.36f, 0.26f, 0.02f, 0.2f, c2); b.box(0.11f, -0.01f, 0.08f, 0.12f, 0.02f, 0.1f, c2); b.box(-0.11f, -0.01f, 0.08f, 0.12f, 0.02f, 0.1f, c2)
+            ms.add(b.toMesh(true)) }
+        for (k in 0..1) { val b = MB(); b.m(Mt.PLAIN); val body = C(if (k == 0) "#FFFFFF" else "#8D6E63"); val head = if (k == 0) body else C("#1B5E20")
+            CityGeo.ball(b, 0f, 0.1f, 0f, 0.22f, body, 0.17f, 7); CityGeo.ball(b, 0f, 0.14f, -0.2f, 0.13f, body, 0.1f, 6); b.box(0f, 0.2f, -0.3f, 0.1f, 0.03f, 0.14f, shade(body, -25))
+            b.box(0f, 0.27f, 0.2f, 0.07f, 0.22f, 0.07f, head); CityGeo.ball(b, 0f, 0.42f, 0.22f, 0.1f, head, 0.1f, 6); b.box(0f, 0.4f, 0.35f, 0.07f, 0.03f, 0.12f, C("#FB8C00"))
+            ms.add(b.toMesh(true)) }
+        run { val b = MB(); b.m(Mt.PLAIN); val w = C("#FAFAFA")                    // cisne: corpo grande, asas, pescoco em S, bico laranja
+            CityGeo.ball(b, 0f, 0.18f, 0f, 0.42f, w, 0.3f, 8); CityGeo.ball(b, 0.2f, 0.32f, -0.05f, 0.25f, w, 0.16f, 6); CityGeo.ball(b, -0.2f, 0.32f, -0.05f, 0.25f, w, 0.16f, 6)
+            for (q in 0 until 6) { val t = q / 5f; CityGeo.ball(b, 0f, 0.35f + t * 0.55f, 0.35f + kotlin.math.sin(t * 3.0f) * 0.12f, 0.08f, w, 0.08f, 5) }
+            CityGeo.ball(b, 0f, 0.95f, 0.42f, 0.1f, w, 0.09f, 6); b.box(0f, 0.93f, 0.55f, 0.06f, 0.04f, 0.14f, C("#F57C00")); b.box(0f, 0.95f, 0.47f, 0.07f, 0.06f, 0.04f, C("#212121"))
+            ms.add(b.toMesh(true)) }
+        swimMesh = ms.toTypedArray()
+    }
+
     fun buildLife() {
         val ms = ArrayList<Mesh?>()
         for (k in 0 until 6) { val b = MB(); b.m(Mt.PLAIN); val c = C(KOI[k]); val c2 = C(KOI[(k + 1) % 6])

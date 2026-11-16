@@ -759,7 +759,7 @@ def prefeitura(L, F, Lw, D):
     j.bx(-u0 + 1, bw + u0 - 1, 0.0, v0 - 2.0, Y_WALK + 0.005, Y0, (232, 226, 214), 'paver')
     for k in range(int((bw + 2 * u0 - 4) / 2.0)):                       # faixas de pedra no piso
         uu = -u0 + 2 + k * 2.0; j.bx(uu, uu + 0.12, 0.5, v0 - 2.5, Y0, Y0 + 0.004, (196, 188, 172), 'pedra')
-    fc = bw / 2; fv = v0 * 0.42
+    fc = bw / 2; fv = v0 * 0.3
     j.cyl(fc, fv, 5.5, Y0, Y0 + 0.6, stone2, 'pedra', 32); j.cyl(fc, fv, 5.0, Y0 + 0.5, Y0 + 0.55, (90, 160, 200), 'agua', 32)
     j.cyl(fc, fv, 1.2, Y0 + 0.5, Y0 + 1.4, stone, 'pedra', 16); j.cyl(fc, fv, 2.4, Y0 + 1.4, Y0 + 1.6, stone, 'pedra', 16, True, 1.6)
     j.cyl(fc, fv, 0.4, Y0 + 1.6, Y0 + 2.6, stone, 'pedra', 12); j.cyl(fc, fv, 1.1, Y0 + 2.6, Y0 + 2.75, stone, 'pedra', 12)
@@ -777,8 +777,8 @@ def prefeitura(L, F, Lw, D):
         for k in range(10): x2, z2 = Fb.xz(gu - 7 + (k % 5) * 3.5, 6.0 + (k // 5) * (v0 - 14)); L.trees.append((x2, z2, 'flores', 1.0, Y0 + 0.08))
     for k in range(3):                                                  # mastros (pais, estado, cidade)
         mu = fc - 3.0 + k * 3.0
-        j.cyl(mu, v0 - 4.0, 0.3, Y0, Y0 + 0.5, stone2, 'pedra', 10); j.cyl(mu, v0 - 4.0, 0.08, Y0 + 0.5, Y0 + 12.0, (230, 230, 230), 'metal', 8, True, 0.05)
-        G = j.sub(mu, v0 - 4.0, 0); j.bx(0.08, 2.0, -0.01, 0.01, Y0 + 10.6, Y0 + 11.8, ((40, 140, 70), (230, 200, 40), (40, 80, 170))[k], 'liso', F=G)
+        j.cyl(mu, v0 - 11.6, 0.3, Y0, Y0 + 0.5, stone2, 'pedra', 10); j.cyl(mu, v0 - 11.6, 0.08, Y0 + 0.5, Y0 + 12.0, (230, 230, 230), 'metal', 8, True, 0.05)
+        G = j.sub(mu, v0 - 11.6, 0); j.bx(0.08, 2.0, -0.01, 0.01, Y0 + 10.6, Y0 + 11.8, ((40, 140, 70), (230, 200, 40), (40, 80, 170))[k], 'liso', F=G)
     import lights6
     for s in (-1, 1):
         for k in range(4):
@@ -787,11 +787,13 @@ def prefeitura(L, F, Lw, D):
     # ---- podio e escadaria
     Yp = Y0 + 1.6
     j.bx(-1.0, bw + 1.0, v0, v0 + bd + 1.0, Y_WALK - 0.3, Yp, stone2, 'pedra')
-    for k in range(8):
-        j.bx(fc - 11 - (8 - k) * 0.2, fc + 11 + (8 - k) * 0.2, v0 - 4.0 + k * 0.5, v0 + 0.1, Y0, Y0 + (k + 1) * 0.2, (224, 218, 204), 'pedra')
-    for s in (-1, 1):
-        j.bx(fc + s * 11.6 - 0.6, fc + s * 11.6 + 0.6, v0 - 4.4, v0, Y0, Yp + 0.9, stone, 'pedra')
-        j.ball(fc + s * 11.6, v0 - 3.8, Yp + 1.25, 0.35, stone)
+    PF = v0 - 6.2                                                       # frente da plataforma do portico
+    j.bx(fc - 11.0, fc + 11.0, PF, v0 + 0.02, Y_WALK - 0.3, Yp, stone2, 'pedra')       # o podio avanca sob o portico
+    for k in range(8):                                                  # escadaria encostada na plataforma
+        j.bx(fc - 10.6, fc + 10.6, PF - 4.0 + k * 0.5, PF + 0.02, Y_WALK - 0.3, Y0 + (k + 1) * 0.2 - 0.01, (224, 218, 204), 'pedra')
+    for s in (-1, 1):                                                   # muretas laterais da escada com pinha
+        j.bx(fc + s * 11.0 - 0.45, fc + s * 11.0 + 0.45, PF - 4.3, v0, Y_WALK - 0.3, Yp + 0.9, stone, 'pedra')
+        j.ball(fc + s * 11.0, PF - 3.9, Yp + 1.25, 0.35, stone)
     # ---- casca: terreo enterravel, andar nobre e cobertura
     Y0 = Yp + 0.02; HH = 6.0
     pu0, pu1 = fc - 9.5, fc + 9.5

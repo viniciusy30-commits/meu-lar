@@ -136,10 +136,10 @@ object C6Map {
 
     /** chamado com o canvas já em coordenadas do mundo (s = pixels por metro), [rot] = giro do mapa em graus */
     fun drawLabels(c: Canvas, s: Float, dens: Float, rot: Float) {
-        if (!ready || s < 0.45f) return
+        if (!ready || s < 0.75f) return
         for (l in labels) {
-            if (l.kind == 0 && s < 0.9f) continue
-            val size = (if (l.kind >= 2) 12.5f else 11f) * dens / s
+            if (l.kind == 0 && s < 1.3f) continue
+            val size = (if (l.kind >= 2) 11.5f else 10f) * dens / s
             lp.textSize = size; lh.textSize = size; lh.strokeWidth = size * 0.3f
             lp.color = if (l.kind >= 2) 0xFF5D4037.toInt() else 0xFF37474F.toInt()
             c.save(); c.translate(l.x, l.z)

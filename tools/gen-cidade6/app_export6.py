@@ -130,7 +130,12 @@ def run(P, G, L, M, assets):
     # ---- malhas
     tot = 0
     for fname, layers in FILES.items():
-        n = write_sub2(os.path.join(assets, fname), _tris(M, layers)); tot += n
+        T = _tris(M, layers)
+        if fname == 'c6_bld.bin':                                       # construcoes em duas metades (oeste/leste): cada arquivo < 100 MB
+            n = write_sub2(os.path.join(assets, 'c6_bld2.bin'), {m: v[v[:, 0, 11] >= W / 2] for m, v in T.items() if (v[:, 0, 11] >= W / 2).any()}); tot += n
+            print(f'  c6_bld2.bin: {n} triangulos')
+            T = {m: v[v[:, 0, 11] < W / 2] for m, v in T.items() if (v[:, 0, 11] < W / 2).any()}
+        n = write_sub2(os.path.join(assets, fname), T); tot += n
         print(f'  {fname}: {n} triangulos, {os.path.getsize(os.path.join(assets, fname)) / 1e6:.1f} MB')
     # ---- chao andavel (faces viradas para cima, baixas, de materiais de piso)
     wt = []
@@ -175,7 +180,7 @@ def run(P, G, L, M, assets):
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
-    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'solid': [], 'solidr': solidr,
+    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'fauna': getattr(L.props, 'fauna', []), 'solid': [], 'solidr': solidr,
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
     import map6
     js['mapa'] = map6.build(P, G, L, assets)

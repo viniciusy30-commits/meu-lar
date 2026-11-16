@@ -253,6 +253,8 @@ class Props:
 
     # ------------------------------------------------------------ parques
     def central_park(self, blk):
+        import park_central6
+        return park_central6.build(self, blk)
         M = self.M; r = self.rnd; poly = blk['poly']
         minx, minz, maxx, maxz = poly.bounds; cx, cz = (minx + maxx) / 2, (minz + maxz) / 2
         lake = Point(cx + 18, cz + 12).buffer(62, 32)
