@@ -160,11 +160,16 @@ class Ground:
             M.m('metal'); rail = rgb('#3E4247')
             for k in range(len(sec) - 1):
                 zm = (zs[k] + zs[k + 1]) / 2
-                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span + getattr(self, 'rail_skip', [])): continue
+                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
+                fs = getattr(self, 'rail_skip_side', {}).get(sgn)
+                if fs and fs[0] < zs[k + 1] and zs[k] < fs[1]: continue
                 pa = sec[k][1] if sgn > 0 else sec[k][0]; pb = sec[k + 1][1] if sgn > 0 else sec[k + 1][0]
                 M.quad((pa[0], 1.05, pa[1]), (pb[0], 1.05, pb[1]), (pb[0], 1.15, pb[1]), (pa[0], 1.15, pa[1]), rail, (sgn, 0, 0))
                 M.quad((pa[0], 0.62, pa[1]), (pb[0], 0.62, pb[1]), (pb[0], 0.68, pb[1]), (pa[0], 0.68, pa[1]), rail, (sgn, 0, 0))
                 M.box(pa[0] - 0.05, pa[0] + 0.05, 0.25, 1.15, pa[1] - 0.05, pa[1] + 0.05, rail)
+                zn = (zs[min(k + 1, len(zs) - 2)] + zs[min(k + 2, len(zs) - 1)]) / 2       # poste de fim antes de uma abertura
+                if k + 2 < len(zs) and (fs and fs[0] < zs[k + 2] and zs[k + 1] < fs[1] or any(sa - 0.5 < zn < sb + 0.5 for (sa, sb) in self.bridge_span)):
+                    M.box(pb[0] - 0.05, pb[0] + 0.05, 0.25, 1.15, pb[1] - 0.05, pb[1] + 0.05, rail)
 
     # ------------------------------------------------------------ ruas
     def roads(self):
@@ -335,7 +340,12 @@ class Ground:
         L_ = math.hypot(1.0, dx); ax, az = 1.0 / L_, -dx / L_                 # direcao da travessia (perpendicular ao eixo do rio)
         F = Frame((cx, fz), (ax, az))
         half = RIVER_W / 2 + RIVER_WALL + 1.6; hw = 1.7; y0 = Y_LAWN + 0.06; rise = 1.7
-        self.rail_skip = [(fz - hw - 1.2, fz + hw + 1.2)]                     # o guarda-corpo do cais abre na entrada da ponte
+        # o guarda-corpo do cais abre exatamente onde cada ponta da ponte pousa (o rio e inclinado: as pontas nao ficam em z = fz)
+        self.rail_skip_side = {}
+        for sgn in (-1, 1):
+            zl = F.xz(sgn * (RIVER_W / 2 + RIVER_WALL / 2), 0.0)[1]; ext = hw / max(abs(ax), 0.3) + abs(az) * RIVER_WALL + 1.0
+            self.rail_skip_side[sgn] = (zl - ext, zl + ext)
+            self.foot_land = getattr(self, 'foot_land', {}); self.foot_land[sgn] = zl
         M.at(cx, fz, 'ruas'); n = 28
         wood, dark, white = rgb('#A47A52'), rgb('#6E5036'), rgb('#F2F0EA')
         yy = lambda t: y0 + rise * math.sin(math.pi * t)

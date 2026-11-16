@@ -14,7 +14,7 @@
    "j": 0,
    "x0": 0.0,
    "z0": 0.0,
-   "triangulos": 33290,
+   "triangulos": 33244,
    "camadas": [
     "arbustos",
     "arvores",
@@ -27,7 +27,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 1678880
+   "bytes": 1675076
   },
   {
    "arquivo": "tiles/tile_00_01.glb",
@@ -55,7 +55,7 @@
    "j": 2,
    "x0": 0.0,
    "z0": 500.0,
-   "triangulos": 45118,
+   "triangulos": 45026,
    "camadas": [
     "arbustos",
     "arvores",
@@ -68,7 +68,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2559588
+   "bytes": 2555940
   },
   {
    "arquivo": "tiles/tile_00_03.glb",
@@ -76,7 +76,7 @@
    "j": 3,
    "x0": 0.0,
    "z0": 750.0,
-   "triangulos": 42422,
+   "triangulos": 42514,
    "camadas": [
     "arbustos",
     "arvores",
@@ -89,7 +89,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2424840
+   "bytes": 2427700
   },
   {
    "arquivo": "tiles/tile_00_04.glb",
@@ -97,7 +97,7 @@
    "j": 4,
    "x0": 0.0,
    "z0": 1000.0,
-   "triangulos": 42392,
+   "triangulos": 42530,
    "camadas": [
     "arbustos",
     "arvores",
@@ -110,7 +110,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2376516
+   "bytes": 2382384
   },
   {
    "arquivo": "tiles/tile_00_05.glb",
@@ -118,7 +118,7 @@
    "j": 5,
    "x0": 0.0,
    "z0": 1250.0,
-   "triangulos": 43526,
+   "triangulos": 43618,
    "camadas": [
     "arbustos",
     "arvores",
@@ -131,7 +131,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2520404
+   "bytes": 2524844
   },
   {
    "arquivo": "tiles/tile_00_06.glb",
@@ -139,7 +139,7 @@
    "j": 6,
    "x0": 0.0,
    "z0": 1500.0,
-   "triangulos": 40334,
+   "triangulos": 39970,
    "camadas": [
     "arbustos",
     "arvores",
@@ -153,7 +153,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2355076
+   "bytes": 2329988
   },
   {
    "arquivo": "tiles/tile_00_07.glb",
@@ -161,13 +161,13 @@
    "j": 7,
    "x0": 0.0,
    "z0": 1750.0,
-   "triangulos": 3538,
+   "triangulos": 3346,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 212088
+   "bytes": 197112
   },
   {
    "arquivo": "tiles/tile_01_00.glb",
@@ -175,7 +175,7 @@
    "j": 0,
    "x0": 250.0,
    "z0": 0.0,
-   "triangulos": 39849,
+   "triangulos": 39803,
    "camadas": [
     "arbustos",
     "arvores",
@@ -188,7 +188,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2202540
+   "bytes": 2200320
   },
   {
    "arquivo": "tiles/tile_01_01.glb",
@@ -296,7 +296,7 @@
    "j": 6,
    "x0": 250.0,
    "z0": 1500.0,
-   "triangulos": 54286,
+   "triangulos": 54266,
    "camadas": [
     "arbustos",
     "arvores",
@@ -309,7 +309,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3192160
+   "bytes": 3187284
   },
   {
    "arquivo": "tiles/tile_01_07.glb",
@@ -317,13 +317,13 @@
    "j": 7,
    "x0": 250.0,
    "z0": 1750.0,
-   "triangulos": 3248,
+   "triangulos": 3056,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 189540
+   "bytes": 174560
   },
   {
    "arquivo": "tiles/tile_02_00.glb",
@@ -331,7 +331,7 @@
    "j": 0,
    "x0": 500.0,
    "z0": 0.0,
-   "triangulos": 45492,
+   "triangulos": 45354,
    "camadas": [
     "arbustos",
     "arvores",
@@ -344,7 +344,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2586224
+   "bytes": 2579564
   },
   {
    "arquivo": "tiles/tile_02_01.glb",
@@ -452,7 +452,7 @@
    "j": 6,
    "x0": 500.0,
    "z0": 1500.0,
-   "triangulos": 55789,
+   "triangulos": 55933,
    "camadas": [
     "arbustos",
     "arvores",
@@ -465,7 +465,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3495796
+   "bytes": 3507040
   },
   {
    "arquivo": "tiles/tile_02_07.glb",
@@ -473,13 +473,13 @@
    "j": 7,
    "x0": 500.0,
    "z0": 1750.0,
-   "triangulos": 3058,
+   "triangulos": 3106,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 174640
+   "bytes": 178392
   },
   {
    "arquivo": "tiles/tile_03_00.glb",
@@ -487,7 +487,7 @@
    "j": 0,
    "x0": 750.0,
    "z0": 0.0,
-   "triangulos": 43969,
+   "triangulos": 44153,
    "camadas": [
     "arbustos",
     "arvores",
@@ -500,7 +500,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2470548
+   "bytes": 2478636
   },
   {
    "arquivo": "tiles/tile_03_01.glb",
@@ -548,7 +548,7 @@
    "j": 3,
    "x0": 750.0,
    "z0": 750.0,
-   "triangulos": 59258,
+   "triangulos": 58784,
    "camadas": [
     "arbustos",
     "arvores",
@@ -559,7 +559,7 @@
     "ruas",
     "terreno"
    ],
-   "bytes": 3432336
+   "bytes": 3414904
   },
   {
    "arquivo": "tiles/tile_03_04.glb",
@@ -567,7 +567,7 @@
    "j": 4,
    "x0": 750.0,
    "z0": 1000.0,
-   "triangulos": 48734,
+   "triangulos": 48576,
    "camadas": [
     "arvores",
     "carros",
@@ -577,7 +577,7 @@
     "ruas",
     "terreno"
    ],
-   "bytes": 2791836
+   "bytes": 2786028
   },
   {
    "arquivo": "tiles/tile_03_05.glb",
@@ -603,7 +603,7 @@
    "j": 6,
    "x0": 750.0,
    "z0": 1500.0,
-   "triangulos": 64154,
+   "triangulos": 64058,
    "camadas": [
     "arbustos",
     "arvores",
@@ -615,7 +615,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3993244
+   "bytes": 3985760
   },
   {
    "arquivo": "tiles/tile_03_07.glb",
@@ -623,13 +623,13 @@
    "j": 7,
    "x0": 750.0,
    "z0": 1750.0,
-   "triangulos": 2856,
+   "triangulos": 3048,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 157740
+   "bytes": 172716
   },
   {
    "arquivo": "tiles/tile_04_00.glb",
@@ -698,7 +698,7 @@
    "j": 3,
    "x0": 1000.0,
    "z0": 750.0,
-   "triangulos": 51668,
+   "triangulos": 51852,
    "camadas": [
     "arbustos",
     "arvores",
@@ -710,7 +710,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2615752
+   "bytes": 2621104
   },
   {
    "arquivo": "tiles/tile_04_04.glb",
@@ -718,7 +718,7 @@
    "j": 4,
    "x0": 1000.0,
    "z0": 1000.0,
-   "triangulos": 57660,
+   "triangulos": 57450,
    "camadas": [
     "arbustos",
     "arvores",
@@ -730,7 +730,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3273332
+   "bytes": 3268440
   },
   {
    "arquivo": "tiles/tile_04_05.glb",
@@ -756,7 +756,7 @@
    "j": 6,
    "x0": 1000.0,
    "z0": 1500.0,
-   "triangulos": 60824,
+   "triangulos": 60920,
    "camadas": [
     "arbustos",
     "arvores",
@@ -768,7 +768,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3887000
+   "bytes": 3894476
   },
   {
    "arquivo": "tiles/tile_04_07.glb",
@@ -776,14 +776,14 @@
    "j": 7,
    "x0": 1000.0,
    "z0": 1750.0,
-   "triangulos": 7970,
+   "triangulos": 8402,
    "camadas": [
     "agua",
     "mobiliario",
     "orla",
     "terreno"
    ],
-   "bytes": 520280
+   "bytes": 553980
   },
   {
    "arquivo": "tiles/tile_05_00.glb",
@@ -791,7 +791,7 @@
    "j": 0,
    "x0": 1250.0,
    "z0": 0.0,
-   "triangulos": 38133,
+   "triangulos": 38363,
    "camadas": [
     "arbustos",
     "arvores",
@@ -804,7 +804,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2175064
+   "bytes": 2183788
   },
   {
    "arquivo": "tiles/tile_05_01.glb",
@@ -909,7 +909,7 @@
    "j": 6,
    "x0": 1250.0,
    "z0": 1500.0,
-   "triangulos": 65035,
+   "triangulos": 65275,
    "camadas": [
     "arbustos",
     "arvores",
@@ -921,7 +921,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3760956
+   "bytes": 3779672
   },
   {
    "arquivo": "tiles/tile_05_07.glb",
@@ -929,13 +929,13 @@
    "j": 7,
    "x0": 1250.0,
    "z0": 1750.0,
-   "triangulos": 3110,
+   "triangulos": 3062,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 178524
+   "bytes": 174764
   },
   {
    "arquivo": "tiles/tile_06_00.glb",
@@ -943,7 +943,7 @@
    "j": 0,
    "x0": 1500.0,
    "z0": 0.0,
-   "triangulos": 23789,
+   "triangulos": 23697,
    "camadas": [
     "agua",
     "arbustos",
@@ -957,7 +957,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 1188344
+   "bytes": 1183904
   },
   {
    "arquivo": "tiles/tile_06_01.glb",
@@ -965,7 +965,7 @@
    "j": 1,
    "x0": 1500.0,
    "z0": 250.0,
-   "triangulos": 39203,
+   "triangulos": 38971,
    "camadas": [
     "agua",
     "arbustos",
@@ -978,7 +978,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2043188
+   "bytes": 2036540
   },
   {
    "arquivo": "tiles/tile_06_02.glb",
@@ -986,7 +986,7 @@
    "j": 2,
    "x0": 1500.0,
    "z0": 500.0,
-   "triangulos": 39053,
+   "triangulos": 39519,
    "camadas": [
     "agua",
     "arbustos",
@@ -999,7 +999,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2053472
+   "bytes": 2072656
   },
   {
    "arquivo": "tiles/tile_06_03.glb",
@@ -1007,7 +1007,7 @@
    "j": 3,
    "x0": 1500.0,
    "z0": 750.0,
-   "triangulos": 42488,
+   "triangulos": 42606,
    "camadas": [
     "agua",
     "arbustos",
@@ -1020,7 +1020,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2362216
+   "bytes": 2362992
   },
   {
    "arquivo": "tiles/tile_06_04.glb",
@@ -1028,7 +1028,7 @@
    "j": 4,
    "x0": 1500.0,
    "z0": 1000.0,
-   "triangulos": 40135,
+   "triangulos": 41223,
    "camadas": [
     "agua",
     "arbustos",
@@ -1041,7 +1041,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2081480
+   "bytes": 2112996
   },
   {
    "arquivo": "tiles/tile_06_05.glb",
@@ -1092,14 +1092,14 @@
    "j": 7,
    "x0": 1500.0,
    "z0": 1750.0,
-   "triangulos": 14012,
+   "triangulos": 14044,
    "camadas": [
     "agua",
     "orla",
     "ruas",
     "terreno"
    ],
-   "bytes": 1027652
+   "bytes": 1030144
   },
   {
    "arquivo": "tiles/tile_07_00.glb",
@@ -1107,7 +1107,7 @@
    "j": 0,
    "x0": 1750.0,
    "z0": 0.0,
-   "triangulos": 43843,
+   "triangulos": 43751,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1120,7 +1120,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2474444
+   "bytes": 2471588
   },
   {
    "arquivo": "tiles/tile_07_01.glb",
@@ -1148,7 +1148,7 @@
    "j": 2,
    "x0": 1750.0,
    "z0": 500.0,
-   "triangulos": 60717,
+   "triangulos": 60693,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1160,7 +1160,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3617500
+   "bytes": 3616848
   },
   {
    "arquivo": "tiles/tile_07_03.glb",
@@ -1168,7 +1168,7 @@
    "j": 3,
    "x0": 1750.0,
    "z0": 750.0,
-   "triangulos": 57271,
+   "triangulos": 57295,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1180,7 +1180,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3329028
+   "bytes": 3329672
   },
   {
    "arquivo": "tiles/tile_07_04.glb",
@@ -1188,7 +1188,7 @@
    "j": 4,
    "x0": 1750.0,
    "z0": 1000.0,
-   "triangulos": 58932,
+   "triangulos": 58956,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1200,7 +1200,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3486504
+   "bytes": 3487152
   },
   {
    "arquivo": "tiles/tile_07_05.glb",
@@ -1228,7 +1228,7 @@
    "j": 6,
    "x0": 1750.0,
    "z0": 1500.0,
-   "triangulos": 51594,
+   "triangulos": 51834,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1241,7 +1241,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3045052
+   "bytes": 3063772
   },
   {
    "arquivo": "tiles/tile_07_07.glb",
@@ -1249,13 +1249,13 @@
    "j": 7,
    "x0": 1750.0,
    "z0": 1750.0,
-   "triangulos": 10276,
+   "triangulos": 9907,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 728736
+   "bytes": 699984
   },
   {
    "arquivo": "tiles/tile_08_00.glb",
@@ -1263,7 +1263,7 @@
    "j": 0,
    "x0": 2000.0,
    "z0": 0.0,
-   "triangulos": 41414,
+   "triangulos": 41368,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1276,7 +1276,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2379104
+   "bytes": 2376884
   },
   {
    "arquivo": "tiles/tile_08_01.glb",
@@ -1384,7 +1384,7 @@
    "j": 6,
    "x0": 2000.0,
    "z0": 1500.0,
-   "triangulos": 68589,
+   "triangulos": 68397,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1397,7 +1397,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 4180584
+   "bytes": 4165612
   },
   {
    "arquivo": "tiles/tile_08_07.glb",
@@ -1405,13 +1405,13 @@
    "j": 7,
    "x0": 2000.0,
    "z0": 1750.0,
-   "triangulos": 3586,
+   "triangulos": 3250,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 215828
+   "bytes": 189620
   },
   {
    "arquivo": "tiles/tile_09_00.glb",
@@ -1419,7 +1419,7 @@
    "j": 0,
    "x0": 2250.0,
    "z0": 0.0,
-   "triangulos": 35769,
+   "triangulos": 35677,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1432,7 +1432,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 1865328
+   "bytes": 1861680
   },
   {
    "arquivo": "tiles/tile_09_01.glb",
@@ -1524,7 +1524,7 @@
    "j": 5,
    "x0": 2250.0,
    "z0": 1250.0,
-   "triangulos": 49187,
+   "triangulos": 49141,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1537,7 +1537,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 2844744
+   "bytes": 2842520
   },
   {
    "arquivo": "tiles/tile_09_06.glb",
@@ -1545,7 +1545,7 @@
    "j": 6,
    "x0": 2250.0,
    "z0": 1500.0,
-   "triangulos": 52522,
+   "triangulos": 52476,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1559,7 +1559,7 @@
     "terreno",
     "vegetacao"
    ],
-   "bytes": 3019276
+   "bytes": 3017856
   },
   {
    "arquivo": "tiles/tile_09_07.glb",
@@ -1567,13 +1567,13 @@
    "j": 7,
    "x0": 2250.0,
    "z0": 1750.0,
-   "triangulos": 3298,
+   "triangulos": 2770,
    "camadas": [
     "agua",
     "orla",
     "terreno"
    ],
-   "bytes": 193356
+   "bytes": 152168
   }
  ],
  "casas_jogador": [

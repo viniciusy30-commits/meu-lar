@@ -283,7 +283,8 @@ class Props:
         while z < maxz - 40:
             if all(abs(z - q) > 30 for q in zc): zc.append(z)
             z += 70
-        cross = [LineString([pt(0.5, z), pt(wid(z) + 4, z)]).buffer(2.0 if z == fz else 1.6, cap_style='flat') for z in zc]
+        zl = getattr(self.G, 'foot_land', {}).get(-side, fz)                 # ponta da passarela deste lado (rio inclinado)
+        cross = [(LineString([pt(0.5, zl), pt(14.0, zl), pt(18.0, z), pt(wid(z) + 4, z)]) if z == fz else LineString([pt(0.5, z), pt(wid(z) + 4, z)])).buffer(2.0 if z == fz else 1.6, cap_style='flat', join_style='round') for z in zc]
         paths = unary_union([trail] + cross).intersection(poly).difference(walk)
         M.free('parques'); M.m('paver')
         for z0 in range(int(minz // 60) * 60, int(maxz) + 1, 60):
@@ -322,7 +323,7 @@ class Props:
         # calcadao: postes junto ao guarda-corpo, bancos virados para o rio, palmeiras/arvores em fila
         k = 0
         for z in np.arange(minz + 6, maxz - 5, 6.0):
-            if any(abs(z - q) < 3.2 for q in zc): k += 1; continue
+            if any(abs(z - q) < 3.2 for q in zc) or abs(z - zl) < 4.0: k += 1; continue
             if k % 4 == 0 and poly.contains(Point(*pt(1.3, z))): self.parklight(*pt(1.3, z))
             if k % 4 == 2 and poly.contains(Point(*pt(8.4, z))): self.bench(*pt(8.4, z), side, 0, Y_LAWN + 0.05)
             if k % 2 == 1:
