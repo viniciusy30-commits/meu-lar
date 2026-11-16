@@ -348,6 +348,8 @@ class Ground:
                 for zp in np.linspace(z - hw + 2, z + hw - 2, 3):
                     M.cyl(xp, zp, 0.9, -3.6, -0.7, rgb('#A9A397'), 10)
             M.free()
+        zbk = 1688.0 + half_row('orla')                                   # passarela da ciclovia na foz (orla6.bike_bridge)
+        self.bridge_span.append((zbk + 0.3 - 0.3, zbk + 4.1 + 0.3))
         # ponte de pedestre (arco de madeira) no Parque Ribeirinho: perpendicular ao rio, apoiada no calcadao das duas margens
         fz = self.P.footbridge[0]
         cx = river_x(fz); dx = (river_x(fz + 2.0) - river_x(fz - 2.0)) / 4.0

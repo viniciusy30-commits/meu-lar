@@ -57,32 +57,57 @@ def tree(M, r, x, z, kind='folhosa', sc=1.0, y=0.13, layer='vegetacao', lod=2):
         M.m('folhagem'); col = r.choice((rgb('#3C6A35'), rgb('#47763A'), rgb('#527C3C')))
         M.sphere(x, y + h + 3.3 * sc, z, 1.15 * sc, col, seg, rings + 1, 3.0, 0.05, r)
     elif kind == 'palmeira':
-        h = 7.5 * sc; lean = r.uniform(-0.7, 0.7); la = r.uniform(0, 6.28); segn = 5
+        # coqueiro: tronco curvo (cresce inclinado e se endireita), base alargada, aneis; copa com ~16 folhas em arco caido
+        # (secao em V para ter volume), folhas secas pendentes e cacho de cocos. sc varia muito: 6 a 16 m
+        h = r.uniform(7.0, 8.5) * sc; lean = r.uniform(0.4, 2.6) * (0.6 + 0.4 * sc); la = r.uniform(0, 6.28); segn = 10 if lod else 7
+        dxl, dzl = math.cos(la), math.sin(la)
+        def axis(t):                       # curva: inclina cedo e volta a subir
+            off = lean * (1.6 * t - 0.75 * t * t)
+            return x + dxl * off, y + h * t, z + dzl * off
         P, N, UV, C, T = [], [], [], [], []
+        ns = 7
         for k in range(segn + 1):
-            t = k / segn; cx, cy, cz = x + math.cos(la) * lean * t * t, y + h * t, z + math.sin(la) * lean * t * t
-            rr = (0.26 - 0.1 * t) * (1.25 if k == 0 else 1.0)
-            for i in range(6):
-                a = 2 * math.pi * i / 5
-                P.append((cx + math.cos(a) * rr, cy, cz + math.sin(a) * rr)); N.append((math.cos(a), 0.1, math.sin(a))); UV.append((i / 5, -cy / 2)); C.append((228, 214, 190))
+            t = k / segn; cx, cy, cz = axis(t)
+            rr = (0.24 - 0.08 * t) * (1.0 + 0.9 * max(0.0, 0.12 - t) / 0.12) * (0.85 + 0.15 * sc)
+            ring = 1.0 + (0.06 if k % 2 else -0.03)                              # aneis do tronco
+            col = (226, 210, 184) if k % 2 else (196, 178, 150)
+            for i in range(ns + 1):
+                a_ = 2 * math.pi * i / ns
+                P.append((cx + math.cos(a_) * rr * ring, cy, cz + math.sin(a_) * rr * ring)); N.append((math.cos(a_), 0.15, math.sin(a_))); UV.append((i / ns, -cy / 1.6)); C.append(col)
         for k in range(segn):
-            for i in range(5):
-                a, b, c, d = k * 6 + i, k * 6 + i + 1, (k + 1) * 6 + i + 1, (k + 1) * 6 + i
-                T.append((a, d, c)); T.append((a, c, b))
+            for i in range(ns):
+                a0, b0, c0, d0 = k * (ns + 1) + i, k * (ns + 1) + i + 1, (k + 1) * (ns + 1) + i + 1, (k + 1) * (ns + 1) + i
+                T.append((a0, d0, c0)); T.append((a0, c0, b0))
         M.m('casca'); M.indexed(P, N, UV, C, T)
-        tx, ty, tz = x + math.cos(la) * lean, y + h, z + math.sin(la) * lean
-        M.m('folhagem'); leaf = r.choice((rgb('#4F8A38'), rgb('#5C9A3E'), rgb('#487E34')))
-        nf = 9 if lod else 7
+        tx, ty, tz = axis(1.0)
+        M.m('folhagem'); base_leaf = r.choice((rgb('#4F8A38'), rgb('#5C9A3E'), rgb('#487E34'), rgb('#3F7A30'), rgb('#6AA548')))
+        nf = (16 if lod else 11)
         for i in range(nf):
-            a = 2 * math.pi * i / nf + r.uniform(-0.2, 0.2); L = r.uniform(3.2, 3.9) * sc; dx, dz = math.cos(a), math.sin(a); px, pz = -dz, dx
-            up = r.uniform(0.3, 0.9)
-            pts = [(0.0, 0.0, 0.25), (L * 0.4, up, 0.6), (L * 0.75, up * 0.4 - 0.3, 0.45), (L, -1.5, 0.05)]
-            for k in range(3):
-                (l0, y0, w0), (l1, y1, w1) = pts[k], pts[k + 1]
-                q = [(tx + dx * l0 + px * w0, ty + y0, tz + dz * l0 + pz * w0), (tx + dx * l0 - px * w0, ty + y0, tz + dz * l0 - pz * w0),
-                     (tx + dx * l1 - px * w1, ty + y1, tz + dz * l1 - pz * w1), (tx + dx * l1 + px * w1, ty + y1, tz + dz * l1 + pz * w1)]
-                M.quad(*q, shade(leaf, -6 * k), (0, 1, 0))
-        M.sphere(tx, ty - 0.1, tz, 0.42, rgb('#7A6A44'), 5, 3)
+            a_ = 2 * math.pi * i / nf + r.uniform(-0.18, 0.18); L = r.uniform(3.6, 4.8) * (0.7 + 0.3 * sc)
+            dx, dz = math.cos(a_), math.sin(a_); px, pz = -dz, dx
+            rise = r.uniform(0.2, 1.1) if i % 3 else r.uniform(0.9, 1.6)        # algumas sobem, a maioria arqueia e cai
+            droop = r.uniform(1.4, 2.6)
+            leaf = shade(base_leaf, r.randint(-12, 10))
+            n_s = 6
+            prev = None
+            for k in range(n_s + 1):
+                t = k / n_s; l = L * t
+                yy = rise * math.sin(math.pi * t * 0.9) - droop * t * t
+                w = (0.08 + 0.55 * math.sin(math.pi * min(t * 1.15, 1.0))) * (0.75 + 0.25 * sc)
+                c = (tx + dx * l, ty + yy, tz + dz * l)
+                sp = (c[0], c[1] - 0.0, c[2])
+                le = (c[0] + px * w, c[1] - 0.18 * w, c[2] + pz * w); ri = (c[0] - px * w, c[1] - 0.18 * w, c[2] - pz * w)
+                if prev is not None:
+                    (psp, ple, pri) = prev
+                    M.quad(psp, sp, le, ple, shade(leaf, -5 * k), (0, 1, 0)); M.quad(psp, pri, ri, sp, shade(leaf, -5 * k + 6), (0, 1, 0))
+                prev = (sp, le, ri)
+        if lod:
+            for i in range(r.randint(2, 4)):                                     # folhas secas penduradas
+                a_ = r.uniform(0, 6.28); dx, dz = math.cos(a_), math.sin(a_); px, pz = -dz, dx; L = r.uniform(1.6, 2.4)
+                M.quad((tx + px * 0.25, ty - 0.1, tz + pz * 0.25), (tx - px * 0.25, ty - 0.1, tz - pz * 0.25), (tx + dx * 0.5 - px * 0.18, ty - L, tz + dz * 0.5 - pz * 0.18), (tx + dx * 0.5 + px * 0.18, ty - L, tz + dz * 0.5 + pz * 0.18), rgb('#8E7448'), (dx, 0, dz))
+            for i in range(r.randint(3, 6)):                                     # cocos
+                a_ = r.uniform(0, 6.28); M.sphere(tx + math.cos(a_) * 0.32, ty - 0.35 - r.uniform(0, 0.25), tz + math.sin(a_) * 0.32, 0.16, r.choice((rgb('#5E7A2A'), rgb('#7A6A30'), rgb('#6B5A2E'))), 5, 3)
+        M.sphere(tx, ty - 0.12, tz, 0.36, rgb('#6E5A3A'), 5, 3)
     elif kind == 'arbusto':
         M.m('folhagem'); col = r.choice(GREENS[:6] + [rgb('#7A8F3E')])
         for _ in range(r.choice((1, 2))):

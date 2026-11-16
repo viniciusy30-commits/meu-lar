@@ -358,9 +358,7 @@ class Lots:
                     if not p.buffer(1.6).within(free): continue
                     if (i * 3 + j * 5) % 7 == 0:
                         self.plights.append((x, z, y)); self.benches.append((x + 1.4, z, -1, 0, y)); self.benches.append((x - 1.4, z, 1, 0, y)); continue
-                    M.at(x, z, 'lotes'); M.m('pedra'); M.prism([(x - 0.9, z - 0.9), (x + 0.9, z - 0.9), (x + 0.9, z + 0.9), (x - 0.9, z + 0.9)], y, y + 0.2, WHITE, False)
-                    M.m('grama'); M.poly([(x - 0.75, y + 0.17, z - 0.75), (x + 0.75, y + 0.17, z - 0.75), (x + 0.75, y + 0.17, z + 0.75), (x - 0.75, y + 0.17, z + 0.75)], WHITE, (0, 1, 0)); M.free('lotes')
-                    self.trees.append((x, z, r.choice(kinds), r.uniform(0.85, 1.1), y + 0.17))
+                    pass                                                  # sem arvores no meio dos patios (so peso; postes e bancos bastam)
         else:
             bx0, bz0, bx1, bz1 = free.bounds; pts = []
             for _ in range(int(free.area / 70)):
@@ -401,7 +399,7 @@ class Lots:
             M.poly([F.p(um - 0.06, vv, y + 0.03), F.p(um + 0.06, vv, y + 0.03), F.p(um + 0.06, vv + 1.5, y + 0.03), F.p(um - 0.06, vv + 1.5, y + 0.03)], (245, 245, 240), (0, 1, 0))
             vv += 3.0
         M.free('lotes')
-        self.B.drives.append((*F.xz(um, -2.4), (u1 - u0) / 2 + 1.5))
+        self.B.drives.append((*F.xz(um, -2.4), (u1 - u0) / 2 + 3.0)); self.B.drives.append((*F.xz(um, v_in * 0.5), (u1 - u0) / 2 + 1.0))
         self.pocc.append(_Pg(F.rect(u0 - 1, u1 + 1, -0.5, v_in)))
 
     def centro(self, bi, blk, resid=False):
@@ -451,17 +449,18 @@ class Lots:
             return
         # ---- edificio-garagem em meia quadra
         garage = kind > 0.94 and w > 70
-        # ---- o miolo vira estacionamento? entao duas aberturas no perimetro (entrada e saida, em lados opostos)
-        opt = r.random(); gaps = {}
-        ix0_, iz0_, ix1_, iz1_ = minx + 24.5, minz + 24.5, maxx - 24.5, maxz - 24.5
-        if opt < 0.4 and ix1_ - ix0_ > 10 and iz1_ - iz0_ > 10:
-            pair = ('W', 'E') if (garage or w > d) else ('N', 'S')
-            for sd in pair:
-                Ls = w if sd in ('N', 'S') else d
-                gaps[sd] = (Ls / 2 - 3.6 + r.uniform(-4, 4), 0)
-                gaps[sd] = (gaps[sd][0], gaps[sd][0] + 7.2)
         # ---- perimetro de predios colados (frente para as 4 ruas)
         depths = {sd: r.uniform(16, 23) for sd in 'NESW'}
+        # ---- o miolo vira estacionamento? entao duas aberturas no perimetro, no eixo do miolo (entrada e saida em lados opostos)
+        opt = r.random(); gaps = {}
+        ix0_, iz0_ = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5
+        ix1_, iz1_ = maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5 - (12 if garage else 0)
+        if opt < 0.4 and ix1_ - ix0_ > 12 and iz1_ - iz0_ > 12:
+            pair = ('W', 'E') if (garage or w > d) else ('N', 'S')
+            xc, zc = (ix0_ + ix1_) / 2, (iz0_ + iz1_) / 2
+            for sd in pair:
+                s_c = {'N': xc - minx, 'S': maxx - xc, 'W': maxz - zc, 'E': zc - minz}[sd]
+                gaps[sd] = (s_c - 3.6, s_c + 3.6)
         for side in ('N', 'E', 'S', 'W'):
             Lside = w if side in ('N', 'S') else d
             nxt = {'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N'}[side]

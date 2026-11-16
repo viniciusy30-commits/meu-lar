@@ -31,6 +31,9 @@ class Props:
         modelos de arbusto/flor do app. No GLB continuam com a malha propria (camadas 'arvores' e 'arbustos').
         Palmeiras ficam na camada 'vegetacao' (malha propria tambem no jogo)."""
         mata = getattr(self, 'layer_tree', None) == 'mata'
+        if not mata and kind not in ('flores', 'buxo') and hasattr(self, 'drive_idx'):
+            big = kind not in ('arbusto',)
+            if self.near_light(x, z, 3.0 if big else 1.2) or self.near_drive(x, z, 1.0 if big else 0.2): return     # nada de arvore no poste nem na porta
         if kind in self.APP_TREE:
             layer = 'mata' if mata else 'arvores'
             sp = self.rnd.choice(self.APP_TREE[kind])
@@ -48,7 +51,7 @@ class Props:
     # ------------------------------------------------------------ mobiliario urbano
     def streetlight(self, x, z, nx, nz, double=False):
         """poste: base na calcada, braco sobre a pista (nx, nz = direcao da pista)"""
-        M = self.M; M.at(x, z, 'mobiliario')
+        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z)
         M.m('metal'); col = (78, 82, 88)
         M.cyl(x, z, 0.12, Y_WALK, Y_WALK + 8.5, col, 6, True, 0.09)
         for s in ((1,) if not double else (1, -1)):
@@ -106,6 +109,16 @@ class Props:
         return ('folhosa', 'folhosa', 'oval', 'florida', 'folhosa', 'oval', 'folhosa', 'ornamental')[i % 8]
 
     # ------------------------------------------------------------ ruas: postes, arvores de calcada, carros
+    def near_light(self, x, z, d):
+        for (a, b) in getattr(self, 'light_idx', {}).get((int(x // 20), int(z // 20)), []):
+            if (a - x) ** 2 + (b - z) ** 2 < d * d: return True
+        return False
+
+    def add_light(self, x, z):
+        li = self.__dict__.setdefault('light_idx', {})
+        for i in range(int(x // 20) - 1, int(x // 20) + 2):
+            for j in range(int(z // 20) - 1, int(z // 20) + 2): li.setdefault((i, j), []).append((x, z))
+
     def near_drive(self, x, z, d=1.2):
         """perto de uma entrada de carro ou caminho de porta (cada um com seu raio)"""
         for (a, b, rad) in self.drive_idx.get((int(x // 20), int(z // 20)), []):
@@ -119,7 +132,8 @@ class Props:
             a, b = d_[0], d_[1]; rad = d_[2] if len(d_) > 2 else 3.2
             for i in range(int(a // 20) - 1, int(a // 20) + 2):
                 for j in range(int(b // 20) - 1, int(b // 20) + 2): self.drive_idx.setdefault((i, j), []).append((a, b, rad))
-        for i, rd in enumerate(P.roads):
+        for pass_ in (1, 2):
+          for i, rd in enumerate(P.roads):
             pr = PROFILE[rd['kind']]; pth = rd['path']
             def at(s, off=0.0):
                 x, z, tx, tz = pth.at(s); return x - tz * off, z + tx * off, tx, tz
@@ -127,7 +141,7 @@ class Props:
                 if s1 - s0 < 8: continue
                 # postes: alternados de lado a cada ~32 m (avenidas: no canteiro central, duplos)
                 k = 0; s = s0 + 6
-                while s < s1 - 4:
+                while pass_ == 1 and s < s1 - 4:
                     px, pz, tx, tz = at(s); nx, nz = -tz, tx
                     if pr['med'] > 0.5:
                         if not P.river.buffer(6).contains(Point(px, pz)): self.streetlight(px, pz, nx, nz, True)
@@ -137,6 +151,7 @@ class Props:
                         lx, lz = px + nx * sg * off, pz + nz * sg * off
                         if not P.river.buffer(4).contains(Point(lx, lz)) and not self.near_drive(lx, lz, 0.4): self.streetlight(lx, lz, -nx * sg, -nz * sg)
                     s += 32; k += 1
+                if pass_ == 1: continue
                 if rd['kind'] in ('rua', 'av'):
                     for sg in (-1, 1):
                         off = sg * (pr['road'] + pr['verge'] * 0.5 + 0.12)
@@ -151,6 +166,7 @@ class Props:
                         off = sg * (pr['road'] + 1.4); s = s0 + 5
                         while s < s1 - 3:
                             tx_, tz_, dx, dz = at(s, off); nx, nz = -dz, dx
+                            if self.near_drive(tx_, tz_, 1.6) or self.near_light(tx_, tz_, 3.0): s += 3.0; continue
                             M = self.M; M.at(tx_, tz_, 'mobiliario'); M.m('metal'); M.prism([(tx_ - 0.8, tz_ - 0.8), (tx_ + 0.8, tz_ - 0.8), (tx_ + 0.8, tz_ + 0.8), (tx_ - 0.8, tz_ + 0.8)], Y_WALK, Y_WALK + 0.06, (70, 72, 76)); M.free()
                             self.tree(tx_, tz_, 'folhosa', r.uniform(0.75, 0.95), Y_WALK + 0.06)
                             if r.random() < 0.25: self.bench(tx_ + dx * 3.5 + nx * sg * 0.6, tz_ + dz * 3.5 + nz * sg * 0.6, -nx * sg, -nz * sg)
@@ -250,7 +266,7 @@ class Props:
 
     def parklight(self, x, z, y=Y_LAWN):
         """poste baixo de parque (globo)"""
-        M = self.M; M.at(x, z, 'mobiliario'); M.m('metal'); M.cyl(x, z, 0.07, y, y + 3.6, (52, 56, 60), 6)
+        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z); M.m('metal'); M.cyl(x, z, 0.07, y, y + 3.6, (52, 56, 60), 6)
         M.m('liso'); M.sphere(x, y + 3.85, z, 0.32, (255, 246, 214), 6, 4); self.nlights += 1; M.free()
 
     def riverside(self, blk):
@@ -329,6 +345,7 @@ class Props:
                             tp = trail_line.interpolate(trail_line.project(Point(x, zz)))
                             acc = LineString([(x, zz), (tp.x, tp.y)]).buffer(1.1).difference(fp).difference(allpaths).intersection(poly)
                             acc = acc.difference(unary_union(acc_all + [o for o in occ if o.geom_type == 'Polygon' and o.area > 30]))   # nao passa por cima de outro piso
+                            if acc_all and acc.distance(unary_union(acc_all)) < 3.5 and acc.area > 0: acc = acc.intersection(fp.buffer(0.1))   # dois acessos paralelos colados: fica so um
                             M.free('parques'); M.m('paver'); M.shp(acc, Y_LAWN + 0.05, (236, 226, 208)); acc_all.append(acc)
                             occ.append(acc.buffer(0.5)); return True
                 return False

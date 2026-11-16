@@ -153,6 +153,7 @@ class Builder:
         # porta + soleira
         self.panel(F, door_u - 0.62, door_u + 0.62, v0, yb, yb + 2.25, TRIM, 'liso', -1, 0.03)
         self.panel(F, door_u - 0.5, door_u + 0.5, v0, yb, yb + 2.15, doorc, 'porta', -1, 0.05)
+        self.drives.append((*F.xz(door_u, v0 - 2.0), 2.0))
         self.box(F, door_u - 1.2, door_u + 1.2, v0 - 1.4, v0, Y0, yb, (205, 202, 196), 'concreto')
         # telhado por estilo
         if style == 'ranch':
@@ -364,6 +365,7 @@ class Builder:
         M.m('metal'); M.box(cx - 0.08, cx + 0.08, Y0 + 31, Y0 + 34, cz - 0.08, cz + 0.08, (200, 180, 90)); M.box(cx - 0.8, cx + 0.8, Y0 + 32.6, Y0 + 32.8, cz - 0.08, cz + 0.08, (200, 180, 90))
         # fachada: porta grande, rosacea, escadaria
         self.panel(F, u0 + nw / 2 - 1.6, u0 + nw / 2 + 1.6, v0, Y0 + 0.6, Y0 + 5.6, (110, 70, 45), 'porta', -1, 0.05)
+        self.drives.append((*F.xz(u0 + nw / 2, v0 - 3.0), 3.5))
         cx, cz = F.xz(u0 + nw / 2, v0 - 0.06); M.m('janela')
         pts = [(cx + F.ux * math.cos(a) * 1.8, Y0 + 8 + math.sin(a) * 1.8, cz + F.uz * math.cos(a) * 1.8) for a in np.linspace(0, 2 * math.pi, 12, endpoint=False)]
         M.poly(pts, (230, 200, 160), F.nv(-1))
