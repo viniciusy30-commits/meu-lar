@@ -140,7 +140,7 @@ def car(M, r, x, z, dx, dz, col=None, yb=0.03, layer='carros'):
         M.poly([F.p(a + 0.12, -Wd / 2 + 0.12, yb + belt - 0.3), F.p(a + 1.85, -Wd / 2 + 0.12, yb + belt - 0.3), F.p(a + 1.85, Wd / 2 - 0.12, yb + belt - 0.3), F.p(a + 0.12, Wd / 2 - 0.12, yb + belt - 0.3)], (40, 40, 44), (0, 1, 0))
     # vidros: para-brisa, vigia e laterais (um pouco para fora da cabine)
     M.m('liso'); g = (52, 62, 74)
-    (c0, c1, c2, c3) = cab; e = 0.012
+    (c0, c1, c2, c3) = cab; e = 0.035
     for s in (-1, 1):
         vv = s * (cw + e)
         M.quad(F.p(c0[0] + 0.12, vv, yb + c0[1] + 0.06), F.p(c1[0] - 0.12, vv, yb + c1[1] + 0.06), F.p(c2[0] - 0.05, vv, yb + c2[1] - 0.07), F.p(c3[0] + 0.05, vv, yb + c3[1] - 0.07), g, F.nv(s))
@@ -154,11 +154,11 @@ def car(M, r, x, z, dx, dz, col=None, yb=0.03, layer='carros'):
         M.prism(F.rect(uu - R * 0.8, uu + R * 0.8, -Wd / 2 + 0.03, Wd / 2 - 0.03), yb + 0.02, yb + 2 * R - 0.04, (26, 26, 28), False)
         hexa = [(uu + math.cos(k * math.pi / 3) * R, R + math.sin(k * math.pi / 3) * R) for k in range(6)]
         for s in (-1, 1):
-            M.poly([F.p(u, s * (Wd / 2 + 0.01), yb + y) for u, y in hexa], (34, 34, 36), F.nv(s))
+            M.poly([F.p(u, s * (Wd / 2 + 0.03), yb + y) for u, y in hexa], (34, 34, 36), F.nv(s))
     # farois, lanternas, para-choques, placa
     for vv in (-Wd / 2 + 0.32, Wd / 2 - 0.32):
-        M.quad(F.p(b + 0.01, vv - 0.24, yb + belt - 0.36), F.p(b + 0.01, vv + 0.24, yb + belt - 0.36), F.p(b + 0.01, vv + 0.24, yb + belt - 0.2), F.p(b + 0.01, vv - 0.24, yb + belt - 0.2), (252, 248, 226), F.nu(1))
-        M.quad(F.p(a - 0.01, vv - 0.24, yb + belt - 0.3), F.p(a - 0.01, vv + 0.24, yb + belt - 0.3), F.p(a - 0.01, vv + 0.24, yb + belt - 0.14), F.p(a - 0.01, vv - 0.24, yb + belt - 0.14), (196, 30, 30), F.nu(-1))
-    M.quad(F.p(b + 0.012, -0.45, yb + h0 + 0.12), F.p(b + 0.012, 0.45, yb + h0 + 0.12), F.p(b + 0.012, 0.45, yb + h0 + 0.3), F.p(b + 0.012, -0.45, yb + h0 + 0.3), (40, 40, 44), F.nu(1))
+        M.quad(F.p(b + 0.03, vv - 0.24, yb + belt - 0.36), F.p(b + 0.03, vv + 0.24, yb + belt - 0.36), F.p(b + 0.03, vv + 0.24, yb + belt - 0.2), F.p(b + 0.03, vv - 0.24, yb + belt - 0.2), (252, 248, 226), F.nu(1))
+        M.quad(F.p(a - 0.03, vv - 0.24, yb + belt - 0.3), F.p(a - 0.03, vv + 0.24, yb + belt - 0.3), F.p(a - 0.03, vv + 0.24, yb + belt - 0.14), F.p(a - 0.03, vv - 0.24, yb + belt - 0.14), (196, 30, 30), F.nu(-1))
+    M.quad(F.p(b + 0.05, -0.45, yb + h0 + 0.12), F.p(b + 0.05, 0.45, yb + h0 + 0.12), F.p(b + 0.05, 0.45, yb + h0 + 0.3), F.p(b + 0.05, -0.45, yb + h0 + 0.3), (40, 40, 44), F.nu(1))
     M.free()
     return kind

@@ -310,7 +310,7 @@ class Ground:
                     for q in range(n):
                         off = -pr['road'] + 0.5 + q * 1.1 + 0.25
                         if pr['med'] and abs(off) < pr['med'] + 0.2: continue
-                        self.stripe(pth, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.04)
+                        self.stripe(pth, sc - 1.6, sc + 1.6, off, 0.55, C_WHITE, y=Y_ASF + 0.055)
                     # linha de retencao (lado de quem chega)
                     sl = sc + sg * 2.6
                     lane_side = -sg            # mao direita: quem chega em direcao ao cruzamento

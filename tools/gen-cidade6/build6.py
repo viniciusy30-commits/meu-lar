@@ -57,8 +57,8 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
     if single:
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), h['yaw']) for h in L.player]
-        # GLB unico em duas partes (cada uma < 100 MB): ruas/construcoes e vegetacao + parques + terreno/agua/orla
-        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario') + ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla'))):
+        # GLB unico em duas partes (cada uma < 100 MB): construcoes e (ruas + terreno + agua + orla + parques + vegetacao)
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario') + ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla', 'ruas')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'arbustos', 'mata', 'parques', 'terreno', 'agua', 'orla', 'ruas'))):
             spec = []
             for (ti, tj), lays in sorted(tiles.items()):
                 for lay, mats in sorted(lays.items()):
@@ -72,6 +72,9 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
 if __name__ == '__main__':
     P, G, L, M = build()
     print(M.stats())
+    if os.environ.get('DEFLICKER', '1') != '0':
+        import deflicker6; t0 = time.time()
+        print(f'anti-pisca: {deflicker6.run(M)} triangulos afastados de superficies coplanares ({time.time() - t0:.0f}s)')
     import numpy as np
     bad = {}; tot = 0
     for (ti, tj, lay, mat), lst in M.data.items():
