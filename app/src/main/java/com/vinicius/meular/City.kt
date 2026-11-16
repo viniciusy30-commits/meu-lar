@@ -68,7 +68,7 @@ object City {
         private set
 
     /** Ponto de interesse do mapa. */
-    class Place(val name: String, val x: Float, val z: Float, val color: Int, val icon: Char)
+    class Place(val name: String, val x: Float, val z: Float, val color: Int, val icon: Char, val emoji: String = "")
 
     @Volatile var on = false
         private set

@@ -47,7 +47,10 @@ object Gps {
     private var lastRoute = 0L
     private var lastPx = 0f; private var lastPz = 0f
 
-    fun clear() { active = false; route = FloatArray(0); ver++; turn = 0 }
+    @Volatile var segNames: Array<String> = emptyArray(); private set
+    private var lastTrim = 0L
+
+    fun clear() { active = false; route = FloatArray(0); segNames = emptyArray(); ver++; turn = 0 }
 
     fun setDest(x: Float, z: Float, name: String, px: Float, pz: Float) {
         destX = x; destZ = z; destName = name
@@ -92,6 +95,12 @@ object Gps {
 
     fun compute(px: Float, pz: Float) {
         if (!City.on) return
+        if (Relevo.on && C6Map.ready) {   // Cidade 6: caminho mais curto pela rede de ruas de verdade
+            lastRoute = System.currentTimeMillis()
+            val rr = C6Map.route(px, pz, destX, destZ)
+            if (rr != null) { route = rr.first; segNames = rr.second; ver++; lastPx = px; lastPz = pz; return }
+        }
+        segNames = emptyArray()
         if (City.bandX.isEmpty()) { route = floatArrayOf(px, pz, destX, destZ); ver++; lastPx = px; lastPz = pz; return }
         lastRoute = System.currentTimeMillis()
         val xs = centers(City.bandX); val zs = centers(City.bandZ)
@@ -152,6 +161,17 @@ object Gps {
             return
         }
         if (bd > 14f && now - lastRoute > 1200L) { compute(px, pz); return }
+        // a faixa acompanha o jogador: o começo da rota é sempre onde ele está (refaz a faixa a cada ~1 s andando)
+        if ((bi > 0 || bt > 0.05f) && now - lastTrim > 900L && hypot(px - lastPx, pz - lastPz) > 2.5f) {
+            lastTrim = now; lastPx = px; lastPz = pz
+            val qx = r[bi * 2] + (r[bi * 2 + 2] - r[bi * 2]) * bt; val qz = r[bi * 2 + 1] + (r[bi * 2 + 3] - r[bi * 2 + 1]) * bt
+            val rest = r.copyOfRange(bi * 2 + 2, r.size)
+            route = floatArrayOf(px, pz, qx, qz) + rest
+            val sn = segNames
+            if (sn.size == n - 1) { val cur = sn[bi]; segNames = arrayOf(cur, cur) + sn.copyOfRange(bi + 1, sn.size) }
+            ver++
+            update(px, pz); return
+        }
         // distância restante e próxima conversão
         var rem = hypot(r[bi * 2 + 2] - (r[bi * 2] + (r[bi * 2 + 2] - r[bi * 2]) * bt), r[bi * 2 + 3] - (r[bi * 2 + 1] + (r[bi * 2 + 3] - r[bi * 2 + 1]) * bt))
         var nd = rem; var tn = 0; var st = ""
@@ -162,7 +182,7 @@ object Gps {
             val l1 = hypot(d1x, d1z); val l2 = hypot(d2x, d2z)
             if (!found && l1 > 0.5f && l2 > 0.5f) {
                 val cr = (d1x * d2z - d1z * d2x) / (l1 * l2)
-                if (abs(cr) > 0.5f) { found = true; nd = rem; tn = if (cr > 0f) 1 else -1; st = roadName(r[i * 2], r[i * 2 + 1], r[i * 2 + 2], r[i * 2 + 3]) }
+                if (abs(cr) > 0.5f) { found = true; nd = rem; tn = if (cr > 0f) 1 else -1; st = segNames.getOrNull(i) ?: roadName(r[i * 2], r[i * 2 + 1], r[i * 2 + 2], r[i * 2 + 3]) }
             }
             rem += l2
         }
@@ -228,6 +248,7 @@ object MapPaint {
             c.drawRect(City.blkX[i * 2], City.blkZ[j * 2], City.blkX[i * 2 + 1], City.blkZ[j * 2 + 1], fill)
         }
         if (City.HDS && ph == null) Hds.drawMap(c, fill, road)
+        if (detail && Relevo.on && City.C6) C6Map.drawLabels(c, s, android.content.res.Resources.getSystem().displayMetrics.density, rot)   // nomes das ruas
         if (Town.on) {
             // Etapa 131: cidade nova — quarteirões e ruas curvas
             fill.color = 0xFFE8E3D3.toInt()
@@ -283,12 +304,14 @@ object MapPaint {
         c.restore()
     }
 
-    fun pin(c: Canvas, x: Float, y: Float, col: Int, ch: Char, r: Float) {
-        fill.color = 0x55000000; c.drawCircle(x + r * 0.08f, y + r * 0.12f, r * 1.05f, fill)
-        fill.color = Color.WHITE; c.drawCircle(x, y, r * 1.08f, fill)
-        fill.color = col; c.drawCircle(x, y, r * 0.9f, fill)
-        text.textSize = r * 1.05f
-        c.drawText(ch.toString(), x, y + r * 0.37f, text)
+    fun pin(c: Canvas, x: Float, y: Float, col: Int, ch: Char, r: Float, emoji: String = "") {
+        // alfinete: gota com sombra, aro branco, cor do lugar e o símbolo (emoji quando tiver)
+        fill.color = 0x40000000; c.drawOval(RectF(x - r * 0.6f, y + r * 1.55f, x + r * 0.6f, y + r * 1.85f), fill)
+        val p = Path(); p.moveTo(x, y + r * 1.75f); p.lineTo(x - r * 0.62f, y + r * 0.7f); p.lineTo(x + r * 0.62f, y + r * 0.7f); p.close()
+        fill.color = Color.WHITE; c.drawPath(p, fill); c.drawCircle(x, y, r * 1.12f, fill)
+        fill.color = col; c.drawCircle(x, y, r * 0.95f, fill)
+        if (emoji.isNotEmpty()) { text.textSize = r * 1.1f; c.drawText(emoji, x, y + r * 0.4f, text) }
+        else { text.textSize = r * 1.05f; c.drawText(ch.toString(), x, y + r * 0.37f, text) }
     }
 
     fun tag(c: Canvas, t: String, x: Float, y: Float, size: Float) {
@@ -334,10 +357,11 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
                 fun sy(z: Float) = height / 2f + (z - cz) * scale
                 // lugares principais sempre; lojas e terrenos só com zoom (com o nome embaixo)
                 for (pl2 in City.places) {
-                    val main = pl2.name in MapPaint.MAIN
+                    val main = pl2.name in MapPaint.MAIN || (Relevo.on && City.C6)
                     if (!main && scale < 2.2f) continue
-                    MapPaint.pin(c, sx(pl2.x), sy(pl2.z), pl2.color, pl2.icon, dp(if (main) 11f else 8f))
-                    if (main || scale > 3f) MapPaint.tag(c, pl2.name, sx(pl2.x), sy(pl2.z) + dp(if (main) 22f else 17f), dp(11f))
+                    val big = scale > 0.7f
+                    MapPaint.pin(c, sx(pl2.x), sy(pl2.z) - dp(if (big) 18f else 12f), pl2.color, pl2.icon, dp(if (big) 11f else 7f), pl2.emoji)
+                    if (big) MapPaint.tag(c, pl2.name, sx(pl2.x), sy(pl2.z) + dp(14f), dp(11f))
                 }
                 if (!selX.isNaN()) {
                     val x = sx(selX); val y = sy(selZ)
@@ -536,6 +560,14 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
             c.save(); c.translate(r, r); c.rotate(rot); c.scale(s, s); c.translate(-pl[0], -pl[1])
             MapPaint.fill.color = 0xFFE53935.toInt(); c.drawCircle(Gps.destX, Gps.destZ, 5f, MapPaint.fill)
             c.restore()
+        }
+        // lugares por perto no minimapa (ícone pequeno, sempre de pé)
+        if (Relevo.on && City.C6) for (q in City.places) {
+            val dx = q.x - pl[0]; val dz = q.z - pl[1]
+            if (dx * dx + dz * dz > 52f * 52f) continue
+            val ar = Math.toRadians(rot.toDouble()); val cs = kotlin.math.cos(ar).toFloat(); val sn = kotlin.math.sin(ar).toFloat()
+            val sx2 = r + (dx * cs - dz * sn) * s; val sy2 = r + (dx * sn + dz * cs) * s
+            MapPaint.pin(c, sx2, sy2 - 9 * dens, q.color, q.icon, 6 * dens, q.emoji)
         }
         c.restore()
         MapPaint.arrow(c, r, r, 0f, 6 * dens)

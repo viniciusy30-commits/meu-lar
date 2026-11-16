@@ -177,6 +177,9 @@ def run(P, G, L, M, assets):
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
     js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'solid': [], 'solidr': solidr,
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
+    import map6
+    js['mapa'] = map6.build(P, G, L, assets)
+    print(f"  mapa: {len(js['mapa']['rotulos'])} nomes de rua, {len(js['mapa']['pois'])} lugares, {len(js['mapa']['grafo']['arestas'])} trechos de rua (GPS)")
     json.dump(js, open(os.path.join(assets, 'c6.json'), 'w'), separators=(',', ':'))
     print(f'  {len(houses)} casas, {len(trees) // 6} arvores do app, {len(solidr) // 8} colisoes')
     # ---- texturas (512 px)
