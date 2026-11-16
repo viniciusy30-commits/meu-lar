@@ -172,10 +172,11 @@ class Lots:
             w = {'posto': 42, 'mercado': 80, 'galeria': r.uniform(45, 70), 'lanchonete': 26}[kind]
             if rest - w < 20: w = rest
             F = self.frame(side, minx, maxx, minz, maxz, s)
-            if kind == 'posto': B.gas_station(F, w, depth - 1, r.choice(signs))
+            if kind == 'posto': B.gas_station(F, w, depth - 1, r.choice(signs)); self.access(F, 1.5, 7.5, 0.6); self.access(F, w - 7.5, w - 1.5, 0.6)   # entrada e saida rebaixadas na guia
             else:
                 pk = 15.0 if depth > 30 else 8.0
                 B.parking(F, 1, w - 1, 0.5, pk, self.park_car)
+                self.access(F, 2.0, 8.0, 0.6); self.access(F, w - 8.0, w - 2.0, 0.6)
                 bd = min(depth - pk - 2, 24 if kind == 'mercado' else 16)
                 Fs = Frame(F.xz(1, pk + 0.5), (F.ux, F.uz))
                 if kind == 'galeria':
@@ -780,9 +781,10 @@ class Lots:
         r = self.rnd; B = self.B
         signs = [rgb(c) for c in ('#C8102E', '#0057B8', '#FFB81C', '#00843D', '#E35205', '#6D2077', '#2D2926', '#00A3AD')]
         walls = [rgb(c) for c in ('#F2EDE4', '#E9DFD0', '#DDE3E6', '#EFE3D3', '#D8D2C6')]
-        if w < 50 and r.random() < 0.45: B.gas_station(F, w, d - 1, r.choice(signs)); return
+        if w < 50 and r.random() < 0.45: B.gas_station(F, w, d - 1, r.choice(signs)); self.access(F, 1.5, 7.5, 0.6); self.access(F, w - 7.5, w - 1.5, 0.6); return
         pk = 15.0 if d > 30 else 8.0
         B.parking(F, 1, w - 1, 0.5, pk, self.park_car)
+        self.access(F, 2.0, 8.0, 0.6); self.access(F, w - 8.0, w - 2.0, 0.6)
         bd = min(d - pk - 2, 22)
         Fs = Frame(F.xz(1, pk + 0.5), (F.ux, F.uz)); Fs.vx, Fs.vz = F.vx, F.vz
         n = max(1, int((w - 2) / 13)); uw = (w - 2) / n

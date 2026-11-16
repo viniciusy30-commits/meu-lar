@@ -293,6 +293,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var lastFocus: Item? = null
     private var lastGrab = false
     private var lastT = 0L
+    private var lastFrame = 0L
     private var posInit = false
 
     private val proj = FloatArray(16)
@@ -407,7 +408,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            if (fz > 1.2) col = mix(col, vec3(0.80, 0.88, 0.96), smoothstep(1.2, 8.0, fz) * 0.8 * uFog);
+            if (fz > 1.2) col = mix(col, vec3(0.80, 0.88, 0.96), (uFog > 1.5 ? smoothstep(1.2, 12.0, fz) : smoothstep(1.2, 8.0, fz) * 0.8 * uFog));   // Cidade 6 (uFog 2): névoa completa em ~345 m, onde a cidade para de ser desenhada
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -443,7 +444,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glUseProgram(l.prog)
         prog = l.prog; uMVP = l.uMVP; uModel = l.uModel; uAlpha = l.uAlpha; uTex = l.uTex; uCut = l.uCut; uSpec = l.uSpec; uPush = l.uPush
         uEye = l.uEye; uRoom = l.uRoom; uLight = l.uLight; uSoft = l.uSoft
-        GLES20.glUniform1f(l.uFog, fogOn)
+        GLES20.glUniform1f(l.uFog, if (fogOn > 0.5f && City.C6 && Relevo.on && !flying && !landing) 2f else fogOn)
         GLES20.glUniform3f(uEye, frameU[0], frameU[1], frameU[2])
         GLES20.glUniform2f(uRoom, frameU[3], frameU[4])
         GLES20.glUniform3f(uLight, frameU[5], frameU[6], frameU[7])
@@ -1123,7 +1124,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val c = chs[ci]
             val dx = max(0f, max(c.x0 - ex, ex - c.x1)); val dz = max(0f, max(c.z0 - ez, ez - c.z1))
             val d2 = dx * dx + dz * dz
-            val lim = if (c.terrain) (if (flying || landing) 520f else 420f) else 245f   // Etapa 178: terreno do relevo aparece de longe
+            val lim = if (c.terrain) (if (flying || landing) 520f else if (City.C6) 360f else 420f) else 245f   // Etapa 178: terreno do relevo aparece de longe (Cidade 6: até a névoa fechar)
             if (d2 > lim * lim) continue
             if (!boxVisible(c.x0, -0.6f, c.z0, c.x1, c.h, c.z1)) continue
             val wantNear = d2 < City.NEAR * City.NEAR || (c.far == null && c.farRanges == null) || (ib != null && ib.chunk == ci)
@@ -2064,11 +2065,28 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // ------------------------------------------------------------ quadro
 
     private val shownB = BooleanArray(4)
+    // Ritmo de quadros: quando o aparelho não segura 60, trava em 30 FPS cravados (quadro a cada 33,3 ms, sem
+    // oscilar entre 33 e 40, que dá sensação de tranco e esquenta o aparelho). potAvg = FPS que o aparelho
+    // conseguiria (tempo de trabalho do quadro, sem contar a espera): é ele que decide a trava e a resolução.
+    @Volatile var potAvg = 60f
+    @Volatile var lock30 = false
+
     override fun onDrawFrame(gl: GL10?) {
+        val t0 = System.nanoTime()
+        if (lastT != 0L) {
+            val work = (t0 - lastT) / 1e9f
+            if (work > 0.0001f && work < 1f) potAvg += (1f / work - potAvg) * 0.05f
+            if (!lock30 && potAvg < 50f) lock30 = true else if (lock30 && potAvg > 62f) lock30 = false
+            if (lock30) {
+                val waitNs = 33_333_333L - (t0 - lastFrame)
+                if (waitNs in 1_000_000L..33_000_000L) try { Thread.sleep(waitNs / 1_000_000L, (waitNs % 1_000_000L).toInt()) } catch (_: InterruptedException) {}
+            }
+        }
         val now = System.nanoTime()
-        var dt = if (lastT == 0L) 0.016f else (now - lastT) / 1e9f
-        lastT = now
+        var dt = if (lastFrame == 0L) 0.016f else (now - lastFrame) / 1e9f
+        lastFrame = now
         if (dt > 0.0001f && dt < 1f) fpsAvg += (1f / dt - fpsAvg) * 0.05f      // Etapa 89: FPS médio (resolução dinâmica e contador)
+        lastT = now
         if (dt > 0.05f) dt = 0.05f
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()

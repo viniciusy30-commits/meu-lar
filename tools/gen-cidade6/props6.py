@@ -50,15 +50,51 @@ class Props:
 
     # ------------------------------------------------------------ mobiliario urbano
     def streetlight(self, x, z, nx, nz, double=False):
-        """poste: base na calcada, braco sobre a pista (nx, nz = direcao da pista)"""
+        """poste detalhado: base de concreto com chanfro, pe de ferro fundido com portinhola, fuste conico com
+        aneis, braco curvo (em arco, com tirante decorativo), luminaria LED achatada com vidro e tampa;
+        nx, nz = direcao da pista"""
         M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z)
-        M.m('metal'); col = (78, 82, 88)
-        M.cyl(x, z, 0.12, Y_WALK, Y_WALK + 8.5, col, 6, True, 0.09)
+        y0 = Y_WALK; col = (58, 64, 72); dark = (40, 44, 50)
+        M.m('concreto'); M.cyl(x, z, 0.32, y0 - 0.05, y0 + 0.12, (190, 188, 182), 8); M.cyl(x, z, 0.32, y0 + 0.12, y0 + 0.18, (200, 198, 192), 8, True, 0.26)
+        M.m('metal')
+        M.cyl(x, z, 0.22, y0 + 0.18, y0 + 1.1, dark, 10, False, 0.15)                    # pe
+        M.cyl(x, z, 0.24, y0 + 0.18, y0 + 0.28, dark, 10)
+        M.cyl(x, z, 0.17, y0 + 1.05, y0 + 1.15, col, 10)
+        px_, pz_ = x - nx * 0.2, z - nz * 0.2                                             # portinhola do lado da calcada
+        M.box(min(px_, px_ - nz * 0.08) - 0.02, max(px_, px_ - nz * 0.08) + 0.02, y0 + 0.45, y0 + 0.85, min(pz_, pz_ + nx * 0.08) - 0.02, max(pz_, pz_ + nx * 0.08) + 0.02, (70, 76, 84))
+        M.cyl(x, z, 0.13, y0 + 1.15, y0 + 8.6, col, 10, False, 0.075)                     # fuste conico
+        for yy in (y0 + 3.2, y0 + 6.0): M.cyl(x, z, 0.13 - (yy - y0) * 0.0066 + 0.025, yy, yy + 0.08, dark, 10)
+        M.cyl(x, z, 0.1, y0 + 8.6, y0 + 8.7, dark, 10); M.sphere(x, y0 + 8.78, z, 0.1, dark, 6, 4)
         for s in ((1,) if not double else (1, -1)):
-            ex, ez = x + nx * 2.2 * s, z + nz * 2.2 * s
-            M.quad((x, Y_WALK + 8.4, z), (ex, Y_WALK + 8.6, ez), (ex, Y_WALK + 8.75, ez), (x, Y_WALK + 8.55, z), col, (-nz, 0, nx))
-            M.box(ex - 0.35, ex + 0.35, Y_WALK + 8.35, Y_WALK + 8.6, ez - 0.2, ez + 0.2, col)
-            M.m('liso'); M.quad((ex - 0.3, Y_WALK + 8.34, ez - 0.16), (ex + 0.3, Y_WALK + 8.34, ez - 0.16), (ex + 0.3, Y_WALK + 8.34, ez + 0.16), (ex - 0.3, Y_WALK + 8.34, ez + 0.16), (255, 244, 200), (0, -1, 0)); M.m('metal')
+            # braco curvo em 6 trechos (sobe e depois fica quase reto sobre a pista)
+            pts = []
+            for k in range(7):
+                t = k / 6.0; d_ = 2.4 * t; h_ = 8.2 + 0.55 * math.sin(t * math.pi * 0.5)
+                pts.append((x + nx * d_ * s, y0 + h_, z + nz * d_ * s))
+            for k in range(6):
+                (ax, ay, az), (bx, by, bz) = pts[k], pts[k + 1]
+                for (ox, oz) in ((-nz * 0.045, nx * 0.045), (nz * 0.045, -nx * 0.045)):
+                    M.quad((ax + ox, ay - 0.05, az + oz), (bx + ox, by - 0.05, bz + oz), (bx + ox, by + 0.05, bz + oz), (ax + ox, ay + 0.05, az + oz), col, (ox, 0, oz))
+                M.quad((ax - nz * 0.045, ay + 0.05, az + nx * 0.045), (bx - nz * 0.045, by + 0.05, bz + nx * 0.045), (bx + nz * 0.045, by + 0.05, bz - nx * 0.045), (ax + nz * 0.045, ay + 0.05, az - nx * 0.045), col, (0, 1, 0))
+            # tirante decorativo (arco fino entre o fuste e o braco)
+            for k in range(4):
+                t0, t1 = k / 4.0, (k + 1) / 4.0
+                a0 = (x + nx * s * 1.2 * t0, y0 + 7.4 + 0.9 * math.sin(t0 * math.pi * 0.5), z + nz * s * 1.2 * t0)
+                a1 = (x + nx * s * 1.2 * t1, y0 + 7.4 + 0.9 * math.sin(t1 * math.pi * 0.5), z + nz * s * 1.2 * t1)
+                M.quad((a0[0] - nz * 0.02, a0[1], a0[2] + nx * 0.02), (a1[0] - nz * 0.02, a1[1], a1[2] + nx * 0.02), (a1[0] - nz * 0.02, a1[1] + 0.05, a1[2] + nx * 0.02), (a0[0] - nz * 0.02, a0[1] + 0.05, a0[2] + nx * 0.02), dark, (-nz, 0, nx))
+            ex, ey, ez = pts[-1]
+            # luminaria: corpo achatado com tampa inclinada, aletas e vidro emissivo embaixo
+            hx, hz = ex + nx * s * 0.35, ez + nz * s * 0.35
+            ux, uz = nx * s, nz * s
+            corners = [(hx + ux * a_ - uz * b_, hz + uz * a_ + ux * b_) for (a_, b_) in ((-0.45, -0.2), (0.45, -0.24), (0.45, 0.24), (-0.45, 0.2))]
+            M.prism(corners, ey - 0.12, ey + 0.06, (70, 76, 84), True, True, (88, 94, 102))
+            M.prism([(hx + ux * a_ - uz * b_, hz + uz * a_ + ux * b_) for (a_, b_) in ((-0.38, -0.14), (0.3, -0.16), (0.3, 0.16), (-0.38, 0.14))], ey + 0.06, ey + 0.11, (96, 102, 110))
+            for k in range(3):
+                fa = -0.2 + k * 0.18
+                M.box(min(hx + ux * fa, hx + ux * (fa + 0.03)) - 0.02, max(hx + ux * fa, hx + ux * (fa + 0.03)) + 0.02, ey + 0.11, ey + 0.16, min(hz + uz * fa, hz + uz * (fa + 0.03)) - 0.14, max(hz + uz * fa, hz + uz * (fa + 0.03)) + 0.14, dark)
+            M.m('liso')
+            M.poly([(cx_, ey - 0.125, cz_) for (cx_, cz_) in [(hx + ux * a_ - uz * b_, hz + uz * a_ + ux * b_) for (a_, b_) in ((-0.38, -0.16), (0.38, -0.2), (0.38, 0.2), (-0.38, 0.16))]], (255, 246, 214), (0, -1, 0))
+            M.m('metal')
         self.nlights += 1; M.free()
 
     def traffic_light(self, x, z, dx, dz, arm):
@@ -320,7 +356,7 @@ class Props:
             if th == self.last_theme and self.theme_bag: self.theme_bag.insert(0, th); th = self.theme_bag.pop()
             self.last_theme = th
             names, plant = park6.THEMES[th]
-            todo = list(names)
+            todo = list(names[:1]) + r.sample(list(names[1:]), len(names) - 1)          # o principal primeiro, o resto em ordem variada
             # pontos candidatos: varre o trecho nos dois lados da trilha, do centro para as pontas
             zmid = (za + zb) / 2; cand = []
             for dz in sorted(np.arange(-(zb - za) / 2 + 12, (zb - za) / 2 - 11, 4.0), key=abs):
@@ -351,7 +387,8 @@ class Props:
                 return False
             nst = 0
             for nm in todo: nst += place_one(nm)
-            extra = ['canteiros', 'pergola', 'piquenique', 'fonte', 'quiosque', 'academia', 'canteiros', 'pergola']; r.shuffle(extra)
+            extra = ['canteiros', 'pergola', 'piquenique', 'fonte', 'quiosque', 'academia', 'xadrez', 'pingpong', 'esculturas', 'mirante', 'bocha', 'espelho', 'estufa', 'labirinto']; r.shuffle(extra)
+            extra = [e for e in extra if e not in todo]
             for nm in extra:
                 if nst >= 6: break
                 nst += place_one(nm)

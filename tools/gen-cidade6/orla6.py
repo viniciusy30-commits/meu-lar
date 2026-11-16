@@ -393,6 +393,7 @@ def jetties_and_lighthouse(M, pr, r):
             M.quad((xa_ - wa + 0.3, ya, z), (xa_ + wa - 0.3, ya, z), (xb_ + wb - 0.3, yb, z1), (xb_ - wb + 0.3, yb, z1), (214, 210, 202), (0, 1, 0))
             M.quad((xa_ - wa + 0.3, ya + 0.004, z), (xa_ + wa - 0.3, ya + 0.004, z), (xa_ + wa - 0.3, ya + 0.004, z + 0.08), (xa_ - wa + 0.3, ya + 0.004, z + 0.08), (176, 172, 164), (0, 1, 0))
             for s in (-1, 1):                                              # meio-fio dos dois lados
+                if s == sgn and (z + z1) / 2 < ZW + 0.5: continue
                 o0, o1 = xa_ + s * (wa - 0.3), xb_ + s * (wb - 0.3); e0, e1 = xa_ + s * wa, xb_ + s * wb
                 M.quad((o0, ya + 0.22, z), (e0, ya + 0.22, z), (e1, yb + 0.22, z1), (o1, yb + 0.22, z1), (232, 228, 220), (0, 1, 0))
                 M.quad((o0, ya - 0.05, z), (o0, ya + 0.22, z), (o1, yb + 0.22, z1), (o1, yb - 0.05, z1), (222, 218, 210), (-s, 0, 0))
@@ -401,6 +402,7 @@ def jetties_and_lighthouse(M, pr, r):
             M.m('metal'); rc = (196, 200, 206)
             for s in (-1, 1):
                 if s == sgn and any(sz_ - 1.6 < (z + z1) / 2 < sz_ + 1.6 for sz_ in stairs_z): continue
+                if s == sgn and (z + z1) / 2 < ZW + 0.5: continue          # ao lado do calcadao: aberto (o calcadao e o molhe sao um piso so)
                 px0, px1 = xa_ + s * (wa - 0.15), xb_ + s * (wb - 0.15)
                 for hy in (1.05, 0.6):
                     M.quad((px0, ya + 0.22 + hy - 0.04, z), (px1, yb + 0.22 + hy - 0.04, z1), (px1, yb + 0.22 + hy + 0.04, z1), (px0, ya + 0.22 + hy + 0.04, z), rc, (s, 0, 0))

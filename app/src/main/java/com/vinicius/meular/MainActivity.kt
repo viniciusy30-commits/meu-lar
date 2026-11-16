@@ -187,9 +187,16 @@ class MainActivity : AppCompatActivity() {
         var ns = rScale
         if (w != rW || h != rH || rScale == 0f) { rW = w; rH = h; ns = maxS }
         else {
-            val f = game.r.fpsAvg
-            if (f < 52f) ns = maxOf(minS, rScale * 0.93f)      // Etapa 161: reage antes de cair dos 60 FPS
-            else if (f > 58f) ns = minOf(maxS, rScale * 1.03f)
+            if (game.r.lock30) {
+                // travado em 30: a resolução só cai se o aparelho não tiver folga para os 30 cravados
+                val f = game.r.potAvg
+                if (f < 35f) ns = maxOf(minS, rScale * 0.94f)
+                else if (f > 44f) ns = minOf(maxS, rScale * 1.03f)
+            } else {
+                val f = game.r.fpsAvg
+                if (f < 52f) ns = maxOf(minS, rScale * 0.93f)      // Etapa 161: reage antes de cair dos 60 FPS
+                else if (f > 58f) ns = minOf(maxS, rScale * 1.03f)
+            }
         }
         if (Math.abs(ns - rScale) > 0.02f || rScale == 0f) {
             rScale = ns
@@ -240,8 +247,23 @@ class MainActivity : AppCompatActivity() {
         return Triple(l, ic, t)
     }
 
+    /** Tela cheia de verdade (sem barra de notificação nem de navegação) no menu, no carregamento e no jogo. */
+    @Suppress("DEPRECATION")
+    private fun telaCheia() {
+        if (android.os.Build.VERSION.SDK_INT >= 28) window.attributes = window.attributes.also { it.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
+        window.decorView.systemUiVisibility = (android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) telaCheia()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        telaCheia()
         // Etapa 124: se o jogo fechar sozinho, guarda o erro para mostrar na próxima abertura
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { th, e ->
