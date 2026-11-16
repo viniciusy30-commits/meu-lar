@@ -525,35 +525,121 @@ class Props:
             zc = (pz0 + pz1) / 2; L.access(L.frame('W', minx, maxx, minz, maxz, maxz - zc - 3.6), 0.0, 7.2, 6.2)
         L.fill_free(poly, c0, (), True, 3, ('quiosque', 'jardim', 'coreto', 'piquenique'))
 
-    def boat(self, x, z, dx, dz, y=Y_SEA):
+    def boat(self, x, z, dx, dz, y=Y_SEA, kind=None, L=None):
+        """barco atracado: lancha, veleiro (mastro, retranca, vela enrolada) ou iate de dois andares; casco com proa
+        afilada, faixa colorida, convés de madeira e para-brisa"""
         M = self.M; r = self.rnd; M.at(x, z, 'orla'); F = Frame((x, z), (dx, dz))
-        L, Wd = r.uniform(6, 10), r.uniform(2.2, 3.0)
-        M.m('liso'); hull = (245, 245, 242)
-        pts = [F.xz(-L / 2, -Wd / 2), F.xz(L * 0.25, -Wd / 2), F.xz(L / 2, 0), F.xz(L * 0.25, Wd / 2), F.xz(-L / 2, Wd / 2)]
-        M.prism(pts, y - 0.2, y + 0.9, hull, True, False, (170, 120, 80))
-        M.prism(F.rect(-L * 0.3, L * 0.05, -Wd * 0.3, Wd * 0.3), y + 0.9, y + 2.0, (235, 238, 240))
-        M.box(*(lambda p: (p[0] - 0.05, p[0] + 0.05))(F.xz(0, 0)), y + 2.0, y + 2.0 + (8 if r.random() < 0.4 else 0.3), *(lambda p: (p[1] - 0.05, p[1] + 0.05))(F.xz(0, 0)), (200, 200, 205))
+        kind = kind or r.choice(('lancha', 'lancha', 'veleiro', 'veleiro', 'iate'))
+        L = L or {'lancha': r.uniform(6, 9), 'veleiro': r.uniform(8, 12), 'iate': r.uniform(13, 18)}[kind]
+        Wd = L * (0.34 if kind != 'veleiro' else 0.3); stripe = r.choice(((30, 60, 120), (180, 40, 40), (20, 110, 110), (40, 40, 44), (240, 190, 40)))
+        hull = (248, 248, 246) if r.random() < 0.8 else r.choice(((30, 50, 90), (40, 40, 44)))
+        M.m('liso')
+        out = [(-L / 2, -Wd * 0.45), (L * 0.15, -Wd / 2), (L * 0.38, -Wd * 0.38), (L / 2, 0), (L * 0.38, Wd * 0.38), (L * 0.15, Wd / 2), (-L / 2, Wd * 0.45)]
+        bot = [(u * 0.92, v * 0.7) for (u, v) in out]
+        hb = 0.9 if kind != 'iate' else 1.4
+        for k in range(len(out)):                                         # casco em V (de baixo estreito para cima largo)
+            a0, a1 = out[k], out[(k + 1) % len(out)]; b0, b1 = bot[k], bot[(k + 1) % len(out)]
+            M.quad(F.p(b0[0], b0[1], y - 0.35), F.p(b1[0], b1[1], y - 0.35), F.p(a1[0], a1[1], y + hb), F.p(a0[0], a0[1], y + hb), hull, (0, 0.1, 0))
+            M.quad(F.p(a0[0], a0[1], y + hb - 0.35), F.p(a1[0], a1[1], y + hb - 0.35), F.p(a1[0] * 1.002, a1[1] * 1.002, y + hb - 0.2), F.p(a0[0] * 1.002, a0[1] * 1.002, y + hb - 0.2), stripe, (0, 0, 0))
+        M.m('madeira'); M.poly([F.p(u, v, y + hb) for (u, v) in out[::-1]], (190, 150, 110), (0, 1, 0))
+        M.m('liso')
+        if kind == 'lancha':
+            M.prism(F.rect(-L * 0.1, L * 0.12, -Wd * 0.32, Wd * 0.32), y + hb, y + hb + 0.6, (240, 240, 238))
+            M.quad(F.p(L * 0.12, -Wd * 0.32, y + hb + 0.6), F.p(L * 0.12, Wd * 0.32, y + hb + 0.6), F.p(L * 0.2, Wd * 0.3, y + hb + 1.2), F.p(L * 0.2, -Wd * 0.3, y + hb + 1.2), (60, 80, 100), F.nu(1))
+            M.prism(F.rect(-L / 2 + 0.1, -L / 2 + 0.5, -0.3, 0.3), y - 0.2, y + 0.9, (40, 40, 44))                      # motor de popa
+        elif kind == 'veleiro':
+            M.prism(F.rect(-L * 0.25, L * 0.05, -Wd * 0.28, Wd * 0.28), y + hb, y + hb + 0.7, (244, 244, 240))
+            mx, mz = F.xz(L * 0.1, 0); hm = L * 1.25
+            M.m('metal'); M.cyl(mx, mz, 0.07, y + hb, y + hb + hm, (220, 222, 226), 5, False)
+            M.box(*sorted((F.xz(L * 0.1, 0)[0], F.xz(-L * 0.35, 0)[0])), y + hb + 1.3, y + hb + 1.45, *(lambda a_, b_: (min(a_, b_) - 0.06, max(a_, b_) + 0.06))(F.xz(L * 0.1, 0)[1], F.xz(-L * 0.35, 0)[1]), (220, 222, 226))
+            M.m('liso'); M.prism(F.rect(-L * 0.33, L * 0.08, -0.18, 0.18), y + hb + 1.45, y + hb + 1.8, (40, 70, 130))   # capa da vela
+            M.quad(F.p(L * 0.1, 0, y + hb + hm), F.p(L / 2, 0, y + hb), F.p(L / 2, 0.02, y + hb), F.p(L * 0.1, 0.02, y + hb + hm), (200, 200, 205), (0, 0, 1))   # estai
+        else:
+            M.prism(F.rect(-L * 0.35, L * 0.2, -Wd * 0.4, Wd * 0.4), y + hb, y + hb + 1.6, (246, 246, 244))
+            M.prism(F.rect(-L * 0.3, L * 0.2, -Wd * 0.41, Wd * 0.41), y + hb + 0.7, y + hb + 1.3, (40, 50, 62))
+            M.prism(F.rect(-L * 0.25, L * 0.05, -Wd * 0.32, Wd * 0.32), y + hb + 1.6, y + hb + 2.6, (246, 246, 244))
+            M.prism(F.rect(-L * 0.22, L * 0.05, -Wd * 0.33, Wd * 0.33), y + hb + 1.9, y + hb + 2.4, (40, 50, 62))
+            M.cyl(*F.xz(-L * 0.05, 0), 0.06, y + hb + 2.6, y + hb + 4.0, (220, 222, 226), 5, False)
         M.free()
 
     def harbor(self):
-        """pieres flutuantes e barcos na foz do rio e no mar perto da marina"""
+        """MARINA: um cais grande de concreto em L saindo da praia leste, largo, com postes, cabeços de amarracao,
+        bancos e floreiras; dez fingers de cada lado com lanchas, veleiros e iates; cabeça em T com os iates maiores,
+        posto de combustivel e a capitania; quebra-mar curvo de pedra protegendo a bacia"""
         M = self.M; r = self.rnd
-        x0 = river_x(1760) + 60
-        for k in range(3):
-            px = x0 + 40 + k * 70; zA = shore_z(px) - 6; zB = shore_z(px) + 70
-            M.at(px, (zA + zB) / 2, 'orla'); M.m('madeira')
-            M.prism([(px - 1.5, zA), (px + 1.5, zA), (px + 1.5, zB), (px - 1.5, zB)], 0.2, 0.5, WHITE)
-            M.prism([(px - 1.5, 1718.6), (px + 1.5, 1718.6), (px + 1.5, zA), (px - 1.5, zA)], 0.2, 0.5, WHITE)       # passarela sobre a areia, da mureta ate o pier
-            for zz in np.arange(1722.0, zA, 6.0):
-                for s in (-1.3, 1.3): M.cyl(px + s, zz, 0.14, -1.6, 0.2, (120, 92, 66), 6)
-            for s in (-1.45, 1.45):
-                M.prism([(px + s - 0.04, 1718.6), (px + s + 0.04, 1718.6), (px + s + 0.04, zB), (px + s - 0.04, zB)], 1.25, 1.33, (240, 238, 232))
-                for zz in np.arange(1719.0, zB, 3.0): M.prism([(px + s - 0.04, zz - 0.04), (px + s + 0.04, zz - 0.04), (px + s + 0.04, zz + 0.04), (px + s - 0.04, zz + 0.04)], 0.5, 1.25, (240, 238, 232))
-            for zz in np.arange(zA + 8, zB, 11):
-                for s in (-1, 1):
-                    M.prism([(px + s * 1.5, zz - 0.8), (px + s * 9, zz - 0.8), (px + s * 9, zz + 0.8), (px + s * 1.5, zz + 0.8)], 0.2, 0.45, WHITE)
-                    if r.random() < 0.7: self.boat(px + s * 5.5, zz + s * 3.2 + 2.5, 1 if s > 0 else -1, 0, Y_SEA + 0.1); M.at(px, (zA + zB) / 2, 'orla'); M.m('madeira')
+        px = river_x(1760) + 205.0
+        zA = 1718.6; zS = shore_z(px); zB = zS + 190.0; yd = 0.9; hw = 4.0
+        # cais principal (concreto sobre pilares) e cabeca em T
+        def slab(x0, x1, z0, z1):
+            z = z0
+            while z < z1:
+                zz = min(z + 12, z1)
+                M.at((x0 + x1) / 2, (z + zz) / 2, 'pier'); M.m('concreto')
+                M.prism([(x0, z), (x1, z), (x1, zz), (x0, zz)], yd - 0.6, yd, (214, 210, 202), True, True)
+                M.m('concreto')
+                for xx in np.arange(x0 + 0.8, x1, 6.0):
+                    for zp in np.arange(z + 1, zz, 6.0):
+                        hb = -1.0 if zp < zS else -1.5 - min((zp - zS) / 120, 1) * 5.0
+                        M.cyl(xx, zp, 0.35, hb - 1, yd - 0.6, (190, 186, 178), 6, False)
+                M.free(); z = zz
+        slab(px - hw, px + hw, zA, zB)
+        slab(px - 40, px + 40, zB, zB + 14)
+        # borda amarela, cabeços, postes, bancos e floreiras
+        def edge(x0, z0, x1, z1):
+            M.at((x0 + x1) / 2, (z0 + z1) / 2, 'orla'); M.m('liso')
+            L = math.hypot(x1 - x0, z1 - z0); ux, uz = (x1 - x0) / L, (z1 - z0) / L; nx, nz = -uz * 0.12, ux * 0.12
+            M.quad((x0 - nx, yd + 0.02, z0 - nz), (x1 - nx, yd + 0.02, z1 - nz), (x1 + nx, yd + 0.02, z1 + nz), (x0 + nx, yd + 0.02, z0 + nz), (240, 200, 40), (0, 1, 0))
+            for t in np.arange(2, L, 8.0):
+                cx, cz = x0 + ux * t, z0 + uz * t
+                M.cyl(cx, cz, 0.18, yd, yd + 0.45, (40, 42, 46), 8); M.cyl(cx, cz, 0.26, yd + 0.45, yd + 0.55, (40, 42, 46), 8)
             M.free()
+        for s in (-1, 1): edge(px + s * (hw - 0.3), zS - 2, px + s * (hw - 0.3), zB)
+        edge(px - 39.7, zB + 13.7, px + 39.7, zB + 13.7)
+        for z in np.arange(zA + 6, zB, 14.0):
+            self.parklight(px - hw + 0.6, z, yd); self.parklight(px + hw - 0.6, z + 7, yd)
+        for z in np.arange(zA + 12, zB, 28.0):
+            self.bench(px, z, 1, 0, yd)
+        # fingers e barcos
+        for side in (-1, 1):
+            for k, zf in enumerate(np.arange(zS + 8, zB - 4, 17.0)):
+                x0 = px + side * hw; x1 = px + side * (hw + 16.0)
+                M.at((x0 + x1) / 2, zf, 'pier'); M.m('madeira')
+                M.prism([(min(x0, x1), zf - 0.9), (max(x0, x1), zf - 0.9), (max(x0, x1), zf + 0.9), (min(x0, x1), zf + 0.9)], 0.15, 0.45, (176, 140, 104), True, True)
+                for t in (6, 12, 16):
+                    xx = px + side * (hw + t); M.cyl(xx, zf - 1.0, 0.16, -2.5, 1.4, (120, 96, 72), 6, False); M.cyl(xx, zf + 1.0, 0.16, -2.5, 1.4, (120, 96, 72), 6, False)
+                M.free()
+                for j, dz in enumerate((-4.6, 4.6)):
+                    if r.random() < 0.15: continue
+                    kind = 'iate' if (k % 4 == 3 and j == 0) else None
+                    L = 15.0 if kind else None
+                    self.boat(px + side * (hw + 9.0), zf + dz, side, 0, Y_SEA + 0.1, kind, L)
+        # iates grandes na cabeca em T
+        for k, xx in enumerate((-30, -10, 10, 30)):
+            self.boat(px + xx, zB + 22.0, 0, 1, Y_SEA + 0.1, 'iate', r.uniform(16, 20))
+        # capitania (predio de dois andares com torre) e posto de combustivel
+        hx, hz = px + 26, zB + 7
+        M.at(hx, hz, 'orla'); M.m('reboco'); M.box(hx - 5, hx + 5, yd, yd + 6.4, hz - 4, hz + 4, (246, 244, 238), top=False)
+        M.m('vidro'); M.quad((hx - 4.5, yd + 1, hz - 4.03), (hx + 4.5, yd + 1, hz - 4.03), (hx + 4.5, yd + 5.6, hz - 4.03), (hx - 4.5, yd + 5.6, hz - 4.03), WHITE, (0, 0, -1))
+        M.m('concreto'); M.box(hx - 5.5, hx + 5.5, yd + 6.4, yd + 6.8, hz - 4.5, hz + 4.5, (236, 234, 228))
+        M.m('reboco'); M.box(hx - 1.6, hx + 1.6, yd + 6.8, yd + 11.0, hz - 1.6, hz + 1.6, (246, 244, 238), top=False)
+        M.m('vidro'); M.cyl(hx, hz, 1.9, yd + 9.0, yd + 10.6, WHITE, 8, False)
+        M.m('telha'); M.cyl(hx, hz, 2.4, yd + 11.0, yd + 12.6, (40, 90, 140), 8, False, 0.1)
+        M.m('metal'); M.cyl(hx + 1.2, hz, 0.04, yd + 12.0, yd + 16.0, (220, 222, 226), 4, False)
+        M.m('liso'); M.box(hx + 1.25, hx + 2.6, yd + 15.0, yd + 15.8, hz - 0.02, hz + 0.02, (40, 90, 160))
+        fx, fz = px - 26, zB + 7
+        M.m('liso'); M.box(fx - 3, fx + 3, yd, yd + 2.8, fz - 2, fz + 2, (250, 250, 248)); M.box(fx - 4, fx + 4, yd + 3.4, yd + 3.7, fz - 3, fz + 3, (220, 60, 50))
+        for dx in (-3.6, 3.6): M.box(fx + dx - 0.12, fx + dx + 0.12, yd, yd + 3.4, fz - 2.6, fz - 2.36, (230, 230, 230))
+        M.box(fx - 0.4, fx + 0.4, yd, yd + 1.6, fz - 2.9, fz - 2.5, (220, 60, 50))
+        M.free()
+        # quebra-mar curvo de pedra (protege a bacia, abre para leste)
+        M.at(px - 70, zB, 'orla'); M.m('pedra')
+        for k in range(90):
+            t = k / 89; a = math.pi * (0.95 - 0.75 * t)
+            cx_, cz_ = px - 10 + math.cos(a) * 110, zS + 40 + math.sin(a) * 230
+            if cz_ < zS + 20: continue
+            for j in range(3): M.sphere(cx_ + r.uniform(-1.5, 1.5), -0.6 + r.uniform(-0.3, 0.4), cz_ + r.uniform(-1.5, 1.5), r.uniform(1.6, 2.3), r.choice(((150, 146, 138), (128, 124, 118), (170, 164, 152))), 6, 3, 0.75, 0.18, r)
+        M.free()
+        self.luzes.append({'tipo': 'capitania', 'x': round(hx, 2), 'y': round(yd + 9.8, 2), 'z': round(hz, 2), 'cor': [255, 240, 200], 'alcance_m': 120})
 
     def forest(self):
         """mata fechada nos morros das bordas"""

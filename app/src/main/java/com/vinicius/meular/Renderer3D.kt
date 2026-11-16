@@ -1230,6 +1230,12 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Water.drawSea(vp, ex, ey, ez, City.X0 - 500f, City.SEA_Z - 6f, City.X1 + 500f, City.SEA_Z + 450f, st.gw)
             useProg(curProg)
         }
+        // Cidade 6: mar animado (ondas, espuma e a água indo e vindo na areia)
+        if (City.C6 && Relevo.on) {
+            Water.drawSea(vp, ex, ey, ez, Relevo.CX - 600f, Relevo.CZ + Relevo.SEA6_Z0, Relevo.CX + 3100f, Relevo.CZ + 2600f, st.gw,
+                -0.2f, Relevo.CZ + Relevo.SHORE6_Z, 0.045f, 5.5f)
+            useProg(curProg)
+        }
         // Etapa 127: lagos com água de verdade
         for (lk in City.lakes) {
             val dx = lk[0] - ex; val dz = lk[1] - ez
@@ -1848,6 +1854,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private fun drawPlayer(now: Long) {
         baseY += (groundH(px, pz) - baseY) * 0.3f
         if (City.HDS) Hds.refY = baseY
+        Relevo.footY = baseY
         val t = (now / 1_000_000L % 100000L) / 1000f
         val air = jumping
         val jc = if (jumpRun) CuteChar.RUNJUMP else CuteChar.JUMP
