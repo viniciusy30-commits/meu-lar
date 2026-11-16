@@ -368,6 +368,7 @@ object Relevo {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
                     for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
+                    loadTree6(am)
                 } else {
                     loadSubMesh(am, if (c5) "hds/c5_mesh.bin" else "hds/sub_mesh.bin")
                     if (c5) loadExtraSub(am, "hds/c5_bld.bin")
@@ -947,8 +948,8 @@ object Relevo {
         streamCells(ex, ez)
         // Cidade 6: muito mais árvores por quadra -> raio menor; e o raio encolhe de vez quando a memória aperta
         // (antes soltava um bloco num quadro e remontava o mesmo no seguinte: as árvores ficavam piscando)
-        val nearR = min(if (City.C6) 120f else TREE_NEAR, treeNearCap)
-        val farR = nearR + (if (City.C6) 50f else TREE_FAR - TREE_NEAR)
+        val nearR = min(if (City.C6) 90f else TREE_NEAR, treeNearCap)
+        val farR = nearR + (if (City.C6) 40f else TREE_FAR - TREE_NEAR)
         var best: LazyTrees? = null; var bestD = nearR * nearR
         var worst: LazyTrees? = null; var worstD = 0f
         for (t in lazyTrees) {
@@ -970,6 +971,11 @@ object Relevo {
             return
         }
         val t = best ?: return
+        if (City.C6 && tree6.isNotEmpty()) {   // Cidade 6: o modelo inteiro da árvore da Cidade 2
+            val m = tree6Mesh(t.data)
+            if (m != null) { t.rich = m; t.chunk.near = m }
+            return
+        }
         val fl = Flora.Batch(); fl.fixedY = 0f
         var i = 0
         while (i + 6 < t.data.size) {
@@ -984,6 +990,96 @@ object Relevo {
     private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((-0.2f - h) / 7f).coerceIn(0f, 1f))
 
     /** árvore simples e fofinha: tronco e copa em dois cones (bipirâmide de 6 lados) */
+    // ------------------------------------------------------------------------------------------------
+    // Cidade 6: as árvores são a mesma árvore da Cidade 2 (álamo do city2.glb, exportado em hds/c6_tree.bin pelo
+    // tools/gen-cidade6/tree_export6.py). Perto: o modelo inteiro. Longe: três cartões cruzados com a mesma textura de folhas.
+    // ------------------------------------------------------------------------------------------------
+    private class TPrim(val mat: Int, val v: FloatArray, val nv: Int, val idx: ShortArray, val r: Float, val g: Float, val b: Float)
+    @Volatile private var tree6: List<TPrim> = emptyList()
+    private var tree6H = 18.8f
+    private var tree6R = 10f
+    /** escala (horizontal, vertical) do modelo por espécie: 0/1 copa larga, 2 árvore pequena, 3 copa estreita e alta */
+    private val SP6 = floatArrayOf(0.42f, 0.42f, 0.40f, 0.45f, 0.30f, 0.30f, 0.25f, 0.47f)
+    private val TINT6 = arrayOf(floatArrayOf(1f, 1f, 1f), floatArrayOf(0.88f, 1.04f, 0.86f), floatArrayOf(1.1f, 1.02f, 0.8f), floatArrayOf(0.74f, 0.92f, 0.82f))
+
+    private fun loadTree6(am: AssetManager) {
+        tree6 = emptyList()
+        try {
+            val bytes = am.open("hds/c6_tree.bin").use { it.readBytes() }
+            val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            if (bb.getInt() != 0x36455254) return   // "TRE6"
+            val n = bb.getInt(); val l = ArrayList<TPrim>()
+            var h = 0f; var r = 0f
+            for (k in 0 until n) {
+                val mat = bb.getInt(); val nv = bb.getInt(); val ni = bb.getInt(); val cr = bb.getFloat(); val cg = bb.getFloat(); val cb = bb.getFloat()
+                val v = FloatArray(nv * 8) { bb.getFloat() }
+                val idx = ShortArray(ni) { bb.getShort() }
+                for (q in 0 until nv) { h = max(h, v[q * 8 + 1]); r = max(r, hypot(v[q * 8], v[q * 8 + 2])) }
+                l.add(TPrim(mat, v, nv, idx, cr, cg, cb))
+            }
+            tree6H = h; tree6R = r; tree6 = l
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "c6_tree.bin: $e") }
+    }
+
+    private fun tint6(sp: Int, k: Float): FloatArray { val t = TINT6[sp]; val f = 0.86f + 0.26f * k; return floatArrayOf(t[0] * f, t[1] * f, t[2] * f) }
+
+    /** versão de longe: três cartões verticais cruzados (60°) com a textura de folhas do modelo (a imagem já é uma árvore inteira) */
+    private fun tree6Cards(b: MB, px: Float, py: Float, pz: Float, sp: Int, s: Float, ry: Float, k: Float) {
+        val leaf = tree6.firstOrNull { it.mat == Mt.TREE6_LEAF } ?: return
+        val t = tint6(sp, k)
+        val col = android.graphics.Color.rgb((leaf.r * t[0] * 255f).toInt().coerceIn(0, 255), (leaf.g * t[1] * 255f).toInt().coerceIn(0, 255), (leaf.b * t[2] * 255f).toInt().coerceIn(0, 255))
+        val hh = tree6H * SP6[sp * 2 + 1] * s * 1.04f; val w = tree6R * SP6[sp * 2] * s * 0.95f
+        b.m(Mt.TREE6_LEAF, 1f)
+        for (j in 0 until 3) {
+            val a = ry + j * (Math.PI / 3).toFloat(); val c = cos(a) * w; val sn = sin(a) * w
+            val x0 = px - c; val z0 = pz - sn; val x1 = px + c; val z1 = pz + sn
+            b.v(x0, py, z0, 0f, 1f, 0f, col, 0f, 1f); b.v(x1, py, z1, 0f, 1f, 0f, col, 1f, 1f); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f)
+            b.v(x0, py, z0, 0f, 1f, 0f, col, 0f, 1f); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f); b.v(x0, py + hh, z0, 0f, 1f, 0f, col, 0f, 0f)
+        }
+    }
+
+    /** versão de perto: o modelo inteiro para cada árvore de [d] (7 floats: espécie, x, y, z, escala, giro, variação) */
+    private fun tree6Mesh(d: FloatArray): Mesh? {
+        val parts = ArrayList<Part>()
+        for (tp in tree6) {
+            val per = max(1, 65000 / tp.nv)
+            var vs = FloatArray(min(per, d.size / 7 + 1) * tp.nv * STRIDE); var ids = ShortArray(min(per, d.size / 7 + 1) * tp.idx.size)
+            var nv = 0; var ni = 0
+            fun flush() {
+                if (nv == 0) return
+                val fb = ByteBuffer.allocateDirect(nv * STRIDE * 4).order(ByteOrder.nativeOrder()).asFloatBuffer(); fb.put(vs, 0, nv * STRIDE); fb.position(0)
+                val ib = ByteBuffer.allocateDirect(ni * 2).order(ByteOrder.nativeOrder()).asShortBuffer(); ib.put(ids, 0, ni); ib.position(0)
+                val p = Part(tp.mat, fb, nv, ib, ni)
+                p.gpu = true
+                if (tp.mat == Mt.TREE6_LEAF) { p.cut = 0.5f; p.solid = true }
+                parts.add(p); nv = 0; ni = 0
+            }
+            var i = 0
+            while (i + 6 < d.size) {
+                if (nv + tp.nv > 65000) flush()
+                val sp = d[i].toInt().coerceIn(0, 3); val x = d[i + 1]; val y = d[i + 2]; val z = d[i + 3]; val s = d[i + 4]; val ry = d[i + 5]; val k = d[i + 6]
+                val sx = SP6[sp * 2] * s; val sy = SP6[sp * 2 + 1] * s; val cs = cos(ry); val sn = sin(ry)
+                val t = tint6(sp, k)
+                val cr = tp.r * t[0]; val cg = tp.g * t[1]; val cb = tp.b * t[2]
+                for (q in 0 until tp.nv) {
+                    val o = q * 8; val px = tp.v[o] * sx; val py = tp.v[o + 1] * sy; val pz = tp.v[o + 2] * sx
+                    var nx = tp.v[o + 3] / sx; var ny = tp.v[o + 4] / sy; var nz = tp.v[o + 5] / sx
+                    val nl = sqrt(nx * nx + ny * ny + nz * nz); if (nl > 1e-6f) { nx /= nl; ny /= nl; nz /= nl }
+                    val w = (nv + q) * STRIDE
+                    vs[w] = px * cs + pz * sn + x; vs[w + 1] = py + y; vs[w + 2] = -px * sn + pz * cs + z
+                    vs[w + 3] = nx * cs + nz * sn; vs[w + 4] = ny; vs[w + 5] = -nx * sn + nz * cs
+                    vs[w + 6] = cr; vs[w + 7] = cg; vs[w + 8] = cb; vs[w + 9] = 1f
+                    vs[w + 10] = tp.v[o + 6]; vs[w + 11] = tp.v[o + 7]
+                }
+                for (q in tp.idx.indices) ids[ni + q] = ((tp.idx[q].toInt() and 0xFFFF) + nv).toShort()
+                nv += tp.nv; ni += tp.idx.size
+                i += 7
+            }
+            flush()
+        }
+        return if (parts.isEmpty()) null else Mesh(parts).gpuOnly()
+    }
+
     private fun tree(b: MB, px: Float, py: Float, pz: Float, s: Float, col: Int) {
         b.m(Mt.PLAIN, 1f)
         b.box(px, py + 0.65f * s, pz, 0.34f * s, 1.3f * s, 0.34f * s, COL_TRUNK)
@@ -1279,7 +1375,8 @@ object Relevo {
                 val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
                 val h = groundH(px, pz)
                 if (h < 1.0f && !City.C6) continue   // Cidade 6: a cidade inteira fica perto do nível do mar
-                tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve
+                if (City.C6 && tree6.isNotEmpty()) tree6Cards(tb, px, h - 0.05f, pz, sp, sc, treeA[o + 4], treeA[o + 5])   // Cidade 6: árvore da Cidade 2, de longe
+                else tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve
                 tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
             }
             if (!tb.isEmpty() && tdata.isNotEmpty()) { trees[qj * sc2 + qi] = tb.toMesh(true).gpuOnly(); tdArr[qj * sc2 + qi] = tdata.toFloatArray(); anyTree = true }

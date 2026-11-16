@@ -191,6 +191,9 @@ class Ground:
                 if pr['med'] > 0:
                     meds.append((pth.band(s0, s1, -pr['med'], pr['med']).buffer(0), r, pth.pt(s0), pth.pt(s1)))
         V = unary_union(verges).difference(P.river.buffer(RIVER_WALL))
+        # retornos (cul-de-sac): a faixa de grama da rua de acesso para na calcada do circulo (nao entra no balao)
+        bulbs = [Point(bx, bz).buffer(br + PROFILE['rua']['verge'] + PROFILE['rua']['walk'] + 0.3, 16) for (bx, bz, br) in getattr(P, 'bulbs', [])]
+        if bulbs: V = V.difference(unary_union(bulbs))
         self.verges = V
         W_ = P.row.difference(P.asphalt).difference(V)
         self.walks = W_
@@ -263,6 +266,9 @@ class Ground:
             pr = PROFILE[r['kind']]; pth = r['path']; L = pth.L
             for (s0, s1) in self.free_spans(i, pad=1.0):
                 k = r['kind']
+                if r.get('cul'):                                      # rua de acesso do retorno: a pintura acaba antes do circulo
+                    s1 = min(s1, L - 11.5 - 1.0)
+                    if s1 - s0 < 2: continue
                 if k in ('av', 'orla'):
                     for sg in (-1, 1):
                         self.stripe(pth, s0, s1, sg * (pr['med'] + 0.35), 0.15, C_YEL)                    # amarela junto ao canteiro
@@ -311,7 +317,8 @@ class Ground:
                 M.box(xa, xb, -0.75, Y_WALK + 1.05, zz - (0.35 if sg > 0 else 0), zz + (0.35 if sg < 0 else 0), rgb('#D7D1C4'))
                 M.box(xa, xb, Y_WALK + 1.05, Y_WALK + 1.18, zz - 0.4, zz + 0.4, rgb('#9C968B'))
                 M.m('metal')
-                for x in np.arange(xa + 2, xb - 1, 6.0):              # postes da ponte
+                nps = max(2, int(round((xb - xa - 6) / 22.0)) + 1)      # postes da ponte: ~22 m como na avenida (antes 6 m: virava uma grade)
+                for x in np.linspace(xa + 3, xb - 3, nps):
                     M.box(x - 0.12, x + 0.12, Y_WALK, Y_WALK + 6.5, zz - sg * 0.6 - 0.12, zz - sg * 0.6 + 0.12, rgb('#3E4247'))
                     M.box(x - 0.12, x + 0.12, Y_WALK + 6.3, Y_WALK + 6.45, zz - sg * 0.6 - sg * 1.6, zz - sg * 0.6 + 0.1, rgb('#3E4247'))
                     M.box(x - 0.3, x + 0.3, Y_WALK + 6.1, Y_WALK + 6.3, zz - sg * 2.0 - 0.25, zz - sg * 2.0 + 0.25, rgb('#FFF3C4'))

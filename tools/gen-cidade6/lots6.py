@@ -44,6 +44,7 @@ class Lots:
         self.lots = []
         self.plots = json.load(open(CITY2))['plots']
         self.ext = json.load(open(os.path.join(HERE, '..', 'gen-cidade5', 'house_extents.json')))
+        self.gates = json.load(open(os.path.join(HERE, 'player_gates.json')))      # centro x do portao da cerca de cada casa (city2.glb)
 
     # ------------------------------------------------------------ chao das quadras
     def lawn(self, poly, mat='grama', y=Y_LAWN, col=WHITE):
@@ -250,9 +251,17 @@ class Lots:
         cu = (w - (umax - umin)) / 2 - umin; cv = 1.5 + zfront
         cx, cz = F.xz(cu, cv)
         yaw = math.atan2(F.vx * face, -F.vz * face)
-        du = cu + su * (pl['x'] - pcx)                                     # porta/portao: caminho ate a calcada
+        gx, gw = self.gates[str(k)]
+        du = cu + su * (gx - pcx)                                          # portao da cerca (nao a porta): caminho reto ate a calcada
         hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r
-        M.at(*F.xz(w / 2, 2), 'lotes'); hh.walkway(du, 0.0, 1.6, 1.4); hh.mailbox(max(0.8, du - 2.0)); M.free('lotes')
+        # comeca dentro da calcada (rua curva: a borda da calcada nao e reta como a frente do lote) e para na linha da cerca
+        M.at(*F.xz(w / 2, 2), 'lotes'); hh.walkway(du, -1.2, cv - zfront + 0.2, gw + 0.3); hh.mailbox(du - su * 0 - (gw / 2 + 1.0)); M.free('lotes')
+        # conferencia: portao do modelo (city2) levado ao mundo pelo mesmo giro do jogo, contra o fim do caminho
+        c_, s_ = math.cos(yaw), math.sin(yaw); gzm = (pl['z'] - pcz)
+        gwx = cx + c_ * (gx - pcx) - s_ * gzm; gwz = cz + s_ * (gx - pcx) + c_ * gzm
+        ex_, ez_ = F.xz(du, cv - zfront)
+        self.gate_err = max(getattr(self, 'gate_err', 0.0), math.hypot(gwx - ex_, gwz - ez_))
+        if os.environ.get('DBG_GATE'): print('   portao', k, 'face', face, 'flip', flip, 'du_err', round((gwx - ex_) * F.ux + (gwz - ez_) * F.uz, 2), 'dv_err', round((gwx - ex_) * F.vx + (gwz - ez_) * F.vz, 2))
         B.drives.append((*F.xz(du, -2.6), 1.5))
         self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': pl['name'], 'bairro': HOUSE_BAIRRO[k],
                             'centro': [round(cx, 3), round(Y_LAWN, 2), round(cz, 3)], 'yaw': round(yaw, 5), 'yaw_graus': round(math.degrees(yaw), 2),
@@ -557,7 +566,7 @@ class Lots:
             if f[0] == 'bulb': self.bulb_lots(f[1])
             else: self.front_lots(f, [])
         self.pocket_parks()
-        print(f'  casas do jogador reservadas: {len(self.player)}/17')
+        print(f'  casas do jogador reservadas: {len(self.player)}/17; caminho x portao: erro maximo {getattr(self, "gate_err", -1):.2f} m')
 
     def front_lots(self, f, res):
         P, r, B = self.P, self.rnd, self.B
