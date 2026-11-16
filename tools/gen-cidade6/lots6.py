@@ -449,6 +449,15 @@ class Lots:
             return
         # ---- edificio-garagem em meia quadra
         garage = kind > 0.94 and w > 70
+        # ---- o miolo vira estacionamento? entao duas aberturas no perimetro (entrada e saida, em lados opostos)
+        opt = r.random(); gaps = {}
+        ix0_, iz0_, ix1_, iz1_ = minx + 24.5, minz + 24.5, maxx - 24.5, maxz - 24.5
+        if opt < 0.4 and ix1_ - ix0_ > 10 and iz1_ - iz0_ > 10:
+            pair = ('W', 'E') if (garage or w > d) else ('N', 'S')
+            for sd in pair:
+                Ls = w if sd in ('N', 'S') else d
+                gaps[sd] = (Ls / 2 - 3.6 + r.uniform(-4, 4), 0)
+                gaps[sd] = (gaps[sd][0], gaps[sd][0] + 7.2)
         # ---- perimetro de predios colados (frente para as 4 ruas)
         depths = {sd: r.uniform(16, 23) for sd in 'NESW'}
         # ---- o miolo vira estacionamento? entao duas aberturas no perimetro, no eixo do miolo (entrada e saida em lados opostos)
