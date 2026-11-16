@@ -363,7 +363,8 @@ object Relevo {
                 houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat(), o.optDouble("yaw", 0.0).toFloat())
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
-            bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")   // Etapa 184: população (gen_pop.py)
+            bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
+            postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
@@ -974,6 +975,10 @@ object Relevo {
     private const val TREE_FAR = 340f
     @Volatile private var treeNearCap = 1e9f
     /** Cidade 6: z (no mapa) onde começa o mar animado e a linha média da praia */
+    /** Cidade 6: postes (x, z, raio da poça de luz), tamanho do mundo e luzes especiais (faróis) do c6.json */
+    @Volatile var postesA = FloatArray(0)
+    @Volatile var worldA = FloatArray(0)
+    @Volatile var luzesJ = ""
     const val SEA6_Z0 = 1720f
     const val SHORE6_Z = 1826f
 

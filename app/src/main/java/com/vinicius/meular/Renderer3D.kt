@@ -366,16 +366,29 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         varying vec4 vCol; varying vec3 vN; varying vec3 vW; varying vec2 vUV;
         uniform sampler2D uTex; uniform float uAlpha; uniform float uSpec; uniform float uCut;
         uniform vec3 uEye; uniform vec2 uRoom; uniform vec3 uLight; uniform float uSoft; uniform float uFog;
+        uniform vec4 uDN;            // noite 0..1, pôr do sol 0..1, material de fachada (janelas acendem), -
+        uniform sampler2D uLMap; uniform vec4 uLM;   // mapa das poças de luz dos postes: x0, z0, 1/tamanho, ligado
         void main() {
             vec4 t = texture2D(uTex, vUV);
             CUT_LINE
             vec3 base = t.rgb * vCol.rgb;
             float a = t.a * vCol.a * uAlpha;
-            if (length(vN) < 0.1) { gl_FragColor = vec4(base, a); return; }
+            float N = uDN.x;
+            if (length(vN) < 0.1) {
+                // céu e malhas sem normal: à noite viram azul-marinho (o céu tem as estrelas desenhadas à parte)
+                vec3 nb = base * vec3(0.10, 0.13, 0.26) + vec3(0.01, 0.015, 0.04);
+                vec3 db = mix(base, base * vec3(1.0, 0.72, 0.55) + vec3(0.12, 0.04, 0.0), uDN.y * 0.7);
+                gl_FragColor = vec4(mix(db, nb, N), a); return;
+            }
+            // vidro de luminária (cor exata do gerador): acende à noite
+            vec3 gd = abs(vCol.rgb - vec3(1.0, 0.933, 0.769));
+            if (N > 0.01 && max(gd.r, max(gd.g, gd.b)) < 0.02) { gl_FragColor = vec4(base * (1.0 + 1.8 * N), a); return; }
             vec3 n = normalize(vN);
             vec3 L = normalize(vec3(0.45, 1.0, 0.65));
-            float diff = max(dot(n, L), 0.0);
+            float diff = max(dot(n, L), 0.0) * (1.0 - 0.88 * N);
             vec3 amb = mix(vec3(0.40, 0.37, 0.36), vec3(0.60, 0.67, 0.78), 0.5 + 0.5 * n.y);
+            amb = mix(amb, mix(vec3(0.07, 0.08, 0.13), vec3(0.13, 0.16, 0.28), 0.5 + 0.5 * n.y), N);      // lua: azulada e fraca
+            amb += vec3(0.16, 0.05, -0.02) * uDN.y;                                                          // pôr do sol quente
             vec3 pl = uLight - vW;
             float d2 = dot(pl, pl);
             vec3 pL = vec3(0.0); float att = 0.0; float pd = 0.0;
@@ -396,7 +409,20 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 float m = max(light.r, max(light.g, light.b));
                 if (m > 1.05) light *= (1.05 + (m - 1.05) * 0.25) / m;
             }
+            if (N > 0.01 && uLM.w > 0.5) {
+                // poças de luz dos postes (mapa único), mais fortes no chão e perto do pé do poste
+                float lm = texture2D(uLMap, (vW.xz - uLM.xy) * uLM.z).r;
+                light += vec3(1.0, 0.80, 0.55) * lm * 1.7 * N * (0.35 + 0.65 * max(n.y, 0.0)) * clamp(1.4 - vW.y * 0.09, 0.0, 1.0);
+            }
             vec3 col = base * light * ao;
+            if (N > 0.01 && uDN.z > 0.5) {
+                // janelas acesas à noite: vidro (parte escura da textura da fachada), metade das janelas, por andar
+                float lum = dot(t.rgb, vec3(0.3, 0.55, 0.15));
+                vec3 cell = floor(vW / vec3(2.6, 3.0, 2.6));
+                float hsh = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+                float win = smoothstep(0.42, 0.25, lum) * step(0.45, hsh);
+                col += vec3(1.0, 0.82, 0.52) * win * N * (0.55 + 0.4 * fract(hsh * 7.0));
+            }
             if (uSpec > 0.045) {   // Etapa 161: material fosco (quase sem brilho) pula os dois pow() por pixel
                 vec3 V = normalize(uEye - vW);
                 vec3 H = normalize(L + V);
@@ -408,7 +434,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            if (fz > 1.2) col = mix(col, vec3(0.80, 0.88, 0.96), (uFog > 1.5 ? smoothstep(1.2, 12.0, fz) : smoothstep(1.2, 8.0, fz) * 0.8 * uFog));   // Cidade 6 (uFog 2): névoa completa em ~345 m, onde a cidade para de ser desenhada
+            vec3 fogc = mix(mix(vec3(0.80, 0.88, 0.96), vec3(0.95, 0.70, 0.52), uDN.y * 0.6), vec3(0.04, 0.06, 0.12), N);
+            if (fz > 1.2) col = mix(col, fogc, (uFog > 1.5 ? smoothstep(1.2, 12.0, fz) : smoothstep(1.2, 8.0, fz) * 0.8 * uFog));   // Cidade 6 (uFog 2): névoa completa em ~345 m, onde a cidade para de ser desenhada
             gl_FragColor = vec4(col, a);
         }
     """.trimIndent()
@@ -416,7 +443,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // Etapa 89: dois programas — opaco (sem "discard", o que deixa a GPU do celular descartar pixels escondidos antes de
     // pintar) e recorte (folhas, cabelo). O programa ativo troca só quando a peça pede; os uniformes do quadro são reaplicados.
     private class Loc { var prog = 0; var uMVP = 0; var uModel = 0; var uAlpha = 0; var uTex = 0; var uCut = 0; var uSpec = 0; var uPush = 0
-        var uEye = 0; var uRoom = 0; var uLight = 0; var uSoft = 0; var uFog = 0 }
+        var uEye = 0; var uRoom = 0; var uLight = 0; var uSoft = 0; var uFog = 0; var uDN = 0; var uLMap = 0; var uLM = 0 }
     private val locs = arrayOf(Loc(), Loc())
     private var curProg = 0
     private val frameU = FloatArray(8)       // olho (3), sala (2), luz (3)
@@ -435,6 +462,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         l.uRoom = GLES20.glGetUniformLocation(l.prog, "uRoom"); l.uLight = GLES20.glGetUniformLocation(l.prog, "uLight")
         l.uSoft = GLES20.glGetUniformLocation(l.prog, "uSoft")
         l.uFog = GLES20.glGetUniformLocation(l.prog, "uFog")
+        l.uDN = GLES20.glGetUniformLocation(l.prog, "uDN"); l.uLMap = GLES20.glGetUniformLocation(l.prog, "uLMap"); l.uLM = GLES20.glGetUniformLocation(l.prog, "uLM")
     }
 
     private fun useProg(i: Int) {
@@ -448,10 +476,21 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         GLES20.glUniform3f(uEye, frameU[0], frameU[1], frameU[2])
         GLES20.glUniform2f(uRoom, frameU[3], frameU[4])
         GLES20.glUniform3f(uLight, frameU[5], frameU[6], frameU[7])
+        uDN = l.uDN; dWin = -1f
+        val nn = if (City.C6 && Relevo.on) DayNight.night else 0f
+        GLES20.glUniform4f(l.uDN, nn, if (City.C6 && Relevo.on) DayNight.dusk else 0f, 0f, 0f)
+        val lt = LightMap.tex
+        if (lt != 0 && nn > 0.01f) {
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lt); GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glUniform1i(l.uLMap, 1); GLES20.glUniform4f(l.uLM, LightMap.x0, LightMap.z0, LightMap.inv, 1f)
+        } else { GLES20.glUniform1i(l.uLMap, 1); GLES20.glUniform4f(l.uLM, 0f, 0f, 0f, 0f) }
     }
+    private var uDN = 0
+    private var dWin = -1f
 
     /** uniformes do quadro (olho, tamanho da sala, luz do teto): guardados para valer nos dois programas */
     private fun frameUniforms(exx: Float, eyy: Float, ezz: Float, rw: Float, rh: Float, lx: Float, ly: Float, lz: Float) {
+        dWin = -1f
         frameU[0] = exx; frameU[1] = eyy; frameU[2] = ezz; frameU[3] = rw; frameU[4] = rh; frameU[5] = lx; frameU[6] = ly; frameU[7] = lz
         GLES20.glUniform3f(uEye, exx, eyy, ezz); GLES20.glUniform2f(uRoom, rw, rh); GLES20.glUniform3f(uLight, lx, ly, lz)
     }
@@ -497,7 +536,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     // Etapa 122: estado de desenho guardado — só manda ao GL o que mudou (textura, brilho, recorte...).
     // Mesma imagem, bem menos chamadas por quadro (a cidade tem centenas de peças).
     private var dTex = -1; private var dSpec = -1f; private var dSoft = -1f; private var dPush = -99f; private var dCut = -1f; private var dAlpha = -1f
-    private fun resetDrawCache() { dTex = -1; dSpec = -1f; dSoft = -1f; dPush = -99f; dCut = -1f; dAlpha = -1f }
+    private fun resetDrawCache() { dTex = -1; dSpec = -1f; dSoft = -1f; dPush = -99f; dCut = -1f; dAlpha = -1f; dWin = -1f }
 
     private fun draw(m: Mesh, model: FloatArray, alpha: Float, glass: Boolean = false) {
         var any = false
@@ -522,6 +561,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tx)   // textura sempre (carregamentos no meio do quadro mudam o vínculo)
             val sp = Mt.SPEC[p.mat]
             if (sp != dSpec) { GLES20.glUniform1f(uSpec, sp); dSpec = sp }
+            val wf = if (DayNight.night > 0.01f && Mt.isFacade(p.mat)) 1f else 0f
+            if (wf != dWin) { GLES20.glUniform4f(uDN, if (City.C6 && Relevo.on) DayNight.night else 0f, if (City.C6 && Relevo.on) DayNight.dusk else 0f, wf, 0f); dWin = wf }
             val so = if (p.soft) 1f else 0f
             if (so != dSoft) { GLES20.glUniform1f(uSoft, so); dSoft = so }
             if (p.push != dPush) { GLES20.glUniform1f(uPush, p.push); dPush = p.push }
@@ -1236,6 +1277,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Water.drawSea(vp, ex, ey, ez, Relevo.CX - 600f, Relevo.CZ + Relevo.SEA6_Z0, Relevo.CX + 3100f, Relevo.CZ + 2600f, st.gw,
                 -2.2f, Relevo.CZ + Relevo.SHORE6_Z, 0.045f, 5.5f, true, Relevo.CX, Relevo.CZ)
             Water.drawRiver6(vp, ex, ey, ez, Relevo.CX, Relevo.CZ, -2.2f)
+            Beacon.draw(vp, ex, ey, ez)
             useProg(curProg)
         }
         // Etapa 127: lagos com água de verdade
@@ -2087,6 +2129,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         lastFrame = now
         if (dt > 0.0001f && dt < 1f) fpsAvg += (1f / dt - fpsAvg) * 0.05f      // Etapa 89: FPS médio (resolução dinâmica e contador)
         lastT = now
+        DayNight.update(); LightMap.ensure()
         if (dt > 0.05f) dt = 0.05f
 
         if (st.gw != bw || st.gh != bh || st.floorIdx != bf || st.wallIdx != bwl || st.testRoom != bTest) rebuild()

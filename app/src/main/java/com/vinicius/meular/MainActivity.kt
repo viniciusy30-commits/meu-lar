@@ -173,10 +173,12 @@ class MainActivity : AppCompatActivity() {
         return Pair(f, ic)
     }
 
+    private var dnIcon: IconView? = null
     private var rScale = 0f
     private var rW = 0
     private var rH = 0
     private fun ajustarResolucao() {
+        dnIcon?.let { val k = if (DayNight.isNight) Ic.SUNI else Ic.MOON; if (it.kind != k) it.set(k) }   // o ciclo virou sozinho
         val w = game.width; val h = game.height
         if (w <= 0 || h <= 0 || game.mode == 2) return
         val short = minOf(w, h).toFloat()
@@ -373,6 +375,15 @@ class MainActivity : AppCompatActivity() {
         dockR.addView(topBtn(Ic.MAP, Tn.SUN) { abrirMapa() }.first)   // Etapa 122: mapa da cidade + GPS
         dockR.addView(topBtn(Ic.WORK, Tn.CORAL) { profissoes() }.first)   // Etapa 143: profissões
         dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
+        // ciclo de dia e noite: o ícone mostra para onde o botão leva (lua = virar noite, sol = virar dia)
+        val dn = topBtn(if (DayNight.isNight) Ic.SUNI else Ic.MOON, Tn.SKY) {
+            DayNight.toggle()
+            val vaiNoite = DayNight.phase() >= 0.5f
+            dnIcon?.set(if (vaiNoite) Ic.SUNI else Ic.MOON)
+            android.widget.Toast.makeText(this, if (vaiNoite) "Anoitecendo… o dia volta sozinho em 30 min" else "Amanhecendo… a noite chega sozinha em 30 min", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        dnIcon = dn.second
+        dockR.addView(dn.first)
         dockR.addView(topBtn(Ic.GEAR, Tn.MINT) { config() }.first)
         root.addView(dockR, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(8), dp(10), 0) })
 
