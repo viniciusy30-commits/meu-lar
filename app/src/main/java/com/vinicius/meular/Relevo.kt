@@ -366,10 +366,16 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
-            lagoa = js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null }
-            fa("fauna").let { if (it.isNotEmpty() && c6) TownPark.buildC6(it, CX, CZ, 0.7f) }
+            // lagoa e fauna: opcionais (um erro aqui nunca pode impedir a cidade de carregar)
+            lagoa = try { js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null } } catch (e: Throwable) { null }
+            try {
+                val fl = ArrayList<Float>()
+                js.optJSONArray("fauna")?.let { a -> for (i in 0 until a.length()) { val q = a.get(i); if (q is org.json.JSONArray) { for (k in 0 until q.length()) fl.add(q.getDouble(k).toFloat()) } else fl.add((q as Number).toFloat()) } }
+                if (fl.isNotEmpty() && c6) TownPark.buildC6(fl.toFloatArray(), CX, CZ, 0.7f)
+            } catch (e: Throwable) { android.util.Log.w("Relevo", "fauna: $e") }
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
+            try {
             js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optLong("cor", 0xFF1565C0L).toInt(), o.optString("icone", "T").first(), o.optString("emoji", ""))) } }
             js.optJSONObject("mapa")?.let { m ->
                 C6Map.load(m, CX, CZ)
@@ -377,7 +383,8 @@ object Relevo {
                 val seen = HashSet<String>()
                 m.optJSONArray("pois")?.let { pa -> for (i in 0 until pa.length()) { val o = pa.getJSONArray(i); val nm = o.getString(2); if (o.getString(3) == "parque" && !seen.add(nm + i / 3)) continue
                     jobPl.add(City.Place(nm, o.getDouble(0).toFloat() + CX, o.getDouble(1).toFloat() + CZ, cols[o.getString(3)] ?: 0xFF607D8B.toInt(), nm.first(), o.optString(4, ""))) } }
-            }   // Etapa 184: população (gen_pop.py)
+            }
+            } catch (e: Throwable) { android.util.Log.w("Relevo", "mapa/trabalhos: $e") }   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
