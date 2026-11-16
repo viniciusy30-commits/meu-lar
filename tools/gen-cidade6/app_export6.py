@@ -11,6 +11,7 @@ from textures6 import MATS
 from plan6 import W, H, shore_z
 
 DY = 0.7
+from roads6 import Y_WALK
 G8 = 8.0
 MAT_BASE = 26
 MAT_ORDER = [m for m in sorted(MATS) if m != 'liso']
@@ -155,7 +156,7 @@ def run(P, G, L, M, assets):
         f.write(struct.pack('<iif', wnx, wnz, 2.0)); f.write(cmw.tobytes())
     print(f'  chao andavel: {len(wt)} triangulos, {int((Wk > -1e8).sum())} pontos')
     # ---- json
-    houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(h['centro'][1] + DY, 3), 'yaw': h['yaw']} for h in L.player]
+    houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(Y_WALK + DY - 0.08 - 0.10, 3), 'yaw': h['yaw']} for h in L.player]
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)

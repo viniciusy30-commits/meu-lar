@@ -149,8 +149,50 @@ def texdir():
     return td
 
 
+
+def add_city2_houses(S):
+    """casas do jogador como o jogo monta (Hds.kt): pecas do city2.glb de cada lote, giradas em volta do centro da casa e na altura lvl + 0,08"""
+    import struct as st
+    b = open(os.path.join(A, 'city2.glb'), 'rb').read(); L = st.unpack_from('<I', b, 12)[0]; J = json.loads(b[20:20 + L])
+    o = 20 + L; bl = st.unpack_from('<I', b, o)[0]; B = b[o + 8:o + 8 + bl]
+    d = json.load(open(os.path.join(A, 'city2.json'))); hs = {h['k']: h for h in json.load(open(os.path.join(A, 'c6.json')))['houses']}
+
+    def acc(i, comps):
+        a_ = J['accessors'][i]; v = J['bufferViews'][a_['bufferView']]
+        dt = {5126: '<f4', 5123: '<u2', 5125: '<u4'}[a_['componentType']]; sz = np.dtype(dt).itemsize
+        stv = v.get('byteStride', sz * comps); off = v.get('byteOffset', 0) + a_.get('byteOffset', 0)
+        raw = np.frombuffer(B, np.uint8, (a_['count'] - 1) * stv + sz * comps, off)
+        return np.lib.stride_tricks.as_strided(raw, (a_['count'], sz * comps), (stv, 1)).copy().view(dt).reshape(a_['count'], comps)
+    cache = {}
+    out = {}
+    for a_ in d['inst']:
+        k = a_[14]
+        if k < 0 or k not in hs: continue
+        n = J['nodes'][a_[0]]
+        if 'mesh' not in n: continue
+        if a_[0] not in cache:
+            ps = []
+            for p in J['meshes'][n['mesh']]['primitives']:
+                mt = J['materials'][p.get('material', 0)]; col = mt.get('pbrMetallicRoughness', {}).get('baseColorFactor', [0.8, 0.8, 0.8, 1])[:3]
+                if mt.get('alphaMode') == 'BLEND' or 'Glass' in mt.get('name', ''): col = [0.55, 0.65, 0.75]
+                ps.append((acc(p['attributes']['POSITION'], 3), acc(p['attributes']['NORMAL'], 3), acc(p['indices'], 1).reshape(-1).astype(np.int64), np.array(col)))
+            cache[a_[0]] = ps
+        pl = d['plots'][k]; cxs = (pl['x0'] + pl['x1']) / 2; czs = (pl['z0'] + pl['z1']) / 2; h = hs[k]
+        Mx = np.array(a_[1:13]).reshape(3, 4); c_, s_ = math.cos(h['yaw']), math.sin(h['yaw'])
+        for (P, N, I, col) in cache[a_[0]]:
+            W_ = P @ Mx[:, :3].T + Mx[:, 3]; Nw = N @ Mx[:, :3].T
+            tx = W_[:, 0] - cxs; tz = W_[:, 2] - czs
+            X = c_ * tx - s_ * tz + h['x']; Z = s_ * tx + c_ * tz + h['z']; Y = W_[:, 1] + h['lvl'] + 0.08
+            NX = c_ * Nw[:, 0] - s_ * Nw[:, 2]; NZ = s_ * Nw[:, 0] + c_ * Nw[:, 2]
+            Pw = np.stack([X, Y, Z], 1)[I].astype(np.float32); Nn = np.stack([NX, Nw[:, 1], NZ], 1)[I]
+            Nn = (Nn / np.maximum(np.linalg.norm(Nn, axis=1, keepdims=True), 1e-6)).astype(np.float32)
+            out.setdefault(k, []).append((Pw, Nn, np.tile(col, (len(I), 1))))
+    for k, l in out.items():
+        P = np.concatenate([q[0] for q in l]); N = np.concatenate([q[1] for q in l]); C = np.clip(np.concatenate([q[2] for q in l]), 0, 1)
+        S.parts.append((P[:, 0].min(), P[:, 2].min(), P[:, 0].max(), P[:, 2].max(), 'liso', P, N, np.zeros((len(P), 2), np.float32), C, np.arange(len(P))))
+
 if __name__ == '__main__':
-    out = sys.argv[1]; S = load()
+    out = sys.argv[1]; S = load(); add_city2_houses(S)
     v = Viewer(S, texdir())
     td = os.path.join(HERE, 'tex')
     for a in sys.argv[2:]:

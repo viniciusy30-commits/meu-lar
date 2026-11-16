@@ -255,7 +255,18 @@ class Lots:
         du = cu + su * (gx - pcx)                                          # portao da cerca (nao a porta): caminho reto ate a calcada
         hh = H6.House.__new__(H6.House); hh.F = F; hh.M = M; hh.B = B; hh.r = r
         # comeca dentro da calcada (rua curva: a borda da calcada nao e reta como a frente do lote) e para na linha da cerca
-        M.at(*F.xz(w / 2, 2), 'lotes'); hh.walkway(du, -1.2, cv - zfront + 0.2, gw + 0.3); hh.mailbox(du - su * 0 - (gw / 2 + 1.0)); M.free('lotes')
+        # frente do lote: calcada ate a cerca (como na Cidade 2), em vez de faixa de grama; caixa de correio ao lado do portao
+        vf = cv - zfront
+        # a faixa vai da borda real da calcada da rua (medida, sem filete de grama e sem sobrepor) ate a linha da cerca
+        from shapely.geometry import Polygon as _Pg
+        front = _Pg(F.rect(0, w, -3.0, vf + 0.15))
+        band = front.difference(self.G.walks.buffer(0.0)).buffer(0)
+        band = band.intersection(_Pg(F.rect(0, w, -3.0, vf + 0.15)))
+        # so a parte que encosta no lote (descarta pedacos soltos do outro lado da calcada)
+        parts = [g for g in getattr(band, 'geoms', [band]) if g.geom_type == 'Polygon' and g.intersects(_Pg(F.rect(0, w, 0.2, vf)))]
+        M.at(*F.xz(w / 2, 2), 'lotes'); M.m('calcada')
+        for g in parts: M.shp(g, Y_WALK, WHITE)
+        hh.mailbox(du - (gw / 2 + 1.0)); M.free('lotes')
         # conferencia: portao do modelo (city2) levado ao mundo pelo mesmo giro do jogo, contra o fim do caminho
         c_, s_ = math.cos(yaw), math.sin(yaw); gzm = (pl['z'] - pcz)
         gwx = cx + c_ * (gx - pcx) - s_ * gzm; gwz = cz + s_ * (gx - pcx) + c_ * gzm
