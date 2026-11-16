@@ -269,7 +269,7 @@ class Props:
         inner = poly.buffer(-2.0)
         zs = np.arange(minz + 1, maxz - 1 + 0.01, 3.0)
         # calcadao do cais
-        walk = LineString([pt(5.0, z) for z in zs]).buffer(4.5, cap_style='flat').intersection(poly)
+        walk = LineString([pt(4.7, z) for z in zs]).buffer(4.9, cap_style='flat').intersection(poly.buffer(0.3))         # encosta na pedra do cais (sem faixa de grama/agua)
         # trilha sinuosa no meio
         ph = r.uniform(0, 6.28)
         um = lambda z: wid(z) * 0.5 + 2 + 5.0 * math.sin(z / 19.0 + ph)
