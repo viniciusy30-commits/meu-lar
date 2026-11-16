@@ -158,7 +158,8 @@ def run(P, G, L, M, assets):
     houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(h['centro'][1] + DY, 3), 'yaw': h['yaw']} for h in L.player]
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
-    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'solid': [], 'solidr': solidr,
+    tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
+    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'solid': [], 'solidr': solidr,
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
     json.dump(js, open(os.path.join(assets, 'c6.json'), 'w'), separators=(',', ':'))
     print(f'  {len(houses)} casas, {len(trees) // 6} arvores do app, {len(solidr) // 8} colisoes')

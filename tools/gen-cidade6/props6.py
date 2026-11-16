@@ -17,19 +17,30 @@ class Props:
         self.P, self.G, self.L, self.M = P, G, L, M
         self.rnd = random.Random(seed)
         self.drives = L.B.drives
-        self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []
+        self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []; self.app_y = []
 
     # ------------------------------------------------------------ arvores
     APP_TREE = {'folhosa': (0, 1), 'oval': (1, 0), 'ornamental': (1,), 'frutifera': (0,), 'conifera': (3,), 'florida': (2,), 'colunar': (3,)}
 
+    # arbustos e flores: no jogo viram os modelos com textura do proprio app (assets/flora): 4 bush_a, 5 bush_b,
+    # 6 bush_pink, 7 bush_white, 8 hedge, 9..13 flores (daisy, tulip, lav, poppy, yellow)
+    APP_PLANT = {'arbusto': ((4, 5, 4, 6, 7), 0.9), 'buxo': ((4, 8), 0.7), 'flores': ((9, 10, 11, 12, 13), 1.25)}
+
     def tree(self, x, z, kind='folhosa', sc=1.0, y=Y_LAWN, lod=1):
-        """arvores comuns vao para a camada 'arvores' (no jogo viram as arvores modeladas do proprio app: lista app_trees);
-        palmeiras, floridas, colunares, arbustos, flores e cercas vivas ficam na camada 'vegetacao' (malha propria)"""
+        """arvores comuns, arbustos e flores vao para a lista do jogo (app_trees + app_y): la viram a arvore da Cidade 2 e os
+        modelos de arbusto/flor do app. No GLB continuam com a malha propria (camadas 'arvores' e 'arbustos').
+        Palmeiras ficam na camada 'vegetacao' (malha propria tambem no jogo)."""
         mata = getattr(self, 'layer_tree', None) == 'mata'
         if kind in self.APP_TREE:
             layer = 'mata' if mata else 'arvores'
             sp = self.rnd.choice(self.APP_TREE[kind])
             self.app_trees.append([round(x, 1), round(z, 1), sp, round(sc * (0.62 if kind in ('ornamental', 'frutifera') else 1.0), 2), round(self.rnd.uniform(0, 6.28), 2), round(self.rnd.random(), 2)])
+            self.app_y.append(round(y, 2))
+        elif kind in self.APP_PLANT:
+            layer = 'arbustos'
+            ids, f = self.APP_PLANT[kind]
+            self.app_trees.append([round(x, 1), round(z, 1), self.rnd.choice(ids), round(sc * f, 2), round(self.rnd.uniform(0, 6.28), 2), round(self.rnd.random(), 2)])
+            self.app_y.append(round(y, 2))
         else: layer = 'vegetacao'
         PL.tree(self.M, self.rnd, x, z, kind, sc, y, layer, 0 if mata else lod)
         self.ntrees += 1

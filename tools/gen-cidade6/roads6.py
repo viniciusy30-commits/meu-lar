@@ -5,7 +5,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point, Polygon, box as sbox
 from shapely.ops import unary_union
-from mesh import rgb, shade, mix, WHITE
+from mesh import rgb, shade, mix, WHITE, Frame
 from plan6 import *
 
 Y_ASF = 0.03          # asfalto
@@ -160,7 +160,7 @@ class Ground:
             M.m('metal'); rail = rgb('#3E4247')
             for k in range(len(sec) - 1):
                 zm = (zs[k] + zs[k + 1]) / 2
-                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
+                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span + getattr(self, 'rail_skip', [])): continue
                 pa = sec[k][1] if sgn > 0 else sec[k][0]; pb = sec[k + 1][1] if sgn > 0 else sec[k + 1][0]
                 M.quad((pa[0], 1.05, pa[1]), (pb[0], 1.05, pb[1]), (pb[0], 1.15, pb[1]), (pa[0], 1.15, pa[1]), rail, (sgn, 0, 0))
                 M.quad((pa[0], 0.62, pa[1]), (pb[0], 0.62, pb[1]), (pb[0], 0.68, pb[1]), (pa[0], 0.68, pa[1]), rail, (sgn, 0, 0))
@@ -283,6 +283,7 @@ class Ground:
             for (s, rr, j) in self.nodes_on[i]:
                 if j < 0: continue
                 other = P.roads[j]
+                if r.get('cul') or other.get('cul'): continue        # rua sem saida (retorno): sem faixa de pedestre nem retencao
                 for sg in (-1, 1):
                     sc = s + sg * (half_row(other['kind']) + 1.5)       # faixa de pedestre logo apos a calcada da transversal
                     if sc < 4 or sc > L - 4: continue
@@ -328,24 +329,45 @@ class Ground:
                 for zp in np.linspace(z - hw + 2, z + hw - 2, 3):
                     M.cyl(xp, zp, 0.9, -3.6, -0.7, rgb('#A9A397'), 10)
             M.free()
-        # ponte de pedestre (arco) no Parque Ribeirinho
-        z = self.P.footbridge[0]; xa = river_x(z) - RIVER_W / 2 - RIVER_WALL - 1; xb = river_x(z) + RIVER_W / 2 + RIVER_WALL + 1
-        M.at((xa + xb) / 2, z, 'ruas'); M.m('madeira')
-        n = 16
+        # ponte de pedestre (arco de madeira) no Parque Ribeirinho: perpendicular ao rio, apoiada no calcadao das duas margens
+        fz = self.P.footbridge[0]
+        cx = river_x(fz); dx = (river_x(fz + 2.0) - river_x(fz - 2.0)) / 4.0
+        L_ = math.hypot(1.0, dx); ax, az = 1.0 / L_, -dx / L_                 # direcao da travessia (perpendicular ao eixo do rio)
+        F = Frame((cx, fz), (ax, az))
+        half = RIVER_W / 2 + RIVER_WALL + 1.6; hw = 1.7; y0 = Y_LAWN + 0.06; rise = 1.7
+        self.rail_skip = [(fz - hw - 1.2, fz + hw + 1.2)]                     # o guarda-corpo do cais abre na entrada da ponte
+        M.at(cx, fz, 'ruas'); n = 28
+        wood, dark, white = rgb('#A47A52'), rgb('#6E5036'), rgb('#F2F0EA')
+        yy = lambda t: y0 + rise * math.sin(math.pi * t)
         for k in range(n):
             t0, t1 = k / n, (k + 1) / n
-            x0, x1 = xa + (xb - xa) * t0, xa + (xb - xa) * t1
-            y0, y1 = 0.2 + 2.2 * math.sin(math.pi * t0), 0.2 + 2.2 * math.sin(math.pi * t1)
-            M.quad((x0, y0, z - 2), (x1, y1, z - 2), (x1, y1, z + 2), (x0, y0, z + 2), rgb('#A47A52'), (0, 1, 0))
-            M.quad((x0, y0 - 0.4, z + 2), (x1, y1 - 0.4, z + 2), (x1, y1 - 0.4, z - 2), (x0, y0 - 0.4, z - 2), rgb('#7A5A3C'), (0, -1, 0))
+            u0, u1 = -half + 2 * half * t0, -half + 2 * half * t1
+            a0, a1 = yy(t0), yy(t1)
+            M.m('madeira')
+            M.quad(F.p(u0, -hw, a0), F.p(u1, -hw, a1), F.p(u1, hw, a1), F.p(u0, hw, a0), wood, (0, 1, 0))                     # tabuas
+            M.quad(F.p(u0, hw, a0 - 0.32), F.p(u1, hw, a1 - 0.32), F.p(u1, -hw, a1 - 0.32), F.p(u0, -hw, a0 - 0.32), dark, (0, -1, 0))
             for sg in (-1, 1):
-                M.quad((x0, y0 - 0.4, z + sg * 2), (x1, y1 - 0.4, z + sg * 2), (x1, y1, z + sg * 2), (x0, y0, z + sg * 2), rgb('#7A5A3C'), (0, 0, sg))
-                M.quad((x0, y0 + 1.0, z + sg * 1.95), (x1, y1 + 1.0, z + sg * 1.95), (x1, y1 + 1.1, z + sg * 1.95), (x0, y0 + 1.1, z + sg * 1.95), rgb('#F2F0EA'), (0, 0, sg))
-                M.box(x0 - 0.05, x0 + 0.05, y0, y0 + 1.05, z + sg * 1.95 - 0.05, z + sg * 1.95 + 0.05, rgb('#F2F0EA'))
-            # arco branco por baixo
-            ya0, ya1 = -0.8 + 2.6 * math.sin(math.pi * t0), -0.8 + 2.6 * math.sin(math.pi * t1)
-            for sg in (-1, 1):
-                M.box(min(x0, x1), max(x0, x1), min(ya0, ya1) - 0.15, max(ya0, ya1) + 0.15, z + sg * 1.7 - 0.15, z + sg * 1.7 + 0.15, rgb('#F2F0EA'))
+                v = sg * hw
+                M.quad(F.p(u0, v, a0 - 0.32), F.p(u1, v, a1 - 0.32), F.p(u1, v, a1), F.p(u0, v, a0), dark, F.nv(sg))         # testeira
+                # viga curva por baixo (arco), dos dois lados
+                b0, b1 = a0 - 0.32 - 0.5 * math.sin(math.pi * t0) ** 0.5 * 0.0, a1 - 0.32
+                M.m('madeira')
+                M.quad(F.p(u0, v - sg * 0.15, a0 - 0.32), F.p(u1, v - sg * 0.15, a1 - 0.32), F.p(u1, v - sg * 0.15, a1 - 0.62), F.p(u0, v - sg * 0.15, a0 - 0.62), dark, F.nv(sg))
+                M.quad(F.p(u0, v - sg * 0.45, a0 - 0.62), F.p(u1, v - sg * 0.45, a1 - 0.62), F.p(u1, v - sg * 0.45, a1 - 0.32), F.p(u0, v - sg * 0.45, a0 - 0.32), dark, F.nv(-sg))
+                M.quad(F.p(u0, v - sg * 0.45, a0 - 0.62), F.p(u0, v - sg * 0.15, a0 - 0.62), F.p(u1, v - sg * 0.15, a1 - 0.62), F.p(u1, v - sg * 0.45, a1 - 0.62), dark, (0, -1, 0))
+                # corrimao continuo (branco) e balaustres
+                M.m('liso'); vr = sg * (hw - 0.06)
+                M.quad(F.p(u0, vr, a0 + 1.0), F.p(u1, vr, a1 + 1.0), F.p(u1, vr, a1 + 1.1), F.p(u0, vr, a0 + 1.1), white, F.nv(sg))
+                M.quad(F.p(u0, vr - 0.06, a0 + 1.1), F.p(u1, vr - 0.06, a1 + 1.1), F.p(u1, vr + 0.06, a1 + 1.1), F.p(u0, vr + 0.06, a0 + 1.1), white, (0, 1, 0))
+                M.quad(F.p(u0, vr, a0 + 0.45), F.p(u1, vr, a1 + 0.45), F.p(u1, vr, a1 + 0.52), F.p(u0, vr, a0 + 0.52), white, F.nv(sg))
+                if k % 2 == 0 or k == n - 1:
+                    for (uu, aa) in ((u0, a0),) + (((u1, a1),) if k == n - 1 else ()):
+                        M.prism(F.rect(uu - 0.05, uu + 0.05, vr - 0.05, vr + 0.05), aa, aa + 1.1, white)
+        # apoios de pedra nas duas cabeceiras (sobre o cais)
+        M.m('pedra')
+        for su in (-1, 1):
+            uc = su * (RIVER_W / 2 + RIVER_WALL / 2)
+            M.prism(F.rect(uc - 1.4, uc + 1.4, -hw - 0.2, hw + 0.2), -0.6, yy((uc + half) / (2 * half)) - 0.32, rgb('#B9B3A8'))
         M.free()
 
     def build(self):

@@ -363,7 +363,7 @@ object Relevo {
                 houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat(), o.optDouble("yaw", 0.0).toFloat())
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
-            bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree")   // Etapa 184: população (gen_pop.py)
+            bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
@@ -748,6 +748,9 @@ object Relevo {
     private var lampA = FloatArray(0)   // 4 por poste: x, z, ang, tipo
     private var hydA = FloatArray(0)    // 2 por hidrante
     private var treeA = FloatArray(0)   // 6 por árvore: x, z, espécie, escala, giro, tom
+    private var treeY = FloatArray(0)   // Cidade 6: altura do chão de cada planta (canteiro, calçada, gramado); vazio = relevo
+    /** Cidade 6: espécies 4.. são arbustos e flores (modelos de assets/flora) */
+    private val PLANT6 = arrayOf("bush_a", "bush_b", "bush_pink", "bush_white", "hedge", "fl_daisy", "fl_tulip", "fl_lav", "fl_poppy", "fl_yellow")
 
     private val FAC_HOUSE = intArrayOf(C("#F2E3C6"), C("#E8C9A0"), C("#D9E4EA"), C("#EBD3D0"), C("#CFE0C8"), C("#F4EEDC"), C("#E3D0B5"), C("#F0DDB0"))
     private val FAC_APT = intArrayOf(C("#D8D2C8"), C("#C9C3B8"), C("#E0C9B0"), C("#BFC8CE"), C("#D6BFB0"), C("#CBB8A4"), C("#E4DDD0"))
@@ -971,9 +974,23 @@ object Relevo {
             return
         }
         val t = best ?: return
-        if (City.C6 && tree6.isNotEmpty()) {   // Cidade 6: o modelo inteiro da árvore da Cidade 2
-            val m = tree6Mesh(t.data)
-            if (m != null) { t.rich = m; t.chunk.near = m }
+        if (City.C6) {   // Cidade 6: o modelo inteiro da árvore da Cidade 2 + arbustos e flores modelados (assets/flora)
+            val parts = ArrayList<Part>()
+            if (tree6.isNotEmpty()) parts.addAll(tree6Parts(t.data))
+            val fl = Flora.Batch(); fl.fixedY = 0f; var any = false
+            var i = 0
+            while (i + 6 < t.data.size) {
+                val sp = t.data[i].toInt()
+                if (sp >= 4) {
+                    val k = t.data[i + 6]; val f = 0.9f + 0.2f * k
+                    fl.place(PLANT6[(sp - 4).coerceIn(0, PLANT6.size - 1)], t.data[i + 1].toDouble(), t.data[i + 2].toDouble(), t.data[i + 3].toDouble(), t.data[i + 4].toDouble(), t.data[i + 5].toDouble(), f, f, f)
+                    any = true
+                }
+                i += 7
+            }
+            if (any) parts.addAll(fl.build())
+            val m = if (parts.isNotEmpty()) Mesh(parts).gpuOnly() else MB().toMesh(true)
+            t.rich = m; t.chunk.near = m
             return
         }
         val fl = Flora.Batch(); fl.fixedY = 0f
@@ -1023,23 +1040,36 @@ object Relevo {
 
     private fun tint6(sp: Int, k: Float): FloatArray { val t = TINT6[sp]; val f = 0.86f + 0.26f * k; return floatArrayOf(t[0] * f, t[1] * f, t[2] * f) }
 
-    /** versão de longe: três cartões verticais cruzados (60°) com a textura de folhas do modelo (a imagem já é uma árvore inteira) */
+    /** versão de longe: tronco de verdade (prisma com a casca) + três cartões cruzados (60°) só com a copa da textura de folhas
+     *  (a parte de baixo da imagem, com o galho, fica de fora: senão cada cartão mostrava um tronco e viravam três em estrela) */
     private fun tree6Cards(b: MB, px: Float, py: Float, pz: Float, sp: Int, s: Float, ry: Float, k: Float) {
         val leaf = tree6.firstOrNull { it.mat == Mt.TREE6_LEAF } ?: return
         val t = tint6(sp, k)
         val col = android.graphics.Color.rgb((leaf.r * t[0] * 255f).toInt().coerceIn(0, 255), (leaf.g * t[1] * 255f).toInt().coerceIn(0, 255), (leaf.b * t[2] * 255f).toInt().coerceIn(0, 255))
-        val hh = tree6H * SP6[sp * 2 + 1] * s * 1.04f; val w = tree6R * SP6[sp * 2] * s * 0.95f
+        val sx = SP6[sp * 2] * s; val sy = SP6[sp * 2 + 1] * s
+        val y0 = py + 2.6f * sy; val hh = tree6H * sy * 1.02f; val w = tree6R * sx * 0.92f
+        // tronco: 6 lados, da base até dentro da copa
+        val tr = 0.5f * sx; val ty1 = py + 5.2f * sy; val tc = android.graphics.Color.rgb(205, 200, 195)
+        b.m(Mt.TREE6_BARK, 1f)
+        for (j in 0 until 6) {
+            val a0 = ry + j * (Math.PI / 3).toFloat(); val a1 = a0 + (Math.PI / 3).toFloat(); val am = (a0 + a1) / 2f
+            val x0 = px + cos(a0) * tr; val z0 = pz + sin(a0) * tr; val x1 = px + cos(a1) * tr; val z1 = pz + sin(a1) * tr
+            val nx = cos(am); val nz = sin(am); val u0 = j / 6f; val u1 = (j + 1) / 6f; val vt = (ty1 - py) / 2f
+            b.v(x0, py, z0, nx, 0f, nz, tc, u0, vt); b.v(x1, py, z1, nx, 0f, nz, tc, u1, vt); b.v(x1, ty1, z1, nx, 0f, nz, tc, u1, 0f)
+            b.v(x0, py, z0, nx, 0f, nz, tc, u0, vt); b.v(x1, ty1, z1, nx, 0f, nz, tc, u1, 0f); b.v(x0, ty1, z0, nx, 0f, nz, tc, u0, 0f)
+        }
         b.m(Mt.TREE6_LEAF, 1f)
+        val vb = 0.86f
         for (j in 0 until 3) {
             val a = ry + j * (Math.PI / 3).toFloat(); val c = cos(a) * w; val sn = sin(a) * w
             val x0 = px - c; val z0 = pz - sn; val x1 = px + c; val z1 = pz + sn
-            b.v(x0, py, z0, 0f, 1f, 0f, col, 0f, 1f); b.v(x1, py, z1, 0f, 1f, 0f, col, 1f, 1f); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f)
-            b.v(x0, py, z0, 0f, 1f, 0f, col, 0f, 1f); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f); b.v(x0, py + hh, z0, 0f, 1f, 0f, col, 0f, 0f)
+            b.v(x0, y0, z0, 0f, 1f, 0f, col, 0f, vb); b.v(x1, y0, z1, 0f, 1f, 0f, col, 1f, vb); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f)
+            b.v(x0, y0, z0, 0f, 1f, 0f, col, 0f, vb); b.v(x1, py + hh, z1, 0f, 1f, 0f, col, 1f, 0f); b.v(x0, py + hh, z0, 0f, 1f, 0f, col, 0f, 0f)
         }
     }
 
     /** versão de perto: o modelo inteiro para cada árvore de [d] (7 floats: espécie, x, y, z, escala, giro, variação) */
-    private fun tree6Mesh(d: FloatArray): Mesh? {
+    private fun tree6Parts(d: FloatArray): List<Part> {
         val parts = ArrayList<Part>()
         for (tp in tree6) {
             val per = max(1, 65000 / tp.nv)
@@ -1056,6 +1086,7 @@ object Relevo {
             }
             var i = 0
             while (i + 6 < d.size) {
+                if (d[i] >= 4f) { i += 7; continue }   // arbustos e flores: Flora
                 if (nv + tp.nv > 65000) flush()
                 val sp = d[i].toInt().coerceIn(0, 3); val x = d[i + 1]; val y = d[i + 2]; val z = d[i + 3]; val s = d[i + 4]; val ry = d[i + 5]; val k = d[i + 6]
                 val sx = SP6[sp * 2] * s; val sy = SP6[sp * 2 + 1] * s; val cs = cos(ry); val sn = sin(ry)
@@ -1077,7 +1108,7 @@ object Relevo {
             }
             flush()
         }
-        return if (parts.isEmpty()) null else Mesh(parts).gpuOnly()
+        return parts
     }
 
     private fun tree(b: MB, px: Float, py: Float, pz: Float, s: Float, col: Int) {
@@ -1372,14 +1403,18 @@ object Relevo {
             val tdata = ArrayList<Float>()   // Etapa 183b: árvores modeladas do HDS, montadas só perto do jogador (cada uma tem ~7 mil vértices)
             for (k in tl) {
                 val o = k * 6
-                val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp = treeA[o + 2].toInt().coerceIn(0, 3); val sc = treeA[o + 3]
-                val h = groundH(px, pz)
+                val px = treeA[o] + CX; val pz = treeA[o + 1] + CZ; val sp0 = treeA[o + 2].toInt(); val sp = sp0.coerceIn(0, 3); val sc = treeA[o + 3]
+                val h = if (City.C6 && k < treeY.size) treeY[k] + 0.05f else groundH(px, pz)   // Cidade 6: altura real do canteiro/gramado
                 if (h < 1.0f && !City.C6) continue   // Cidade 6: a cidade inteira fica perto do nível do mar
+                if (City.C6 && sp0 >= 4) {   // arbusto/flor: só o modelo de perto (pequeno demais para aparecer de longe)
+                    tdata.add(sp0.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
+                    continue
+                }
                 if (City.C6 && tree6.isNotEmpty()) tree6Cards(tb, px, h - 0.05f, pz, sp, sc, treeA[o + 4], treeA[o + 5])   // Cidade 6: árvore da Cidade 2, de longe
                 else tree(tb, px, h - 0.05f, pz, sc * 0.9f, TREE_COL[sp])   // versão leve
                 tdata.add(sp.toFloat()); tdata.add(px); tdata.add(h - 0.05f); tdata.add(pz); tdata.add(sc); tdata.add(treeA[o + 4]); tdata.add(treeA[o + 5])
             }
-            if (!tb.isEmpty() && tdata.isNotEmpty()) { trees[qj * sc2 + qi] = tb.toMesh(true).gpuOnly(); tdArr[qj * sc2 + qi] = tdata.toFloatArray(); anyTree = true }
+            if (tdata.isNotEmpty() && (!tb.isEmpty() || City.C6)) { trees[qj * sc2 + qi] = tb.toMesh(true).gpuOnly(); tdArr[qj * sc2 + qi] = tdata.toFloatArray(); anyTree = true }
         }
         return CellRes(g0, idx, terrain, if (anyTree) trees else null, if (anyTree) tdArr else null)
     }
