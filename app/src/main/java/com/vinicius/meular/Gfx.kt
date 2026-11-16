@@ -58,9 +58,12 @@ object Mt {
     /** Cidade 6: materiais com textura própria (assets/hds/c6tex/NOME.jpg), na ordem de C6_NAMES (igual a tools/gen-cidade6/app_export6.py) */
     const val C6 = 26
     val C6_NAMES = arrayOf("agua", "areia", "asfalto", "calcada", "casca", "cascalho", "ceramica", "cerca", "classica", "concreto", "escritorio", "folhagem", "garagem", "grama", "janela", "janelas", "madeira", "metal", "moderna", "ondas", "paver", "pedra", "porta", "quadra", "reboco", "siding", "telha", "terreno", "tijolo", "vidro", "vitrine")
-    const val COUNT = 57   // 26 + 31 materiais da Cidade 6
-    fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB || m == BLOSSOM
-    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f, 0.70f, 0.0f) + FloatArray(31) { 0.04f }
+    /** Cidade 6: folhas e casca da árvore da Cidade 2 (álamo do city2.glb), em assets/hds/c6tex/arvore_*.png */
+    const val TREE6_LEAF = 57
+    const val TREE6_BARK = 58
+    const val COUNT = 59   // 26 + 31 materiais da Cidade 6 + 2 da árvore
+    fun isLeaf(m: Int) = m == LEAF || m == LEAF2 || m == LEAFB || m == BLOSSOM || m == TREE6_LEAF
+    val SPEC = floatArrayOf(0.05f, 0.35f, 0.40f, 0.75f, 0.05f, 0.02f, 0.25f, 0.0f, 0.0f, 0.10f, 0.0f, 0.85f, 0.9f, 0.08f, 0.12f, 0.04f, 0.45f, 0.10f, 0.0f, 0.0f, 0.03f, 0.0f, 0.30f, 0.08f, 0.70f, 0.0f) + FloatArray(33) { 0.04f }
 }
 
 /** Pedaço de malha. Sem [idx]: triângulos soltos (glDrawArrays). Com [idx]: malha indexada (glDrawElements, [icount] índices). */
@@ -510,9 +513,10 @@ object Tex {
 
     /** Cidade 6: textura do material m (JPEG de 512 px em assets/hds/c6tex) */
     private fun c6Tex(m: Int): Bitmap? {
-        val n = Mt.C6_NAMES.getOrNull(m - Mt.C6) ?: return null
+        val n = when (m) { Mt.TREE6_LEAF -> "arvore_folhas.png"; Mt.TREE6_BARK -> "arvore_casca.png"; else -> (Mt.C6_NAMES.getOrNull(m - Mt.C6) ?: return null) + ".jpg" }
         val am = Glb.assets ?: return null
-        return try { am.open("hds/c6tex/$n.jpg").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { android.util.Log.w("Tex", "c6tex/$n: $e"); null }
+        val opt = android.graphics.BitmapFactory.Options().apply { inPremultiplied = false }
+        return try { am.open("hds/c6tex/$n").use { android.graphics.BitmapFactory.decodeStream(it, null, opt) } } catch (e: Exception) { android.util.Log.w("Tex", "c6tex/$n: $e"); null }
     }
     private var c6Loaded = false
     /** chamado na thread GL ao trocar de mapa: carrega as texturas da Cidade 6 só quando ela é escolhida */
@@ -521,9 +525,15 @@ object Tex {
         for (m in Mt.C6 until Mt.COUNT) {
             val bmp = c6Tex(m) ?: continue
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[m])
-            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
-            GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            if (Mt.isLeaf(m)) uploadCoverageMips(bmp, 0.5f)
+            else {
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+                GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            }
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+            val wrap = if (m == Mt.TREE6_LEAF) GLES20.GL_CLAMP_TO_EDGE else GLES20.GL_REPEAT
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrap)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrap)
             bmp.recycle()
         }
         c6Loaded = true
@@ -550,8 +560,9 @@ object Tex {
             }
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, if (small) GLES20.GL_LINEAR else GLES20.GL_LINEAR_MIPMAP_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
-            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
+            val wrap = if (m == Mt.TREE6_LEAF && !small) GLES20.GL_CLAMP_TO_EDGE else GLES20.GL_REPEAT
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrap)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrap)
             bmp.recycle()
         }
     }

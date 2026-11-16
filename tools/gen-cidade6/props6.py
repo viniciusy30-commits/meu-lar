@@ -20,7 +20,7 @@ class Props:
         self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []
 
     # ------------------------------------------------------------ arvores
-    APP_TREE = {'folhosa': (0, 1), 'oval': (1, 0), 'ornamental': (1,), 'frutifera': (0,), 'conifera': (3,)}
+    APP_TREE = {'folhosa': (0, 1), 'oval': (1, 0), 'ornamental': (1,), 'frutifera': (0,), 'conifera': (3,), 'florida': (2,), 'colunar': (3,)}
 
     def tree(self, x, z, kind='folhosa', sc=1.0, y=Y_LAWN, lod=1):
         """arvores comuns vao para a camada 'arvores' (no jogo viram as arvores modeladas do proprio app: lista app_trees);

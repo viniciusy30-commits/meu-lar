@@ -57,8 +57,8 @@ def export(P, G, L, M, out=OUT, texdir=None, single=True):
     print(f'tiles: {len(man["tiles"])} arquivos, {tot} triangulos, {sum(t["bytes"] for t in man["tiles"]) / 1e6:.1f} MB')
     if single:
         mk = [(f"CasaJogador_{h['k'] + 1:02d}_{h['modelo']}", tuple(h['centro']), h['yaw']) for h in L.player]
-        # GLB unico em duas partes (cada uma < 100 MB): construcoes/chao e vegetacao + parques
-        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario', 'vegetacao', 'arvores', 'mata', 'parques')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'mata', 'parques'))):
+        # GLB unico em duas partes (cada uma < 100 MB): ruas/construcoes e vegetacao + parques + terreno/agua/orla
+        for (fname, keep) in (('cidade6_completa.glb', lambda lay: lay not in ('carros', 'mobiliario') + ('vegetacao', 'arvores', 'mata', 'parques', 'terreno', 'agua', 'orla')), ('cidade6_vegetacao.glb', lambda lay: lay in ('vegetacao', 'arvores', 'mata', 'parques', 'terreno', 'agua', 'orla'))):
             spec = []
             for (ti, tj), lays in sorted(tiles.items()):
                 for lay, mats in sorted(lays.items()):
@@ -87,3 +87,4 @@ if __name__ == '__main__':
         import app_export6
         print('exportando para o jogo (assets/hds/c6*)...')
         app_export6.run(P, G, L, M, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'app', 'src', 'main', 'assets', 'hds'))
+        import tree_export6; tree_export6.run()          # arvore da Cidade 2 (c6_tree.bin + c6tex/arvore_*.png)

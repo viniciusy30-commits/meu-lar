@@ -2,7 +2,7 @@
 <script type="module">
 import * as THREE from './three.module.min.js';
 const texCache={};
-async function tex(name){ if(!texCache[name]){ const t=await new THREE.TextureLoader().loadAsync('tex/'+name+'.jpg'); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.flipY=false; t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; texCache[name]=t;} return texCache[name]; }
+async function tex(name){ if(!texCache[name]){ const t=await new THREE.TextureLoader().loadAsync('tex/'+name+(name.startsWith('arvore')?'.png':'.jpg')); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.flipY=false; t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; texCache[name]=t;} return texCache[name]; }
 window.render = async function(opt){
   const W=opt.w||1280,H=opt.h||720;
   const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(W,H); r.setPixelRatio(1);
@@ -16,7 +16,7 @@ window.render = async function(opt){
     for(let i=0;i<n;i++){const o=i*11; P[i*3]=f[o];P[i*3+1]=f[o+1];P[i*3+2]=f[o+2];N[i*3]=f[o+3];N[i*3+1]=f[o+4];N[i*3+2]=f[o+5];C[i*3]=f[o+6];C[i*3+1]=f[o+7];C[i*3+2]=f[o+8];U[i*2]=f[o+9];U[i*2+1]=f[o+10];}
     const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setAttribute('normal',new THREE.BufferAttribute(N,3));
     g.setAttribute('color',new THREE.BufferAttribute(C,3)); g.setAttribute('uv',new THREE.BufferAttribute(U,2));
-    const m=new THREE.MeshLambertMaterial({map:await tex(gdef.tex),vertexColors:true,side:opt.front?THREE.FrontSide:THREE.DoubleSide});
+    const m=new THREE.MeshLambertMaterial({map:await tex(gdef.tex),vertexColors:true,side:opt.front?THREE.FrontSide:THREE.DoubleSide,alphaTest:gdef.tex==='arvore_folhas'?0.5:0});
     sc.add(new THREE.Mesh(g,m));
   }
   const dd=Math.hypot(opt.eye[0]-opt.at[0],opt.eye[1]-opt.at[1],opt.eye[2]-opt.at[2]);
