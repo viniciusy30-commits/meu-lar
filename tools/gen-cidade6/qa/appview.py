@@ -38,7 +38,7 @@ def load():
                 S.parts.append((i0 * g, j0 * g, i1 * g, j1 * g, 'agua', Pw, np.tile(np.array([[0, 1, 0]], np.float32), (len(Pw), 1)), (Pw[:, [0, 2]] / 14.0).astype(np.float32), np.tile(np.array([[0.75, 0.86, 0.92]]), (len(Pw), 1)), np.arange(len(Pw))))
     dt = np.dtype([('p', '<i2', 3), ('n', 'i1', 3), ('uv', '<f4', 2), ('c', 'u1', 3)])
     names = {0: 'liso'}; names.update({AE.MAT_BASE + i: m for i, m in enumerate(AE.MAT_ORDER)})
-    for fn in AE.FILES:
+    for fn in list(AE.FILES) + ['c6_bld2.bin']:
         b = open(os.path.join(A, fn), 'rb').read(); n = struct.unpack_from('<i', b, 4)[0]; o = 8
         for _ in range(n):
             cell, mat, nv, ymax = struct.unpack_from('<iiif', b, o); o += 16

@@ -1447,7 +1447,7 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ Etapa 143: profissões
 
-    private fun lugarDe(j: Jobs.Job): City.Place? = City.places.firstOrNull { it.name == j.place }
+    private fun lugarDe(j: Jobs.Job): City.Place? = City.places.firstOrNull { it.name == j.place } ?: Relevo.jobPl.firstOrNull { it.name == j.place }
         ?: Town.urban.firstOrNull { it.type == "job:" + j.id }?.let { City.Place(j.place, (it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2, 0, 'T') }
     private fun distAte(j: Jobs.Job): Float { val p = lugarDe(j) ?: return Float.MAX_VALUE; return kotlin.math.hypot(p.x - game.r.px, p.z - game.r.pz) }
     private fun moeda(v: Long) = "R$ " + String.format(java.util.Locale("pt", "BR"), "%,d", v)
