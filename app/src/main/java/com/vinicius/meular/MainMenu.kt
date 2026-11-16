@@ -26,9 +26,9 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Etapa 124: menu inicial no estilo da tela "Home" do The Sims 4:
- * sala ilustrada em tons de azul, o personagem de corpo inteiro sobre o tapete redondo, logo com plumbob,
- * abas no topo, menu à esquerda com faixa de destaque, cartões de novidades à direita e versão no canto.
+ * Menu inicial e tela de carregamento com identidade própria do Meu Lar: a cidade à beira-mar ilustrada no
+ * fim da tarde (céu em degradê, sol, nuvens andando, prédios com janelas acesas, morros, farol girando a luz,
+ * coqueiros e ondas na praia), logo com a casinha, menu único à esquerda e o personagem no centro sobre um pedestal.
  */
 object MenuPal {
     const val BG = 0xFF5CB6DA.toInt()
@@ -45,185 +45,359 @@ object MenuPal {
     val BLACK: Typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
 }
 
-/** A sala desenhada (fica guardada num bitmap; só redesenha se mudar o tamanho). */
-class RoomArt(ctx: Context) : View(ctx) {
+
+/** Cena da cidade à beira-mar (parte fixa guardada em bitmap; nuvens, ondas, luz do farol e gaivotas animadas). */
+class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
     private var cache: Bitmap? = null
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
+    private val t0 = System.nanoTime()
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) { cache?.recycle(); cache = null }
 
-    override fun onDraw(c: Canvas) {
-        val w = width; val h = height
-        if (w <= 0 || h <= 0) return
-        var bmp = cache
-        if (bmp == null) { bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); paint(Canvas(bmp), w.toFloat(), h.toFloat()); cache = bmp }
-        c.drawBitmap(bmp, 0f, 0f, null)
+    private fun fill(c: Int) { p.shader = null; p.style = Paint.Style.FILL; p.color = c; p.maskFilter = null }
+    private fun lerp(a: Int, b: Int, t: Float): Int {
+        val k = t.coerceIn(0f, 1f)
+        return Color.argb(255, ((a shr 16 and 255) + ((b shr 16 and 255) - (a shr 16 and 255)) * k).toInt(), ((a shr 8 and 255) + ((b shr 8 and 255) - (a shr 8 and 255)) * k).toInt(), ((a and 255) + ((b and 255) - (a and 255)) * k).toInt())
     }
-
-    private fun fill(c: Int) { p.shader = null; p.style = Paint.Style.FILL; p.color = c }
-    private fun stroke(c: Int, wd: Float) { p.shader = null; p.style = Paint.Style.STROKE; p.color = c; p.strokeWidth = wd; p.strokeCap = Paint.Cap.ROUND }
-
-    private fun leaf(c: Canvas, x: Float, y: Float, len: Float, ang: Float, col: Int) {
-        c.save(); c.translate(x, y); c.rotate(ang)
-        fill(col)
-        path.reset(); path.moveTo(0f, 0f); path.quadTo(len * 0.5f, -len * 0.32f, len, 0f); path.quadTo(len * 0.5f, len * 0.32f, 0f, 0f); path.close()
-        c.drawPath(path, p)
-        c.restore()
-    }
-
-    private fun plantTuft(c: Canvas, x: Float, y: Float, s: Float, col: Int) {
-        for (k in 0 until 9) {
-            val a = -150f + k * 15f
-            leaf(c, x, y, s * (0.7f + 0.3f * ((k * 37) % 5) / 4f), a, col)
-        }
-    }
-
-    private fun paint(c: Canvas, w: Float, h: Float) {
-        val u = min(w, h * 1.9f) / 100f   // unidade proporcional
-        val cx = w * 0.47f
-        // parede em degradê com faixa curva clara (como o "teto" do TS4)
-        p.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(MenuPal.BG2, MenuPal.BG, MenuPal.MID), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
-        c.drawRect(0f, 0f, w, h, p)
-        stroke(0x33FFFFFF, u * 0.5f)
-        c.drawArc(RectF(-w * 0.3f, h * 0.12f, w * 1.3f, h * 1.2f), 180f, 180f, false, p)
-        stroke(0x22FFFFFF, u * 0.35f)
-        c.drawArc(RectF(-w * 0.25f, h * 0.19f, w * 1.25f, h * 1.3f), 180f, 180f, false, p)
-        // piso: mancha irregular mais escura
-        fill(MenuPal.MID)
-        path.reset()
-        path.moveTo(w * 0.18f, h * 0.70f)
-        path.cubicTo(w * 0.22f, h * 0.60f, w * 0.70f, h * 0.58f, w * 0.78f, h * 0.68f)
-        path.cubicTo(w * 0.86f, h * 0.78f, w * 0.80f, h * 0.98f, w * 0.62f, h * 1.02f)
-        path.lineTo(w * 0.24f, h * 1.02f)
-        path.cubicTo(w * 0.10f, h * 0.96f, w * 0.12f, h * 0.78f, w * 0.18f, h * 0.70f)
-        c.drawPath(path, p)
-        // janelas em arco (3) + janela oval à direita, com plantas e sol dentro
-        val wy0 = h * 0.24f; val wy1 = h * 0.58f
-        val arches = floatArrayOf(cx - u * 13f, cx, cx + u * 13f)
-        for ((i, ax) in arches.withIndex()) {
-            val aw = u * (if (i == 1) 11f else 9.5f); val top = if (i == 1) wy0 - u * 3f else wy0
-            val r = RectF(ax - aw / 2, top, ax + aw / 2, wy1)
-            fill(MenuPal.DARK); c.drawRoundRect(RectF(r.left - u * 0.6f, r.top - u * 0.6f, r.right + u * 0.6f, r.bottom + u * 0.4f), aw / 2 + u * 0.6f, aw / 2 + u * 0.6f, p)
-            fill(MenuPal.WHITE); c.drawRoundRect(r, aw / 2, aw / 2, p)
-            c.save(); c.clipRect(r)
-            fill(MenuPal.PALE); c.drawRect(r.left, r.bottom - (r.height() * 0.32f), r.right, r.bottom, p)
-            when (i) {
-                0 -> { plantTuft(c, ax - u * 1.5f, r.bottom - u * 2f, u * 5f, MenuPal.DARK); plantTuft(c, ax + u * 2f, r.bottom - u * 1f, u * 3.5f, MenuPal.MID) }
-                1 -> { stroke(MenuPal.DARK, u * 0.45f); c.drawLine(ax, r.bottom, ax, r.top + u * 6f, p); for (k in 0 until 7) { leaf(c, ax, r.bottom - u * (3f + k * 2.4f), u * 3.2f, -35f, MenuPal.MID); leaf(c, ax, r.bottom - u * (4f + k * 2.4f), u * 3.2f, -145f, MenuPal.DARK) } }
-                else -> { fill(MenuPal.LIGHT); c.drawCircle(ax + u * 1.5f, r.top + u * 7f, u * 2.4f, p); stroke(MenuPal.LIGHT, u * 0.35f); for (k in 0 until 8) { val a = k * 0.785f; c.drawLine(ax + u * 1.5f + cos(a) * u * 3.2f, r.top + u * 7f + sin(a) * u * 3.2f, ax + u * 1.5f + cos(a) * u * 4.4f, r.top + u * 7f + sin(a) * u * 4.4f, p) }; fill(MenuPal.DARK); path.reset(); path.moveTo(r.left, r.bottom); path.quadTo(ax, r.bottom - u * 6f, r.right, r.bottom - u * 2f); path.lineTo(r.right, r.bottom); path.close(); c.drawPath(path, p) }
-            }
-            c.restore()
-            // trepadeiras nas bordas
-            for (k in 0 until 6) leaf(c, r.left - u * 0.4f, r.top + u * (4f + k * 3f), u * 2f, if (k % 2 == 0) 200f else 160f, MenuPal.DEEP)
-        }
-        val ox = cx + u * 26f; val oy = h * 0.41f
-        val oval = RectF(ox - u * 6f, oy - u * 9f, ox + u * 6f, oy + u * 8f)
-        fill(MenuPal.DARK); c.drawOval(RectF(oval.left - u * 0.7f, oval.top - u * 0.7f, oval.right + u * 0.7f, oval.bottom + u * 0.7f), p)
-        fill(MenuPal.WHITE); c.drawOval(oval, p)
-        stroke(MenuPal.DARK, u * 0.5f); c.drawLine(ox, oval.top, ox, oval.bottom, p); c.drawLine(oval.left, oy, oval.right, oy, p)
-        fill(MenuPal.WHITE); c.drawRoundRect(RectF(ox - u * 2.4f, oy + u * 3f, ox + u * 2.4f, oy + u * 6.5f), u, u, p)
-        plantTuft(c, ox, oy + u * 3.2f, u * 3f, MenuPal.MID)
-        // lâmpadas pendentes
-        for ((i, lx) in floatArrayOf(cx - u * 6f, cx, cx + u * 6f).withIndex()) {
-            val ly = h * (0.10f + (if (i == 1) 0.06f else 0.02f))
-            stroke(MenuPal.DEEP, u * 0.25f); c.drawLine(lx, 0f, lx, ly, p)
-            fill(MenuPal.DARK)
-            path.reset(); path.moveTo(lx - u * 3f, ly + u * 3.2f); path.cubicTo(lx - u * 3f, ly - u * 0.5f, lx + u * 3f, ly - u * 0.5f, lx + u * 3f, ly + u * 3.2f); path.close()
-            c.drawPath(path, p)
-            fill(MenuPal.LIGHT); c.drawRect(lx - u * 2.6f, ly + u * 3f, lx + u * 2.6f, ly + u * 3.6f, p)
-        }
-        // sofá atrás do personagem
-        val sy = h * 0.60f
-        fill(MenuPal.LIGHT); c.drawRoundRect(RectF(cx - u * 12f, sy - u * 6f, cx + u * 12f, sy + u * 2.5f), u * 2f, u * 2f, p)
-        fill(MenuPal.PALE); c.drawRoundRect(RectF(cx - u * 13.5f, sy - u * 3f, cx - u * 10f, sy + u * 3f), u * 1.2f, u * 1.2f, p); c.drawRoundRect(RectF(cx + u * 10f, sy - u * 3f, cx + u * 13.5f, sy + u * 3f), u * 1.2f, u * 1.2f, p)
-        fill(MenuPal.WHITE); c.drawRoundRect(RectF(cx - u * 9f, sy - u * 4.5f, cx - u * 4f, sy - u * 0.5f), u, u, p)
-        fill(MenuPal.DEEP); c.drawRoundRect(RectF(cx - u * 4f, sy - u * 4.2f, cx + u * 1f, sy - u * 0.5f), u, u, p)
-        fill(MenuPal.PALE); c.drawRoundRect(RectF(cx + u * 4f, sy - u * 4.5f, cx + u * 9f, sy - u * 0.5f), u, u, p)
-        // tapete redondo com franjas
-        val ry = h * 0.80f
-        fill(MenuPal.LIGHT); c.drawOval(RectF(cx - u * 32f, ry - u * 8f, cx + u * 32f, ry + u * 8f), p)
-        fill(MenuPal.WHITE); for (k in 0 until 64) { val a = k * 6.283f / 64; c.drawCircle(cx + cos(a) * u * 33f, ry + sin(a) * u * 8.6f, u * 0.55f, p) }
-        fill(0xFFB9E4F5.toInt()); c.drawOval(RectF(cx - u * 24f, ry - u * 5.6f, cx + u * 24f, ry + u * 5.6f), p)
-        fill(MenuPal.PALE); c.drawOval(RectF(cx - u * 13f, ry - u * 3f, cx + u * 13f, ry + u * 3f), p)
-        stroke(MenuPal.LIGHT, u * 0.3f); c.drawOval(RectF(cx - u * 9f, ry - u * 2f, cx + u * 9f, ry + u * 2f), p)
-        // canto esquerdo: prateleira hexagonal com plantas, vaso grande e luminária de chão
-        val hx = cx - u * 30f; val hy = h * 0.30f
-        for ((i, o) in arrayOf(floatArrayOf(0f, 0f), floatArrayOf(4.2f, 0f), floatArrayOf(2.1f, -3.6f)).withIndex()) {
-            val px = hx + o[0] * u; val py = hy + o[1] * u
-            stroke(MenuPal.DEEP, u * 0.45f)
-            path.reset(); for (k in 0..6) { val a = k * 1.047f + 0.5236f; val x = px + cos(a) * u * 2.2f; val y = py + sin(a) * u * 2.2f; if (k == 0) path.moveTo(x, y) else path.lineTo(x, y) }
-            c.drawPath(path, p)
-            plantTuft(c, px, py + u * 1.2f, u * 1.6f, if (i % 2 == 0) MenuPal.DEEP else MenuPal.DARK)
-        }
-        fill(MenuPal.DEEP); c.drawRect(hx - u * 4f, hy + u * 4.5f, hx + u * 8f, hy + u * 5.2f, p)
-        val vx = cx - u * 30f; val vy = h * 0.70f
-        fill(MenuPal.LIGHT); c.drawOval(RectF(vx - u * 5f, vy + u * 2f, vx + u * 5f, vy + u * 4f), p)
-        fill(MenuPal.WHITE); path.reset(); path.moveTo(vx - u * 2.6f, vy - u * 3f); path.lineTo(vx + u * 2.6f, vy - u * 3f); path.lineTo(vx + u * 2f, vy + u * 3f); path.lineTo(vx - u * 2f, vy + u * 3f); path.close(); c.drawPath(path, p)
-        for (k in 0 until 11) leaf(c, vx, vy - u * 3f, u * (6f + (k % 3)), -170f + k * 16f, if (k % 2 == 0) MenuPal.DEEP else MenuPal.DARK)
-        stroke(MenuPal.DEEP, u * 0.4f); c.drawLine(vx + u * 6f, vy + u * 3f, vx + u * 6f, h * 0.38f, p)
-        fill(MenuPal.DARK); path.reset(); path.moveTo(vx + u * 3.6f, h * 0.43f); path.lineTo(vx + u * 4.6f, h * 0.36f); path.lineTo(vx + u * 7.4f, h * 0.36f); path.lineTo(vx + u * 8.4f, h * 0.43f); path.close(); c.drawPath(path, p)
-        fill(MenuPal.DEEP); c.drawOval(RectF(vx + u * 4.5f, vy + u * 2.6f, vx + u * 7.5f, vy + u * 3.6f), p)
-        p.shader = null
-    }
-}
-
-/** Plumbob facetado que gira (usado no logo, na faixa do menu e no carregamento). */
-class Plumbob(ctx: Context) : View(ctx) {
-    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val path = Path()
-    private val t0 = System.nanoTime()
-    var speed = 1f
-    var spin = true
-    var glowOn = true
-
-    init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
 
     override fun onDraw(c: Canvas) {
         val w = width.toFloat(); val h = height.toFloat()
-        val t = (System.nanoTime() - t0) / 1e9f * speed
-        val cx = w / 2; val bob = if (spin) sin(t * 1.6f) * h * 0.025f else 0f
-        val cy = h * 0.48f + bob
-        val rw = w * 0.30f; val top = h * 0.44f; val bot = h * 0.46f
-        if (glowOn) {
-            glow.maskFilter = BlurMaskFilter(w * 0.16f, BlurMaskFilter.Blur.NORMAL)
-            glow.color = 0x6639FF8A
-            c.drawCircle(cx, cy, w * 0.2f, glow)
+        if (w <= 0f || h <= 0f) return
+        var bmp = cache
+        if (bmp == null) { bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); paintStatic(Canvas(bmp), w, h); cache = bmp }
+        val t = (System.nanoTime() - t0) / 1e9f
+        // céu e sol já no bitmap; nuvens por cima do céu e atrás da cidade não dá (bitmap único): ficam altas, sobre o céu
+        c.drawBitmap(bmp, 0f, 0f, null)
+        val hz = h * 0.66f
+        for (k in 0 until 5) {
+            val sp = 6f + k * 3f
+            val cx = ((k * 0.27f * w + t * sp) % (w * 1.4f)) - w * 0.2f
+            val cy = h * (0.08f + 0.06f * (k % 3))
+            val s = h * (0.05f + 0.015f * (k % 2))
+            fill(if (k % 2 == 0) 0x55FFFFFF else 0x40FFF3E6)
+            c.drawOval(RectF(cx - s * 2.2f, cy - s * 0.5f, cx + s * 2.2f, cy + s * 0.5f), p)
+            c.drawOval(RectF(cx - s * 1.1f, cy - s * 0.95f, cx + s * 0.9f, cy + s * 0.3f), p)
+            c.drawOval(RectF(cx - s * 0.1f, cy - s * 0.75f, cx + s * 1.6f, cy + s * 0.35f), p)
         }
-        val n = 6
-        val ang = if (spin) t * 1.4f else 0.3f
-        val faces = ArrayList<FloatArray>()
-        for (k in 0 until n) {
-            val a0 = ang + k * 2f * Math.PI.toFloat() / n; val a1 = a0 + 2f * Math.PI.toFloat() / n
-            val z = cos((a0 + a1) / 2)
-            if (z < -0.05f) continue
-            faces.add(floatArrayOf(sin(a0), sin(a1), z, k.toFloat()))
-        }
-        faces.sortBy { it[2] }
-        fun col(l: Float, base: Int): Int {
-            val r = ((base shr 16 and 255) * l).toInt().coerceIn(0, 255); val g = ((base shr 8 and 255) * l).toInt().coerceIn(0, 255); val b = ((base and 255) * l).toInt().coerceIn(0, 255)
-            return Color.rgb(r, g, b)
-        }
-        for (f in faces) {
-            val x0 = cx + f[0] * rw; val x1 = cx + f[1] * rw
-            val light = (0.55f + 0.45f * f[2]) * (if (f[3].toInt() % 2 == 0) 1f else 0.86f)
-            path.reset(); path.moveTo(cx, cy - top); path.lineTo(x0, cy); path.lineTo(x1, cy); path.close()
-            p.shader = LinearGradient(0f, cy - top, 0f, cy, col(light * 1.15f, 0x7DFFB0), col(light, 0x22C55E), Shader.TileMode.CLAMP)
+        // luz do farol girando (cone translúcido)
+        val lx = w * 0.86f; val ly = hz - h * 0.235f
+        val a = (t * 0.9f) % (2f * Math.PI.toFloat())
+        val reach = w * 0.55f * abs(cos(a)) + w * 0.04f
+        val dir = if (cos(a) >= 0f) 1f else -1f
+        val spread = h * 0.05f
+        p.shader = LinearGradient(lx, ly, lx - dir * reach, ly, 0x88FFF6C8.toInt(), 0x00FFF6C8, Shader.TileMode.CLAMP)
+        path.reset(); path.moveTo(lx, ly); path.lineTo(lx - dir * reach, ly - spread); path.lineTo(lx - dir * reach, ly + spread); path.close()
+        c.drawPath(path, p); p.shader = null
+        fill(0xFFFFF4C2.toInt()); c.drawCircle(lx, ly, h * 0.011f, p)
+        // ondas chegando na areia
+        for (k in 0 until 3) {
+            val ph = ((t * 0.25f + k / 3f) % 1f)
+            val yy = hz + (h * 0.88f - hz) * (0.35f + 0.55f * ph)
+            fill(Color.argb((150 * (1f - ph)).toInt(), 255, 255, 255))
+            path.reset(); path.moveTo(-10f, yy)
+            var x = 0f
+            while (x <= w + 40f) { path.quadTo(x + w * 0.04f, yy - h * 0.012f, x + w * 0.08f, yy); x += w * 0.08f }
+            path.lineTo(w + 40f, yy + h * 0.006f); path.lineTo(-10f, yy + h * 0.006f); path.close()
             c.drawPath(path, p)
-            path.reset(); path.moveTo(cx, cy + bot); path.lineTo(x0, cy); path.lineTo(x1, cy); path.close()
-            p.shader = LinearGradient(0f, cy, 0f, cy + bot, col(light * 0.9f, 0x1FB255), col(light * 0.6f, 0x0E7A38), Shader.TileMode.CLAMP)
+        }
+        // gaivotas
+        p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.004f; p.color = 0xAA2A2F45.toInt(); p.strokeCap = Paint.Cap.ROUND
+        for (k in 0 until 3) {
+            val bx = ((t * (18f + k * 7f) + k * w * 0.3f) % (w * 1.2f)) - w * 0.1f
+            val by = h * (0.2f + 0.05f * k) + sin(t * 1.3f + k) * h * 0.01f
+            val f = sin(t * 6f + k) * h * 0.008f
+            val s = h * 0.016f
+            path.reset(); path.moveTo(bx - s, by - f); path.quadTo(bx - s * 0.5f, by - s * 0.6f, bx, by); path.quadTo(bx + s * 0.5f, by - s * 0.6f, bx + s, by - f)
             c.drawPath(path, p)
         }
-        p.shader = null
-        p.color = 0x70FFFFFF
-        path.reset(); path.moveTo(cx - rw * 0.12f, cy - top * 0.82f); path.lineTo(cx - rw * 0.55f, cy - top * 0.12f); path.lineTo(cx - rw * 0.33f, cy - top * 0.1f); path.close()
+        p.style = Paint.Style.FILL
+        postInvalidateOnAnimation()
+    }
+
+    private fun paintStatic(c: Canvas, w: Float, h: Float) {
+        val hz = h * 0.66f
+        // céu do fim da tarde
+        val top = lerp(0xFF3E6FC6.toInt(), 0xFF2A2E6E.toInt(), dusk); val mid = lerp(0xFF8EC5F0.toInt(), 0xFFE58A7C.toInt(), dusk); val low = lerp(0xFFFFE2B0.toInt(), 0xFFFFC27A.toInt(), dusk)
+        p.shader = LinearGradient(0f, 0f, 0f, hz, intArrayOf(top, mid, low), floatArrayOf(0f, 0.62f, 1f), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w, hz + 2f, p); p.shader = null
+        // sol com halo
+        val sx = w * 0.62f; val sy = hz - h * 0.06f
+        p.maskFilter = BlurMaskFilter(h * 0.12f, BlurMaskFilter.Blur.NORMAL); p.color = 0x88FFD27A.toInt(); c.drawCircle(sx, sy, h * 0.12f, p); p.maskFilter = null
+        fill(0xFFFFE9A8.toInt()); c.drawCircle(sx, sy, h * 0.07f, p)
+        // morros ao fundo
+        fill(lerp(0xFF7FA8C9.toInt(), 0xFF8A6E9E.toInt(), dusk))
+        path.reset(); path.moveTo(0f, hz); path.cubicTo(w * 0.1f, hz - h * 0.2f, w * 0.25f, hz - h * 0.12f, w * 0.34f, hz - h * 0.18f); path.cubicTo(w * 0.45f, hz - h * 0.26f, w * 0.55f, hz - h * 0.1f, w * 0.7f, hz - h * 0.14f); path.cubicTo(w * 0.82f, hz - h * 0.17f, w * 0.92f, hz - h * 0.08f, w, hz - h * 0.1f); path.lineTo(w, hz); path.close()
         c.drawPath(path, p)
-        if (spin) postInvalidateOnAnimation()
+        // prédios em 2 camadas, com janelas acesas
+        val rnd = java.util.Random(11)
+        for (layer in 0..1) {
+            var x = -w * 0.02f
+            val base = hz + h * 0.005f
+            val colA = if (layer == 0) lerp(0xFF6D8FB8.toInt(), 0xFF6A5A8E.toInt(), dusk) else lerp(0xFF3F5E8C.toInt(), 0xFF3C3566.toInt(), dusk)
+            while (x < w * 0.78f) {
+                val bw = w * (0.03f + rnd.nextFloat() * 0.045f)
+                val bh = h * (if (layer == 0) 0.12f + rnd.nextFloat() * 0.22f else 0.06f + rnd.nextFloat() * 0.16f)
+                fill(colA); c.drawRect(x, base - bh, x + bw, base, p)
+                fill(shade(colA, 1.18f)); c.drawRect(x, base - bh, x + bw * 0.18f, base, p)
+                if (rnd.nextFloat() < 0.3f) { fill(shade(colA, 0.8f)); c.drawRect(x + bw * 0.3f, base - bh - h * 0.015f, x + bw * 0.7f, base - bh, p) }
+                fill(if (layer == 0) 0x55FFF1C1 else 0xAAFFE7A0.toInt())
+                var yy = base - bh + h * 0.012f
+                while (yy < base - h * 0.012f) { var xx = x + bw * 0.25f; while (xx < x + bw - bw * 0.15f) { if (rnd.nextFloat() < 0.45f) c.drawRect(xx, yy, xx + bw * 0.12f, yy + h * 0.01f, p); xx += bw * 0.22f }; yy += h * 0.022f }
+                x += bw + w * (if (layer == 0) 0.004f else 0.012f)
+            }
+        }
+        // mar com reflexo do sol
+        p.shader = LinearGradient(0f, hz, 0f, h, intArrayOf(lerp(0xFF4DA3D6.toInt(), 0xFF5D6FB0.toInt(), dusk), lerp(0xFF2C7FB8.toInt(), 0xFF35468A.toInt(), dusk), 0xFF1F6FA0.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRect(0f, hz, w, h, p); p.shader = null
+        for (k in 0 until 14) { fill(Color.argb(140 - k * 8, 255, 236, 180)); val yy = hz + k * h * 0.012f; val ww = w * (0.05f - k * 0.002f); c.drawRect(sx - ww, yy, sx + ww, yy + h * 0.004f, p) }
+        // molhe e farol à direita
+        fill(0xFF5B5A63.toInt()); c.drawRect(w * 0.72f, hz - h * 0.01f, w * 0.95f, hz + h * 0.012f, p)
+        val lx = w * 0.86f; val base = hz - h * 0.01f
+        for (k in 0 until 6) {
+            val y0 = base - h * 0.035f * k; val y1 = y0 - h * 0.035f
+            val r0 = h * (0.03f - 0.0025f * k); val r1 = h * (0.03f - 0.0025f * (k + 1))
+            fill(if (k % 2 == 0) 0xFFF5F2EC.toInt() else 0xFFD63B35.toInt())
+            path.reset(); path.moveTo(lx - r0, y0); path.lineTo(lx - r1, y1); path.lineTo(lx + r1, y1); path.lineTo(lx + r0, y0); path.close(); c.drawPath(path, p)
+        }
+        val ly = base - h * 0.21f
+        fill(0xFF2A2F3A.toInt()); c.drawRect(lx - h * 0.02f, ly + h * 0.004f, lx + h * 0.02f, ly + h * 0.01f, p)
+        fill(0xFFFFF4C2.toInt()); c.drawRect(lx - h * 0.012f, ly - h * 0.02f, lx + h * 0.012f, ly + h * 0.004f, p)
+        fill(0xFFD63B35.toInt()); path.reset(); path.moveTo(lx - h * 0.016f, ly - h * 0.02f); path.lineTo(lx, ly - h * 0.04f); path.lineTo(lx + h * 0.016f, ly - h * 0.02f); path.close(); c.drawPath(path, p)
+        // areia
+        p.shader = LinearGradient(0f, h * 0.84f, 0f, h, 0xFFF3DDAA.toInt(), 0xFFE5C68A.toInt(), Shader.TileMode.CLAMP)
+        path.reset(); path.moveTo(0f, h * 0.86f); path.cubicTo(w * 0.3f, h * 0.82f, w * 0.6f, h * 0.9f, w, h * 0.85f); path.lineTo(w, h); path.lineTo(0f, h); path.close()
+        c.drawPath(path, p); p.shader = null
+        // coqueiros nas pontas
+        palm(c, w * 0.06f, h * 0.98f, h * 0.42f, -8f); palm(c, w * 0.13f, h, h * 0.32f, 6f); palm(c, w * 0.95f, h, h * 0.36f, 10f)
+        // guarda-sóis
+        umb(c, w * 0.30f, h * 0.93f, h * 0.06f, 0xFFE8473D.toInt()); umb(c, w * 0.72f, h * 0.95f, h * 0.055f, 0xFFF2B33D.toInt())
+        // vinheta para o texto ler bem
+        p.shader = LinearGradient(0f, 0f, w * 0.45f, 0f, 0x88102040.toInt(), 0x00102040, Shader.TileMode.CLAMP); c.drawRect(0f, 0f, w * 0.45f, h, p); p.shader = null
+    }
+
+    private fun shade(cc: Int, k: Float): Int = Color.rgb(((cc shr 16 and 255) * k).toInt().coerceIn(0, 255), ((cc shr 8 and 255) * k).toInt().coerceIn(0, 255), ((cc and 255) * k).toInt().coerceIn(0, 255))
+
+    private fun palm(c: Canvas, x: Float, y: Float, hh: Float, lean: Float) {
+        p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND; p.color = 0xFF6B4A2E.toInt(); p.strokeWidth = hh * 0.05f; p.shader = null
+        val tx = x + lean / 100f * hh * 3f; val ty = y - hh
+        path.reset(); path.moveTo(x, y); path.quadTo(x + (tx - x) * 0.2f, y - hh * 0.5f, tx, ty); c.drawPath(path, p)
+        p.style = Paint.Style.FILL
+        for (k in 0 until 8) {
+            val a = -170f + k * 22f + lean
+            c.save(); c.translate(tx, ty); c.rotate(a)
+            p.color = if (k % 2 == 0) 0xFF2E7D4F.toInt() else 0xFF3E9A5E.toInt()
+            path.reset(); path.moveTo(0f, 0f); path.quadTo(hh * 0.22f, -hh * 0.12f, hh * 0.42f, hh * 0.06f); path.quadTo(hh * 0.2f, -hh * 0.02f, 0f, 0f); path.close()
+            c.drawPath(path, p); c.restore()
+        }
+        p.color = 0xFF7A5A2E.toInt(); c.drawCircle(tx - hh * 0.02f, ty + hh * 0.02f, hh * 0.025f, p); c.drawCircle(tx + hh * 0.02f, ty + hh * 0.025f, hh * 0.025f, p)
+    }
+
+    private fun umb(c: Canvas, x: Float, y: Float, r: Float, col: Int) {
+        p.style = Paint.Style.STROKE; p.strokeWidth = r * 0.06f; p.color = 0xFFEDEDED.toInt(); c.drawLine(x, y, x + r * 0.1f, y - r * 1.4f, p)
+        p.style = Paint.Style.FILL
+        for (k in 0 until 4) {
+            p.color = if (k % 2 == 0) col else 0xFFFFFFFF.toInt()
+            c.drawArc(RectF(x - r + r * 0.1f, y - r * 1.9f, x + r + r * 0.1f, y - r * 0.9f), 180f + k * 45f, 45f, true, p)
+        }
     }
 }
 
-/** Ilustração do topo dos cartões de novidades. kind: 0 cidade, 1 praia e parque, 2 garagem. */
+/** Logo do Meu Lar: casinha com telhado, porta e janela acesa (desenhada, sem imagem). */
+class HouseLogo(ctx: Context) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    private val t0 = System.nanoTime()
+    var animate = true
+    override fun onDraw(c: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat()
+        val t = (System.nanoTime() - t0) / 1e9f
+        val s = min(w, h)
+        val ox = (w - s) / 2; val oy = (h - s) / 2 + (if (animate) sin(t * 2f) * s * 0.02f else 0f)
+        p.color = 0x33000000; c.drawOval(RectF(ox + s * 0.18f, oy + s * 0.9f, ox + s * 0.82f, oy + s * 0.98f), p)
+        p.color = 0xFFFFF8EE.toInt(); c.drawRoundRect(RectF(ox + s * 0.2f, oy + s * 0.45f, ox + s * 0.8f, oy + s * 0.92f), s * 0.04f, s * 0.04f, p)
+        p.color = 0xFFE8553E.toInt(); path.reset(); path.moveTo(ox + s * 0.08f, oy + s * 0.5f); path.lineTo(ox + s * 0.5f, oy + s * 0.12f); path.lineTo(ox + s * 0.92f, oy + s * 0.5f); path.lineTo(ox + s * 0.82f, oy + s * 0.56f); path.lineTo(ox + s * 0.5f, oy + s * 0.27f); path.lineTo(ox + s * 0.18f, oy + s * 0.56f); path.close(); c.drawPath(path, p)
+        p.color = 0xFFB83A2A.toInt(); c.drawRect(ox + s * 0.64f, oy + s * 0.2f, ox + s * 0.73f, oy + s * 0.38f, p)
+        p.color = 0xFF2F6FB0.toInt(); c.drawRoundRect(RectF(ox + s * 0.42f, oy + s * 0.64f, ox + s * 0.58f, oy + s * 0.92f), s * 0.03f, s * 0.03f, p)
+        val glow = if (animate) 0.75f + 0.25f * sin(t * 3f) else 1f
+        p.color = Color.argb((255 * glow).toInt(), 255, 214, 102); c.drawRect(ox + s * 0.26f, oy + s * 0.6f, ox + s * 0.37f, oy + s * 0.71f, p); c.drawRect(ox + s * 0.63f, oy + s * 0.6f, ox + s * 0.74f, oy + s * 0.71f, p)
+        p.color = 0xFF8E5A2E.toInt(); c.drawCircle(ox + s * 0.545f, oy + s * 0.79f, s * 0.015f, p)
+        if (animate) postInvalidateOnAnimation()
+    }
+}
+
+@SuppressLint("ViewConstructor")
+class MainMenu(ctx: Context, version: String, household: String, money: String,
+               private val onPlay: () -> Unit, private val onCreator: () -> Unit, private val onNews: () -> Unit, private val onSettings: () -> Unit) : FrameLayout(ctx) {
+    private val d = resources.displayMetrics.density
+    private fun dp(v: Float) = (v * d).toInt()
+    val sim: ImageView = ImageView(ctx)
+    val face: ImageView = ImageView(ctx)
+    private val simBox = FrameLayout(ctx)
+    private val news = arrayOf(
+        Triple(0, "A cidade à beira-mar", "Ruas, prédios, lojas e casas para morar."),
+        Triple(1, "Praia e faróis", "Calçadão, barracas, quadras e dois faróis para visitar."),
+        Triple(2, "Garagem", "Escolha seu carro ou moto na loja e saia dirigindo."))
+    private var newsIdx = 0
+
+    init {
+        isClickable = true
+        setBackgroundColor(0xFF2C6CA8.toInt())
+        addView(CityScene(ctx), LayoutParams(-1, -1))
+        val dm = resources.displayMetrics
+        val H = dm.heightPixels.toFloat()
+
+        // centro: pedestal + personagem com os pés apoiados nele
+        val stageW = (H * 0.62f).toInt(); val stageH = (H * 0.9f).toInt()
+        addView(simBox, LayoutParams(stageW, stageH, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.leftMargin = dp(60f) })
+        val ped = object : View(ctx) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(c: Canvas) {
+                val w = width.toFloat(); val h = height.toFloat()
+                p.color = 0x40000000; c.drawOval(RectF(w * 0.05f, h * 0.45f, w * 0.95f, h * 1.0f), p)
+                p.shader = LinearGradient(0f, 0f, 0f, h, 0xFFFFFFFF.toInt(), 0xFFCFE3F2.toInt(), Shader.TileMode.CLAMP)
+                c.drawOval(RectF(w * 0.08f, h * 0.2f, w * 0.92f, h * 0.85f), p); p.shader = null
+                p.color = 0xFFF2B33D.toInt(); p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.06f
+                c.drawOval(RectF(w * 0.08f, h * 0.2f, w * 0.92f, h * 0.85f), p); p.style = Paint.Style.FILL
+                p.color = 0x66FFFFFF; c.drawOval(RectF(w * 0.2f, h * 0.3f, w * 0.8f, h * 0.55f), p)
+            }
+        }
+        val pedH = dp(46f)
+        simBox.addView(ped, LayoutParams(-1, pedH, Gravity.BOTTOM).also { it.bottomMargin = dp(10f) })
+        sim.scaleType = ImageView.ScaleType.FIT_END
+        simBox.addView(sim, LayoutParams(-1, -1, Gravity.BOTTOM).also { it.bottomMargin = dp(10f) + (pedH * 0.5f).toInt() })
+        sim.alpha = 0f
+
+        // topo esquerdo: logo
+        val logo = LinearLayout(ctx); logo.orientation = LinearLayout.HORIZONTAL; logo.gravity = Gravity.CENTER_VERTICAL
+        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(52f), dp(52f)))
+        val lt = LinearLayout(ctx); lt.orientation = LinearLayout.VERTICAL
+        lt.addView(txt("MEU", 13f, 0xFFFFE6A8.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.letterSpacing = 0.3f })
+        lt.addView(txt("LAR", 34f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(10f, 0f, 3f, 0x88002244.toInt()); it.letterSpacing = 0.06f })
+        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(8f) })
+        addView(logo, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(24f), dp(14f), 0, 0) })
+
+        // topo direito: perfil (rosto, nome da casa e dinheiro)
+        val hi = LinearLayout(ctx); hi.orientation = LinearLayout.HORIZONTAL; hi.gravity = Gravity.CENTER_VERTICAL
+        hi.setPadding(dp(6f), dp(5f), dp(16f), dp(5f))
+        val hb = GradientDrawable(); hb.cornerRadius = dp(26f).toFloat(); hb.setColor(0x66102A4A); hb.setStroke(dp(1.5f), 0x66FFFFFF); hi.background = hb
+        face.scaleType = ImageView.ScaleType.CENTER_CROP
+        val fb = GradientDrawable(); fb.shape = GradientDrawable.OVAL; fb.setColor(MenuPal.PALE); fb.setStroke(dp(2f), Color.WHITE); face.background = fb
+        face.outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setOval(0, 0, v.width, v.height) } }
+        face.clipToOutline = true
+        hi.addView(face, LinearLayout.LayoutParams(dp(40f), dp(40f)))
+        val info = LinearLayout(ctx); info.orientation = LinearLayout.VERTICAL
+        info.addView(txt(household, 13f, Color.WHITE, MenuPal.TITLE))
+        info.addView(txt("R$ $money", 14f, 0xFFFFE08A.toInt(), MenuPal.BLACK))
+        hi.addView(info, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
+        addView(hi, LayoutParams(-2, -2, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(14f), dp(18f), 0) })
+
+        // esquerda: menu único (cada opção uma vez)
+        val left = LinearLayout(ctx); left.orientation = LinearLayout.VERTICAL
+        val play = txt("▶  JOGAR", 24f, Color.WHITE, MenuPal.BLACK); play.gravity = Gravity.CENTER
+        play.setShadowLayer(6f, 0f, 2f, 0x66003300)
+        val pg = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF6FD66B.toInt(), 0xFF2FA24C.toInt())); pg.cornerRadius = dp(16f).toFloat(); pg.setStroke(dp(2f), 0xCCFFFFFF.toInt())
+        play.background = pg; play.elevation = dp(6f).toFloat()
+        pressable(play) { onPlay() }
+        left.addView(play, LinearLayout.LayoutParams(dp(230f), dp(58f)))
+        left.addView(menuBtn("PERSONAGEM", "Criar e mudar o visual") { onCreator() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(10f) })
+        left.addView(menuBtn("NOVIDADES", "O que tem de novo") { onNews() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
+        left.addView(menuBtn("CONFIGURAÇÕES", "Gráficos, som e controles") { onSettings() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
+        left.addView(menuBtn("SAIR", "Fechar o jogo") { (context as? android.app.Activity)?.finish() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
+        addView(left, LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START).also { it.leftMargin = dp(26f); it.topMargin = dp(40f) })
+
+        // direita embaixo: um cartão de novidade que troca sozinho (só informação, sem botões repetidos)
+        val card = LinearLayout(ctx); card.orientation = LinearLayout.VERTICAL
+        val cg = GradientDrawable(); cg.cornerRadius = dp(14f).toFloat(); cg.setColor(0xF2FFFFFF.toInt()); card.background = cg
+        card.elevation = dp(6f).toFloat(); card.clipToOutline = true
+        val art = FrameLayout(ctx)
+        card.addView(art, LinearLayout.LayoutParams(-1, dp(84f)))
+        val ct = txt("", 14f, MenuPal.INK, MenuPal.BLACK); val cb = txt("", 11.5f, 0xFF3F5F95.toInt(), MenuPal.TITLE)
+        val inner = LinearLayout(ctx); inner.orientation = LinearLayout.VERTICAL; inner.setPadding(dp(12f), dp(6f), dp(12f), dp(8f))
+        inner.addView(ct); inner.addView(cb)
+        val dots = LinearLayout(ctx); dots.orientation = LinearLayout.HORIZONTAL
+        val dv = ArrayList<View>()
+        for (k in news.indices) { val v = View(ctx); dv.add(v); dots.addView(v, LinearLayout.LayoutParams(dp(7f), dp(7f)).also { it.setMargins(0, dp(6f), dp(5f), 0) }) }
+        inner.addView(dots)
+        card.addView(inner)
+        fun show() {
+            val n = news[newsIdx]
+            art.removeAllViews(); art.addView(CardArt(ctx, n.first), LayoutParams(-1, -1))
+            ct.text = n.second.uppercase(); cb.text = n.third
+            for ((i, v) in dv.withIndex()) { val g = GradientDrawable(); g.shape = GradientDrawable.OVAL; g.setColor(if (i == newsIdx) MenuPal.INK else 0xFFB8C4DC.toInt()); v.background = g }
+        }
+        show()
+        card.setOnClickListener { newsIdx = (newsIdx + 1) % news.size; show() }
+        postDelayed(object : Runnable { override fun run() { if (!isAttachedToWindow) return; newsIdx = (newsIdx + 1) % news.size; card.animate().alpha(0f).setDuration(200).withEndAction { show(); card.animate().alpha(1f).setDuration(260).start() }.start(); postDelayed(this, 6000) } }, 6000)
+        addView(card, LayoutParams(dp(220f), -2, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(18f), dp(16f)) })
+
+        // versão
+        val ver = txt(version, 10f, 0xCCFFFFFF.toInt(), Typeface.DEFAULT)
+        ver.setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
+        val vb = GradientDrawable(); vb.cornerRadius = dp(8f).toFloat(); vb.setColor(0x66102A4A); ver.background = vb
+        addView(ver, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(14f), 0, 0, dp(12f)) })
+
+        left.alpha = 0f; left.translationX = -dp(30f).toFloat()
+        left.animate().alpha(1f).translationX(0f).setDuration(500).setStartDelay(150).start()
+        card.alpha = 0f; card.translationY = dp(20f).toFloat()
+        card.animate().alpha(1f).translationY(0f).setDuration(500).setStartDelay(300).start()
+    }
+
+    /** Foto do personagem chegou: corta a borda transparente de baixo (senão ele "flutua") e aparece subindo de leve. */
+    fun setSim(b: Bitmap) {
+        sim.setImageBitmap(trimBottom(b))
+        sim.translationY = dp(14f).toFloat()
+        sim.animate().alpha(1f).translationY(0f).setDuration(500).start()
+    }
+
+    private fun trimBottom(b: Bitmap): Bitmap {
+        val w = b.width; val h = b.height
+        if (w <= 0 || h <= 0) return b
+        val row = IntArray(w)
+        var bottom = h - 1
+        while (bottom > h / 2) {
+            b.getPixels(row, 0, w, 0, bottom, w, 1)
+            if (row.any { (it ushr 24) > 40 }) break
+            bottom--
+        }
+        var topR = 0
+        while (topR < bottom - 10) {
+            b.getPixels(row, 0, w, 0, topR, w, 1)
+            if (row.any { (it ushr 24) > 40 }) break
+            topR++
+        }
+        if (bottom >= h - 1 && topR == 0) return b
+        return Bitmap.createBitmap(b, 0, topR, w, bottom - topR + 1)
+    }
+
+    private fun txt(s: String, size: Float, col: Int, tf: Typeface): TextView {
+        val t = TextView(context); t.text = s; t.textSize = size; t.setTextColor(col); t.typeface = tf
+        return t
+    }
+
+    private fun menuBtn(title: String, sub: String, act: () -> Unit): View {
+        val v = LinearLayout(context); v.orientation = LinearLayout.VERTICAL; v.gravity = Gravity.CENTER_VERTICAL
+        v.setPadding(dp(16f), 0, dp(12f), 0)
+        val g = GradientDrawable(); g.cornerRadius = dp(14f).toFloat(); g.setColor(0x8C10284A.toInt()); g.setStroke(dp(1.5f), 0x55FFFFFF); v.background = g
+        v.addView(txt(title, 16f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false })
+        v.addView(txt(sub, 10.5f, 0xCCDDEBFF.toInt(), MenuPal.TITLE).also { it.includeFontPadding = false })
+        pressable(v, act)
+        return v
+    }
+
+    private fun pressable(v: View, act: () -> Unit) {
+        v.setOnTouchListener { vv, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> vv.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.85f).setDuration(70).start()
+                MotionEvent.ACTION_UP -> { vv.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(110).start(); if (e.x in 0f..vv.width.toFloat() && e.y in 0f..vv.height.toFloat()) act() }
+                MotionEvent.ACTION_CANCEL -> vv.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(110).start()
+            }
+            true
+        }
+    }
+}
+
+/** Ilustração dos cartões de novidade. kind: 0 cidade, 1 praia e farol, 2 garagem. */
 class CardArt(ctx: Context, private val kind: Int) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
@@ -249,13 +423,10 @@ class CardArt(ctx: Context, private val kind: Int) : View(ctx) {
                 p.shader = LinearGradient(0f, 0f, 0f, h, 0xFF7FD6FF.toInt(), 0xFFC9F0FF.toInt(), Shader.TileMode.CLAMP); c.drawRect(0f, 0f, w, h, p); p.shader = null
                 p.color = 0xFF2E9BD6.toInt(); c.drawRect(0f, h * 0.62f, w, h, p)
                 p.color = 0xFFF3DDA6.toInt(); path.reset(); path.moveTo(0f, h); path.lineTo(0f, h * 0.78f); path.quadTo(w * 0.4f, h * 0.66f, w * 0.65f, h); path.close(); c.drawPath(path, p)
-                p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.025f; p.color = 0xFFFFFFFF.toInt()
-                val fx = w * 0.72f; val fy = h * 0.42f; val fr = h * 0.3f
-                c.drawCircle(fx, fy, fr, p); for (k in 0 until 8) { val a = k * 0.785f; c.drawLine(fx, fy, fx + cos(a) * fr, fy + sin(a) * fr, p) }
-                c.drawLine(fx, fy, fx - fr * 0.6f, h * 0.9f, p); c.drawLine(fx, fy, fx + fr * 0.6f, h * 0.9f, p)
-                p.style = Paint.Style.FILL
-                val cols = intArrayOf(0xFFE53935.toInt(), 0xFFFDD835.toInt(), 0xFF43A047.toInt(), 0xFF8E24AA.toInt())
-                for (k in 0 until 8) { val a = k * 0.785f; p.color = cols[k % 4]; c.drawRect(fx + cos(a) * fr - h * 0.035f, fy + sin(a) * fr, fx + cos(a) * fr + h * 0.035f, fy + sin(a) * fr + h * 0.07f, p) }
+                val lx = w * 0.78f
+                p.color = 0xFF5B5A63.toInt(); c.drawRect(w * 0.6f, h * 0.6f, w * 0.95f, h * 0.66f, p)
+                for (k in 0 until 5) { p.color = if (k % 2 == 0) 0xFFFFFFFF.toInt() else 0xFFD63B35.toInt(); c.drawRect(lx - h * 0.06f + k * h * 0.005f, h * 0.6f - (k + 1) * h * 0.09f, lx + h * 0.06f - k * h * 0.005f, h * 0.6f - k * h * 0.09f, p) }
+                p.color = 0xFFFFF4C2.toInt(); c.drawRect(lx - h * 0.035f, h * 0.06f, lx + h * 0.035f, h * 0.15f, p)
                 p.color = 0xFF6D4C41.toInt(); c.drawRect(w * 0.16f, h * 0.35f, w * 0.18f, h * 0.82f, p)
                 p.color = 0xFF2E7D32.toInt(); for (k in 0 until 6) { c.save(); c.translate(w * 0.17f, h * 0.35f); c.rotate(-150f + k * 25f); c.drawOval(RectF(0f, -h * 0.04f, h * 0.28f, h * 0.04f), p); c.restore() }
             }
@@ -269,201 +440,12 @@ class CardArt(ctx: Context, private val kind: Int) : View(ctx) {
                 p.color = 0xFF263238.toInt(); path.reset(); path.moveTo(bx + s * 0.7f, by - s * 0.72f); path.lineTo(bx + s * 1.2f, by - s * 0.72f); path.lineTo(bx + s * 1.43f, by - s * 0.46f); path.lineTo(bx + s * 0.5f, by - s * 0.46f); path.close(); c.drawPath(path, p)
                 p.color = 0xFF111111.toInt(); c.drawCircle(bx + s * 0.45f, by, s * 0.2f, p); c.drawCircle(bx + s * 1.5f, by, s * 0.2f, p)
                 p.color = 0xFFCFD8DC.toInt(); c.drawCircle(bx + s * 0.45f, by, s * 0.1f, p); c.drawCircle(bx + s * 1.5f, by, s * 0.1f, p)
-                p.color = 0xFFFFF59D.toInt(); c.drawRect(bx + s * 1.85f, by - s * 0.32f, bx + s * 1.95f, by - s * 0.24f, p)
             }
         }
     }
 }
 
-@SuppressLint("ViewConstructor")
-class MainMenu(ctx: Context, version: String, household: String, money: String,
-               private val onPlay: () -> Unit, private val onCreator: () -> Unit, private val onNews: () -> Unit, private val onSettings: () -> Unit) : FrameLayout(ctx) {
-    private val d = resources.displayMetrics.density
-    private fun dp(v: Float) = (v * d).toInt()
-    val sim: ImageView = ImageView(ctx)
-    val face: ImageView = ImageView(ctx)
-    private val cards = ArrayList<View>()
-    private var page = 0
-
-    init {
-        isClickable = true
-        setBackgroundColor(MenuPal.BG)
-        addView(RoomArt(ctx), LayoutParams(-1, -1))
-        val dm = resources.displayMetrics
-        val H = dm.heightPixels.toFloat(); val W = dm.widthPixels.toFloat()
-        // personagem de corpo inteiro em pé no tapete (a foto chega pelo renderizador)
-        sim.scaleType = ImageView.ScaleType.FIT_END
-        val simH = (H * 0.74f).toInt()
-        addView(sim, LayoutParams((simH * 0.5714f).toInt(), simH, Gravity.TOP or Gravity.START).also { it.leftMargin = (W * 0.47f - simH * 0.2857f).toInt(); it.topMargin = (H * 0.82f - simH).toInt() })
-        sim.alpha = 0f
-        // sombra do personagem no tapete
-        val shadow = View(ctx); val sg = GradientDrawable(); sg.shape = GradientDrawable.OVAL; sg.setColor(0x33244E78); shadow.background = sg
-        addView(shadow, LayoutParams(dp(110f), dp(18f), Gravity.TOP or Gravity.START).also { it.leftMargin = (W * 0.47f - dp(55f)).toInt(); it.topMargin = (H * 0.815f - dp(9f)).toInt() })
-        sim.bringToFront()
-
-        // topo esquerdo: logo
-        val logo = LinearLayout(ctx); logo.orientation = LinearLayout.HORIZONTAL; logo.gravity = Gravity.CENTER_VERTICAL
-        val pb = Plumbob(ctx); pb.speed = 0.6f
-        logo.addView(pb, LinearLayout.LayoutParams(dp(30f), dp(46f)))
-        val lt = LinearLayout(ctx); lt.orientation = LinearLayout.VERTICAL
-        lt.addView(txt("meu", 12f, Color.WHITE, MenuPal.TITLE).also { it.setPadding(dp(2f), 0, 0, 0); it.includeFontPadding = false })
-        lt.addView(txt("LAR", 30f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(8f, 0f, 3f, 0x55003355); it.letterSpacing = 0.04f })
-        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(4f) })
-        addView(logo, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(22f), dp(12f), 0, 0) })
-
-        // topo centro: abas
-        val tabs = LinearLayout(ctx); tabs.orientation = LinearLayout.HORIZONTAL
-        tabs.addView(tab("INÍCIO", 0xFF63E08C.toInt(), 0xFF1F6B3A.toInt()) { }, LinearLayout.LayoutParams(dp(120f), dp(36f)))
-        tabs.addView(tab("NOVIDADES", 0xFF8C8FE0.toInt(), Color.WHITE) { onNews() }, LinearLayout.LayoutParams(dp(130f), dp(36f)).also { it.leftMargin = dp(4f) })
-        addView(tabs, LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).also { it.topMargin = dp(14f) })
-
-        // topo direito: rosto, saudação e "..."
-        val hi = LinearLayout(ctx); hi.orientation = LinearLayout.HORIZONTAL; hi.gravity = Gravity.CENTER_VERTICAL
-        face.scaleType = ImageView.ScaleType.CENTER_CROP
-        val fb = GradientDrawable(); fb.shape = GradientDrawable.OVAL; fb.setColor(MenuPal.PALE); fb.setStroke(dp(2f), Color.WHITE); face.background = fb
-        face.outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setOval(0, 0, v.width, v.height) } }
-        face.clipToOutline = true
-        hi.addView(face, LinearLayout.LayoutParams(dp(34f), dp(34f)))
-        hi.addView(txt("Que bom te ver!", 14f, Color.WHITE, MenuPal.TITLE).also { it.setShadowLayer(4f, 0f, 1f, 0x44000000) }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(8f) })
-        val dots = txt("•••", 15f, MenuPal.BTN, MenuPal.BLACK); dots.gravity = Gravity.CENTER
-        val dbg = GradientDrawable(); dbg.cornerRadius = dp(14f).toFloat(); dbg.setColor(Color.WHITE); dots.background = dbg
-        dots.setOnClickListener { onSettings() }
-        hi.addView(dots, LinearLayout.LayoutParams(dp(44f), dp(26f)).also { it.leftMargin = dp(10f) })
-        addView(hi, LayoutParams(-2, -2, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(14f), dp(18f), 0) })
-
-        // esquerda: casa, dinheiro e o menu
-        val left = LinearLayout(ctx); left.orientation = LinearLayout.VERTICAL
-        left.addView(txt(household.uppercase(), 15f, Color.WHITE, MenuPal.TITLE).also { it.letterSpacing = 0.03f }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f) })
-        left.addView(txt("§ $money", 13f, Color.WHITE, MenuPal.TITLE), LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f); it.bottomMargin = dp(12f) })
-        // faixa de destaque com plumbob: Continuar
-        val band = FrameLayout(ctx)
-        band.background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFF2F70A8.toInt(), 0xCC3B86BD.toInt(), 0x003B86BD))
-        val br = LinearLayout(ctx); br.orientation = LinearLayout.HORIZONTAL; br.gravity = Gravity.CENTER_VERTICAL
-        val bp = Plumbob(ctx); bp.glowOn = false; bp.speed = 0.8f
-        br.addView(bp, LinearLayout.LayoutParams(dp(26f), dp(42f)).also { it.leftMargin = dp(18f) })
-        br.addView(txt("CONTINUAR JOGO", 24f, Color.WHITE, MenuPal.BLACK).also { it.setShadowLayer(6f, 0f, 2f, 0x55001A33) }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
-        band.addView(br, LayoutParams(-1, -1))
-        pressable(band) { onPlay() }
-        left.addView(band, LinearLayout.LayoutParams(dp(300f), dp(56f)))
-        left.addView(item("NOVO PERSONAGEM", 19f) { onCreator() }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f); it.topMargin = dp(14f) })
-        left.addView(item("CONFIGURAÇÕES", 19f) { onSettings() }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f); it.topMargin = dp(6f) })
-        left.addView(item("NOVIDADES", 13f) { onNews() }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f); it.topMargin = dp(14f) })
-        left.addView(item("SAIR", 13f) { (context as? android.app.Activity)?.finish() }, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(22f); it.topMargin = dp(4f) })
-        addView(left, LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START).also { it.topMargin = dp(36f) })
-
-        // direita: cartões de novidades (2 por vez) com setas
-        val right = LinearLayout(ctx); right.orientation = LinearLayout.VERTICAL; right.gravity = Gravity.CENTER_HORIZONTAL
-        val cardH = ((H / d - 150f) / 2f).coerceIn(96f, 150f)
-        cards.add(card(0, "A CIDADE CHEGOU", "48 quarteirões, casas para entrar, prédios, lojas e muito mais.", "JOGAR", cardH) { onPlay() })
-        cards.add(card(1, "PRAIA E DIVERSÃO", "Calçadão, píer, roda-gigante e montanha-russa te esperando.", "JOGAR", cardH) { onPlay() })
-        cards.add(card(2, "GARAGEM ABERTA", "Escolha seu carro ou moto na loja e saia dirigindo.", "VER MAIS", cardH) { onNews() })
-        val stack = LinearLayout(ctx); stack.orientation = LinearLayout.VERTICAL
-        for (cd in cards) stack.addView(cd, LinearLayout.LayoutParams(dp(210f), dp(cardH)).also { it.bottomMargin = dp(8f) })
-        right.addView(stack)
-        val nav = LinearLayout(ctx); nav.orientation = LinearLayout.HORIZONTAL; nav.gravity = Gravity.CENTER_VERTICAL
-        val pager = LinearLayout(ctx); pager.orientation = LinearLayout.HORIZONTAL; pager.gravity = Gravity.CENTER
-        val pbg = GradientDrawable(); pbg.cornerRadius = dp(12f).toFloat(); pbg.setColor(Color.WHITE); pager.background = pbg
-        val dotViews = ArrayList<View>()
-        for (k in 0 until 2) { val v = View(ctx); dotViews.add(v); pager.addView(v, LinearLayout.LayoutParams(dp(9f), dp(9f)).also { it.setMargins(dp(4f), 0, dp(4f), 0) }) }
-        fun showPage() {
-            for ((i, cd) in cards.withIndex()) cd.visibility = if (i / 2 == page || (page == 1 && i == 1)) View.VISIBLE else View.GONE
-            for ((i, v) in dotViews.withIndex()) { val g = GradientDrawable(); g.shape = GradientDrawable.OVAL; g.setColor(if (i == page) MenuPal.INK else 0xFFB0B8D8.toInt()); v.background = g }
-        }
-        nav.addView(arrow("‹") { page = 0; showPage() }, LinearLayout.LayoutParams(dp(28f), dp(28f)))
-        nav.addView(pager, LinearLayout.LayoutParams(dp(130f), dp(24f)).also { it.setMargins(dp(8f), 0, dp(8f), 0) })
-        nav.addView(arrow("›") { page = 1; showPage() }, LinearLayout.LayoutParams(dp(28f), dp(28f)))
-        right.addView(nav)
-        showPage()
-        addView(right, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(16f), dp(12f)) })
-
-        // canto: versão
-        val ver = txt(version, 10f, 0xCCFFFFFF.toInt(), Typeface.DEFAULT)
-        ver.setPadding(dp(8f), dp(4f), dp(8f), dp(4f))
-        val vb = GradientDrawable(); vb.cornerRadius = dp(4f).toFloat(); vb.setColor(0xFF1E3A78.toInt()); ver.background = vb
-        addView(ver, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(14f), 0, 0, dp(12f)) })
-
-        left.alpha = 0f; left.translationX = -dp(30f).toFloat()
-        left.animate().alpha(1f).translationX(0f).setDuration(500).setStartDelay(150).start()
-        right.alpha = 0f; right.translationX = dp(30f).toFloat()
-        right.animate().alpha(1f).translationX(0f).setDuration(500).setStartDelay(250).start()
-    }
-
-    /** Foto do personagem chegou: aparece subindo de leve. */
-    fun setSim(b: Bitmap) {
-        sim.setImageBitmap(b)
-        sim.translationY = dp(14f).toFloat()
-        sim.animate().alpha(1f).translationY(0f).setDuration(500).start()
-    }
-
-    private fun txt(s: String, size: Float, col: Int, tf: Typeface): TextView {
-        val t = TextView(context); t.text = s; t.textSize = size; t.setTextColor(col); t.typeface = tf
-        return t
-    }
-
-    private fun item(s: String, size: Float, act: () -> Unit): TextView {
-        val t = txt(s, size, Color.WHITE, MenuPal.BLACK)
-        t.setShadowLayer(5f, 0f, 2f, 0x44001A33)
-        pressable(t, act)
-        return t
-    }
-
-    private fun pressable(v: View, act: () -> Unit) {
-        v.setOnTouchListener { vv, e ->
-            when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> vv.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.85f).setDuration(70).start()
-                MotionEvent.ACTION_UP -> { vv.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(110).start(); if (e.x in 0f..vv.width.toFloat() && e.y in 0f..vv.height.toFloat()) act() }
-                MotionEvent.ACTION_CANCEL -> vv.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(110).start()
-            }
-            true
-        }
-        v.pivotX = 0f
-    }
-
-    /** Aba em paralelogramo (como HOME/STORE). */
-    private fun tab(s: String, col: Int, tc: Int, act: () -> Unit): View {
-        val v = object : View(context) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            val path = Path()
-            override fun onDraw(c: Canvas) {
-                val w = width.toFloat(); val h = height.toFloat(); val k = h * 0.35f
-                path.reset(); path.moveTo(k, 0f); path.lineTo(w, 0f); path.lineTo(w - k, h); path.lineTo(0f, h); path.close()
-                p.color = 0x33000000; c.save(); c.translate(0f, 3f); c.drawPath(path, p); c.restore()
-                p.color = col; c.drawPath(path, p)
-                p.color = tc; p.textSize = h * 0.46f; p.typeface = MenuPal.BLACK; p.textAlign = Paint.Align.CENTER
-                c.drawText(s, w / 2, h * 0.66f, p)
-            }
-        }
-        pressable(v, act)
-        return v
-    }
-
-    private fun arrow(s: String, act: () -> Unit): TextView {
-        val t = txt(s, 20f, Color.WHITE, MenuPal.BLACK); t.gravity = Gravity.CENTER; t.includeFontPadding = false
-        val g = GradientDrawable(); g.shape = GradientDrawable.OVAL; g.setColor(MenuPal.INK); t.background = g
-        t.setOnClickListener { act() }
-        return t
-    }
-
-    private fun card(kind: Int, title: String, body: String, btn: String, hDp: Float, act: () -> Unit): View {
-        val f = LinearLayout(context); f.orientation = LinearLayout.VERTICAL
-        val g = GradientDrawable(); g.cornerRadius = dp(8f).toFloat(); g.setColor(Color.WHITE); f.background = g
-        f.elevation = dp(4f).toFloat(); f.clipToOutline = true
-        f.addView(CardArt(context, kind), LinearLayout.LayoutParams(-1, dp(hDp * 0.42f)))
-        val inner = LinearLayout(context); inner.orientation = LinearLayout.VERTICAL; inner.setPadding(dp(10f), dp(5f), dp(10f), dp(6f))
-        inner.addView(txt(title, 13f, MenuPal.INK, MenuPal.BLACK))
-        val b = txt(body, 10.5f, 0xFF3F5FB5.toInt(), MenuPal.TITLE); b.maxLines = 2
-        inner.addView(b)
-        val bt = txt(btn, 10.5f, Color.WHITE, MenuPal.BLACK); bt.gravity = Gravity.CENTER
-        val bg = GradientDrawable(); bg.cornerRadius = dp(3f).toFloat(); bg.setColor(MenuPal.BTN); bt.background = bg
-        bt.setPadding(dp(14f), dp(3f), dp(14f), dp(3f))
-        pressable(bt, act)
-        inner.addView(bt, LinearLayout.LayoutParams(-2, -2).also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dp(3f) })
-        f.addView(inner, LinearLayout.LayoutParams(-1, -1))
-        return f
-    }
-}
-
-/** Tela de carregamento: fundo azul liso (nada do jogo aparece atrás), plumbob grande, etapa, barra e dicas. */
+/** Tela de carregamento: a cidade à beira-mar ao entardecer (animada), logo da casinha, etapa, barra e dicas. */
 @SuppressLint("ViewConstructor")
 class LoadingScreen(ctx: Context, private val progress: () -> Float, private val onDone: () -> Unit) : FrameLayout(ctx) {
     private val d = resources.displayMetrics.density
@@ -472,15 +454,16 @@ class LoadingScreen(ctx: Context, private val progress: () -> Float, private val
         "Toque no botão do mapa para ver a cidade inteira e ligar o GPS.",
         "Na loja, aba Veículos: escolha seu carro ou moto. Ele fica na rua em frente de casa.",
         "Chegue perto do seu veículo e toque em Dirigir.",
-        "Dá para entrar nas casas, lojas e prédios: as paredes somem como no Sims.",
-        "A praia tem píer, quiosques e um mar com ondas.",
-        "O parque de diversões fica na beira-mar: roda-gigante, montanha-russa e carrossel.",
+        "Dá para entrar nas casas, lojas e prédios.",
+        "Os molhes da praia levam até os dois faróis. Suba a escada da areia!",
+        "As barracas da praia têm cadeiras e guarda-sóis para todo mundo.",
         "Casas e terrenos com placa vermelha estão à venda.",
         "Os carros param no sinal vermelho. Atravesse na faixa!")
     private val stage: TextView
     private val tip: TextView
     private val pct: TextView
     private val bar: View
+    private val barW: Int
     private var shown = 0f
     private var finished = false
     private var tipIdx = (Math.random() * tips.size).toInt()
@@ -490,60 +473,40 @@ class LoadingScreen(ctx: Context, private val progress: () -> Float, private val
 
     init {
         isClickable = true
-        setBackgroundColor(MenuPal.BG)
-        addView(object : View(ctx) {
-            val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            val t0 = System.nanoTime()
-            override fun onDraw(c: Canvas) {
-                val w = width.toFloat(); val h = height.toFloat()
-                p.shader = LinearGradient(0f, 0f, 0f, h, intArrayOf(MenuPal.BG2, MenuPal.BG, MenuPal.DARK), floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
-                c.drawRect(0f, 0f, w, h, p); p.shader = null
-                // losangos claros girando devagar ao fundo (padrão do carregamento)
-                val t = (System.nanoTime() - t0) / 1e9f
-                p.color = 0x14FFFFFF
-                val s = min(w, h) * 0.09f
-                var y = -s; var row = 0
-                while (y < h + s) {
-                    var x = if (row % 2 == 0) -s else 0f
-                    while (x < w + s) {
-                        c.save(); c.translate(x + sin(t * 0.3f + y * 0.01f) * 6f, y); c.rotate(45f)
-                        c.drawRect(-s * 0.32f, -s * 0.32f, s * 0.32f, s * 0.32f, p); c.restore()
-                        x += s * 2f
-                    }
-                    y += s; row++
-                }
-                postInvalidateOnAnimation()
-            }
-        }, LayoutParams(-1, -1))
-        val col = LinearLayout(ctx); col.orientation = LinearLayout.VERTICAL; col.gravity = Gravity.CENTER_HORIZONTAL
-        val pb = Plumbob(ctx); pb.speed = 1.6f
-        col.addView(pb, LinearLayout.LayoutParams(dp(90f), dp(126f)))
-        stage = TextView(ctx); stage.textSize = 20f; stage.setTextColor(Color.WHITE); stage.typeface = MenuPal.BLACK; stage.gravity = Gravity.CENTER
-        stage.setShadowLayer(6f, 0f, 2f, 0x55001A33)
-        col.addView(stage, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(6f) })
+        setBackgroundColor(0xFF2A2E6E.toInt())
+        addView(CityScene(ctx, 0.85f), LayoutParams(-1, -1))
+        // véu escuro embaixo para o texto
+        addView(View(ctx).also { it.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x00000000, 0x00000000, 0xAA0A1530.toInt())) }, LayoutParams(-1, -1))
+        val logo = LinearLayout(ctx); logo.orientation = LinearLayout.HORIZONTAL; logo.gravity = Gravity.CENTER_VERTICAL
+        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(64f), dp(64f)))
+        val lt = LinearLayout(ctx); lt.orientation = LinearLayout.VERTICAL
+        lt.addView(TextView(ctx).also { it.text = "MEU"; it.textSize = 15f; it.setTextColor(0xFFFFE6A8.toInt()); it.typeface = MenuPal.BLACK; it.letterSpacing = 0.3f; it.includeFontPadding = false })
+        lt.addView(TextView(ctx).also { it.text = "LAR"; it.textSize = 42f; it.setTextColor(Color.WHITE); it.typeface = MenuPal.BLACK; it.includeFontPadding = false; it.setShadowLayer(12f, 0f, 4f, 0x99001133.toInt()) })
+        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
+        addView(logo, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(28f), dp(20f), 0, 0) })
+
+        val col = LinearLayout(ctx); col.orientation = LinearLayout.VERTICAL; col.gravity = Gravity.START
+        stage = TextView(ctx); stage.textSize = 18f; stage.setTextColor(Color.WHITE); stage.typeface = MenuPal.BLACK
+        stage.setShadowLayer(6f, 0f, 2f, 0x88001A33.toInt())
+        val row = LinearLayout(ctx); row.orientation = LinearLayout.HORIZONTAL; row.gravity = Gravity.BOTTOM
+        row.addView(stage, LinearLayout.LayoutParams(0, -2, 1f))
+        pct = TextView(ctx); pct.textSize = 15f; pct.setTextColor(0xFFFFE08A.toInt()); pct.typeface = MenuPal.BLACK
+        row.addView(pct)
+        barW = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+        col.addView(row, LinearLayout.LayoutParams(barW, -2))
         val track = FrameLayout(ctx)
-        val tg = GradientDrawable(); tg.cornerRadius = dp(9f).toFloat(); tg.setColor(0x40FFFFFF); tg.setStroke(dp(2f), Color.WHITE)
+        val tg = GradientDrawable(); tg.cornerRadius = dp(8f).toFloat(); tg.setColor(0x55FFFFFF); tg.setStroke(dp(1.5f), 0xAAFFFFFF.toInt())
         track.background = tg
         track.setPadding(dp(3f), dp(3f), dp(3f), dp(3f))
         bar = View(ctx)
-        val bg = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFF2ECC71.toInt(), 0xFF9BF2C0.toInt())); bg.cornerRadius = dp(6f).toFloat()
+        val bg = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xFFF2B33D.toInt(), 0xFFFFE08A.toInt())); bg.cornerRadius = dp(5f).toFloat()
         bar.background = bg
         track.addView(bar, LayoutParams(0, -1))
-        col.addView(track, LinearLayout.LayoutParams(dp(320f), dp(18f)).also { it.topMargin = dp(14f) })
-        pct = TextView(ctx); pct.textSize = 13f; pct.setTextColor(Color.WHITE); pct.typeface = MenuPal.TITLE
-        col.addView(pct, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(6f) })
-        addView(col, LayoutParams(-2, -2, Gravity.CENTER).also { it.bottomMargin = dp(20f) })
-        // dica num cartão branco embaixo
-        val tipBox = LinearLayout(ctx); tipBox.orientation = LinearLayout.HORIZONTAL; tipBox.gravity = Gravity.CENTER_VERTICAL
-        val tb = GradientDrawable(); tb.cornerRadius = dp(10f).toFloat(); tb.setColor(0xF2FFFFFF.toInt()); tipBox.background = tb
-        tipBox.setPadding(dp(14f), dp(8f), dp(16f), dp(8f))
-        val lamp = TextView(ctx); lamp.text = "DICA"; lamp.textSize = 11f; lamp.setTextColor(Color.WHITE); lamp.typeface = MenuPal.BLACK; lamp.gravity = Gravity.CENTER
-        val lb = GradientDrawable(); lb.cornerRadius = dp(4f).toFloat(); lb.setColor(MenuPal.BTN); lamp.background = lb; lamp.setPadding(dp(8f), dp(2f), dp(8f), dp(2f))
-        tipBox.addView(lamp)
-        tip = TextView(ctx); tip.textSize = 13f; tip.setTextColor(MenuPal.INK); tip.typeface = MenuPal.TITLE
-        tipBox.addView(tip, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
-        addView(tipBox, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(22f) })
-        tip.text = tips[tipIdx]
+        col.addView(track, LinearLayout.LayoutParams(barW, dp(16f)).also { it.topMargin = dp(8f) })
+        tip = TextView(ctx); tip.textSize = 13f; tip.setTextColor(0xFFE6EEFF.toInt()); tip.typeface = MenuPal.TITLE
+        col.addView(tip, LinearLayout.LayoutParams(barW, -2).also { it.topMargin = dp(10f) })
+        addView(col, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(26f) })
+        tip.text = "Dica: " + tips[tipIdx]
         lastTip = System.currentTimeMillis()
         post(object : Runnable {
             override fun run() {
@@ -556,8 +519,8 @@ class LoadingScreen(ctx: Context, private val progress: () -> Float, private val
                 if (nowT - lastMove > 30000L) target = 1f
                 shown += (target - shown) * 0.16f
                 if (target >= 1f && shown > 0.985f) shown = 1f
-                val w = ((dp(320f) - dp(6f)) * shown).toInt()
-                bar.layoutParams = bar.layoutParams.also { it.width = maxOf(dp(12f), w) }
+                val w = ((barW - dp(6f)) * shown).toInt()
+                bar.layoutParams = bar.layoutParams.also { it.width = maxOf(dp(10f), w) }
                 bar.requestLayout()
                 pct.text = "${(shown * 100).toInt()}%"
                 stage.text = when {
@@ -565,14 +528,14 @@ class LoadingScreen(ctx: Context, private val progress: () -> Float, private val
                     shown < 0.35f -> "Asfaltando as ruas"
                     shown < 0.55f -> "Erguendo casas e prédios"
                     shown < 0.72f -> "Mobiliando os interiores"
-                    shown < 0.86f -> "Enchendo a praia e o parque"
+                    shown < 0.86f -> "Arrumando a praia"
                     shown < 0.99f -> "Ligando o trânsito"
                     else -> "Pronto!"
                 }
                 val now = System.currentTimeMillis()
                 if (now - lastTip > 4500L) {
                     lastTip = now; tipIdx = (tipIdx + 1) % tips.size
-                    tip.animate().alpha(0f).setDuration(220).withEndAction { tip.text = tips[tipIdx]; tip.animate().alpha(1f).setDuration(260).start() }.start()
+                    tip.animate().alpha(0f).setDuration(220).withEndAction { tip.text = "Dica: " + tips[tipIdx]; tip.animate().alpha(1f).setDuration(260).start() }.start()
                 }
                 if (shown >= 1f) { finished = true; postDelayed({ onDone() }, 400); return }
                 postDelayed(this, 33)

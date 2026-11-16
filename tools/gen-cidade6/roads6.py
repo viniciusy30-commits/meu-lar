@@ -151,6 +151,7 @@ class Ground:
             for k in range(len(sec) - 1):
                 (a0, a1), (b0, b1) = sec[k], sec[k + 1]; zm = (zs[k] + zs[k + 1]) / 2
                 yt = -0.78 if any(sa < zm < sb for (sa, sb) in self.bridge_span) else 0.25      # por baixo do tabuleiro das pontes
+                if zm > 1688.0 + half_row('orla') + 4.0: yt = -0.4                         # dali ao mar o cais fica por baixo do molhe
                 M.at((a0[0] + b1[0]) / 2, zm)
                 M.quad((a0[0], yt, a0[1]), (a1[0], yt, a1[1]), (b1[0], yt, b1[1]), (b0[0], yt, b0[1]), WHITE, (0, 1, 0))
                 M.quad((a0[0], -5.2, a0[1]), (b0[0], -5.2, b0[1]), (b0[0], yt, b0[1]), (a0[0], yt, a0[1]), WHITE, (-1, 0, 0))
@@ -169,7 +170,7 @@ class Ground:
 
             for k in range(len(sec) - 1):
                 zm = (zs[k] + zs[k + 1]) / 2
-                if zm > 1719 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
+                if zm > 1688.0 + half_row('orla') + 4.0 or zm < 0 or any(sa - 0.5 < zm < sb + 0.5 for (sa, sb) in self.bridge_span): continue
                 pa = sec[k][1] if sgn > 0 else sec[k][0]; pb = sec[k + 1][1] if sgn > 0 else sec[k + 1][0]
                 nxt_cut = k + 2 < len(zs) and any(sa - 0.5 < (zs[k + 1] + zs[k + 2]) / 2 < sb + 0.5 for (sa, sb) in self.bridge_span)
                 if fb is not None:

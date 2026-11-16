@@ -137,6 +137,7 @@ def run(P, G, L, M, assets):
     for m, T in _tris(M, ('ruas', 'lotes', 'parques', 'orla')).items():
         if m not in WALK_MATS: continue
         up = (T[:, :, 4].mean(1) > 0.7) & (T[:, :, 1].max(1) < 1.6)
+        if m != 'concreto': up &= T[:, :, 2].mean(1) < 1718.5          # na praia so pisos de concreto (escadas, molhes): nada de subir em barraca, pedra ou castelo
         if up.any(): wt.append(T[up][:, :, :3])
     wt = np.concatenate(wt).astype(np.float64)
     wnx, wnz = int(W / 2.0) + 3, int(H / 2.0) + 3
