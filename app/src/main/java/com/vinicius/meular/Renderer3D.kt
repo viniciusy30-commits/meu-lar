@@ -1233,7 +1233,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         // Cidade 6: mar animado (ondas, espuma e a água indo e vindo na areia)
         if (City.C6 && Relevo.on) {
             Water.drawSea(vp, ex, ey, ez, Relevo.CX - 600f, Relevo.CZ + Relevo.SEA6_Z0, Relevo.CX + 3100f, Relevo.CZ + 2600f, st.gw,
-                -0.2f, Relevo.CZ + Relevo.SHORE6_Z, 0.045f, 5.5f)
+                -2.2f, Relevo.CZ + Relevo.SHORE6_Z, 0.045f, 5.5f, true, Relevo.CX, Relevo.CZ)
+            Water.drawRiver6(vp, ex, ey, ez, Relevo.CX, Relevo.CZ, -2.2f)
             useProg(curProg)
         }
         // Etapa 127: lagos com água de verdade

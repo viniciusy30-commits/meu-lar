@@ -1035,7 +1035,9 @@ object Relevo {
         if (parts.isNotEmpty()) { val m = Mesh(parts).gpuOnly(); t.rich = m; t.chunk.near = m }
     }
 
-    private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((-0.2f - h) / 7f).coerceIn(0f, 1f))
+    private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((wl() - h) / 7f).coerceIn(0f, 1f))
+    /** nível da água do relevo (Cidade 6: mar e rio 2 m mais baixos, a cidade fica bem acima da água) */
+    private fun wl(): Float = if (City.C6) -2.2f else -0.2f
 
     /** árvore simples e fofinha: tronco e copa em dois cones (bipirâmide de 6 lados) */
     // ------------------------------------------------------------------------------------------------
@@ -1363,14 +1365,14 @@ object Relevo {
             val x0 = CX + i * g; val x1 = x0 + g; val z0 = CZ + j * g; val z1 = z0 + g
             val avg = (h00 + h10 + h01 + h11) / 4f
             val lo = min(min(h00, h10), min(h01, h11))
-            val mode = if (avg < -0.1f) 0 else if (sandMask.isNotEmpty()) {
+            val mode = if (avg < wl() + 0.1f) 0 else if (sandMask.isNotEmpty()) {
                 val ns = (if (sandAt(i, j)) 1 else 0) + (if (sandAt(i + 1, j)) 1 else 0) + (if (sandAt(i, j + 1)) 1 else 0) + (if (sandAt(i + 1, j + 1)) 1 else 0)
                 if (ns >= 2 && avg < 1.6f) 1 else 2
             } else if (avg < 1.3f) 1 else 2
             if (mode == 2) b.m(Mt.GRASS, 0.3f) else b.m(Mt.PLAIN, 1f)
             // cor por vértice: na grama, a rocha entra aos poucos com a inclinação do PRÓPRIO vértice (sem quadrados de 8 m)
             // no fundo, o vertice que fica ACIMA da agua na beira da praia e areia (senao aparece uma serra marrom na linha d'agua)
-            fun bc(ii: Int, jj: Int, h: Float): Int = if (h > -0.15f && sandMask.isNotEmpty() && (sandAt(ii, jj) || h > 0f)) COL_SAND else bedCol(h)
+            fun bc(ii: Int, jj: Int, h: Float): Int = if (h > wl() + 0.05f && sandMask.isNotEmpty() && (sandAt(ii, jj) || h > 0f)) COL_SAND else bedCol(h)
             val c00 = if (mode == 0) bc(i, j, h00) else if (mode == 1) COL_SAND else 0
             val c10 = if (mode == 0) bc(i + 1, j, h10) else if (mode == 1) COL_SAND else 0
             val c01 = if (mode == 0) bc(i, j + 1, h01) else if (mode == 1) COL_SAND else 0
@@ -1389,7 +1391,7 @@ object Relevo {
             }
             nv(i, j, h00, x0, z0, c00); nv(i + 1, j, h10, x1, z0, c10); nv(i + 1, j + 1, h11, x1, z1, c11)
             nv(i, j, h00, x0, z0, c00); nv(i + 1, j + 1, h11, x1, z1, c11); nv(i, j + 1, h01, x0, z1, c01)
-            if (lo < -0.15f && !(City.C6 && z0 - CZ > SEA6_Z0)) {   // Cidade 6: o mar (dali para o sul) é a água animada do Water.drawSea
+            if (lo < -0.15f && !City.C6) {   // Cidade 6: mar e rio são a água animada do Water (drawSea / drawRiver6)
                 b.m(Mt.PLAIN, 1f)
                 // Etapa 183: cor por profundidade (rasa turquesa -> funda azul) com espuma onde encosta na margem
                 fun wc(h: Float): Int {

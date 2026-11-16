@@ -724,7 +724,7 @@ class Props:
             if blk['zone'] == 'parque': self.central_park(blk)
             elif blk['zone'] == 'ribeirinho': self.riverside(blk)
         import orla6; orla6.build(self.P, self.G, self.L, self.M, self)
-        self.harbor(); self.forest()
+        self.forest()
         print(f'  vida: {self.ntrees} arvores, {self.nlights} postes, {self.ncars} carros')
         return self
 

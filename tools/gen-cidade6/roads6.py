@@ -11,8 +11,8 @@ from plan6 import *
 Y_ASF = 0.03          # asfalto
 Y_WALK = 0.16         # calcada
 Y_LAWN = 0.13         # gramado
-Y_RIVER = -0.9        # espelho d'agua do rio (mesmo nivel do mar: no jogo a agua e um plano so)
-Y_SEA = -0.9
+Y_RIVER = -2.9        # espelho d'agua do rio (mesmo nivel do mar: no jogo a agua e um plano so)
+Y_SEA = -2.9
 
 C_ASF = rgb('#55575C'); C_ASF2 = rgb('#4D4F54'); C_CURB = rgb('#C9C5BC'); C_WALK = rgb('#D8D3C8'); C_WALK2 = rgb('#CFC9BC')
 C_GRASS = rgb('#6FA34E'); C_GRASS2 = rgb('#7DB159'); C_WHITE = rgb('#F2F2EE'); C_YEL = rgb('#F2C230'); C_SAND = rgb('#E6D5A4')
@@ -83,13 +83,13 @@ class Ground:
         sz = np.vectorize(shore_z)(X)
         ZW = 1718.0                                              # mureta do calcadao: dali para o sul e areia
         t = np.clip((Z - ZW) / np.maximum(sz - ZW, 1.0), 0, 1)
-        hb = -0.35 - 0.55 * t ** 1.2
+        hb = -1.5 - 1.4 * t ** 1.2
         h = np.where(Z > ZW, hb, h)
-        h = np.where(Z > sz, -0.9 - np.clip((Z - sz) / 120, 0, 1) * 6.0, h)
+        h = np.where(Z > sz, -2.9 - np.clip((Z - sz) / 120, 0, 1) * 6.0, h)
         # rio (leito)
         rx = np.vectorize(river_x)(Z)
         dr = np.abs(X - rx)
-        h = np.where(dr < RIVER_W / 2 + RIVER_WALL, np.minimum(h, -3.6 + 1.2 * (dr / (RIVER_W / 2)) ** 2), h)
+        h = np.where(dr < RIVER_W / 2 + RIVER_WALL, np.minimum(h, -5.6 + 1.2 * (dr / (RIVER_W / 2)) ** 2), h)
         return h
 
     def terrain(self):
@@ -109,7 +109,7 @@ class Ground:
         C = np.where((Hh > 6)[..., None], C * 0.85 + dark * 0.15, C)
         C = np.where((slope > 0.75)[..., None], C * 0.45 + rock * 0.55, C)
         C = np.where((Z > 1712)[..., None] & (Hh < 0.3)[..., None], sand, C)
-        C = np.where((Hh < -1.0)[..., None], bed, C)
+        C = np.where((Hh < -3.0)[..., None], bed, C)
         P3 = np.dstack([X, Hh, Z])
         self.H = Hh; self.st = st
         M.smooth_grid(P3, N, C.astype(np.uint8))
@@ -153,9 +153,9 @@ class Ground:
                 yt = -0.78 if any(sa < zm < sb for (sa, sb) in self.bridge_span) else 0.25      # por baixo do tabuleiro das pontes
                 M.at((a0[0] + b1[0]) / 2, zm)
                 M.quad((a0[0], yt, a0[1]), (a1[0], yt, a1[1]), (b1[0], yt, b1[1]), (b0[0], yt, b0[1]), WHITE, (0, 1, 0))
-                M.quad((a0[0], -3.2, a0[1]), (b0[0], -3.2, b0[1]), (b0[0], yt, b0[1]), (a0[0], yt, a0[1]), WHITE, (-1, 0, 0))
-                M.quad((a1[0], -3.2, a1[1]), (b1[0], -3.2, b1[1]), (b1[0], yt, b1[1]), (a1[0], yt, a1[1]), WHITE, (1, 0, 0))
-            (e0, e1) = sec[-1]; M.quad((e0[0], -3.2, e0[1]), (e1[0], -3.2, e1[1]), (e1[0], 0.25, e1[1]), (e0[0], 0.25, e0[1]), WHITE, (0, 0, 1))
+                M.quad((a0[0], -5.2, a0[1]), (b0[0], -5.2, b0[1]), (b0[0], yt, b0[1]), (a0[0], yt, a0[1]), WHITE, (-1, 0, 0))
+                M.quad((a1[0], -5.2, a1[1]), (b1[0], -5.2, b1[1]), (b1[0], yt, b1[1]), (a1[0], yt, a1[1]), WHITE, (1, 0, 0))
+            (e0, e1) = sec[-1]; M.quad((e0[0], -5.2, e0[1]), (e1[0], -5.2, e1[1]), (e1[0], 0.25, e1[1]), (e0[0], 0.25, e0[1]), WHITE, (0, 0, 1))
             # guarda-corpo continuo no lado da terra (fora das pontes e da praia); na passarela de madeira ele e cortado
             # exatamente nas laterais do tabuleiro (encosta na ponte, sem vao e sem atravessar)
             M.m('metal'); rail = rgb('#3E4247')
@@ -346,7 +346,7 @@ class Ground:
             M.m('concreto')
             for xp in (river_x(z) - RIVER_W / 6, river_x(z) + RIVER_W / 6):
                 for zp in np.linspace(z - hw + 2, z + hw - 2, 3):
-                    M.cyl(xp, zp, 0.9, -3.6, -0.7, rgb('#A9A397'), 10)
+                    M.cyl(xp, zp, 0.9, -5.6, -0.7, rgb('#A9A397'), 10)
             M.free()
         zbk = 1688.0 + half_row('orla')                                   # passarela da ciclovia na foz (orla6.bike_bridge)
         self.bridge_span.append((zbk + 0.3 - 0.3, zbk + 4.1 + 0.3))
