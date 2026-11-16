@@ -290,7 +290,10 @@ object Water {
     }
 
     /** Etapa 122: o mar. Mesma água (programa da piscina), malha grande, ondas maiores e mais largas, espuma na beira. */
-    fun drawSea(vp: FloatArray, ex: Float, ey: Float, ez: Float, x0: Float, z0: Float, x1: Float, z1: Float, gw: Int): Boolean {
+    /** [y]: nível da água; [shoreZ]: linha média da praia; [swash] > 0: a água sobe e desce devagar (vai e vem na areia inclinada)
+     *  e a espuma da beira acompanha (≈ swash/declive metros para dentro e para fora da areia). */
+    fun drawSea(vp: FloatArray, ex: Float, ey: Float, ez: Float, x0: Float, z0: Float, x1: Float, z1: Float, gw: Int,
+                y: Float = 0f, shoreZ: Float = Float.NaN, swash: Float = 0f, swashRun: Float = 0f): Boolean {
         if (gen != GlGen.gen || prog == 0) { if (gen != GlGen.gen || builtGw != gw) { gen = GlGen.gen; builtGw = gw; build(gw); seaKey = "" } }
         if (prog == 0) return false
         val key = "$x0|$z0|$x1|$z1|${GlGen.gen}"
@@ -325,9 +328,12 @@ object Water {
         GLES20.glUniform3f(nEye, ex, ey, ez)
         GLES20.glUniform1f(nTime, now())
         GLES20.glUniform4f(nBox, x0 - 1000f, z0 - 1000f, x1 + 1000f, z1 + 1000f)
-        GLES20.glUniform3f(nWav, 0f, 5f, 0.3f)
+        val tt = now()
+        val sw = (0.65f * kotlin.math.sin(tt * 0.42f) + 0.35f * kotlin.math.sin(tt * 0.91f + 1.3f))   // ondas chegando e voltando
+        GLES20.glUniform3f(nWav, y + swash * sw, 5f, 0.3f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
-        GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, z0 + 6f); GLES20.glUniform3f(nLake, 0f, 0f, 1f)
+        val sz = if (shoreZ.isNaN()) z0 + 6f else shoreZ - swashRun * sw
+        GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, sz); GLES20.glUniform3f(nLake, 0f, 0f, 1f)
         GLES20.glUniform3f(nDeep, 0.03f, 0.22f, 0.40f); GLES20.glUniform3f(nShal, 0.30f, 0.72f, 0.70f)
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, seaVbo)

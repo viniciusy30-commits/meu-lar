@@ -10,6 +10,8 @@ from roads6 import Y_ASF, Y_WALK, Y_LAWN, Y_SEA
 
 Z0 = 1688.0 + half_row('orla')          # fim da calcada da avenida
 ZW = 1718.0                             # mureta
+PIER_X = 520.0                          # pier de diversoes (praia oeste, longe da foz)
+PIER_A, PIER_B = PIER_X - 80.0, PIER_X + 62.0   # faixa da praia ocupada pela plataforma
 COLS = [(230, 70, 60), (40, 120, 200), (245, 200, 40), (60, 170, 120), (244, 244, 244), (240, 130, 40), (200, 80, 160), (30, 160, 170)]
 
 
@@ -49,13 +51,16 @@ def build(P, G, L, M, pr):
         # bicicleta pintada no chao a cada ~60 m
         for bx in np.arange(ca + 20, cb - 10, 60.0): bike_icon(M, bx, Z0 + 2.2, y + 0.07)
         # ------------------------------------------------------------ mureta com aberturas e escadas a cada ~70 m
-        gaps = [g for g in np.arange(xa + 35, xb - 22, 70.0)]
+        gaps = [g for g in np.arange(xa + 35, xb - 22, 70.0) if abs(g - PIER_X) > 16]
         cur = xa
         for g in gaps + [None]:
             end = (g - 3.0) if g is not None else xb
             x = cur
             while x < end:
                 x1 = min(x + 20.0, end)
+                if x < PIER_X + 10.2 and x1 > PIER_X - 10.2:                 # abertura da entrada do pier
+                    if x < PIER_X - 10.2: x1 = PIER_X - 10.2
+                    else: x = PIER_X + 10.2; continue
                 M.at((x + x1) / 2, ZW, 'orla'); M.m('pedra'); M.prism([(x, ZW - 0.25), (x1, ZW - 0.25), (x1, ZW + 0.25), (x, ZW + 0.25)], -1.0, y + 0.5, WHITE, False)
                 M.m('concreto'); M.prism([(x, ZW - 0.32), (x1, ZW - 0.32), (x1, ZW + 0.32), (x, ZW + 0.32)], y + 0.5, y + 0.6, (236, 232, 222), True)
                 x = x1
@@ -68,8 +73,8 @@ def build(P, G, L, M, pr):
         # ------------------------------------------------------------ calcadao: postes, bancos para o mar, lixeiras, canteiros, bicicletarios,
         # carrinhos de coco, bebedouros, totens; quiosques de dois tipos (nada de coqueiro no meio da calcada)
         kx_list = [kx + (12 if any(abs(kx - g) < 9 for g in gaps) else 0) for kx in np.arange(xa + 60, xb - 40, 115.0)]
-        kx_list = [kx for kx in kx_list if abs(kx - 1000) > 24]
-        busy = [(kx - 11, kx + 11) for kx in kx_list] + [(988.0, 1012.0)]      # rampa do pier
+        kx_list = [kx for kx in kx_list if abs(kx - PIER_X) > 26]
+        busy = [(kx - 11, kx + 11) for kx in kx_list] + [(PIER_X - 13.0, PIER_X + 13.0)]      # entrada do pier
         free_x = lambda xx, pad=0: not any(a_ - pad < xx < b_ + pad for (a_, b_) in busy) and not any(abs(xx - g) < 4.5 + pad for g in gaps)
         x = xa + 6; k = 0
         while x < xb - 4:
@@ -93,11 +98,10 @@ def build(P, G, L, M, pr):
             else: kiosk_glass(M, pr, kx, Z0 + 9.5, y, r)
     # ------------------------------------------------------------ areia
     for si, (xa, xb) in enumerate(spans):
-        wet_sand(M, xa, xb)
         # coqueiros na areia, em grupos de 2 a 5 com alturas bem diferentes, logo depois da mureta (sombra para quem chega)
         x = xa + r.uniform(8, 16)
         while x < xb - 8:
-            if not (-48 < x - 1000 < 38) and not any(abs(x - g) < 5 for g in np.arange(xa + 35, xb - 22, 70.0)):
+            if not (PIER_A < x < PIER_B) and not any(abs(x - g) < 5 for g in np.arange(xa + 35, xb - 22, 70.0)):
                 for _ in range(r.randint(2, 5)):
                     px, pz = x + r.uniform(-4.5, 4.5), ZW + r.uniform(2.5, 9.0)
                     pr.tree(px, pz, 'palmeira', r.choice((0.85, 1.0, 1.15, 1.3, 1.5, 1.75)) * r.uniform(0.95, 1.05), sand_y(px, pz) - 0.05)
@@ -105,7 +109,7 @@ def build(P, G, L, M, pr):
         # faixas de uso: esportes e postos perto da mureta, barracas no meio, brincadeira na areia molhada
         x = xa + 30; k = 0
         while x < xb - 30:
-            if abs(x - 1000) < 50: x += 30; continue                 # pier
+            if PIER_A - 15 < x < PIER_B + 15: x += 30; continue        # pier
             what = ('volei', 'barraca', 'futebol', 'barraca', 'salva', 'barraca', 'tenis', 'barraca', 'aluguel', 'barraca')[k % 10]
             if what == 'volei': volley(M, x, ZW + 22, r)
             elif what == 'futebol': soccer(M, x, ZW + 26, r)
@@ -117,18 +121,18 @@ def build(P, G, L, M, pr):
         # gente "de passagem": guarda-sois avulsos com canga, cooler e bolsa; castelos e baldes na areia molhada; pranchas
         for _ in range(int((xb - xa) / 11)):
             x = r.uniform(xa + 10, xb - 10)
-            if -48 < x - 1000 < 38: continue
+            if PIER_A < x < PIER_B: continue
             z = r.uniform(ZW + 30, shore_z(x) - 10)
             family(M, x, z, r)
         for _ in range(int((xb - xa) / 45)):
             x = r.uniform(xa + 10, xb - 10)
-            if -48 < x - 1000 < 38: continue
+            if PIER_A < x < PIER_B: continue
             sandcastle(M, x, shore_z(x) - r.uniform(3, 7), r)
         for _ in range(int((xb - xa) / 60)):
             x = r.uniform(xa + 10, xb - 10)
-            if -48 < x - 1000 < 38: continue
+            if PIER_A < x < PIER_B: continue
             vendor_cart(M, x, r.uniform(ZW + 14, shore_z(x) - 20), r)
-    pier(M, pr, 1000.0, y, r)
+    pier(M, pr, PIER_X, y, r)
     bike_bridge(M, pr, spans, y, r)
     jetties_and_lighthouse(M, pr, r)
 
@@ -605,7 +609,7 @@ def _deck(M, x0, x1, z0, z1, yd):
     z = z0
     while z < z1:
         zz = min(z + 12, z1)
-        M.at((x0 + x1) / 2, (z + zz) / 2, 'orla'); M.m('madeira')
+        M.at((x0 + x1) / 2, (z + zz) / 2, 'pier'); M.m('madeira')
         M.prism([(x0, z), (x1, z), (x1, zz), (x0, zz)], yd - 0.45, yd, (176, 140, 104), True, True)
         M.m('madeira')
         for xx in np.arange(x0 + 1, x1, 5.0):
@@ -627,9 +631,9 @@ def stall(M, x, z, yd, col, face=1, w=4.0):
     M.free()
 
 
-def ferris_wheel(M, pr, x, z, yd, r):
+def ferris_wheel(M, pr, x, z, yd, r, R=15.0, ncab=20):
     """roda-gigante: dois aros com treliça, 16 raios, cubo, 20 cabines coloridas, cavaletes em A e lâmpadas no aro"""
-    R = 15.0; cy = yd + R + 3.0; wid = 2.6
+    cy = yd + R + 3.0; wid = 2.6 + R * 0.06
     M.at(x, z, 'orla'); M.m('metal'); white = (244, 244, 240); n = 48
     for s in (-1, 1):
         zz = z + s * wid / 2
@@ -646,12 +650,12 @@ def ferris_wheel(M, pr, x, z, yd, r):
             a = 2 * math.pi * k / 16; ex, ey = x + math.cos(a) * (R - 1.2), cy + math.sin(a) * (R - 1.2)
             M.quad((x, cy - 0.06, zz), (ex, ey - 0.06, zz), (ex, ey + 0.06, zz), (x, cy + 0.06, zz), white, (0, 0, s))
         for dx in (-1, 1):                                   # cavaletes em A
-            fx = x + dx * 9.0
+            fx = x + dx * R * 0.6
             M.quad((fx - 0.25, yd, zz + s * 1.6), (fx + 0.25, yd, zz + s * 1.6), (x + 0.25, cy, zz), (x - 0.25, cy, zz), white, (0, 0.3, s))
     M.cyl(x, z, 0.7, cy - 0.7, cy + 0.7, white, 10) if False else M.box(x - 0.6, x + 0.6, cy - 0.6, cy + 0.6, z - wid / 2 - 0.4, z + wid / 2 + 0.4, (200, 200, 196))
     cols = [(230, 60, 60), (250, 190, 40), (40, 140, 220), (60, 180, 100), (220, 90, 180)]
-    for k in range(20):
-        a = 2 * math.pi * k / 20; gx, gy = x + math.cos(a) * R, cy + math.sin(a) * R
+    for k in range(ncab):
+        a = 2 * math.pi * k / ncab; gx, gy = x + math.cos(a) * R, cy + math.sin(a) * R
         c = cols[k % len(cols)]
         M.box(gx - 0.05, gx + 0.05, gy - 1.2, gy, z - 0.05, z + 0.05, (80, 84, 90))
         M.box(gx - 1.0, gx + 1.0, gy - 2.6, gy - 1.2, z - 0.9, z + 0.9, c)
@@ -665,14 +669,14 @@ def ferris_wheel(M, pr, x, z, yd, r):
     pr.luzes.append({'tipo': 'roda_gigante', 'x': round(x, 2), 'y': round(cy, 2), 'z': round(z, 2), 'cor': [255, 236, 160], 'raio_m': R, 'alcance_m': 120})
 
 
-def coaster(M, x0, x1, z0, z1, yd, r):
+def coaster(M, x0, x1, z0, z1, yd, r, hmax=11.5):
     """montanha-russa: circuito fechado em volta do parque, sobe e desce, trilho duplo vermelho sobre pilares brancos, carrinhos"""
     cx, cz = (x0 + x1) / 2, (z0 + z1) / 2; ax, az = (x1 - x0) / 2, (z1 - z0) / 2
     n = 160; pts = []
     for k in range(n):
         t = 2 * math.pi * k / n
         px = cx + ax * math.cos(t); pz = cz + az * math.sin(t) * (1 + 0.12 * math.sin(3 * t))
-        h = 6.0 + 5.5 * (0.5 + 0.5 * math.sin(2 * t + 0.6)) + 3.0 * max(0.0, math.sin(t)) ** 6 * 2.2
+        h = 6.0 + (hmax - 6.0) * (0.5 + 0.5 * math.sin(2 * t + 0.6)) * 0.6 + (hmax - 6.0) * 0.9 * max(0.0, math.sin(t)) ** 6
         pts.append((px, yd + h, pz))
     M.at(cx, cz, 'orla'); M.m('metal'); red = (210, 40, 40); white = (240, 240, 236)
     for k in range(n):
@@ -735,69 +739,141 @@ def arch(M, x, z, yd, w):
     M.free()
 
 
+def drop_tower(M, pr, x, z, yd, H=46.0):
+    """torre de queda livre: mastro trelicado, anel de assentos, topo com luzes"""
+    M.at(x, z, 'orla'); M.m('metal'); white = (240, 240, 236)
+    for k in range(4):
+        a = k * math.pi / 2 + math.pi / 4; px, pz = x + math.cos(a) * 1.1, z + math.sin(a) * 1.1
+        M.box(px - 0.18, px + 0.18, yd, yd + H, pz - 0.18, pz + 0.18, white)
+    for h in np.arange(yd + 2, yd + H, 3.0):
+        M.box(x - 1.2, x + 1.2, h, h + 0.12, z - 1.2, z + 1.2, white)
+    M.m('liso'); M.cyl(x, z, 3.2, yd + H * 0.62, yd + H * 0.62 + 1.6, (230, 60, 60), 16)
+    for k in range(16):
+        a = 2 * math.pi * k / 16; M.box(x + math.cos(a) * 3.2 - 0.3, x + math.cos(a) * 3.2 + 0.3, yd + H * 0.62 - 0.6, yd + H * 0.62, z + math.sin(a) * 3.2 - 0.3, z + math.sin(a) * 3.2 + 0.3, (250, 196, 40))
+    M.cyl(x, z, 2.2, yd + H, yd + H + 2.2, (40, 110, 200), 12, True, 0.6)
+    for k in range(12): a = 2 * math.pi * k / 12; M.sphere(x + math.cos(a) * 2.25, yd + H + 0.3, z + math.sin(a) * 2.25, 0.16, (255, 236, 160), 4, 3)
+    M.m('concreto'); M.cyl(x, z, 4.5, yd, yd + 0.5, (220, 216, 208), 16)
+    M.free()
+    pr.luzes.append({'tipo': 'torre_queda', 'x': round(x, 2), 'y': round(yd + H + 1, 2), 'z': round(z, 2), 'cor': [255, 236, 160], 'alcance_m': 150})
+
+
+def bumper_cars(M, x, z, yd, r):
+    """pavilhao dos carrinhos de bate-bate: pista, cobertura em arco com lampadas, carrinhos coloridos"""
+    M.at(x, z, 'orla'); M.m('liso')
+    M.box(x - 11, x + 11, yd, yd + 0.25, z - 8, z + 8, (60, 64, 72))
+    M.box(x - 11.2, x + 11.2, yd + 0.25, yd + 0.85, z - 8.2, z - 7.9, (250, 196, 40)); M.box(x - 11.2, x + 11.2, yd + 0.25, yd + 0.85, z + 7.9, z + 8.2, (250, 196, 40))
+    for (dx, dz) in ((-11, -8), (11, -8), (11, 8), (-11, 8), (0, -8), (0, 8)): M.cyl(x + dx, z + dz, 0.2, yd, yd + 5.0, (230, 60, 60), 8)
+    for k in range(12):
+        t0, t1 = k / 12, (k + 1) / 12; z0_, z1_ = z - 9 + 18 * t0, z - 9 + 18 * t1
+        y0_, y1_ = yd + 5.0 + 1.6 * math.sin(math.pi * t0), yd + 5.0 + 1.6 * math.sin(math.pi * t1)
+        M.quad((x - 12, y0_, z0_), (x + 12, y0_, z0_), (x + 12, y1_, z1_), (x - 12, y1_, z1_), (250, 250, 246) if k % 2 else (230, 60, 60), (0, 1, 0))
+    for k in range(10):
+        cx_, cz_ = x + r.uniform(-9, 9), z + r.uniform(-6, 6); col = r.choice(COLS)
+        M.box(cx_ - 0.9, cx_ + 0.9, yd + 0.25, yd + 0.85, cz_ - 0.6, cz_ + 0.6, col)
+        M.cyl(cx_, cz_, 0.04, yd + 0.85, yd + 5.0, (90, 94, 100), 4)
+    M.free()
+
+
+def stage(M, x, z, yd, face):
+    """palco com telhado, caixas de som e torre de luz"""
+    M.at(x, z, 'orla'); M.m('madeira'); M.box(x - 9, x + 9, yd, yd + 1.2, z - 5, z + 5, (90, 70, 56))
+    M.m('metal')
+    for dx in (-9, 9):
+        for dz in (-5, 5): M.box(x + dx - 0.15, x + dx + 0.15, yd + 1.2, yd + 8.0, z + dz - 0.15, z + dz + 0.15, (50, 54, 60))
+    M.box(x - 9.4, x + 9.4, yd + 8.0, yd + 8.6, z - 5.4, z + 5.4, (50, 54, 60))
+    M.m('liso')
+    for dx in (-7.5, 7.5): M.box(x + dx - 0.8, x + dx + 0.8, yd + 1.2, yd + 3.6, z + face * 3.8 - 0.6, z + face * 3.8 + 0.6, (30, 30, 34))
+    M.box(x - 6, x + 6, yd + 1.2, yd + 7.0, z - face * 4.8 - 0.05, z - face * 4.8 + 0.05, (40, 60, 120))
+    for k in range(6): M.sphere(x - 7.5 + k * 3.0, yd + 7.8, z + face * 4.8, 0.25, (255, 240, 200), 6, 4)
+    M.free()
+
+
+def food_court(M, pr, x0, x1, z0, z1, yd, r):
+    """praca de alimentacao: mesas com guarda-sol listrado entre floreiras"""
+    for xx in np.arange(x0 + 3, x1 - 2, 6.0):
+        for zz in np.arange(z0 + 3, z1 - 2, 6.0):
+            M.at(xx, zz, 'orla'); M.m('liso'); col = r.choice(COLS)
+            M.cyl(xx, zz, 0.55, yd + 0.72, yd + 0.78, (250, 250, 248), 10); M.cyl(xx, zz, 0.05, yd, yd + 0.72, (60, 60, 64), 5)
+            for k in range(4):
+                a = k * math.pi / 2 + 0.4; M.box(xx + math.cos(a) * 0.95 - 0.2, xx + math.cos(a) * 0.95 + 0.2, yd, yd + 0.46, zz + math.sin(a) * 0.95 - 0.2, zz + math.sin(a) * 0.95 + 0.2, (240, 240, 236))
+            M.free()
+            umbrella(M, xx, zz, col, r, False, y_fix=yd)
+
+
 def pier(M, pr, px, y, r):
-    """pier de diversões: rampa larga desde a orla, tabuleiro alto de madeira sobre estacas, praça com roda-gigante,
-    montanha-russa, carrossel, barracas, fliperama, e o braço de pesca até o restaurante na ponta"""
-    yd = 3.6; zA = ZW - 0.3
-    W1 = 9.0                                                  # meia-largura do acesso
-    # rampa (calçadão -> tabuleiro)
-    M.at(px, zA - 6, 'orla'); M.m('madeira')
-    M.quad((px - W1, y + 0.02, zA - 14), (px + W1, y + 0.02, zA - 14), (px + W1, yd, zA), (px - W1, yd, zA), (176, 140, 104), (0, 1, 0))
-    for s in (-1, 1): M.quad((px + s * W1, y, zA - 14), (px + s * W1, yd - 0.45, zA), (px + s * W1, yd, zA), (px + s * W1, y + 0.02, zA - 14), (150, 118, 86), (s, 0, 0))
-    M.free()
-    # acesso, praça, braço de pesca
-    zP0, zP1 = zA + 34, zA + 104; PX0, PX1 = px - 42, px + 30
-    zE = shore_z(px) + 120
-    _deck(M, px - W1, px + W1, zA, zP0, yd)
+    """PIER DE DIVERSOES (ponto turistico): rampa de acesso desde a mureta subindo ate 4,2 m (da para andar por baixo
+    na areia), portal com arco, alameda de barracas, plataforma de 140 x 120 m com roda-gigante gigante, montanha-russa,
+    torre de queda livre, carrossel, bate-bate, fliperama, palco, praca de alimentacao, e o braco de pesca de 140 m
+    ate o mirante com restaurante na ponta."""
+    yd = 4.2; zA = ZW - 0.3
+    W1 = 10.0
+    zR = zA + 34.0                                               # fim da rampa
+    # rampa (tabuleiro em declive, sobre estacas)
+    n = 10
+    for k in range(n):
+        za, zb = zA + (zR - zA) * k / n, zA + (zR - zA) * (k + 1) / n
+        ya, yb = y + (yd - y) * k / n, y + (yd - y) * (k + 1) / n
+        M.at(px, (za + zb) / 2, 'pier'); M.m('madeira')
+        M.quad((px - W1, ya, za), (px + W1, ya, za), (px + W1, yb, zb), (px - W1, yb, zb), (176, 140, 104), (0, 1, 0))
+        M.quad((px + W1, ya - 0.45, za), (px - W1, ya - 0.45, za), (px - W1, yb - 0.45, zb), (px + W1, yb - 0.45, zb), (120, 96, 72), (0, -1, 0))
+        for s_ in (-1, 1): M.quad((px + s_ * W1, ya - 0.45, za), (px + s_ * W1, yb - 0.45, zb), (px + s_ * W1, yb, zb), (px + s_ * W1, ya, za), (150, 118, 86), (s_, 0, 0))
+        M.m('madeira')
+        if k % 2 == 1:
+            for xx in np.arange(px - W1 + 1, px + W1, 5.0): _pile(M, xx, za, ya)
+        M.free()
+    PX0, PX1, zP0, zP1 = px - 80.0, px + 60.0, zR + 30.0, zR + 150.0   # plataforma do parque
+    zF = zP1 + 140.0                                                 # fim do braco de pesca
+    _deck(M, px - W1, px + W1, zR, zP0, yd)
     _deck(M, PX0, PX1, zP0, zP1, yd)
-    _deck(M, px - 5, px + 5, zP1, zE, yd)
-    _deck(M, px - 14, px + 14, zE, zE + 26, yd)
-    M.at(px, zA + 50, 'orla'); M.m('liso')
-    outline = [(px - W1, zA), (px - W1, zP0), (PX0, zP0), (PX0, zP1), (px - 5, zP1), (px - 5, zE), (px - 14, zE), (px - 14, zE + 26), (px + 14, zE + 26), (px + 14, zE), (px + 5, zE), (px + 5, zP1), (PX1, zP1), (PX1, zP0), (px + W1, zP0), (px + W1, zA)]
-    for i in range(0, len(outline) - 1, 1):
+    _deck(M, px - 6, px + 6, zP1, zF, yd)
+    _deck(M, px - 22, px + 22, zF, zF + 34, yd)
+    outline = [(px - W1, zA), (px - W1, zP0), (PX0, zP0), (PX0, zP1), (px - 6, zP1), (px - 6, zF), (px - 22, zF), (px - 22, zF + 34),
+               (px + 22, zF + 34), (px + 22, zF), (px + 6, zF), (px + 6, zP1), (PX1, zP1), (PX1, zP0), (px + W1, zP0), (px + W1, zA)]
+    for i in range(len(outline) - 1):
         a_, b_ = outline[i], outline[i + 1]
-        M.at((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2, 'orla'); _rail_line(M, [a_, b_], yd)
-    M.free()
-    arch(M, px, zA + 2.0, yd, 2 * W1 - 2.0)
-    # postes antigos com globo duplo ao longo do acesso e do braço
-    for z in list(np.arange(zA + 8, zP0, 10.0)) + list(np.arange(zP1 + 6, zE, 14.0)):
-        for s in (-1, 1):
-            xx = px + s * ((W1 - 0.8) if z < zP0 else 4.2)
-            M.at(xx, z, 'orla'); M.m('metal'); M.cyl(xx, z, 0.09, yd, yd + 4.4, (40, 50, 60), 6, False)
-            M.box(xx - 0.5, xx + 0.5, yd + 4.2, yd + 4.3, z - 0.05, z + 0.05, (40, 50, 60))
-            M.m('liso'); M.sphere(xx - 0.5, yd + 4.5, z, 0.22, (255, 246, 214), 6, 4); M.sphere(xx + 0.5, yd + 4.5, z, 0.22, (255, 246, 214), 6, 4); M.free()
-    # barracas no acesso (dois lados), viradas para o centro
+        if a_[1] < zR + 0.1 and b_[1] < zR + 0.1: continue
+        M.at((a_[0] + b_[0]) / 2, (a_[1] + b_[1]) / 2, 'orla'); M.m('liso'); _rail_line(M, [(a_[0], max(a_[1], zR)), (b_[0], max(b_[1], zR))], yd); M.free()
+    arch(M, px, zR + 2.0, yd, 2 * W1 - 2.0)
     cols = [(230, 60, 60), (40, 140, 220), (250, 190, 40), (60, 180, 100), (220, 90, 180), (240, 130, 40)]
-    for k, z in enumerate(np.arange(zA + 7, zP0 - 3, 6.5)):
-        stall(M, px - W1 + 2.6, z, yd, cols[k % 6], 1, 4.0) if False else None
-    for k, z in enumerate(np.arange(zA + 8, zP0 - 4, 7.0)):
-        M.at(px - W1 + 2.0, z, 'orla'); M.free()
+    for k, z in enumerate(np.arange(zR + 6, zP0 - 4, 7.0)):
         stall_side(M, px - W1 + 2.0, z, yd, cols[k % 6], 1)
         stall_side(M, px + W1 - 2.0, z + 3.5, yd, cols[(k + 3) % 6], -1)
-    # praça: roda-gigante, montanha-russa, carrossel, fliperama, barracas, bancos e floreiras
-    ferris_wheel(M, pr, px + 14, zP1 - 14, yd, r)
-    coaster(M, PX0 + 4, px - 4, zP0 + 6, zP1 - 6, yd, r)
-    carousel(M, px + 16, zP0 + 12, yd, r)
-    M.at(px - 10, zP1 - 5, 'orla')
-    arcade(M, PX0 + 13, zP0 + 8, yd, r)
-    for k, (sx, sz) in enumerate(((px - 2, zP0 + 30), (px + 4, zP1 - 30), (px - 6, zP1 - 4), (PX1 - 4, zP0 + 30))):
+    # postes de globo duplo pelo pier todo
+    lamps = [(px + s * (W1 - 0.8), z) for z in np.arange(zR + 4, zP0, 10.0) for s in (-1, 1)]
+    lamps += [(px + s * 5.2, z) for z in np.arange(zP1 + 6, zF, 12.0) for s in (-1, 1)]
+    lamps += [(xx, zz) for xx in np.arange(PX0 + 2, PX1, 14.0) for zz in (zP0 + 1.5, zP1 - 1.5)]
+    for (xx, z) in lamps:
+        M.at(xx, z, 'orla'); M.m('metal'); M.cyl(xx, z, 0.09, yd, yd + 4.4, (40, 50, 60), 6, False)
+        M.box(xx - 0.5, xx + 0.5, yd + 4.2, yd + 4.3, z - 0.05, z + 0.05, (40, 50, 60))
+        M.m('liso'); M.sphere(xx - 0.5, yd + 4.5, z, 0.22, (255, 246, 214), 6, 4); M.sphere(xx + 0.5, yd + 4.5, z, 0.22, (255, 246, 214), 6, 4); M.free()
+    # atracoes
+    ferris_wheel(M, pr, px + 34, zP1 - 30, yd, r, 26.0, 32)
+    coaster(M, PX0 + 4, px - 14, zP0 + 6, zP1 - 6, yd, r, 22.0)
+    drop_tower(M, pr, px + 46, zP0 + 18, yd)
+    carousel(M, px + 14, zP0 + 16, yd, r)
+    bumper_cars(M, px + 18, zP0 + 50, yd, r)
+    arcade(M, px - 2, zP1 - 14, yd, r)
+    stage(M, px + 6, zP1 - 52, yd, -1)
+    food_court(M, pr, px - 10, px + 4, zP0 + 30, zP0 + 70, yd, r)
+    for k, (sx, sz) in enumerate(((px - 4, zP0 + 6), (px + 36, zP0 + 4), (px + 50, zP0 + 75), (px - 10, zP1 - 30), (px + 30, zP1 - 6))):
         stall(M, sx, sz, yd, cols[k % 6], 1 if k % 2 == 0 else -1)
-    for (bx, bz) in ((px, zP0 + 4), (px + 8, zP0 + 24), (PX1 - 3, zP1 - 4)):
+    for (bx, bz) in ((px - 8, zP0 + 22), (px + 30, zP0 + 34), (px + 50, zP0 + 98), (px - 8, zP1 - 4), (px + 54, zP0 + 50)):
         planter_pier(M, pr, bx, bz, yd, r)
-    for k, z in enumerate(np.arange(zP1 + 10, zE - 4, 12.0)):
-        pr.bench(px + 4.0, z, -1, 0, yd); pr.bench(px - 4.0, z + 6, 1, 0, yd)
-    # restaurante na ponta
-    rx0, rz0 = px - 10, zE + 3
-    M.at(px, zE + 14, 'orla'); M.m('madeira'); M.box(rx0, rx0 + 20, yd, yd + 4.2, rz0, rz0 + 14, (220, 200, 170), top=False)
+    for k, z in enumerate(np.arange(zP1 + 10, zF - 4, 12.0)):
+        pr.bench(px + 4.6, z, -1, 0, yd); pr.bench(px - 4.6, z + 6, 1, 0, yd)
+    # mirante e restaurante na ponta
+    rx0, rz0 = px - 14, zF + 6
+    M.at(px, zF + 17, 'orla'); M.m('madeira'); M.box(rx0, rx0 + 28, yd, yd + 4.6, rz0, rz0 + 16, (226, 206, 176), top=False)
     M.m('vidro')
-    for (x0_, x1_, zf, s) in ((rx0 + 1, rx0 + 19, rz0, -1), (rx0 + 1, rx0 + 19, rz0 + 14, 1)):
-        M.quad((x0_, yd + 1.0, zf + s * 0.03), (x1_, yd + 1.0, zf + s * 0.03), (x1_, yd + 3.6, zf + s * 0.03), (x0_, yd + 3.6, zf + s * 0.03), WHITE, (0, 0, s))
-    M.m('telha'); M.quad((rx0 - 1, yd + 4.2, rz0 - 1), (rx0 + 21, yd + 4.2, rz0 - 1), (rx0 + 21, yd + 6.4, rz0 + 7), (rx0 - 1, yd + 6.4, rz0 + 7), (60, 110, 120), (0, 1, -0.4))
-    M.quad((rx0 - 1, yd + 6.4, rz0 + 7), (rx0 + 21, yd + 6.4, rz0 + 7), (rx0 + 21, yd + 4.2, rz0 + 15), (rx0 - 1, yd + 4.2, rz0 + 15), (60, 110, 120), (0, 1, 0.4))
+    for (x0_, x1_, zf, s_) in ((rx0 + 1, rx0 + 27, rz0, -1), (rx0 + 1, rx0 + 27, rz0 + 16, 1)):
+        M.quad((x0_, yd + 1.0, zf + s_ * 0.03), (x1_, yd + 1.0, zf + s_ * 0.03), (x1_, yd + 4.0, zf + s_ * 0.03), (x0_, yd + 4.0, zf + s_ * 0.03), WHITE, (0, 0, s_))
+    M.m('telha'); M.quad((rx0 - 1.5, yd + 4.6, rz0 - 1.5), (rx0 + 29.5, yd + 4.6, rz0 - 1.5), (rx0 + 29.5, yd + 7.4, rz0 + 8), (rx0 - 1.5, yd + 7.4, rz0 + 8), (60, 110, 120), (0, 1, -0.4))
+    M.quad((rx0 - 1.5, yd + 7.4, rz0 + 8), (rx0 + 29.5, yd + 7.4, rz0 + 8), (rx0 + 29.5, yd + 4.6, rz0 + 17.5), (rx0 - 1.5, yd + 4.6, rz0 + 17.5), (60, 110, 120), (0, 1, 0.4))
     M.m('madeira')
-    for s in (-1, 1): M.tri((rx0 + (0 if s < 0 else 20), yd + 4.2, rz0 - 1), (rx0 + (0 if s < 0 else 20), yd + 4.2, rz0 + 15), (rx0 + (0 if s < 0 else 20), yd + 6.4, rz0 + 7), (220, 200, 170), (s, 0, 0))
-    M.m('liso'); M.box(px - 4, px + 4, yd + 4.4, yd + 5.4, rz0 - 1.1, rz0 - 0.9, (250, 196, 40))
+    for s_ in (-1, 1): M.tri((rx0 + (0 if s_ < 0 else 28), yd + 4.6, rz0 - 1.5), (rx0 + (0 if s_ < 0 else 28), yd + 4.6, rz0 + 17.5), (rx0 + (0 if s_ < 0 else 28), yd + 7.4, rz0 + 8), (226, 206, 176), (s_, 0, 0))
+    M.m('liso'); M.box(px - 6, px + 6, yd + 4.8, yd + 6.0, rz0 - 1.6, rz0 - 1.4, (250, 196, 40))
     M.free()
+    food_court(M, pr, px - 20, px + 20, zF + 0.5, zF + 5.5, yd, r)
 
 
 def stall_side(M, x, z, yd, col, face):

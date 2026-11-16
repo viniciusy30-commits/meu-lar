@@ -374,6 +374,7 @@ object Relevo {
                     if (c5) loadExtraSub(am, "hds/c5_bld.bin")
                 }
                 if (c5) loadWalk(am) else walk = ShortArray(0)
+                if (c6) loadWalk2(am) else walk2 = ShortArray(0)
                 val sa = js.optJSONArray("solid")
                 val so = ArrayList<Float>()
                 if (sa != null) for (i in 0 until sa.length()) {
@@ -503,7 +504,34 @@ object Relevo {
     }
 
     /** chão sob (x, z): rua, ponte ou rotatória; senão o terreno */
+    // Cidade 6: segundo andar caminhável (tabuleiro do píer): quem está em cima anda no tabuleiro, quem está embaixo
+    // passa por baixo dele na areia. Grade recortada: c6_walk2.bin = nx, nz, passo, x0, z0 (do mapa) + alturas em cm.
+    private var walk2 = ShortArray(0); private var w2nx = 0; private var w2nz = 0; private var w2st = 2f; private var w2x0 = 0f; private var w2z0 = 0f
+    /** altura dos pés do jogador neste quadro (o Renderer3D atualiza) */
+    @Volatile var footY = 0f
+    private fun loadWalk2(am: AssetManager) {
+        walk2 = ShortArray(0)
+        try {
+            val bb = ByteBuffer.wrap(am.open("hds/c6_walk2.bin").use { it.readBytes() }).order(ByteOrder.LITTLE_ENDIAN)
+            w2nx = bb.getInt(); w2nz = bb.getInt(); w2st = bb.getFloat(); w2x0 = bb.getFloat(); w2z0 = bb.getFloat()
+            walk2 = ShortArray(w2nx * w2nz) { bb.getShort() }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "c6_walk2.bin: $e") }
+    }
+    private fun walk2At(x: Float, z: Float): Float {
+        if (walk2.isEmpty()) return Float.NaN
+        val i = Math.round((x - CX - w2x0) / w2st); val j = Math.round((z - CZ - w2z0) / w2st)
+        if (i < 0 || j < 0 || i >= w2nx || j >= w2nz) return Float.NaN
+        val v = walk2[j * w2nx + i].toInt()
+        return if (v == -32768) Float.NaN else v / 100f
+    }
+
     fun groundH(x: Float, z: Float): Float {
+        val lo = groundLow(x, z)
+        val up = walk2At(x, z)
+        return if (!up.isNaN() && up > lo && footY > up - 1.2f) up else lo
+    }
+
+    private fun groundLow(x: Float, z: Float): Float {
         val h = height(x, z)
         val wv = walkAt(x, z)
         if (!wv.isNaN() && wv > h - 0.6f) return wv
@@ -945,6 +973,9 @@ object Relevo {
     private const val TREE_NEAR = 260f
     private const val TREE_FAR = 340f
     @Volatile private var treeNearCap = 1e9f
+    /** Cidade 6: z (no mapa) onde começa o mar animado e a linha média da praia */
+    const val SEA6_Z0 = 1720f
+    const val SHORE6_Z = 1826f
 
     fun service(ex: Float, ez: Float) {
         if (!on) return
@@ -1358,7 +1389,7 @@ object Relevo {
             }
             nv(i, j, h00, x0, z0, c00); nv(i + 1, j, h10, x1, z0, c10); nv(i + 1, j + 1, h11, x1, z1, c11)
             nv(i, j, h00, x0, z0, c00); nv(i + 1, j + 1, h11, x1, z1, c11); nv(i, j + 1, h01, x0, z1, c01)
-            if (lo < -0.15f) {
+            if (lo < -0.15f && !(City.C6 && z0 - CZ > SEA6_Z0)) {   // Cidade 6: o mar (dali para o sul) é a água animada do Water.drawSea
                 b.m(Mt.PLAIN, 1f)
                 // Etapa 183: cor por profundidade (rasa turquesa -> funda azul) com espuma onde encosta na margem
                 fun wc(h: Float): Int {

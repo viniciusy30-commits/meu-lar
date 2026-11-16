@@ -16,7 +16,7 @@ G8 = 8.0
 MAT_BASE = 26
 MAT_ORDER = [m for m in sorted(MATS) if m != 'liso']
 WALK_MATS = {'asfalto', 'calcada', 'paver', 'grama', 'concreto', 'ondas', 'madeira', 'quadra', 'areia', 'cascalho', 'pedra', 'terreno'}
-FILES = {'c6_mesh.bin': ('ruas', 'orla', 'parques', 'mobiliario'), 'c6_bld.bin': ('lotes',), 'c6_veg.bin': ('vegetacao', 'carros')}
+FILES = {'c6_mesh.bin': ('ruas', 'orla', 'pier', 'parques', 'mobiliario'), 'c6_bld.bin': ('lotes',), 'c6_veg.bin': ('vegetacao', 'carros')}
 
 
 def mat_id(m):
@@ -155,6 +155,19 @@ def run(P, G, L, M, assets):
     with open(os.path.join(assets, 'c6_walk.bin'), 'wb') as f:
         f.write(struct.pack('<iif', wnx, wnz, 2.0)); f.write(cmw.tobytes())
     print(f'  chao andavel: {len(wt)} triangulos, {int((Wk > -1e8).sum())} pontos')
+    # ---- segundo andar: tabuleiros do pier e da marina (o jogo usa quando os pes estao perto da altura deles)
+    pt = [T for m, T in _tris(M, ('pier',)).items()]
+    if pt:
+        pt = np.concatenate(pt).astype(np.float64)
+        up = pt[:, :, 4].mean(1) > 0.7; pt = pt[up][:, :, :3]
+        x0, z0 = pt[:, :, 0].min() - 2, pt[:, :, 2].min() - 2; x1, z1 = pt[:, :, 0].max() + 2, pt[:, :, 2].max() + 2
+        q = pt.copy(); q[:, :, 0] -= x0; q[:, :, 2] -= z0
+        n2x, n2z = int((x1 - x0) / 2.0) + 2, int((z1 - z0) / 2.0) + 2
+        W2 = walk_raster(q, n2x, n2z)
+        cm2 = np.where(W2 < -1e8, -32768, np.clip(np.round((W2 + DY) * 100.0), -32000, 32000)).astype('<i2')
+        with open(os.path.join(assets, 'c6_walk2.bin'), 'wb') as f:
+            f.write(struct.pack('<iifff', n2x, n2z, 2.0, float(x0), float(z0))); f.write(cm2.tobytes())
+        print(f'  tabuleiros (andar de cima): {int((W2 > -1e8).sum())} pontos')
     # ---- json
     houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(Y_LAWN + 0.01 + DY - 0.08 - 0.10, 3), 'yaw': h['yaw']} for h in L.player]
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
