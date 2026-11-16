@@ -129,30 +129,48 @@ object Water {
      * brilho do sol cintilando, espuma em faixas que chegam na praia e névoa igual à da cidade.
      */
     val FSN = """
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
         precision mediump float;
+        #endif
         varying vec3 vW; varying vec3 vN; varying float vFoam;
         uniform vec3 uEye; uniform float uTime; uniform float uMode; uniform float uShoreZ; uniform vec3 uLake;
         uniform vec3 uDeep; uniform vec3 uShal;
+        float shore6(float x) { return 1832.0 + 14.0 * sin(x / 290.0) + 9.0 * sin(x / 117.0 + 1.3); }
+        float river6(float z) { return 1688.0 + 26.0 * sin(z / 300.0 + 0.5) + 8.0 * sin(z / 97.0); }
         void main() {
             vec2 p = vW.xz; float t = uTime;
-            if (uMode > 2.5 && length(p - uLake.xy) > uLake.z) discard;   // tanque redondo (chafariz)
+            bool c6s = uMode > 3.5 && uMode < 4.5;      // Cidade 6: mar (linha da praia real, canal do rio recortado)
+            bool riv = uMode > 4.5;                     // Cidade 6: rio com correnteza para o mar
+            bool sea = uMode < 1.5 || c6s;
+            vec2 gp = p - uLake.xy;
+            float inCh = 23.0 - abs(gp.x - river6(gp.y));
+            float d6 = vW.z - (uLake.y + shore6(gp.x) + uShoreZ);
+            if (c6s && (d6 < -7.0 || (inCh > -0.5 && d6 < 0.0))) discard;
+            if (uMode > 2.5 && uMode < 3.5 && length(p - uLake.xy) > uLake.z) discard;   // tanque redondo (chafariz)
             vec3 dv = uEye - vW; float dist = length(dv); vec3 V = dv / dist;
             float fade = 1.0 / (1.0 + dist * 0.025);
             vec2 g = vec2(0.0); float a;
-            a = dot(p, vec2(0.83, 0.55)) * 1.9 + t * 1.7;  g += vec2(0.83, 0.55) * cos(a) * 0.060;
-            a = dot(p, vec2(-0.45, 0.89)) * 2.7 - t * 1.9; g += vec2(-0.45, 0.89) * cos(a) * 0.050;
-            a = dot(p, vec2(0.97, -0.24)) * 4.3 + t * 2.6; g += vec2(0.97, -0.24) * cos(a) * 0.034;
-            a = dot(p, vec2(-0.71, -0.70)) * 6.9 + t * 3.3; g += vec2(-0.71, -0.70) * cos(a) * 0.024;
-            a = dot(p, vec2(0.20, 0.98)) * 11.0 - t * 4.1; g += vec2(0.20, 0.98) * cos(a) * 0.016;
-            g *= fade * (uMode > 1.5 ? 0.55 : 1.0);
+            vec2 pw = riv ? vec2(p.x, p.y - t * 1.6) : p;         // rio: as ondinhas descem com a correnteza
+            float tw = riv ? t * 0.35 : t;
+            a = dot(pw, vec2(0.83, 0.55)) * 1.9 + tw * 1.7;  g += vec2(0.83, 0.55) * cos(a) * 0.060;
+            a = dot(pw, vec2(-0.45, 0.89)) * 2.7 - tw * 1.9; g += vec2(-0.45, 0.89) * cos(a) * 0.050;
+            a = dot(pw, vec2(0.97, -0.24)) * 4.3 + tw * 2.6; g += vec2(0.97, -0.24) * cos(a) * 0.034;
+            a = dot(pw, vec2(-0.71, -0.70)) * 6.9 + tw * 3.3; g += vec2(-0.71, -0.70) * cos(a) * 0.024;
+            a = dot(pw, vec2(0.20, 0.98)) * 11.0 - tw * 4.1; g += vec2(0.20, 0.98) * cos(a) * 0.016;
+            g *= fade * (uMode > 1.5 && !c6s ? (riv ? 0.8 : 0.55) : 1.0);
             vec3 n = normalize(normalize(vN) + vec3(-g.x, 0.0, -g.y));
             float cosv = clamp(dot(n, V), 0.0, 1.0);
             float f1 = 1.0 - cosv; float f2 = f1 * f1;
             float fres = 0.02 + 0.98 * f2 * f2 * f1;
             // distância da margem: mar = da linha da praia; lago = do contorno
-            float d = uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
-            float k = 1.0 - exp(-max(d, 0.0) * (uMode < 1.5 ? 0.12 : 0.35));
+            float d = c6s ? d6 : riv ? inCh : uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
+            float k = 1.0 - exp(-max(d, 0.0) * (sea ? 0.12 : riv ? 0.18 : 0.35));
             vec3 body = mix(uShal, uDeep, k);
+            // foz: a agua do rio entra no mar entre os molhes (mais verde, com riscos de correnteza)
+            float plume = c6s ? exp(-max(d6, 0.0) / 55.0) * smoothstep(-14.0, 6.0, inCh) : 0.0;
+            if (c6s) body = mix(body, vec3(0.10, 0.36, 0.36), plume * 0.6);
             // céu refletido (mesma fórmula do céu)
             vec3 R = reflect(-V, n);
             float ry = max(R.y, 0.0);
@@ -166,7 +184,12 @@ object Water {
             col += vec3(1.0, 0.97, 0.88) * (s512 * 4.0 + s64 * 0.05) * (0.6 + 0.4 * fade);
             // espuma
             float foam = 0.0;
-            if (uMode < 1.5) {
+            if (riv) {
+                // riscos de espuma descendo o rio + espuma junto do cais
+                float st = sin(gp.x * 0.9 + sin(gp.y * 0.07) * 2.5) * sin((gp.y - t * 2.4) * 0.28 + gp.x * 0.35);
+                float st2 = sin(gp.x * 2.3 - gp.y * 0.05) * sin((gp.y - t * 3.1) * 0.61);
+                foam = smoothstep(0.86, 1.0, st) * 0.32 + smoothstep(0.9, 1.0, st2) * 0.18 + smoothstep(1.3, 0.0, d + 0.3 * sin(gp.y * 0.9 - t * 3.0)) * 0.7;
+            } else if (sea) {
                 float br = 0.5 + 0.5 * sin(p.x * 0.31 + sin(p.y * 0.23 + t * 0.4) * 2.0);
                 float band = smoothstep(0.55, 0.95, sin(d * 0.85 - t * 1.25 + br * 2.0)) * exp(-d * 0.18);
                 float edge = smoothstep(1.6, 0.0, d + 0.4 * sin(p.x * 0.7 + t * 1.3));
@@ -180,12 +203,13 @@ object Water {
                 float bub = 0.5 + 0.5 * sin(p.x * 9.0 + t * 5.0) * sin(p.y * 8.0 - t * 4.3);
                 foam = smoothstep(0.2, 0.0, d) * 0.4 + smoothstep(0.35, 0.0, abs(rr - uShoreZ)) * (0.45 + 0.4 * bub);
             }
+            if (c6s) foam = max(foam, smoothstep(0.86, 1.0, sin(gp.x * 1.1 + sin(gp.y * 0.09) * 2.0) * sin((gp.y - t * 2.2) * 0.3)) * plume * 0.45);
             col = mix(col, vec3(0.97, 0.98, 1.0), foam);
-            float al = uMode < 1.5 ? mix(0.30, 0.97, clamp(d * 0.22, 0.0, 1.0)) : mix(0.55, 0.96, clamp(d * 0.6, 0.0, 1.0));
+            float al = riv ? mix(0.62, 0.95, clamp(d * 0.25, 0.0, 1.0)) : sea ? mix(0.30, 0.97, clamp(d * 0.22, 0.0, 1.0)) : mix(0.55, 0.96, clamp(d * 0.6, 0.0, 1.0));
             al = clamp(max(al, fres) + foam * 0.5, 0.0, 1.0);
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            float fog = (uMode < 1.5 ? smoothstep(7.0, 18.0, fz) * 0.55 : smoothstep(1.2, 8.0, fz) * 0.8);   // mar: névoa só no horizonte (antes "acabava" a 110 m)
+            float fog = (sea ? smoothstep(7.0, 18.0, fz) * 0.55 : smoothstep(1.2, 8.0, fz) * 0.8);   // mar: névoa só no horizonte (antes "acabava" a 110 m)
             col = mix(col, vec3(0.80, 0.88, 0.96), fog);
             al = mix(al, 1.0, fog);
             gl_FragColor = vec4(col, al);
@@ -293,7 +317,8 @@ object Water {
     /** [y]: nível da água; [shoreZ]: linha média da praia; [swash] > 0: a água sobe e desce devagar (vai e vem na areia inclinada)
      *  e a espuma da beira acompanha (≈ swash/declive metros para dentro e para fora da areia). */
     fun drawSea(vp: FloatArray, ex: Float, ey: Float, ez: Float, x0: Float, z0: Float, x1: Float, z1: Float, gw: Int,
-                y: Float = 0f, shoreZ: Float = Float.NaN, swash: Float = 0f, swashRun: Float = 0f): Boolean {
+                y: Float = 0f, shoreZ: Float = Float.NaN, swash: Float = 0f, swashRun: Float = 0f,
+                c6: Boolean = false, c6x: Float = 0f, c6z: Float = 0f): Boolean {
         if (gen != GlGen.gen || prog == 0) { if (gen != GlGen.gen || builtGw != gw) { gen = GlGen.gen; builtGw = gw; build(gw); seaKey = "" } }
         if (prog == 0) return false
         val key = "$x0|$z0|$x1|$z1|${GlGen.gen}"
@@ -333,13 +358,66 @@ object Water {
         GLES20.glUniform3f(nWav, y + swash * sw, 5f, 0.3f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
         val sz = if (shoreZ.isNaN()) z0 + 6f else shoreZ - swashRun * sw
-        GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, sz); GLES20.glUniform3f(nLake, 0f, 0f, 1f)
+        if (c6) { GLES20.glUniform1f(nMode, 4f); GLES20.glUniform1f(nShore, -swashRun * sw); GLES20.glUniform3f(nLake, c6x, c6z, 0f) }
+        else { GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, sz); GLES20.glUniform3f(nLake, 0f, 0f, 1f) }
         GLES20.glUniform3f(nDeep, 0.03f, 0.22f, 0.40f); GLES20.glUniform3f(nShal, 0.30f, 0.72f, 0.70f)
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, seaVbo)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, seaIbo)
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, seaCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)
+        return true
+    }
+
+    // Cidade 6: rio de verdade (mesmo programa do mar, modo 5): faixa que segue o eixo do rio do norte ate a praia
+    private var rivVbo = 0; private var rivIbo = 0; private var rivCount = 0; private var rivKey = ""
+    private fun river6(z: Float) = 1688f + 26f * kotlin.math.sin(z / 300f + 0.5f) + 8f * kotlin.math.sin(z / 97f)
+    private fun shore6(x: Float) = 1832f + 14f * kotlin.math.sin(x / 290f) + 9f * kotlin.math.sin(x / 117f + 1.3f)
+
+    fun drawRiver6(vp: FloatArray, ex: Float, ey: Float, ez: Float, cx: Float, cz: Float, y: Float): Boolean {
+        if (progN == 0 || nGen != GlGen.gen) { nGen = GlGen.gen; buildN() }
+        if (progN == 0) return false
+        val key = "$cx|$cz|${GlGen.gen}"
+        if (key != rivKey || rivVbo == 0) {
+            if (rivVbo != 0) GLES20.glDeleteBuffers(2, intArrayOf(rivVbo, rivIbo), 0)
+            val zEnd = shore6(river6(1840f)) + 1.5f
+            val nx = 8; val nz = ((zEnd + 20f) / 4f).toInt() + 1
+            val fb = ByteBuffer.allocateDirect((nx + 1) * (nz + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+            for (j in 0..nz) {
+                val z = -20f + (zEnd + 20f) * j / nz
+                val rx = river6(z)
+                for (i in 0..nx) { fb.put(cx + rx - 23.6f + 47.2f * i / nx); fb.put(cz + z) }
+            }
+            fb.position(0)
+            rivCount = nx * nz * 6
+            val ib = ByteBuffer.allocateDirect(rivCount * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+            for (j in 0 until nz) for (i in 0 until nx) {
+                val a = (j * (nx + 1) + i).toShort(); val b = (a + 1).toShort(); val c = ((j + 1) * (nx + 1) + i).toShort(); val d = (c + 1).toShort()
+                ib.put(a); ib.put(c); ib.put(b); ib.put(b); ib.put(c); ib.put(d)
+            }
+            ib.position(0)
+            val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); rivVbo = ids[0]; rivIbo = ids[1]
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, rivVbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, fb.capacity() * 4, fb, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, rivIbo); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, rivCount * 2, ib, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+            rivKey = key
+        }
+        GLES20.glUseProgram(progN)
+        GLES20.glUniformMatrix4fv(nVP, 1, false, vp, 0)
+        GLES20.glUniform3f(nEye, ex, ey, ez)
+        GLES20.glUniform1f(nTime, now())
+        GLES20.glUniform4f(nBox, cx - 5000f, cz - 5000f, cx + 5000f, cz + 5000f)
+        GLES20.glUniform3f(nWav, y, 1.6f, 0.6f)
+        GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
+        GLES20.glUniform1f(nMode, 5f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, 0f)
+        GLES20.glUniform3f(nDeep, 0.05f, 0.22f, 0.26f); GLES20.glUniform3f(nShal, 0.20f, 0.46f, 0.42f)
+        GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, rivVbo)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, rivIbo)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, rivCount, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glEnableVertexAttribArray(1); GLES20.glEnableVertexAttribArray(2); GLES20.glEnableVertexAttribArray(3)

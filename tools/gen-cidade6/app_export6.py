@@ -120,7 +120,7 @@ def run(P, G, L, M, assets):
     Hh = G.height(np.clip(X, 0, W), np.clip(Z, 0, H)) + DY
     from plan6 import river_x, RIVER_W, RIVER_WALL
     rxv = np.vectorize(river_x)(Z); dr = np.abs(X - rxv)
-    Hh = np.where((dr < RIVER_W / 2 + RIVER_WALL + 1.0) & (Z < 1716), np.minimum(Hh, -1.2), Hh)      # a margem do rio no jogo fica escondida sob o cais/gramado
+    Hh = np.where((dr < RIVER_W / 2 + RIVER_WALL + 1.0) & (Z < 1716), np.minimum(Hh, -3.2), Hh)      # a margem do rio no jogo fica escondida sob o cais/gramado
     cm = np.clip(np.round(Hh * 100.0), -32000, 32000).astype('<i2')
     with open(os.path.join(assets, 'c6.bin'), 'wb') as f:
         f.write(struct.pack('<iif', nx, nz, G8)); f.write(cm.tobytes())
