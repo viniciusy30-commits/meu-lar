@@ -1025,6 +1025,7 @@ def shop_cottage_x(M, x, z, yd, face, w, r):
         M.quad((xf, yd + 3.0, za), (xf, yd + 3.0, za + 0.6), (xf + 1.1, yd + 2.6, za + 0.6), (xf + 1.1, yd + 2.6, za), ac if k % 2 == 0 else (250, 250, 246), (0.5, 0.8, 0))
     M.box(xf, xf + 0.1, yd + 3.5, yd + 4.2, z - w * 0.3, z + w * 0.3, ac)
     M.free()
+    food_court(M, pr, px - 20, px + 20, zF + 0.5, zF + 5.5, yd, r)
 
 
 def stall_side(M, x, z, yd, col, face):

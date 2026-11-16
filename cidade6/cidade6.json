@@ -97,7 +97,7 @@
    "j": 4,
    "x0": 0.0,
    "z0": 1000.0,
-   "triangulos": 47467,
+   "triangulos": 47513,
    "camadas": [
     "arbustos",
     "arvores",
@@ -1240,6 +1240,7 @@
     "mobiliario",
     "orla",
     "parques",
+    "pier",
     "ruas",
     "terreno",
     "vegetacao"
@@ -1490,7 +1491,7 @@
    "j": 3,
    "x0": 2250.0,
    "z0": 750.0,
-   "triangulos": 54557,
+   "triangulos": 54603,
    "camadas": [
     "arbustos",
     "arvores",
