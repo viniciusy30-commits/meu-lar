@@ -440,6 +440,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 // Etapa 154: se a cidade falhar ao montar, avisa na hora (em vez de ficar sem aparecer sem explicação)
                 City.error?.let { e -> if (e != lastCityErr && jogando) { lastCityErr = e; msg("A cidade não carregou: $e") } }
+                Relevo.lastErr?.let { e -> if (e != lastCityErr && jogando) { lastCityErr = e; msg("Problema ao carregar a cidade: $e") } }
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
                 portrait.visibility = if (mm) View.GONE else View.VISIBLE   // o retrato volta quando não há cidade (sala de testes, vista aérea)

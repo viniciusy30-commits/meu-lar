@@ -125,11 +125,16 @@ object Relevo {
             val f = java.io.File(dir, name.substringAfterLast('/'))
             if (want > 0 && f.exists() && f.length() == want) return f
             val tmp = java.io.File(dir, f.name + ".tmp")
+            // libera espaço antes de copiar (a versão velha e cópias pela metade não ficam ocupando o celular)
+            if (f.exists()) f.delete(); if (tmp.exists()) tmp.delete()
+            dir.listFiles()?.forEach { o -> if (o.name.endsWith(".tmp")) o.delete() }
+            val free = dir.usableSpace
+            if (want > 0 && free < want + 20_000_000L) { lastErr = "pouco espaço no celular (precisa de ${(want + 20_000_000L) / 1_000_000} MB livres, tem ${free / 1_000_000} MB)"; return null }
             am.open(name).use { ins -> java.io.FileOutputStream(tmp).use { os -> val buf = ByteArray(1 shl 16); while (true) { val n = ins.read(buf); if (n < 0) break; os.write(buf, 0, n) } } }
             if (f.exists()) f.delete()
             if (!tmp.renameTo(f)) return null
             return f
-        } catch (e: Throwable) { android.util.Log.w("Relevo", "copia da malha: $e"); return null }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "copia da malha: $e"); lastErr = "cópia de $name: $e"; return null }
     }
 
     /** lê só os cabeçalhos (16 bytes por registro) e guarda onde estão os vértices de cada pedaço de 64 m */
@@ -168,7 +173,7 @@ object Relevo {
     /** Etapa E: segunda malha (construções dos lotes), mesmo formato SUB1; os registros entram no mesmo índice de células */
     private fun loadExtraSub(am: AssetManager, name: String) {
         try {
-            val f = ensureSubFile(am, name) ?: return
+            val f = ensureSubFile(am, name) ?: run { if (lastErr == null) lastErr = "sem arquivo $name"; return }
             val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
             val raf = java.io.RandomAccessFile(f, "r")
             try {
@@ -186,7 +191,7 @@ object Relevo {
                 }
                 subExtra.add(raf)
             } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
-        } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e") }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e"); lastErr = "malha $name: $e" }
     }
 
     private const val SUB2_VB = 20  // SUB2: posição int16 x3 (2 cm, relativa ao canto da célula), normal int8 x3, uv 2 floats, cor 3 bytes
@@ -296,7 +301,7 @@ object Relevo {
 
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
     fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false, c5: Boolean = false): Boolean {
-        on = false; sub = false
+        on = false; sub = false; lastErr = null
         val c6 = c5 && City.C6   // Cidade 6: mesmo caminho da Cidade 5, arquivos hds/c6*
         try {
             val h: ShortArray
@@ -388,6 +393,8 @@ object Relevo {
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
+                    // cópias de outras cidades ocupam espaço à toa: saem antes de copiar as da Cidade 6
+                    dataDir?.let { d -> for (o in arrayOf("c5_mesh.bin", "c5_bld.bin", "sub_mesh.bin")) try { java.io.File(d, o).delete() } catch (e: Throwable) { } }
                     for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_bld2.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
                     loadTree6(am)
                 } else {
@@ -416,7 +423,7 @@ object Relevo {
             indexRoads()
             return true
         } catch (e: Throwable) {
-            android.util.Log.w("Relevo", "sem relevo: $e")
+            android.util.Log.w("Relevo", "sem relevo: $e"); lastErr = "relevo: $e"
             clear()
             return false
         }
@@ -1000,6 +1007,8 @@ object Relevo {
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
     @Volatile var lagoa: FloatArray? = null
+    /** último problema ao carregar a cidade (mostrado na tela para o jogador) */
+    @Volatile var lastErr: String? = null
     /** Cidade 6: prédios das profissões e prefeitura (porta de entrada) para o GPS e o bater ponto */
     val jobPl = ArrayList<City.Place>()
     const val SEA6_Z0 = 1720f
