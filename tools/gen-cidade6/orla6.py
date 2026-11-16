@@ -68,8 +68,7 @@ def build(P, G, L, M, pr):
             if g is not None:
                 stairs(M, pr, g, y); cur = g + 3.0
         px = xb if si == 0 else xa
-        M.at(px, ZW, 'orla'); M.m('pedra'); M.prism([(px - 0.6, ZW - 0.6), (px + 0.6, ZW - 0.6), (px + 0.6, ZW + 0.6), (px - 0.6, ZW + 0.6)], -2.2, y + 0.95, WHITE, False)
-        M.m('concreto'); M.prism([(px - 0.7, ZW - 0.7), (px + 0.7, ZW - 0.7), (px + 0.7, ZW + 0.7), (px - 0.7, ZW + 0.7)], y + 0.95, y + 1.08, (236, 232, 222), True)
+        if False: M.at(px, ZW, 'orla'); M.m('pedra'); M.prism([(px - 0.6, ZW - 0.6), (px + 0.6, ZW - 0.6), (px + 0.6, ZW + 0.6), (px - 0.6, ZW + 0.6)], -2.2, y + 0.95, WHITE, False)
         M.free()
         # ------------------------------------------------------------ calcadao: postes, bancos para o mar, lixeiras, canteiros, bicicletarios,
         # carrinhos de coco, bebedouros, totens; quiosques de dois tipos (nada de coqueiro no meio da calcada)
@@ -373,12 +372,12 @@ def jetties_and_lighthouse(M, pr, r):
     atravessam a praia e entram no mar ate as plataformas dos farois. Escadas descem do molhe para a areia.
     Farol grande na ponta oeste e farol menor (verde) na leste, ambos com escada externa ate a galeria da lanterna."""
     zsh = shore_z(river_x(1840))
-    za, zt = ZW + 0.3, zsh + 84.0
-    YT = 0.9
+    za, zt = Z0 + 4.2, zsh + 84.0            # o molhe comeca logo depois da ciclovia: a ponta do calcadao e o proprio molhe
+    YT = Y_WALK + 0.02
     for sgn in (-1, 1):
         def cx_at(z): return river_x(z) + sgn * (RIVER_W / 2 + RIVER_WALL / 2)
         def w_at(z): return 1.9 + 1.3 * min(max((z - zsh) / (zt - zsh), 0.0), 1.0)
-        def y_at(z): return Y_WALK + (YT - Y_WALK) * min((z - za) / 7.0, 1.0)      # rampa saindo do calcadao
+        def y_at(z): return YT
         stairs_z = [ZW + 26.0, ZW + 64.0]
         z = za
         k = 0
@@ -436,7 +435,7 @@ def jetties_and_lighthouse(M, pr, r):
         # escadas do molhe para a areia (lado de fora)
         for sz_ in stairs_z:
             if sz_ > shore_z(cx_at(sz_)) - 8: continue
-            e = cx_at(sz_) + sgn * w_at(sz_); yy = YT + 0.22; n = 0
+            e = cx_at(sz_) + sgn * w_at(sz_); yy = YT; n = 0
             M.at(e, sz_, 'orla'); M.m('concreto')
             while True:
                 xe = e + sgn * 0.34 * n; ytop = yy - 0.2 * (n + 1)

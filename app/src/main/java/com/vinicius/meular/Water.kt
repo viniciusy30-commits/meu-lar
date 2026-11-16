@@ -147,7 +147,10 @@ object Water {
             vec2 gp = p - uLake.xy;
             float inCh = 23.0 - abs(gp.x - river6(gp.y));
             float d6 = vW.z - (uLake.y + shore6(gp.x) + uShoreZ);
-            if (c6s && (d6 < -7.0 || (inCh > -0.5 && d6 < 0.0))) discard;
+            float chn = smoothstep(-3.0, 3.0, inCh);                     // dentro do canal do rio (entre os molhes)
+            if (c6s && d6 < -7.0 && chn < 0.01) discard;                  // areia: o mar não sobe nela
+            if (c6s && d6 < -40.0) discard;                               // rio adentro: só a água do rio
+            float mouth = c6s ? chn * (1.0 - smoothstep(20.0, 90.0, d6)) : 0.0;
             if (uMode > 2.5 && uMode < 3.5 && length(p - uLake.xy) > uLake.z) discard;   // tanque redondo (chafariz)
             vec3 dv = uEye - vW; float dist = length(dv); vec3 V = dv / dist;
             float fade = 1.0 / (1.0 + dist * 0.025);
@@ -165,12 +168,12 @@ object Water {
             float f1 = 1.0 - cosv; float f2 = f1 * f1;
             float fres = 0.02 + 0.98 * f2 * f2 * f1;
             // distância da margem: mar = da linha da praia; lago = do contorno
-            float d = c6s ? d6 : riv ? inCh : uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
+            float d = c6s ? mix(d6, max(d6, 22.0), chn) : riv ? inCh : uMode < 1.5 ? (vW.z - uShoreZ) : (uLake.z - length(p - uLake.xy));
             float k = 1.0 - exp(-max(d, 0.0) * (sea ? 0.12 : riv ? 0.18 : 0.35));
             vec3 body = mix(uShal, uDeep, k);
             // foz: a agua do rio entra no mar entre os molhes (mais verde, com riscos de correnteza)
-            float plume = c6s ? exp(-max(d6, 0.0) / 55.0) * smoothstep(-14.0, 6.0, inCh) : 0.0;
-            if (c6s) body = mix(body, vec3(0.10, 0.36, 0.36), plume * 0.6);
+            float plume = c6s ? max(mouth, exp(-max(d6, 0.0) / 70.0) * smoothstep(-30.0, 10.0, inCh) * 0.7) : 0.0;
+            if (c6s) body = mix(body, vec3(0.12, 0.38, 0.40), plume * 0.75);
             // céu refletido (mesma fórmula do céu)
             vec3 R = reflect(-V, n);
             float ry = max(R.y, 0.0);
@@ -181,14 +184,13 @@ object Water {
             float s256 = s64 * s64; s256 *= s256; float s512 = s256 * s256;
             sky += vec3(1.0, 0.95, 0.8) * (s16 * 0.05 + s64 * 0.08);
             vec3 col = mix(body, sky, fres);
-            col += vec3(1.0, 0.97, 0.88) * (s512 * 4.0 + s64 * 0.05) * (0.6 + 0.4 * fade);
+            col += vec3(1.0, 0.97, 0.88) * (s512 * 1.3 + s64 * 0.04) * (0.6 + 0.4 * fade);
             // espuma
             float foam = 0.0;
             if (riv) {
                 // riscos de espuma descendo o rio + espuma junto do cais
-                float st = sin(gp.x * 0.9 + sin(gp.y * 0.07) * 2.5) * sin((gp.y - t * 2.4) * 0.28 + gp.x * 0.35);
-                float st2 = sin(gp.x * 2.3 - gp.y * 0.05) * sin((gp.y - t * 3.1) * 0.61);
-                foam = smoothstep(0.86, 1.0, st) * 0.32 + smoothstep(0.9, 1.0, st2) * 0.18 + smoothstep(1.3, 0.0, d + 0.3 * sin(gp.y * 0.9 - t * 3.0)) * 0.7;
+                // só uma franja leve junto do cais; a correnteza aparece no brilho das ondinhas descendo
+                foam = smoothstep(0.9, 0.0, d + 0.25 * sin(gp.y * 0.7 - t * 2.4)) * 0.35;
             } else if (sea) {
                 float br = 0.5 + 0.5 * sin(p.x * 0.31 + sin(p.y * 0.23 + t * 0.4) * 2.0);
                 float band = smoothstep(0.55, 0.95, sin(d * 0.85 - t * 1.25 + br * 2.0)) * exp(-d * 0.18);
@@ -203,8 +205,9 @@ object Water {
                 float bub = 0.5 + 0.5 * sin(p.x * 9.0 + t * 5.0) * sin(p.y * 8.0 - t * 4.3);
                 foam = smoothstep(0.2, 0.0, d) * 0.4 + smoothstep(0.35, 0.0, abs(rr - uShoreZ)) * (0.45 + 0.4 * bub);
             }
-            if (c6s) foam = max(foam, smoothstep(0.86, 1.0, sin(gp.x * 1.1 + sin(gp.y * 0.09) * 2.0) * sin((gp.y - t * 2.2) * 0.3)) * plume * 0.45);
+            if (c6s) foam *= 1.0 - chn;   // sem espuma de praia atravessando o canal do rio
             col = mix(col, vec3(0.97, 0.98, 1.0), foam);
+            float rfade = riv ? smoothstep(-30.0, -10.0, d6) : 0.0;   // o rio some aos poucos onde o mar assume
             float al = riv ? mix(0.62, 0.95, clamp(d * 0.25, 0.0, 1.0)) : sea ? mix(0.30, 0.97, clamp(d * 0.22, 0.0, 1.0)) : mix(0.55, 0.96, clamp(d * 0.6, 0.0, 1.0));
             al = clamp(max(al, fres) + foam * 0.5, 0.0, 1.0);
             vec3 fd = (vW - uEye) * 0.01;
@@ -212,6 +215,8 @@ object Water {
             float fog = (sea ? smoothstep(7.0, 18.0, fz) * 0.55 : smoothstep(1.2, 8.0, fz) * 0.8);   // mar: névoa só no horizonte (antes "acabava" a 110 m)
             col = mix(col, vec3(0.80, 0.88, 0.96), fog);
             al = mix(al, 1.0, fog);
+            if (riv) al *= 1.0 - rfade;
+            if (c6s) al *= mix(1.0, smoothstep(-40.0, -28.0, d6), chn);
             gl_FragColor = vec4(col, al);
         }
     """.trimIndent()
@@ -355,7 +360,7 @@ object Water {
         GLES20.glUniform4f(nBox, x0 - 1000f, z0 - 1000f, x1 + 1000f, z1 + 1000f)
         val tt = now()
         val sw = (0.65f * kotlin.math.sin(tt * 0.42f) + 0.35f * kotlin.math.sin(tt * 0.91f + 1.3f))   // ondas chegando e voltando
-        GLES20.glUniform3f(nWav, y + swash * sw, 5f, 0.3f)
+        GLES20.glUniform3f(nWav, y + swash * sw, if (c6) 1.2f else 5f, 0.3f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
         val sz = if (shoreZ.isNaN()) z0 + 6f else shoreZ - swashRun * sw
         if (c6) { GLES20.glUniform1f(nMode, 4f); GLES20.glUniform1f(nShore, -swashRun * sw); GLES20.glUniform3f(nLake, c6x, c6z, 0f) }
@@ -383,7 +388,7 @@ object Water {
         val key = "$cx|$cz|${GlGen.gen}"
         if (key != rivKey || rivVbo == 0) {
             if (rivVbo != 0) GLES20.glDeleteBuffers(2, intArrayOf(rivVbo, rivIbo), 0)
-            val zEnd = shore6(river6(1840f)) + 1.5f
+            val zEnd = shore6(river6(1840f)) + 2f
             val nx = 8; val nz = ((zEnd + 20f) / 4f).toInt() + 1
             val fb = ByteBuffer.allocateDirect((nx + 1) * (nz + 1) * 2 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             for (j in 0..nz) {
@@ -412,7 +417,7 @@ object Water {
         GLES20.glUniform3f(nWav, y, 1.6f, 0.6f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
         GLES20.glUniform1f(nMode, 5f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, 0f)
-        GLES20.glUniform3f(nDeep, 0.05f, 0.22f, 0.26f); GLES20.glUniform3f(nShal, 0.20f, 0.46f, 0.42f)
+        GLES20.glUniform3f(nDeep, 0.08f, 0.30f, 0.36f); GLES20.glUniform3f(nShal, 0.24f, 0.52f, 0.50f)
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, rivVbo)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 8, 0)

@@ -963,7 +963,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun abrirMenu(root: FrameLayout) {
         val ver = try { "versão " + packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
-        val m = MainMenu(this, ver, "Meu Lar · casa ${st.gw}×${st.gh}", st.money.toString(), { jogar(root) }, { fecharMenu(); jogando = true; abrirCriador() }, { mostrarNovidades(true) }, { config() })
+        val m = MainMenu(this, ver, "Minha casa ${st.gw}×${st.gh}", st.money.toString(), { jogar(root) }, { fecharMenu(); jogando = true; abrirCriador() }, { mostrarNovidades(true) }, { config() })
         m.elevation = dpf(40f)
         root.addView(m, FrameLayout.LayoutParams(-1, -1))
         menuView = m
