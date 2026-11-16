@@ -631,6 +631,7 @@
    "triangulos": 10262,
    "camadas": [
     "agua",
+    "mobiliario",
     "orla",
     "terreno"
    ],
@@ -783,7 +784,8 @@
    "camadas": [
     "agua",
     "orla",
-    "terreno"
+    "terreno",
+    "vegetacao"
    ],
    "bytes": 603508
   },
