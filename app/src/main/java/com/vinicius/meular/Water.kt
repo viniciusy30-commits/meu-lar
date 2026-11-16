@@ -217,7 +217,7 @@ object Water {
             al = mix(al, 1.0, fog);
             // noite (Cidade 6): água escura com reflexo azulado da lua e o brilho quente da cidade na beira
             if (uMode > 3.5) {
-                col = mix(col, col * vec3(0.10, 0.13, 0.24) + vec3(0.0, 0.01, 0.03) + vec3(0.9, 0.95, 1.0) * s64 * 0.25, uNight);
+                col = mix(col, col * vec3(0.20, 0.25, 0.38) + vec3(0.02, 0.03, 0.06) + vec3(0.9, 0.95, 1.0) * s64 * 0.25, uNight);
             }
             if (riv) al *= 1.0 - rfade;
             if (c6s) al *= mix(1.0, smoothstep(-40.0, -28.0, d6), chn);

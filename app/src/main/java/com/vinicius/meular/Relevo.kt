@@ -364,7 +364,9 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
-            postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""   // Etapa 184: população (gen_pop.py)
+            postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
+            jobPl.clear()
+            js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optInt("cor", 0xFF1565C0.toInt()), o.optString("icone", "T").first())) } }   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
@@ -979,6 +981,8 @@ object Relevo {
     @Volatile var postesA = FloatArray(0)
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
+    /** Cidade 6: prédios das profissões e prefeitura (porta de entrada) para o GPS e o bater ponto */
+    val jobPl = ArrayList<City.Place>()
     const val SEA6_Z0 = 1720f
     const val SHORE6_Z = 1826f
 

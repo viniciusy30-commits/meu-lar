@@ -376,18 +376,18 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             float N = uDN.x;
             if (length(vN) < 0.1) {
                 // céu e malhas sem normal: à noite viram azul-marinho (o céu tem as estrelas desenhadas à parte)
-                vec3 nb = base * vec3(0.10, 0.13, 0.26) + vec3(0.01, 0.015, 0.04);
+                vec3 nb = base * vec3(0.17, 0.21, 0.38) + vec3(0.02, 0.03, 0.07);
                 vec3 db = mix(base, base * vec3(1.0, 0.72, 0.55) + vec3(0.12, 0.04, 0.0), uDN.y * 0.7);
                 gl_FragColor = vec4(mix(db, nb, N), a); return;
             }
             // vidro de luminária (cor exata do gerador): acende à noite
             vec3 gd = abs(vCol.rgb - vec3(1.0, 0.933, 0.769));
-            if (N > 0.01 && max(gd.r, max(gd.g, gd.b)) < 0.02) { gl_FragColor = vec4(base * (1.0 + 1.8 * N), a); return; }
+            if (max(gd.r, max(gd.g, gd.b)) < 0.02) { gl_FragColor = vec4(base * (0.95 + 1.8 * N), a); return; }   // luminária: sempre clara, acesa à noite
             vec3 n = normalize(vN);
             vec3 L = normalize(vec3(0.45, 1.0, 0.65));
-            float diff = max(dot(n, L), 0.0) * (1.0 - 0.88 * N);
+            float diff = max(dot(n, L), 0.0) * (1.0 - 0.80 * N);
             vec3 amb = mix(vec3(0.40, 0.37, 0.36), vec3(0.60, 0.67, 0.78), 0.5 + 0.5 * n.y);
-            amb = mix(amb, mix(vec3(0.07, 0.08, 0.13), vec3(0.13, 0.16, 0.28), 0.5 + 0.5 * n.y), N);      // lua: azulada e fraca
+            amb = mix(amb, mix(vec3(0.20, 0.22, 0.30), vec3(0.28, 0.32, 0.46), 0.5 + 0.5 * n.y), N);      // lua: azulada (a cidade continua legível à noite)
             amb += vec3(0.16, 0.05, -0.02) * uDN.y;                                                          // pôr do sol quente
             vec3 pl = uLight - vW;
             float d2 = dot(pl, pl);
@@ -412,7 +412,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             if (N > 0.01 && uLM.w > 0.5) {
                 // poças de luz dos postes (mapa único), mais fortes no chão e perto do pé do poste
                 float lm = texture2D(uLMap, (vW.xz - uLM.xy) * uLM.z).r;
-                light += vec3(1.0, 0.80, 0.55) * lm * 1.7 * N * (0.35 + 0.65 * max(n.y, 0.0)) * clamp(1.4 - vW.y * 0.09, 0.0, 1.0);
+                light += vec3(1.0, 0.82, 0.58) * lm * 2.6 * N * (0.45 + 0.55 * max(n.y, 0.0)) * clamp(1.5 - vW.y * 0.08, 0.0, 1.0);
             }
             vec3 col = base * light * ao;
             if (N > 0.01 && uDN.z > 0.5) {
@@ -420,8 +420,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 float lum = dot(t.rgb, vec3(0.3, 0.55, 0.15));
                 vec3 cell = floor(vW / vec3(2.6, 3.0, 2.6));
                 float hsh = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-                float win = smoothstep(0.42, 0.25, lum) * step(0.45, hsh);
-                col += vec3(1.0, 0.82, 0.52) * win * N * (0.55 + 0.4 * fract(hsh * 7.0));
+                float win = smoothstep(0.45, 0.25, lum) * step(0.32, hsh);
+                col += vec3(1.0, 0.84, 0.56) * win * N * (0.8 + 0.5 * fract(hsh * 7.0));
             }
             if (uSpec > 0.045) {   // Etapa 161: material fosco (quase sem brilho) pula os dois pow() por pixel
                 vec3 V = normalize(uEye - vW);
@@ -434,7 +434,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // Etapa 121: névoa leve ao longe (a cidade some no horizonte em vez de terminar seca)
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            vec3 fogc = mix(mix(vec3(0.80, 0.88, 0.96), vec3(0.95, 0.70, 0.52), uDN.y * 0.6), vec3(0.04, 0.06, 0.12), N);
+            vec3 fogc = mix(mix(vec3(0.80, 0.88, 0.96), vec3(0.95, 0.70, 0.52), uDN.y * 0.6), vec3(0.11, 0.13, 0.22), N);
             if (fz > 1.2) col = mix(col, fogc, (uFog > 1.5 ? smoothstep(1.2, 12.0, fz) : smoothstep(1.2, 8.0, fz) * 0.8 * uFog));   // Cidade 6 (uFog 2): névoa completa em ~345 m, onde a cidade para de ser desenhada
             gl_FragColor = vec4(col, a);
         }

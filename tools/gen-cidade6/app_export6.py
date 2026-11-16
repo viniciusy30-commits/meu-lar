@@ -136,7 +136,8 @@ def run(P, G, L, M, assets):
     wt = []
     for m, T in _tris(M, ('ruas', 'lotes', 'parques', 'orla')).items():
         if m not in WALK_MATS: continue
-        up = (T[:, :, 4].mean(1) > 0.7) & (T[:, :, 1].max(1) < 1.6)
+        up = (T[:, :, 4].mean(1) > 0.7) & (T[:, :, 1].max(1) < 2.0)           # 2,0 m: o piso da prefeitura fica sobre o podio
+        if m == 'madeira': up &= T[:, :, 1].max(1) < 0.75                     # tampos de mesa/balcao de madeira nao viram chao
         if m != 'concreto': up &= T[:, :, 2].mean(1) < 1718.5          # na praia so pisos de concreto (escadas, molhes): nada de subir em barraca, pedra ou castelo
         if up.any(): wt.append(T[up][:, :, :3])
     wt = np.concatenate(wt).astype(np.float64)
@@ -174,7 +175,7 @@ def run(P, G, L, M, assets):
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
-    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) for v in p], 'solid': [], 'solidr': solidr,
+    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'solid': [], 'solidr': solidr,
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
     json.dump(js, open(os.path.join(assets, 'c6.json'), 'w'), separators=(',', ':'))
     print(f'  {len(houses)} casas, {len(trees) // 6} arvores do app, {len(solidr) // 8} colisoes')

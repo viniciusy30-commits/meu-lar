@@ -427,7 +427,7 @@ def jetties_and_lighthouse(M, pr, r):
             M.free()
             # postes a cada ~24 m e bancos
             zm = (z + z1) / 2
-            if k % 8 == 4: classic_lamp(M, cx_at(zm) - sgn * (w_at(zm) - 0.5), zm, y_at(zm) + 0.0); pr.__dict__.setdefault('postes', []).append((round(cx_at(zm), 1), round(zm, 1), 7.0)); pr.luzes.append({'tipo': 'poste', 'x': round(cx_at(zm), 1), 'y': round(y_at(zm) + 4.4, 2), 'z': round(zm, 1), 'cor': [255, 230, 180], 'alcance_m': 14})
+            if k % 8 == 4: classic_lamp(M, cx_at(zm) - sgn * (w_at(zm) - 0.5), zm, y_at(zm) + 0.0); pr.__dict__.setdefault('postes', []).append((round(cx_at(zm), 1), round(zm, 1), 11.0)); pr.luzes.append({'tipo': 'poste', 'x': round(cx_at(zm), 1), 'y': round(y_at(zm) + 4.4, 2), 'z': round(zm, 1), 'cor': [255, 230, 180], 'alcance_m': 14})
             if k % 10 == 7 and zm > zsh:
                 bx = cx_at(zm) + sgn * (w_at(zm) - 0.9)
                 M.at(bx, zm, 'orla'); M.m('madeira'); M.box(bx - 0.25, bx + 0.25, YT + 0.42, YT + 0.5, zm - 0.9, zm + 0.9, (150, 108, 70))
