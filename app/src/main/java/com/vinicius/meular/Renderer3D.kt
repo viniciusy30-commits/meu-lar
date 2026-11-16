@@ -1278,6 +1278,11 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             Water.drawSea(vp, ex, ey, ez, Relevo.CX - 600f, Relevo.CZ + Relevo.SEA6_Z0, Relevo.CX + 3100f, Relevo.CZ + 2600f, st.gw,
                 -2.2f, Relevo.CZ + Relevo.SHORE6_Z, 0.045f, 5.5f, true, Relevo.CX, Relevo.CZ)
             Water.drawRiver6(vp, ex, ey, ez, Relevo.CX, Relevo.CZ, -2.2f)
+            Relevo.lagoa?.let { g ->
+                val dx = g[0] - ex; val dz = g[1] - ez
+                if (dx * dx + dz * dz < 400f * 400f && boxVisible(g[0] - g[2] * 1.15f, g[7] - 1f, g[1] - g[3] * 1.15f, g[0] + g[2] * 1.15f, g[7] + 0.5f, g[1] + g[3] * 1.15f))
+                    Water.drawLagoa6(vp, ex, ey, ez, g)
+            }
             Beacon.draw(vp, ex, ey, ez)
             useProg(curProg)
         }

@@ -366,6 +366,7 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
+            lagoa = js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null }
             fa("fauna").let { if (it.isNotEmpty() && c6) TownPark.buildC6(it, CX, CZ, 0.7f) }
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
@@ -991,6 +992,7 @@ object Relevo {
     @Volatile var postesA = FloatArray(0)
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
+    @Volatile var lagoa: FloatArray? = null
     /** Cidade 6: prédios das profissões e prefeitura (porta de entrada) para o GPS e o bater ponto */
     val jobPl = ArrayList<City.Place>()
     const val SEA6_Z0 = 1720f
