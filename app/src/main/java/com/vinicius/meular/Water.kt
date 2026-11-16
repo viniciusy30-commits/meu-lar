@@ -185,7 +185,7 @@ object Water {
             al = clamp(max(al, fres) + foam * 0.5, 0.0, 1.0);
             vec3 fd = (vW - uEye) * 0.01;
             float fz = dot(fd, fd);
-            float fog = smoothstep(1.2, 8.0, fz) * 0.8;
+            float fog = (uMode < 1.5 ? smoothstep(7.0, 18.0, fz) * 0.55 : smoothstep(1.2, 8.0, fz) * 0.8);   // mar: névoa só no horizonte (antes "acabava" a 110 m)
             col = mix(col, vec3(0.80, 0.88, 0.96), fog);
             al = mix(al, 1.0, fog);
             gl_FragColor = vec4(col, al);
