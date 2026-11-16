@@ -469,3 +469,198 @@ def place(pr, name, x, z, ux, uz, r, y=None):
         pr.M.free('parques')
     finally: Y = old
     return Polygon(F.rect(-a, a, -b, b))
+
+
+# ================================================================ mais equipamentos (diversidade dos parques do rio)
+def maze(pr, F, r):
+    """labirinto de cerca-viva com fonte no centro e bancos nas entradas"""
+    M = pr.M; _pad(M, F, 10, 10, 'cascalho', (226, 214, 190), 0.05); y = Y + 0.05
+    M.m('folhagem'); hc = (58, 112, 58)
+    walls = [(-9.5, -9.5, 9.5, -9.5), (-9.5, 9.5, 9.5, 9.5), (-9.5, -9.5, -9.5, -1.5), (-9.5, 1.5, -9.5, 9.5), (9.5, -9.5, 9.5, -1.5), (9.5, 1.5, 9.5, 9.5),
+             (-6.5, -6.5, 6.5, -6.5), (-6.5, 6.5, 2.0, 6.5), (-6.5, -6.5, -6.5, 3.0), (6.5, -3.0, 6.5, 6.5),
+             (-3.5, -3.5, 3.5, -3.5), (-3.5, 3.5, 3.5, 3.5), (-3.5, -3.5, -3.5, 0.0), (3.5, 1.0, 3.5, 3.5), (0, -9.5, 0, -6.5), (-9.5, 4.5, -6.5, 4.5), (6.5, -1.0, 9.5, -1.0)]
+    for (u0, v0, u1, v1) in walls:
+        if abs(u1 - u0) >= abs(v1 - v0): M.prism(F.rect(min(u0, u1) - 0.45, max(u0, u1) + 0.45, v0 - 0.45, v0 + 0.45), y, y + 1.7, shade(hc, r.randint(-8, 8)))
+        else: M.prism(F.rect(u0 - 0.45, u0 + 0.45, min(v0, v1) - 0.45, max(v0, v1) + 0.45), y, y + 1.7, shade(hc, r.randint(-8, 8)))
+    M.m('pedra'); x, z = F.xz(0, 0); M.cyl(x, z, 1.4, y, y + 0.5, (196, 190, 178), 12); M.m('agua'); M.cyl(x, z, 1.15, y + 0.4, y + 0.46, (120, 180, 200), 12)
+    M.m('pedra'); M.cyl(x, z, 0.25, y + 0.4, y + 1.4, (196, 190, 178), 8); M.cyl(x, z, 0.6, y + 1.4, y + 1.5, (196, 190, 178), 10)
+    for v in (-10.8, 10.8): pr.bench(*F.xz(0, v), -F.vx * (1 if v > 0 else -1), -F.vz * (1 if v > 0 else -1), Y)
+
+
+def chess(pr, F, r):
+    """praca de jogos: mesas de xadrez/dama com bancos, tabuleiro gigante no chao com pecas, toldo"""
+    M = pr.M; _pad(M, F, 9.5, 6.5, 'paver', (232, 226, 214), 0.06); y = Y + 0.06
+    M.m('liso')
+    for i in range(8):
+        for j in range(8):
+            if (i + j) % 2 == 0: M.prism(F.rect(-8.6 + i * 0.6, -8.0 + i * 0.6, -2.4 + j * 0.6, -1.8 + j * 0.6), y, y + 0.015, (40, 40, 44))
+            else: M.prism(F.rect(-8.6 + i * 0.6, -8.0 + i * 0.6, -2.4 + j * 0.6, -1.8 + j * 0.6), y, y + 0.015, (244, 242, 236))
+    for k in range(10):
+        x, z = F.xz(-8.3 + (k % 8) * 0.6, -2.1 + (0 if k < 8 else 4.2)); col = (40, 40, 44) if k % 3 else (244, 242, 236)
+        M.cyl(x, z, 0.17, y, y + 0.35, col, 8); M.sphere(x, y + 0.45, z, 0.13, col, 6, 3)
+    for (u, v) in ((2, -3.5), (6, -3.5), (2, 1.0), (6, 1.0)):
+        x, z = F.xz(u, v); M.m('concreto'); M.cyl(x, z, 0.12, y, y + 0.72, (200, 196, 188), 6); M.cyl(x, z, 0.55, y + 0.72, y + 0.8, (214, 210, 202), 12)
+        M.m('liso'); M.prism(F.rect(u - 0.3, u + 0.3, v - 0.3, v + 0.3), y + 0.8, y + 0.81, (60, 60, 64))
+        M.m('concreto')
+        for (du, dv) in ((0, -0.9), (0, 0.9), (-0.9, 0), (0.9, 0)):
+            x2, z2 = F.xz(u + du, v + dv); M.cyl(x2, z2, 0.22, y, y + 0.45, (200, 196, 188), 8)
+    M.m('metal')
+    for (u, v) in ((0.5, -5.5), (7.5, -5.5), (0.5, 3.0), (7.5, 3.0)): _post(M, F, u, v, y, y + 2.8, (236, 236, 232), 0.05)
+    M.m('liso'); M.quad(F.p(0.3, -5.7, y + 2.8), F.p(7.7, -5.7, y + 2.8), F.p(7.7, 3.2, y + 3.2), F.p(0.3, 3.2, y + 3.2), r.choice(TOY), (0, 1, 0))
+
+
+def bocce(pr, F, r):
+    """cancha de bocha coberta: piso de saibro com bordas de madeira, bolas e pergolado"""
+    M = pr.M; _pad(M, F, 12, 4.5, 'paver', (232, 226, 214), 0.06); y = Y + 0.06
+    for v0 in (-3.6, 0.6):
+        M.m('cascalho'); M.prism(F.rect(-11, 11, v0, v0 + 3.0), y, y + 0.05, (200, 160, 120))
+        M.m('madeira')
+        for (u0, u1, a, b) in ((-11.2, 11.2, v0 - 0.2, v0), (-11.2, 11.2, v0 + 3.0, v0 + 3.2), (-11.2, -11, v0, v0 + 3.0), (11, 11.2, v0, v0 + 3.0)): M.prism(F.rect(u0, u1, a, b), y, y + 0.3, (150, 110, 74))
+        M.m('liso')
+        for k in range(5):
+            x, z = F.xz(r.uniform(-9, 9), v0 + r.uniform(0.5, 2.5)); M.sphere(x, y + 0.1, z, 0.06 if k == 0 else 0.1, (240, 240, 230) if k == 0 else r.choice(TOY), 6, 4)
+    M.m('madeira')
+    for u in (-11.5, -5.5, 0.5, 6.5, 11.5):
+        for v in (-4.2, 4.2): _post(M, F, u, v, y, y + 2.9, (130, 92, 60), 0.1)
+    for k in range(13): M.prism(F.rect(-11.8, 11.8, -4.4 + k * 0.7, -4.2 + k * 0.7), y + 2.9, y + 3.05, (150, 110, 74))
+
+
+def climbing(pr, F, r):
+    """muro de escalada com agarras coloridas, colchao de borracha e arquibancadinha"""
+    M = pr.M; _pad(M, F, 7, 5, 'quadra', (196, 92, 70), 0.06); y = Y + 0.06
+    M.m('concreto'); M.prism(F.rect(-6, 6, 2.6, 3.4), y, y + 6.0, (180, 184, 188))
+    M.quad(F.p(-6, 2.6, y + 6.0), F.p(6, 2.6, y + 6.0), F.p(6, 1.4, y + 7.2), F.p(-6, 1.4, y + 7.2), (170, 174, 178), (0, 0.7, -0.7))
+    M.m('liso')
+    for k in range(70):
+        u = r.uniform(-5.6, 5.6); hh = r.uniform(0.4, 5.8); x, z = F.xz(u, 2.55)
+        M.sphere(x, y + hh, z, r.uniform(0.07, 0.14), r.choice(TOY + ((40, 40, 40), (250, 250, 250))), 5, 3)
+    M.m('quadra'); M.prism(F.rect(-6.2, 6.2, -0.6, 2.6), y, y + 0.25, (40, 120, 200))
+    M.m('madeira')
+    for k in range(3): M.prism(F.rect(-5, 5, -4.4 + k * 0.6, -3.9 + k * 0.6), y, y + 0.35 * (k + 1), (164, 122, 82))
+
+
+def pumptrack(pr, F, r):
+    """pista de bike (pump track): circuito de asfalto com lombadas e curvas inclinadas, gramado no meio"""
+    M = pr.M; y = Y
+    M.m('asfalto')
+    n = 40; A, B = 13.0, 7.0
+    for k in range(n):
+        t0, t1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        h0 = 0.12 + 0.35 * max(0.0, math.sin(t0 * 6)); h1 = 0.12 + 0.35 * max(0.0, math.sin(t1 * 6))
+        pts = []
+        for (t, hh) in ((t0, h0), (t1, h1)):
+            for rr in (0.78, 1.0):
+                pts.append((F.xz(A * rr * math.cos(t), B * rr * math.sin(t)), hh))
+        (a, ha), (b, hb_), (c, hc), (d, hd) = pts
+        M.quad((a[0], y + ha, a[1]), (b[0], y + ha, b[1]), (d[0], y + hd, d[1]), (c[0], y + hc, c[1]), (60, 62, 66), (0, 1, 0))
+        for (p, q, hp, hq) in ((a, c, ha, hc), (b, d, hb_, hd)): M.quad((p[0], y, p[1]), (q[0], y, q[1]), (q[0], y + hq, q[1]), (p[0], y + hp, p[1]), (90, 92, 96), (0, 0, 1))
+    M.m('metal')
+    for v in (-B - 1.5, B + 1.5):
+        for u in (-6, 0, 6): _post(M, F, u, v, y, y + 1.0, (230, 200, 40), 0.04)
+        _bar(M, F, -6, v, 6, v, y + 1.0, (230, 200, 40), 0.04)
+
+
+def reflecting_pool(pr, F, r):
+    """espelho d'agua comprido com borda de granito, jatos baixos e bancos de pedra"""
+    M = pr.M; _pad(M, F, 12, 5, 'paver', (238, 232, 222), 0.06); y = Y + 0.06
+    M.m('pedra'); M.prism(F.rect(-10.5, 10.5, -2.2, 2.2), y, y + 0.35, (210, 206, 198))
+    M.m('agua'); M.prism(F.rect(-10.1, 10.1, -1.8, 1.8), y + 0.25, y + 0.3, (110, 170, 196))
+    M.m('liso')
+    for k in range(7):
+        x, z = F.xz(-8.4 + k * 2.8, 0); M.cyl(x, z, 0.06, y + 0.3, y + 1.1, (230, 244, 250), 5, True, 0.02)
+    M.m('pedra')
+    for u in (-7, 0, 7):
+        for v in (-3.8, 3.8): M.prism(F.rect(u - 1.2, u + 1.2, v - 0.3, v + 0.3), y, y + 0.45, (190, 186, 178))
+
+
+def sculptures(pr, F, r):
+    """jardim de esculturas: pedestais com formas abstratas coloridas, caminho de pedriscos e luminarias baixas"""
+    M = pr.M; _pad(M, F, 10, 7, 'cascalho', (230, 222, 206), 0.05); y = Y + 0.05
+    for k, (u, v) in enumerate(((-6.5, -3.5), (0, 3.5), (6.5, -3.5), (-6.5, 3.5), (6.5, 3.5))):
+        x, z = F.xz(u, v); M.m('concreto'); M.prism(F.rect(u - 0.8, u + 0.8, v - 0.8, v + 0.8), y, y + 0.9, (226, 222, 214))
+        col = TOY[k % len(TOY)]; M.m('metal')
+        kind = k % 4
+        if kind == 0:
+            for j in range(3): M.sphere(x + (j - 1) * 0.3, y + 1.4 + j * 0.55, z, 0.45 - j * 0.1, col, 8, 5)
+        elif kind == 1: M.cyl(x, z, 0.5, y + 0.9, y + 3.2, col, 3, True, 0.05)
+        elif kind == 2:
+            for j in range(6):
+                a = j * 0.6; M.box(x + math.cos(a) * 0.5 - 0.1, x + math.cos(a) * 0.5 + 0.1, y + 0.9 + j * 0.4, y + 1.3 + j * 0.4, z + math.sin(a) * 0.5 - 0.1, z + math.sin(a) * 0.5 + 0.1, col)
+        else: M.cyl(x, z, 0.7, y + 0.9, y + 2.4, col, 6, True, 0.7); M.sphere(x, y + 2.7, z, 0.35, shade(col, 30), 8, 5)
+    M.m('metal')
+    for (u, v) in ((-3, 0), (3, 0)): x, z = F.xz(u, v); M.cyl(x, z, 0.08, y, y + 0.8, (60, 64, 70), 6); M.sphere(x, y + 0.85, z, 0.15, (255, 244, 200), 6, 4)
+
+
+def greenhouse(pr, F, r):
+    """estufa de vidro com estrutura branca, canteiros dentro e fora, regadores"""
+    M = pr.M; _pad(M, F, 9, 6, 'paver', (232, 226, 214), 0.06); y = Y + 0.06
+    M.m('vidro')
+    M.prism(F.rect(-6, 6, -3.5, 3.5), y, y + 2.6, (200, 230, 236), False)
+    M.quad(F.p(-6, -3.5, y + 2.6), F.p(6, -3.5, y + 2.6), F.p(6, 0, y + 4.2), F.p(-6, 0, y + 4.2), (210, 236, 240), (0, 0.9, -0.45))
+    M.quad(F.p(-6, 0, y + 4.2), F.p(6, 0, y + 4.2), F.p(6, 3.5, y + 2.6), F.p(-6, 3.5, y + 2.6), (210, 236, 240), (0, 0.9, 0.45))
+    for s in (-1, 1): M.tri(F.p(s * 6, -3.5, y + 2.6), F.p(s * 6, 3.5, y + 2.6), F.p(s * 6, 0, y + 4.2), (210, 236, 240), F.nu(s))
+    M.m('metal')
+    for u in np.arange(-6, 6.1, 1.5):
+        for v in (-3.5, 3.5): _post(M, F, u, v, y, y + 2.6, (250, 250, 250), 0.04)
+        _bar(M, F, u, -3.5, u, 3.5, y + 2.6, (250, 250, 250), 0.04)
+    _bar(M, F, -6, 0, 6, 0, y + 4.2, (250, 250, 250), 0.05)
+    M.m('madeira')
+    for v in (-2.2, 2.2):
+        M.prism(F.rect(-5.2, 5.2, v - 0.7, v + 0.7), y, y + 0.7, (150, 106, 70))
+        for k in range(8): pr.tree(*F.xz(-4.6 + k * 1.3, v), 'flores', 0.8, y + 0.7)
+    for u in (-8, 8):
+        for v in (-4.8, 4.8): pr.tree(*F.xz(u, v), 'arbusto', 0.8, y)
+
+
+def lookout(pr, F, r):
+    """mirante de madeira de dois andares com escada e telhado"""
+    M = pr.M; _pad(M, F, 5.5, 5.5, 'paver', (232, 226, 214), 0.06); y = Y + 0.06
+    M.m('madeira'); c = (140, 100, 66)
+    for (u, v) in ((-3, -3), (3, -3), (3, 3), (-3, 3)): _post(M, F, u, v, y, y + 7.0, c, 0.16)
+    M.prism(F.rect(-3.3, 3.3, -3.3, 3.3), y + 3.2, y + 3.4, (166, 122, 82))
+    for (u0, v0, u1, v1) in ((-3.2, -3.2, 3.2, -3.2), (-3.2, 3.2, 3.2, 3.2), (-3.2, -3.2, -3.2, 3.2), (3.2, -3.2, 3.2, 3.2)):
+        _bar(M, F, u0, v0, u1, v1, y + 4.4, c, 0.05); _bar(M, F, u0, v0, u1, v1, y + 3.9, c, 0.04)
+    for k in range(16): M.prism(F.rect(-2.6 + k * 0.0, -1.6, -5.2 + k * 0.13, -5.07 + k * 0.13), y + k * 0.2, y + k * 0.2 + 0.06, (166, 122, 82))
+    M.m('telha'); roof = r.choice(((150, 70, 52), (60, 96, 80)))
+    for (a, b) in ((F.p(-4, -4, y + 7.0), F.p(4, -4, y + 7.0)), (F.p(4, -4, y + 7.0), F.p(4, 4, y + 7.0)), (F.p(4, 4, y + 7.0), F.p(-4, 4, y + 7.0)), (F.p(-4, 4, y + 7.0), F.p(-4, -4, y + 7.0))):
+        top = F.p(0, 0, y + 8.8); M.tri(a, b, top, roof, None)
+
+
+def pingpong(pr, F, r):
+    """mesas de pingue-pongue de concreto e cama elastica embutida"""
+    M = pr.M; _pad(M, F, 9, 5.5, 'paver', (232, 226, 214), 0.06); y = Y + 0.06
+    for u in (-5, 0):
+        M.m('concreto'); M.prism(F.rect(u - 0.3, u + 0.3, -0.8, 0.8), y, y + 0.7, (190, 186, 178))
+        M.m('liso'); M.prism(F.rect(u - 1.37, u + 1.37, -0.76, 0.76), y + 0.7, y + 0.76, (40, 110, 70))
+        M.prism(F.rect(u - 1.37, u + 1.37, -0.02, 0.02), y + 0.761, y + 0.77, (250, 250, 250))
+        M.prism(F.rect(u - 0.02, u + 0.02, -0.8, 0.8), y + 0.76, y + 0.92, (30, 30, 34))
+    x, z = F.xz(5.5, 0); M.m('quadra'); M.cyl(x, z, 2.2, y, y + 0.1, (60, 60, 64), 16); M.m('liso'); M.cyl(x, z, 2.4, y, y + 0.12, (40, 120, 200), 16, False)
+
+
+def roller(pr, F, r):
+    """pista de patinacao oval com mureta colorida e bancos"""
+    M = pr.M; _pad(M, F, 12, 7, 'quadra', (120, 160, 200), 0.08); y = Y + 0.08
+    _lines(M, F, [(-8, -3, 8, -3), (-8, 3, 8, 3)], y, 0.06)
+    M.m('liso'); cols = TOY
+    for k in range(24):
+        a0, a1 = 2 * math.pi * k / 24, 2 * math.pi * (k + 1) / 24
+        p0, p1 = F.xz(11.6 * math.cos(a0), 6.6 * math.sin(a0)), F.xz(11.6 * math.cos(a1), 6.6 * math.sin(a1))
+        M.quad((p0[0], y, p0[1]), (p1[0], y, p1[1]), (p1[0], y + 0.9, p1[1]), (p0[0], y + 0.9, p0[1]), cols[k % len(cols)], None)
+
+
+STATIONS.update({
+    'labirinto': (maze, 11.2, 11.2), 'xadrez': (chess, 10.0, 7.0), 'bocha': (bocce, 12.5, 5.0), 'escalada': (climbing, 7.5, 5.5),
+    'pumptrack': (pumptrack, 14.5, 9.0), 'espelho': (reflecting_pool, 12.5, 5.5), 'esculturas': (sculptures, 10.5, 7.5),
+    'estufa': (greenhouse, 9.5, 6.5), 'mirante': (lookout, 6.0, 6.0), 'pingpong': (pingpong, 9.5, 6.0), 'patins': (roller, 12.5, 7.5),
+})
+
+THEMES.update({
+    'jogos': (['xadrez', 'bocha', 'pingpong', 'piquenique', 'quiosque'], 'grupos'),
+    'aventura': (['escalada', 'pumptrack', 'mirante', 'academia'], 'mata'),
+    'contemplacao': (['espelho', 'esculturas', 'pergola', 'canteiros'], 'jardim'),
+    'botanico': (['estufa', 'labirinto', 'canteiros', 'fonte'], 'jardim'),
+    'rodas': (['patins', 'pumptrack', 'skate', 'quiosque'], 'fileiras'),
+    'familia': (['playground', 'labirinto', 'pingpong', 'piquenique', 'foodtruck'], 'grupos'),
+    'mirantes': (['mirante', 'solario', 'espelho', 'piquenique'], 'palmeiras'),
+    'terceira_idade': (['bocha', 'xadrez', 'academia', 'coreto', 'jardim'], 'bosque'),
+})

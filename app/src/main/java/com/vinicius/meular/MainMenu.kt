@@ -101,6 +101,21 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
             path.lineTo(w + 40f, yy + h * 0.006f); path.lineTo(-10f, yy + h * 0.006f); path.close()
             c.drawPath(path, p)
         }
+        // veleiros passando ao longe e brilhos na água
+        for (k in 0 until 3) {
+            val bx = ((t * (4f + k * 2f) + k * w * 0.37f) % (w * 1.3f)) - w * 0.15f
+            val by = hz + h * (0.03f + 0.03f * k); val s = h * (0.035f - k * 0.006f)
+            val bob = sin(t * 1.5f + k) * s * 0.06f
+            fill(0xFF2C3A55.toInt()); path.reset(); path.moveTo(bx - s * 0.7f, by + bob); path.lineTo(bx + s * 0.7f, by + bob); path.lineTo(bx + s * 0.5f, by + s * 0.22f + bob); path.lineTo(bx - s * 0.5f, by + s * 0.22f + bob); path.close(); c.drawPath(path, p)
+            fill(0xFFFDFBF4.toInt()); path.reset(); path.moveTo(bx, by - s * 1.3f + bob); path.lineTo(bx, by - s * 0.05f + bob); path.lineTo(bx + s * 0.6f, by - s * 0.05f + bob); path.close(); c.drawPath(path, p)
+            fill(0xFFF2D8A0.toInt()); path.reset(); path.moveTo(bx - s * 0.05f, by - s * 1.1f + bob); path.lineTo(bx - s * 0.05f, by - s * 0.05f + bob); path.lineTo(bx - s * 0.5f, by - s * 0.05f + bob); path.close(); c.drawPath(path, p)
+        }
+        for (k in 0 until 26) {
+            val ph = (t * 0.7f + k * 0.37f) % 1f
+            val sx2 = w * (0.5f + 0.24f * sin(k * 12.9898f)); val sy2 = hz + (h * 0.84f - hz) * (0.1f + 0.8f * ((k * 0.618f) % 1f))
+            fill(Color.argb((200 * sin(ph * Math.PI.toFloat())).toInt().coerceIn(0, 255), 255, 246, 214))
+            c.drawRect(sx2 - h * 0.008f, sy2, sx2 + h * 0.008f, sy2 + h * 0.0025f, p)
+        }
         // gaivotas
         p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.004f; p.color = 0xAA2A2F45.toInt(); p.strokeCap = Paint.Cap.ROUND
         for (k in 0 until 3) {
@@ -147,10 +162,23 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
                 x += bw + w * (if (layer == 0) 0.004f else 0.012f)
             }
         }
+        // antenas e caixas d'água nos telhados mais altos
+        val rnd2 = java.util.Random(5)
+        for (k in 0 until 14) {
+            val x = w * rnd2.nextFloat() * 0.78f; val y = hz - h * (0.18f + rnd2.nextFloat() * 0.12f)
+            fill(lerp(0xFF3F5E8C.toInt(), 0xFF3C3566.toInt(), dusk)); c.drawRect(x, y, x + h * 0.004f, y + h * 0.05f, p)
+            if (k % 3 == 0) { fill(0xFFFF6B5B.toInt()); c.drawCircle(x + h * 0.002f, y, h * 0.004f, p) }
+        }
         // mar com reflexo do sol
         p.shader = LinearGradient(0f, hz, 0f, h, intArrayOf(lerp(0xFF4DA3D6.toInt(), 0xFF5D6FB0.toInt(), dusk), lerp(0xFF2C7FB8.toInt(), 0xFF35468A.toInt(), dusk), 0xFF1F6FA0.toInt()), null, Shader.TileMode.CLAMP)
         c.drawRect(0f, hz, w, h, p); p.shader = null
         for (k in 0 until 14) { fill(Color.argb(140 - k * 8, 255, 236, 180)); val yy = hz + k * h * 0.012f; val ww = w * (0.05f - k * 0.002f); c.drawRect(sx - ww, yy, sx + ww, yy + h * 0.004f, p) }
+        // reflexo da cidade na água (faixas que se desfazem)
+        for (k in 0 until 18) {
+            fill(Color.argb(40 - k * 2, 255, 230, 170)); val yy = hz + h * 0.008f * k
+            var x = (k * 37 % 11) * w * 0.004f
+            while (x < w * 0.78f) { c.drawRect(x, yy, x + w * 0.02f, yy + h * 0.0025f, p); x += w * (0.035f + (k % 3) * 0.01f) }
+        }
         // molhe e farol à direita
         fill(0xFF5B5A63.toInt()); c.drawRect(w * 0.72f, hz - h * 0.01f, w * 0.95f, hz + h * 0.012f, p)
         val lx = w * 0.86f; val base = hz - h * 0.01f
@@ -168,6 +196,28 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
         p.shader = LinearGradient(0f, h * 0.84f, 0f, h, 0xFFF3DDAA.toInt(), 0xFFE5C68A.toInt(), Shader.TileMode.CLAMP)
         path.reset(); path.moveTo(0f, h * 0.86f); path.cubicTo(w * 0.3f, h * 0.82f, w * 0.6f, h * 0.9f, w, h * 0.85f); path.lineTo(w, h); path.lineTo(0f, h); path.close()
         c.drawPath(path, p); p.shader = null
+        // calçadão em ondas (pedra portuguesa) na beira, com postes
+        val cz0 = h * 0.94f
+        fill(0xFFF4F1EA.toInt()); c.drawRect(0f, cz0, w, h, p)
+        fill(0xFF2E2E34.toInt())
+        var wy = cz0 + h * 0.012f
+        while (wy < h + 4f) {
+            path.reset(); path.moveTo(0f, wy)
+            var x = 0f
+            while (x <= w + h * 0.1f) { path.quadTo(x + h * 0.025f, wy - h * 0.012f, x + h * 0.05f, wy); path.quadTo(x + h * 0.075f, wy + h * 0.012f, x + h * 0.1f, wy); x += h * 0.1f }
+            path.lineTo(w + h * 0.1f, wy + h * 0.01f)
+            x = w + h * 0.1f
+            while (x >= 0f) { path.quadTo(x - h * 0.025f, wy + h * 0.022f, x - h * 0.05f, wy + h * 0.01f); path.quadTo(x - h * 0.075f, wy - h * 0.002f, x - h * 0.1f, wy + h * 0.01f); x -= h * 0.1f }
+            path.close(); c.drawPath(path, p)
+            wy += h * 0.035f
+        }
+        fill(0xFFD9D4C8.toInt()); c.drawRect(0f, cz0 - h * 0.006f, w, cz0, p)
+        for (k in 0 until 6) {
+            val lx2 = w * (0.12f + 0.17f * k)
+            fill(0xFF2A2F3A.toInt()); c.drawRect(lx2 - h * 0.003f, cz0 - h * 0.13f, lx2 + h * 0.003f, cz0, p)
+            c.drawRect(lx2 - h * 0.02f, cz0 - h * 0.13f, lx2 + h * 0.02f, cz0 - h * 0.125f, p)
+            fill(0xFFFFF0C0.toInt()); c.drawCircle(lx2 - h * 0.02f, cz0 - h * 0.12f, h * 0.007f, p); c.drawCircle(lx2 + h * 0.02f, cz0 - h * 0.12f, h * 0.007f, p)
+        }
         // coqueiros nas pontas
         palm(c, w * 0.06f, h * 0.98f, h * 0.42f, -8f); palm(c, w * 0.13f, h, h * 0.32f, 6f); palm(c, w * 0.95f, h, h * 0.36f, 10f)
         // guarda-sóis
@@ -232,115 +282,63 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
     private val d = resources.displayMetrics.density
     private fun dp(v: Float) = (v * d).toInt()
     val sim: ImageView = ImageView(ctx)
-    val face: ImageView = ImageView(ctx)
+    val face: ImageView = ImageView(ctx)      // (mantido para quem atualiza o retrato; não aparece no menu)
     private val simBox = FrameLayout(ctx)
-    private val news = arrayOf(
-        Triple(0, "A cidade à beira-mar", "Ruas, prédios, lojas e casas para morar."),
-        Triple(1, "Praia e faróis", "Calçadão, barracas, quadras e dois faróis para visitar."),
-        Triple(2, "Garagem", "Escolha seu carro ou moto na loja e saia dirigindo."))
-    private var newsIdx = 0
 
     init {
         isClickable = true
         setBackgroundColor(0xFF2C6CA8.toInt())
-        addView(CityScene(ctx), LayoutParams(-1, -1))
+        addView(CityScene(ctx, 0.25f), LayoutParams(-1, -1))
         val dm = resources.displayMetrics
         val H = dm.heightPixels.toFloat()
 
-        // centro: pedestal + personagem com os pés apoiados nele
-        val stageW = (H * 0.62f).toInt(); val stageH = (H * 0.9f).toInt()
-        addView(simBox, LayoutParams(stageW, stageH, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.leftMargin = dp(60f) })
+        // centro-direita: personagem em pé sobre o calçadão, com sombra e um aro dourado discreto
+        val stageW = (H * 0.62f).toInt(); val stageH = (H * 0.92f).toInt()
+        addView(simBox, LayoutParams(stageW, stageH, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.leftMargin = dp(150f) })
         val ped = object : View(ctx) {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(c: Canvas) {
                 val w = width.toFloat(); val h = height.toFloat()
-                p.color = 0x40000000; c.drawOval(RectF(w * 0.05f, h * 0.45f, w * 0.95f, h * 1.0f), p)
-                p.shader = LinearGradient(0f, 0f, 0f, h, 0xFFFFFFFF.toInt(), 0xFFCFE3F2.toInt(), Shader.TileMode.CLAMP)
-                c.drawOval(RectF(w * 0.08f, h * 0.2f, w * 0.92f, h * 0.85f), p); p.shader = null
-                p.color = 0xFFF2B33D.toInt(); p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.06f
-                c.drawOval(RectF(w * 0.08f, h * 0.2f, w * 0.92f, h * 0.85f), p); p.style = Paint.Style.FILL
-                p.color = 0x66FFFFFF; c.drawOval(RectF(w * 0.2f, h * 0.3f, w * 0.8f, h * 0.55f), p)
+                p.maskFilter = BlurMaskFilter(h * 0.25f, BlurMaskFilter.Blur.NORMAL); p.color = 0x66000000
+                c.drawOval(RectF(w * 0.18f, h * 0.35f, w * 0.82f, h * 0.9f), p); p.maskFilter = null
+                p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.08f
+                p.shader = LinearGradient(0f, 0f, w, 0f, intArrayOf(0x00F2B33D, 0xFFF2B33D.toInt(), 0xFFFFE6A8.toInt(), 0xFFF2B33D.toInt(), 0x00F2B33D), null, Shader.TileMode.CLAMP)
+                c.drawOval(RectF(w * 0.12f, h * 0.25f, w * 0.88f, h * 0.85f), p); p.shader = null; p.style = Paint.Style.FILL
             }
         }
-        val pedH = dp(46f)
-        simBox.addView(ped, LayoutParams(-1, pedH, Gravity.BOTTOM).also { it.bottomMargin = dp(10f) })
+        ped.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        val pedH = dp(40f)
+        simBox.addView(ped, LayoutParams(-1, pedH, Gravity.BOTTOM).also { it.bottomMargin = dp(6f) })
         sim.scaleType = ImageView.ScaleType.FIT_END
-        simBox.addView(sim, LayoutParams(-1, -1, Gravity.BOTTOM).also { it.bottomMargin = dp(10f) + (pedH * 0.5f).toInt() })
+        simBox.addView(sim, LayoutParams(-1, -1, Gravity.BOTTOM).also { it.bottomMargin = dp(6f) + (pedH * 0.5f).toInt() })
         sim.alpha = 0f
 
-        // topo esquerdo: logo
+        // esquerda: painel de vidro com logo, frase e menu
+        val panel = LinearLayout(ctx); panel.orientation = LinearLayout.VERTICAL
+        panel.setPadding(dp(22f), dp(18f), dp(22f), dp(20f))
+        val pg = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xB80C1E3C.toInt(), 0x990C1E3C.toInt())); pg.cornerRadius = dp(22f).toFloat(); pg.setStroke(dp(1.2f), 0x44FFFFFF)
+        panel.background = pg; panel.elevation = dp(8f).toFloat()
         val logo = LinearLayout(ctx); logo.orientation = LinearLayout.HORIZONTAL; logo.gravity = Gravity.CENTER_VERTICAL
-        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(52f), dp(52f)))
+        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(56f), dp(56f)))
         val lt = LinearLayout(ctx); lt.orientation = LinearLayout.VERTICAL
-        lt.addView(txt("MEU", 13f, 0xFFFFE6A8.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.letterSpacing = 0.3f })
-        lt.addView(txt("LAR", 34f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(10f, 0f, 3f, 0x88002244.toInt()); it.letterSpacing = 0.06f })
-        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(8f) })
-        addView(logo, LayoutParams(-2, -2, Gravity.TOP or Gravity.START).also { it.setMargins(dp(24f), dp(14f), 0, 0) })
-
-        // topo direito: perfil (rosto, nome da casa e dinheiro)
-        val hi = LinearLayout(ctx); hi.orientation = LinearLayout.HORIZONTAL; hi.gravity = Gravity.CENTER_VERTICAL
-        hi.setPadding(dp(6f), dp(5f), dp(16f), dp(5f))
-        val hb = GradientDrawable(); hb.cornerRadius = dp(26f).toFloat(); hb.setColor(0x66102A4A); hb.setStroke(dp(1.5f), 0x66FFFFFF); hi.background = hb
-        face.scaleType = ImageView.ScaleType.CENTER_CROP
-        val fb = GradientDrawable(); fb.shape = GradientDrawable.OVAL; fb.setColor(MenuPal.PALE); fb.setStroke(dp(2f), Color.WHITE); face.background = fb
-        face.outlineProvider = object : android.view.ViewOutlineProvider() { override fun getOutline(v: View, o: android.graphics.Outline) { o.setOval(0, 0, v.width, v.height) } }
-        face.clipToOutline = true
-        hi.addView(face, LinearLayout.LayoutParams(dp(40f), dp(40f)))
-        val info = LinearLayout(ctx); info.orientation = LinearLayout.VERTICAL
-        info.addView(txt(household, 13f, Color.WHITE, MenuPal.TITLE))
-        info.addView(txt("R$ $money", 14f, 0xFFFFE08A.toInt(), MenuPal.BLACK))
-        hi.addView(info, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
-        addView(hi, LayoutParams(-2, -2, Gravity.TOP or Gravity.END).also { it.setMargins(0, dp(14f), dp(18f), 0) })
-
-        // esquerda: menu único (cada opção uma vez)
-        val left = LinearLayout(ctx); left.orientation = LinearLayout.VERTICAL
-        val play = txt("▶  JOGAR", 24f, Color.WHITE, MenuPal.BLACK); play.gravity = Gravity.CENTER
-        play.setShadowLayer(6f, 0f, 2f, 0x66003300)
-        val pg = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF6FD66B.toInt(), 0xFF2FA24C.toInt())); pg.cornerRadius = dp(16f).toFloat(); pg.setStroke(dp(2f), 0xCCFFFFFF.toInt())
-        play.background = pg; play.elevation = dp(6f).toFloat()
+        lt.addView(txt("MEU", 13f, 0xFFFFE6A8.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.letterSpacing = 0.35f })
+        lt.addView(txt("LAR", 38f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(10f, 0f, 3f, 0x88000000.toInt()); it.letterSpacing = 0.06f })
+        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
+        panel.addView(logo)
+        panel.addView(txt("A vida na cidade à beira-mar", 12.5f, 0xCCE3EEFF.toInt(), MenuPal.TITLE), LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2f); it.bottomMargin = dp(14f) })
+        val play = MenuButton(ctx, "JOGAR", "Continuar de onde parou", 0, true)
         pressable(play) { onPlay() }
-        left.addView(play, LinearLayout.LayoutParams(dp(230f), dp(58f)))
-        left.addView(menuBtn("PERSONAGEM", "Criar e mudar o visual") { onCreator() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(10f) })
-        left.addView(menuBtn("NOVIDADES", "O que tem de novo") { onNews() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
-        left.addView(menuBtn("CONFIGURAÇÕES", "Gráficos, som e controles") { onSettings() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
-        left.addView(menuBtn("SAIR", "Fechar o jogo") { (context as? android.app.Activity)?.finish() }, LinearLayout.LayoutParams(dp(230f), dp(50f)).also { it.topMargin = dp(8f) })
-        addView(left, LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START).also { it.leftMargin = dp(26f); it.topMargin = dp(40f) })
+        panel.addView(play, LinearLayout.LayoutParams(dp(250f), dp(62f)))
+        val bCreator = MenuButton(ctx, "PERSONAGEM", "Criar e mudar o visual", 1, false); pressable(bCreator) { onCreator() }
+        panel.addView(bCreator, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(10f) })
+        val bSet = MenuButton(ctx, "CONFIGURAÇÕES", "Gráficos, som e controles", 2, false); pressable(bSet) { onSettings() }
+        panel.addView(bSet, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(8f) })
+        val bExit = MenuButton(ctx, "SAIR", "Fechar o jogo", 3, false); pressable(bExit) { (context as? android.app.Activity)?.finish() }
+        panel.addView(bExit, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(8f) })
+        addView(panel, LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START).also { it.leftMargin = dp(36f) })
 
-        // direita embaixo: um cartão de novidade que troca sozinho (só informação, sem botões repetidos)
-        val card = LinearLayout(ctx); card.orientation = LinearLayout.VERTICAL
-        val cg = GradientDrawable(); cg.cornerRadius = dp(14f).toFloat(); cg.setColor(0xF2FFFFFF.toInt()); card.background = cg
-        card.elevation = dp(6f).toFloat(); card.clipToOutline = true
-        val art = FrameLayout(ctx)
-        card.addView(art, LinearLayout.LayoutParams(-1, dp(84f)))
-        val ct = txt("", 14f, MenuPal.INK, MenuPal.BLACK); val cb = txt("", 11.5f, 0xFF3F5F95.toInt(), MenuPal.TITLE)
-        val inner = LinearLayout(ctx); inner.orientation = LinearLayout.VERTICAL; inner.setPadding(dp(12f), dp(6f), dp(12f), dp(8f))
-        inner.addView(ct); inner.addView(cb)
-        val dots = LinearLayout(ctx); dots.orientation = LinearLayout.HORIZONTAL
-        val dv = ArrayList<View>()
-        for (k in news.indices) { val v = View(ctx); dv.add(v); dots.addView(v, LinearLayout.LayoutParams(dp(7f), dp(7f)).also { it.setMargins(0, dp(6f), dp(5f), 0) }) }
-        inner.addView(dots)
-        card.addView(inner)
-        fun show() {
-            val n = news[newsIdx]
-            art.removeAllViews(); art.addView(CardArt(ctx, n.first), LayoutParams(-1, -1))
-            ct.text = n.second.uppercase(); cb.text = n.third
-            for ((i, v) in dv.withIndex()) { val g = GradientDrawable(); g.shape = GradientDrawable.OVAL; g.setColor(if (i == newsIdx) MenuPal.INK else 0xFFB8C4DC.toInt()); v.background = g }
-        }
-        show()
-        card.setOnClickListener { newsIdx = (newsIdx + 1) % news.size; show() }
-        postDelayed(object : Runnable { override fun run() { if (!isAttachedToWindow) return; newsIdx = (newsIdx + 1) % news.size; card.animate().alpha(0f).setDuration(200).withEndAction { show(); card.animate().alpha(1f).setDuration(260).start() }.start(); postDelayed(this, 6000) } }, 6000)
-        addView(card, LayoutParams(dp(220f), -2, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(18f), dp(16f)) })
-
-        // versão
-        val ver = txt(version, 10f, 0xCCFFFFFF.toInt(), Typeface.DEFAULT)
-        ver.setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
-        val vb = GradientDrawable(); vb.cornerRadius = dp(8f).toFloat(); vb.setColor(0x66102A4A); ver.background = vb
-        addView(ver, LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).also { it.setMargins(dp(14f), 0, 0, dp(12f)) })
-
-        left.alpha = 0f; left.translationX = -dp(30f).toFloat()
-        left.animate().alpha(1f).translationX(0f).setDuration(500).setStartDelay(150).start()
-        card.alpha = 0f; card.translationY = dp(20f).toFloat()
-        card.animate().alpha(1f).translationY(0f).setDuration(500).setStartDelay(300).start()
+        panel.alpha = 0f; panel.translationX = -dp(40f).toFloat()
+        panel.animate().alpha(1f).translationX(0f).setDuration(600).setStartDelay(150).start()
     }
 
     /** Foto do personagem chegou: corta a borda transparente de baixo (senão ele "flutua") e aparece subindo de leve. */
@@ -375,16 +373,6 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
         return t
     }
 
-    private fun menuBtn(title: String, sub: String, act: () -> Unit): View {
-        val v = LinearLayout(context); v.orientation = LinearLayout.VERTICAL; v.gravity = Gravity.CENTER_VERTICAL
-        v.setPadding(dp(16f), 0, dp(12f), 0)
-        val g = GradientDrawable(); g.cornerRadius = dp(14f).toFloat(); g.setColor(0x8C10284A.toInt()); g.setStroke(dp(1.5f), 0x55FFFFFF); v.background = g
-        v.addView(txt(title, 16f, Color.WHITE, MenuPal.BLACK).also { it.includeFontPadding = false })
-        v.addView(txt(sub, 10.5f, 0xCCDDEBFF.toInt(), MenuPal.TITLE).also { it.includeFontPadding = false })
-        pressable(v, act)
-        return v
-    }
-
     private fun pressable(v: View, act: () -> Unit) {
         v.setOnTouchListener { vv, e ->
             when (e.actionMasked) {
@@ -394,6 +382,37 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
             }
             true
         }
+    }
+}
+
+/** Botão do menu desenhado: fundo em degradê com brilho, ícone vetorial num círculo, título e subtítulo. */
+class MenuButton(ctx: Context, private val title: String, private val sub: String, private val icon: Int, private val main: Boolean) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    override fun onDraw(c: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat(); val r = h * 0.28f
+        val top = if (main) 0xFF7BE07A.toInt() else 0x33FFFFFF; val bot = if (main) 0xFF2E9E4A.toInt() else 0x14FFFFFF
+        p.shader = LinearGradient(0f, 0f, 0f, h, top, bot, Shader.TileMode.CLAMP); c.drawRoundRect(RectF(0f, 0f, w, h), r, r, p); p.shader = null
+        p.color = if (main) 0x55FFFFFF else 0x22FFFFFF; c.drawRoundRect(RectF(h * 0.08f, h * 0.06f, w - h * 0.08f, h * 0.42f), r * 0.8f, r * 0.8f, p)
+        p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.03f; p.color = if (main) 0xCCFFFFFF.toInt() else 0x44FFFFFF; c.drawRoundRect(RectF(1f, 1f, w - 1f, h - 1f), r, r, p); p.style = Paint.Style.FILL
+        val cx = h * 0.52f; val cy = h / 2; val cr = h * 0.32f
+        p.color = if (main) 0x33FFFFFF else 0x33FFE08A; c.drawCircle(cx, cy, cr, p)
+        p.color = if (main) Color.WHITE else 0xFFFFE08A.toInt()
+        val s = cr * 0.55f
+        when (icon) {
+            0 -> { path.reset(); path.moveTo(cx - s * 0.6f, cy - s); path.lineTo(cx + s, cy); path.lineTo(cx - s * 0.6f, cy + s); path.close(); c.drawPath(path, p) }
+            1 -> { c.drawCircle(cx, cy - s * 0.45f, s * 0.45f, p); c.drawRoundRect(RectF(cx - s * 0.85f, cy + s * 0.1f, cx + s * 0.85f, cy + s * 1.0f), s * 0.4f, s * 0.4f, p) }
+            2 -> { for (k in 0 until 8) { c.save(); c.rotate(k * 45f, cx, cy); c.drawRect(cx - s * 0.18f, cy - s * 1.05f, cx + s * 0.18f, cy - s * 0.6f, p); c.restore() }; c.drawCircle(cx, cy, s * 0.72f, p); p.color = if (main) 0xFF2E9E4A.toInt() else 0xFF1A3A66.toInt(); c.drawCircle(cx, cy, s * 0.3f, p) }
+            else -> { p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.22f; p.strokeCap = Paint.Cap.ROUND; c.drawArc(RectF(cx - s * 0.8f, cy - s * 0.7f, cx + s * 0.8f, cy + s * 0.9f), -50f, 280f, false, p); c.drawLine(cx, cy - s * 1.0f, cx, cy, p); p.style = Paint.Style.FILL }
+        }
+        p.color = Color.WHITE; p.typeface = MenuPal.BLACK; p.textSize = h * (if (main) 0.36f else 0.3f)
+        p.setShadowLayer(4f, 0f, 2f, 0x55000000)
+        val tx = h * 1.0f
+        if (main) { c.drawText(title, tx, h * 0.5f, p); p.textSize = h * 0.2f; p.typeface = MenuPal.TITLE; p.color = 0xEEFFFFFF.toInt(); c.drawText(sub, tx, h * 0.78f, p) }
+        else { c.drawText(title, tx, h * 0.5f, p); p.textSize = h * 0.22f; p.typeface = MenuPal.TITLE; p.color = 0xCCDDEBFF.toInt(); c.drawText(sub, tx, h * 0.8f, p) }
+        p.clearShadowLayer()
+        p.color = if (main) Color.WHITE else 0x88FFFFFF.toInt(); p.textSize = h * 0.4f; p.typeface = MenuPal.BLACK
+        c.drawText("›", w - h * 0.42f, h * 0.64f, p)
     }
 }
 

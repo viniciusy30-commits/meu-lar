@@ -540,7 +540,7 @@ object Relevo {
     }
 
     /** água funda demais para andar (mais que a canela), fora de ponte */
-    fun wet(x: Float, z: Float): Boolean = on && groundH(x, z) < -0.45f
+    fun wet(x: Float, z: Float): Boolean = on && groundH(x, z) < wl() - 0.25f   // Cidade 6: água 2 m mais baixa (a areia fica entre 0 e -2,2)
 
     private fun grassCol(h: Float): Int = mix(GRASS_LO, GRASS_HI, (h / 60f).coerceIn(0f, 1f))
 
@@ -1037,7 +1037,7 @@ object Relevo {
 
     private fun bedCol(h: Float): Int = mix(COL_BED, C("#5D6F73"), ((wl() - h) / 7f).coerceIn(0f, 1f))
     /** nível da água do relevo (Cidade 6: mar e rio 2 m mais baixos, a cidade fica bem acima da água) */
-    private fun wl(): Float = if (City.C6) -2.2f else -0.2f
+    fun wl(): Float = if (City.C6) -2.2f else -0.2f
 
     /** árvore simples e fofinha: tronco e copa em dois cones (bipirâmide de 6 lados) */
     // ------------------------------------------------------------------------------------------------
@@ -1462,10 +1462,10 @@ object Relevo {
             val sh = ((height(x - 4f, z) - height(x + 4f, z)) + (height(x, z - 4f) - height(x, z + 4f))) * 0.12f
             val k = (1f + sh).coerceIn(0.7f, 1.25f)
             var r: Float; var gg: Float; var bl: Float
-            if (h < -0.15f) { val d = (-h / 3f).coerceIn(0f, 1f); r = 100f - 30f * d; gg = 170f - 30f * d; bl = 215f - 20f * d }
+            if (h < wl() + 0.05f) { val d = ((wl() - h) / 3f + 0.0f).coerceIn(0f, 1f); r = 100f - 30f * d; gg = 170f - 30f * d; bl = 215f - 20f * d }
             else if (h < 1.3f) { r = 226f; gg = 214f; bl = 168f }
             else { val t = (h / 60f).coerceIn(0f, 1f); r = 150f + 70f * t; gg = 200f + 20f * t; bl = 120f + 30f * t }
-            if (h >= -0.15f) { r *= k; gg *= k; bl *= k }
+            if (h >= wl() + 0.05f) { r *= k; gg *= k; bl *= k }
             px[j * w + i] = (0xFF shl 24) or (min(255f, r).toInt() shl 16) or (min(255f, gg).toInt() shl 8) or min(255f, bl).toInt()
         }
         val bmp = Bitmap.createBitmap(w, hgt, Bitmap.Config.ARGB_8888)
