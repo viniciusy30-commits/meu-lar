@@ -53,7 +53,7 @@ class Props:
         """poste detalhado: base de concreto com chanfro, pe de ferro fundido com portinhola, fuste conico com
         aneis, braco curvo (em arco, com tirante decorativo), luminaria LED achatada com vidro e tampa;
         nx, nz = direcao da pista"""
-        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z)
+        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z, 10.0)
         y0 = Y_WALK; col = (58, 64, 72); dark = (40, 44, 50)
         M.m('concreto'); M.cyl(x, z, 0.32, y0 - 0.05, y0 + 0.12, (190, 188, 182), 8); M.cyl(x, z, 0.32, y0 + 0.12, y0 + 0.18, (200, 198, 192), 8, True, 0.26)
         M.m('metal')
@@ -93,7 +93,7 @@ class Props:
                 fa = -0.2 + k * 0.18
                 M.box(min(hx + ux * fa, hx + ux * (fa + 0.03)) - 0.02, max(hx + ux * fa, hx + ux * (fa + 0.03)) + 0.02, ey + 0.11, ey + 0.16, min(hz + uz * fa, hz + uz * (fa + 0.03)) - 0.14, max(hz + uz * fa, hz + uz * (fa + 0.03)) + 0.14, dark)
             M.m('liso')
-            M.poly([(cx_, ey - 0.125, cz_) for (cx_, cz_) in [(hx + ux * a_ - uz * b_, hz + uz * a_ + ux * b_) for (a_, b_) in ((-0.38, -0.16), (0.38, -0.2), (0.38, 0.2), (-0.38, 0.16))]], (255, 246, 214), (0, -1, 0))
+            M.poly([(cx_, ey - 0.125, cz_) for (cx_, cz_) in [(hx + ux * a_ - uz * b_, hz + uz * a_ + ux * b_) for (a_, b_) in ((-0.38, -0.16), (0.38, -0.2), (0.38, 0.2), (-0.38, 0.16))]], (255, 238, 196), (0, -1, 0))
             M.m('metal')
         self.nlights += 1; M.free()
 
@@ -150,7 +150,8 @@ class Props:
             if (a - x) ** 2 + (b - z) ** 2 < d * d: return True
         return False
 
-    def add_light(self, x, z):
+    def add_light(self, x, z, rad=7.0):
+        self.__dict__.setdefault('postes', []).append((round(x, 1), round(z, 1), rad))     # poça de luz no chão à noite (c6.json 'postes')
         li = self.__dict__.setdefault('light_idx', {})
         for i in range(int(x // 20) - 1, int(x // 20) + 2):
             for j in range(int(z // 20) - 1, int(z // 20) + 2): li.setdefault((i, j), []).append((x, z))
@@ -300,10 +301,15 @@ class Props:
             bx, bz = a[0] + dx / L * 13, a[1] + dz / L * 13
             self.bench(bx, bz, -dx / L, -dz / L, Y_LAWN + 0.03)
 
-    def parklight(self, x, z, y=Y_LAWN):
-        """poste baixo de parque (globo)"""
-        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z); M.m('metal'); M.cyl(x, z, 0.07, y, y + 3.6, (52, 56, 60), 6)
-        M.m('liso'); M.sphere(x, y + 3.85, z, 0.32, (255, 246, 214), 6, 4); self.nlights += 1; M.free()
+    def parklight(self, x, z, y=Y_LAWN, style=None):
+        """luminaria de praca/parque: o estilo muda por regiao (cada praca/trecho de parque tem o seu, vizinhos combinam)"""
+        import lights6
+        if style is None:
+            h = (int(x // 160) * 73856093) ^ (int(z // 160) * 19349663)
+            style = lights6.STYLES[abs(h) % len(lights6.STYLES)]
+        M = self.M; M.at(x, z, 'mobiliario'); self.add_light(x, z)
+        lights6.post(M, x, z, y, style)
+        self.nlights += 1; M.free()
 
     def riverside(self, blk):
         """parque linear do rio: calcadao junto ao cais (postes, bancos, palmeiras), trilha sinuosa, equipamentos dos dois
@@ -559,7 +565,17 @@ class Props:
             Fp = Frame((minx + 6, pz0), (1, 0)); M.at((minx + maxx) / 2, (pz0 + pz1) / 2, 'lotes')
             B.parking(Fp, 0, (maxx - minx) * 0.55, 0, pz1 - pz0, L.park_car, Y_WALK + 0.01); M.free('lotes')
             L.pocc.append(sbox(minx + 5, pz0 - 1, minx + 7 + (maxx - minx) * 0.55, pz1 + 1))
-            zc = (pz0 + pz1) / 2; L.access(L.frame('W', minx, maxx, minz, maxz, maxz - zc - 3.6), 0.0, 7.2, 6.2)
+            # entrada/saida pelo lado que de fato encosta numa rua (antes era sempre o oeste, que pode dar para o rio)
+            import houses6 as H6
+            zc = (pz0 + pz1) / 2; px1 = minx + 6 + (maxx - minx) * 0.55
+            opts = [('W', (minx - 4, zc), maxz - zc - 3.6, 6.5), ('E', (maxx + 4, zc), zc - minz - 3.6, maxx - px1 + 0.5)]
+            done = False
+            for (sd, (tx, tz), s_, vin) in opts:
+                if H6.ROW.contains(Point(tx, tz)):
+                    L.access(L.frame(sd, minx, maxx, minz, maxz, s_), 0.0, 7.2, vin); done = True; break
+            if not done:                                                  # nenhum lado com rua: o acesso vem pelo sul, entre os predios
+                xcp = minx + 6 + (maxx - minx) * 0.275
+                L.access(L.frame('S', minx, maxx, minz, maxz, maxx - xcp - 3.6), 0.0, 7.2, maxz - pz1 + 0.5)
         L.fill_free(poly, c0, (), True, 3, ('quiosque', 'jardim', 'coreto', 'piquenique'))
 
     def boat(self, x, z, dx, dz, y=Y_SEA, kind=None, L=None):
@@ -661,7 +677,7 @@ class Props:
                     if r.random() < 0.85:
                         kind = r.choice(('lancha', 'lancha', 'veleiro', 'veleiro', 'iate')) if zz < PZ1 - 30 else r.choice(('iate', 'veleiro'))
                         self.boat(pxk + s_ * 7.0, zz + 4.75, s_, 0, Y_SEA + 0.1, kind)
-            M.at(pxk, zend, 'orla'); M.m('liso'); M.cyl(pxk, zend - 1.0, 0.1, yp, yp + 2.6, (240, 240, 240), 5, False); M.sphere(pxk, yp + 2.8, zend - 1.0, 0.2, (255, 246, 214), 5, 3); M.free()
+            M.at(pxk, zend, 'orla'); M.m('liso'); M.cyl(pxk, zend - 1.0, 0.1, yp, yp + 2.6, (240, 240, 240), 5, False); M.sphere(pxk, yp + 2.8, zend - 1.0, 0.2, (255, 238, 196), 5, 3); M.free()
         # quebra-mares (oeste e leste) com passeio por cima e a boca da marina ao sul
         def breakwater(pts, beacon_col):
             for i in range(len(pts) - 1):
@@ -750,9 +766,9 @@ class Props:
             n += 1
 
     def build(self):
+        for blk in self.P.blocks:                                                      # antes das ruas: o acesso do estacionamento
+            if blk['zone'] == 'marina' and not blk.get('feito'): self.marina(blk)         # registra a entrada e a rua nao poe arvore/poste nela
         self.streets()
-        for blk in self.P.blocks:
-            if blk['zone'] == 'marina' and not blk.get('feito'): self.marina(blk)         # antes: ela ainda pede arvores/bancos ao Lots
         for t in self.L.trees: self.tree(t[0], t[1], t[2], t[3], t[4] if len(t) > 4 else Y_LAWN)
         for c in self.L.parked: self.car(c[0], c[1], c[2], c[3], None, c[4] if len(c) > 4 else Y_LAWN + 0.04)
         for b in self.L.benches: self.bench(b[0], b[1], b[2], b[3], b[4] if len(b) > 4 else Y_LAWN + 0.09)

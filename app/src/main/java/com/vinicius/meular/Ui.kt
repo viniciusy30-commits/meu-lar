@@ -228,6 +228,9 @@ object Ic {
     /** Etapa 123: veículos */
     const val CAR = 140
     const val MOTO = 141
+    /** ciclo de dia e noite */
+    const val SUNI = 142
+    const val MOON = 143
 }
 
 
@@ -530,6 +533,18 @@ class IconView(ctx: Context, var kind: Int, var color: Int = Color.WHITE, var ac
                 fill(w); c.drawCircle(22f, 68f, 6f, p); c.drawCircle(78f, 68f, 6f, p)
                 fill(w); poly(c, 30f, 52f, 46f, 40f, 62f, 40f, 70f, 54f, 52f, 60f, 36f, 60f)
                 stroke(w, 6f); c.drawLine(62f, 40f, 78f, 68f, p); c.drawLine(58f, 30f, 70f, 28f, p); c.drawLine(64f, 29f, 66f, 40f, p)
+            }
+            Ic.SUNI -> {
+                fill(w); c.drawCircle(50f, 50f, 19f, p)
+                stroke(w, 7f)
+                for (k in 0 until 8) { val an = k * 0.7854f; c.drawLine(50f + kotlin.math.cos(an) * 29f, 50f + kotlin.math.sin(an) * 29f, 50f + kotlin.math.cos(an) * 41f, 50f + kotlin.math.sin(an) * 41f, p) }
+            }
+            Ic.MOON -> {
+                fill(w)
+                path.reset(); path.addCircle(46f, 52f, 34f, Path.Direction.CW)
+                val cut = Path(); cut.addCircle(64f, 40f, 30f, Path.Direction.CW)
+                path.op(cut, Path.Op.DIFFERENCE); c.drawPath(path, p)
+                fill(a); c.drawCircle(76f, 70f, 4f, p); c.drawCircle(86f, 52f, 3f, p)
             }
             Ic.MAP -> {
                 // mapa dobrado em 3 painéis com um pino

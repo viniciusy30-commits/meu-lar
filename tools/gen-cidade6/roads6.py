@@ -339,10 +339,10 @@ class Ground:
                 M.box(xa, xb, Y_WALK + 1.05, Y_WALK + 1.18, zz - 0.4, zz + 0.4, rgb('#9C968B'))
                 M.m('metal')
                 nps = max(2, int(round((xb - xa - 6) / 22.0)) + 1)      # postes da ponte: ~22 m como na avenida (antes 6 m: virava uma grade)
-                for x in np.linspace(xa + 3, xb - 3, nps):
-                    M.box(x - 0.12, x + 0.12, Y_WALK, Y_WALK + 6.5, zz - sg * 0.6 - 0.12, zz - sg * 0.6 + 0.12, rgb('#3E4247'))
-                    M.box(x - 0.12, x + 0.12, Y_WALK + 6.3, Y_WALK + 6.45, zz - sg * 0.6 - sg * 1.6, zz - sg * 0.6 + 0.1, rgb('#3E4247'))
-                    M.box(x - 0.3, x + 0.3, Y_WALK + 6.1, Y_WALK + 6.3, zz - sg * 2.0 - 0.25, zz - sg * 2.0 + 0.25, rgb('#FFF3C4'))
+                import lights6
+                for x in np.linspace(xa + 3, xb - 3, nps):            # candelabro de globos no parapeito (ferro fundido)
+                    lights6.globes(M, x, zz - sg * 0.6, Y_WALK, 3)
+                    self.__dict__.setdefault('bridge_lamps', []).append((round(x, 1), round(zz - sg * 0.6, 1), 7.0))
             # pilares no rio
             M.m('concreto')
             for xp in (river_x(z) - RIVER_W / 6, river_x(z) + RIVER_W / 6):
@@ -386,6 +386,19 @@ class Ground:
                 if k % 2 == 0 or k == n - 1:
                     for (uu, aa) in ((u0, a0),) + (((u1, a1),) if k == n - 1 else ()):
                         M.prism(F.rect(uu - 0.05, uu + 0.05, vr - 0.05, vr + 0.05), aa, aa + 1.1, white)
+        # pilares no rio: dois cavaletes (pares de colunas de concreto com base de pedra e travessa de madeira sob as vigas)
+        for su in (-1, 1):
+            uc = su * RIVER_W / 6
+            ytop = yy((uc + half) / (2 * half)) - 0.62
+            for sv in (-1, 1):
+                px, pz = F.xz(uc, sv * (hw - 0.3))
+                M.m('pedra'); M.cyl(px, pz, 0.75, -5.6, Y_RIVER + 0.35, rgb('#9C968A'), 10)
+                M.m('concreto'); M.cyl(px, pz, 0.32, Y_RIVER + 0.35, ytop - 0.3, rgb('#C9C4B8'), 10, True, 0.26)
+                M.cyl(px, pz, 0.4, ytop - 0.3, ytop - 0.2, rgb('#B9B3A8'), 10)
+            M.m('madeira'); M.prism(F.rect(uc - 0.25, uc + 0.25, -hw - 0.1, hw + 0.1), ytop - 0.2, ytop + 0.01, dark)
+            for sv in (-1, 1):                                          # mao-francesa diagonal
+                p0 = F.p(uc, sv * (hw - 0.3), ytop - 1.6); p1 = F.p(uc, sv * 0.1, ytop - 0.2)
+                M.quad((p0[0], p0[1], p0[2]), (p1[0], p1[1], p1[2]), (p1[0], p1[1] + 0.15, p1[2]), (p0[0], p0[1] + 0.15, p0[2]), dark, F.nu(1))
         # apoios de pedra nas duas cabeceiras (sobre o cais)
         M.m('pedra')
         for su in (-1, 1):

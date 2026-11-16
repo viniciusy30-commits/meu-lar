@@ -136,7 +136,7 @@ object Water {
         #endif
         varying vec3 vW; varying vec3 vN; varying float vFoam;
         uniform vec3 uEye; uniform float uTime; uniform float uMode; uniform float uShoreZ; uniform vec3 uLake;
-        uniform vec3 uDeep; uniform vec3 uShal;
+        uniform vec3 uDeep; uniform vec3 uShal; uniform float uNight;
         float shore6(float x) { return 1832.0 + 14.0 * sin(x / 290.0) + 9.0 * sin(x / 117.0 + 1.3); }
         float river6(float z) { return 1688.0 + 26.0 * sin(z / 300.0 + 0.5) + 8.0 * sin(z / 97.0); }
         void main() {
@@ -215,6 +215,10 @@ object Water {
             float fog = (sea ? smoothstep(7.0, 18.0, fz) * 0.55 : smoothstep(1.2, 8.0, fz) * 0.8);   // mar: névoa só no horizonte (antes "acabava" a 110 m)
             col = mix(col, vec3(0.80, 0.88, 0.96), fog);
             al = mix(al, 1.0, fog);
+            // noite (Cidade 6): água escura com reflexo azulado da lua e o brilho quente da cidade na beira
+            if (uMode > 3.5) {
+                col = mix(col, col * vec3(0.10, 0.13, 0.24) + vec3(0.0, 0.01, 0.03) + vec3(0.9, 0.95, 1.0) * s64 * 0.25, uNight);
+            }
             if (riv) al *= 1.0 - rfade;
             if (c6s) al *= mix(1.0, smoothstep(-40.0, -28.0, d6), chn);
             gl_FragColor = vec4(col, al);
@@ -223,7 +227,7 @@ object Water {
 
     private var progN = 0
     private var nVP = 0; private var nEye = 0; private var nTime = 0; private var nBox = 0; private var nRip = 0; private var nWav = 0
-    private var nMode = 0; private var nShore = 0; private var nLake = 0; private var nDeep = 0; private var nShal = 0
+    private var nMode = 0; private var nNight = 0; private var nShore = 0; private var nLake = 0; private var nDeep = 0; private var nShal = 0
 
     private fun buildN() {
         progN = GLES20.glCreateProgram()
@@ -236,7 +240,7 @@ object Water {
         if (ok[0] == 0) { GLES20.glDeleteProgram(progN); progN = 0; return }
         fun u(n: String) = GLES20.glGetUniformLocation(progN, n)
         nVP = u("uVP"); nEye = u("uEye"); nTime = u("uTime"); nBox = u("uBox"); nRip = u("uRip"); nWav = u("uWav")
-        nMode = u("uMode"); nShore = u("uShoreZ"); nLake = u("uLake"); nDeep = u("uDeep"); nShal = u("uShal")
+        nMode = u("uMode"); nNight = u("uNight"); nShore = u("uShoreZ"); nLake = u("uLake"); nDeep = u("uDeep"); nShal = u("uShal")
     }
 
     private fun sh(type: Int, src: String): Int {
@@ -363,6 +367,7 @@ object Water {
         GLES20.glUniform3f(nWav, y + swash * sw, if (c6) 1.2f else 5f, 0.3f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
         val sz = if (shoreZ.isNaN()) z0 + 6f else shoreZ - swashRun * sw
+        GLES20.glUniform1f(nNight, if (c6) DayNight.night else 0f)
         if (c6) { GLES20.glUniform1f(nMode, 4f); GLES20.glUniform1f(nShore, -swashRun * sw); GLES20.glUniform3f(nLake, c6x, c6z, 0f) }
         else { GLES20.glUniform1f(nMode, 1f); GLES20.glUniform1f(nShore, sz); GLES20.glUniform3f(nLake, 0f, 0f, 1f) }
         GLES20.glUniform3f(nDeep, 0.03f, 0.22f, 0.40f); GLES20.glUniform3f(nShal, 0.30f, 0.72f, 0.70f)
@@ -416,6 +421,7 @@ object Water {
         GLES20.glUniform4f(nBox, cx - 5000f, cz - 5000f, cx + 5000f, cz + 5000f)
         GLES20.glUniform3f(nWav, y, 1.6f, 0.6f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
+        GLES20.glUniform1f(nNight, DayNight.night)
         GLES20.glUniform1f(nMode, 5f); GLES20.glUniform1f(nShore, 0f); GLES20.glUniform3f(nLake, cx, cz, 0f)
         GLES20.glUniform3f(nDeep, 0.08f, 0.30f, 0.36f); GLES20.glUniform3f(nShal, 0.24f, 0.52f, 0.50f)
         GLES20.glDisableVertexAttribArray(1); GLES20.glDisableVertexAttribArray(2); GLES20.glDisableVertexAttribArray(3)
@@ -467,6 +473,7 @@ object Water {
         GLES20.glUniform1f(nTime, now())
         GLES20.glUniform4f(nBox, cx - r - 50f, cz - r - 50f, cx + r + 50f, cz + r + 50f)
         GLES20.glUniform3f(nWav, y, if (round) 0.15f else 0.35f, if (round) 2f else 1.0f)
+        GLES20.glUniform1f(nNight, 0f)
         GLES20.glUniform4fv(nRip, NRIP, zeroRip, 0)
         if (round) {
             GLES20.glUniform1f(nMode, 3f); GLES20.glUniform1f(nShore, if (r > 3f) 2.9f else if (r > 1f) 1.25f else 0f); GLES20.glUniform3f(nLake, cx, cz, r)

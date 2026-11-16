@@ -588,7 +588,7 @@ def sculptures(pr, F, r):
                 a = j * 0.6; M.box(x + math.cos(a) * 0.5 - 0.1, x + math.cos(a) * 0.5 + 0.1, y + 0.9 + j * 0.4, y + 1.3 + j * 0.4, z + math.sin(a) * 0.5 - 0.1, z + math.sin(a) * 0.5 + 0.1, col)
         else: M.cyl(x, z, 0.7, y + 0.9, y + 2.4, col, 6, True, 0.7); M.sphere(x, y + 2.7, z, 0.35, shade(col, 30), 8, 5)
     M.m('metal')
-    for (u, v) in ((-3, 0), (3, 0)): x, z = F.xz(u, v); M.cyl(x, z, 0.08, y, y + 0.8, (60, 64, 70), 6); M.sphere(x, y + 0.85, z, 0.15, (255, 244, 200), 6, 4)
+    for (u, v) in ((-3, 0), (3, 0)): x, z = F.xz(u, v); M.cyl(x, z, 0.08, y, y + 0.8, (60, 64, 70), 6); M.sphere(x, y + 0.85, z, 0.15, (255, 238, 196), 6, 4)
 
 
 def greenhouse(pr, F, r):

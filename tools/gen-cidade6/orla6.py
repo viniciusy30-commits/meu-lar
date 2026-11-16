@@ -364,7 +364,7 @@ def bike_bridge(M, pr, spans, y, r):
     M.free()
     for t in (0.25, 0.75):
         xx = xa + (xb - xa) * t; M.at(xx, za, 'orla'); M.m('metal'); M.cyl(xx, za + 0.1, 0.06, yy(t), yy(t) + 4.2, (60, 64, 70), 6, False)
-        M.m('liso'); M.sphere(xx, yy(t) + 4.4, za + 0.1, 0.26, (255, 246, 214), 6, 4); M.free()
+        M.m('liso'); M.sphere(xx, yy(t) + 4.4, za + 0.1, 0.26, (255, 238, 196), 6, 4); M.free()
 
 
 def jetties_and_lighthouse(M, pr, r):
@@ -427,7 +427,7 @@ def jetties_and_lighthouse(M, pr, r):
             M.free()
             # postes a cada ~24 m e bancos
             zm = (z + z1) / 2
-            if k % 8 == 4: classic_lamp(M, cx_at(zm) - sgn * (w_at(zm) - 0.5), zm, y_at(zm) + 0.0); pr.luzes.append({'tipo': 'poste', 'x': round(cx_at(zm), 1), 'y': round(y_at(zm) + 4.4, 2), 'z': round(zm, 1), 'cor': [255, 230, 180], 'alcance_m': 14})
+            if k % 8 == 4: classic_lamp(M, cx_at(zm) - sgn * (w_at(zm) - 0.5), zm, y_at(zm) + 0.0); pr.__dict__.setdefault('postes', []).append((round(cx_at(zm), 1), round(zm, 1), 7.0)); pr.luzes.append({'tipo': 'poste', 'x': round(cx_at(zm), 1), 'y': round(y_at(zm) + 4.4, 2), 'z': round(zm, 1), 'cor': [255, 230, 180], 'alcance_m': 14})
             if k % 10 == 7 and zm > zsh:
                 bx = cx_at(zm) + sgn * (w_at(zm) - 0.9)
                 M.at(bx, zm, 'orla'); M.m('madeira'); M.box(bx - 0.25, bx + 0.25, YT + 0.42, YT + 0.5, zm - 0.9, zm + 0.9, (150, 108, 70))
@@ -552,7 +552,7 @@ def lighthouse(M, pr, x, z, y0, r, H, band, R0, R1, big):
     M.m('liso')
     M.cyl(x, z, 0.25, yt + 1.0, yt + 1.9, (60, 60, 64), 8)
     for kk in range(4): M.cyl(x, z, 0.55 - kk * 0.03, yt + 1.95 + kk * 0.3, yt + 2.2 + kk * 0.3, (250, 236, 170), 12, False)       # lente de Fresnel
-    M.sphere(x, yt + 2.4, z, 0.4, (255, 244, 190), 10, 6)
+    M.sphere(x, yt + 2.4, z, 0.4, (255, 238, 196), 10, 6)
     M.m('reboco'); M.cyl(x, z, RL + 0.25, yt + 3.6, yt + 3.8, band, 16); M.cyl(x, z, RL + 0.15, yt + 3.8, yt + 5.0, band, 16, False, 0.3)
     M.m('metal'); M.sphere(x, yt + 5.15, z, 0.3, (40, 44, 50), 6, 4); M.cyl(x, z, 0.04, yt + 5.3, yt + 6.8, (40, 44, 50), 5, False)
     M.box(x - 0.5, x + 0.5, yt + 6.2, yt + 6.26, z - 0.03, z + 0.03, (40, 44, 50))
@@ -872,7 +872,7 @@ def stage(M, x, z, yd, face):
     M.m('liso')
     for dx in (-7.5, 7.5): M.box(x + dx - 0.8, x + dx + 0.8, yd + 1.2, yd + 3.6, z + face * 3.8 - 0.6, z + face * 3.8 + 0.6, (30, 30, 34))
     M.box(x - 6, x + 6, yd + 1.2, yd + 7.0, z - face * 4.8 - 0.05, z - face * 4.8 + 0.05, (40, 60, 120))
-    for k in range(6): M.sphere(x - 7.5 + k * 3.0, yd + 7.8, z + face * 4.8, 0.25, (255, 240, 200), 6, 4)
+    for k in range(6): M.sphere(x - 7.5 + k * 3.0, yd + 7.8, z + face * 4.8, 0.25, (255, 238, 196), 6, 4)
     M.free()
 
 
@@ -986,12 +986,9 @@ def park_gate(M, x, z, yd, w):
 
 
 def classic_lamp(M, x, z, yd):
-    M.at(x, z, 'orla'); M.m('metal'); M.cyl(x, z, 0.18, yd, yd + 0.6, (30, 40, 50), 8); M.cyl(x, z, 0.08, yd + 0.6, yd + 4.2, (30, 40, 50), 6, False)
-    M.box(x - 0.55, x + 0.55, yd + 4.0, yd + 4.1, z - 0.05, z + 0.05, (30, 40, 50))
-    M.m('liso')
-    for s_ in (-0.55, 0.55): M.sphere(x + s_, yd + 4.35, z, 0.24, (255, 246, 214), 6, 4)
-    M.sphere(x, yd + 4.55, z, 0.24, (255, 246, 214), 6, 4)
-    M.free()
+    """poste dos molhes: candelabro de 5 globos sobre pe canelado (ferro fundido)"""
+    import lights6
+    M.at(x, z, 'orla'); lights6.post(M, x, z, yd, 'globos5'); M.free()
 
 
 def pier(M, pr, px, y, r):
