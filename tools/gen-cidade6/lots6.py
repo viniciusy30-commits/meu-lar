@@ -486,9 +486,18 @@ class Lots:
                 q = a + 0.8
                 while q < c - 0.5: self.trees.append((q, (b + e) / 2, 'flores', 1.0, y + 0.47)); q += 1.4
         if kind == 'cafe':
-            for i in range(int((w - 6) / 4.5)):
-                for k in range(int((d - 6) / 4.5)):
-                    tx, tz = x0 + 4 + i * 4.5, z0 + 4 + k * 4.5
+            ni = min(4, int((w - 6) / 4.5)); nk = min(3, int((d - 6) / 4.5))       # terraco compacto no meio (nada de mar de mesas)
+            ox_ = cx - (ni - 1) * 2.25; oz_ = cz - (nk - 1) * 2.25
+            # o resto do patio vira jardim: canteiros com arvores nas bordas
+            if w > 26 or d > 22:
+                for (a, b) in ((x0 + 2, x0 + 5), (x1 - 5, x1 - 2)):
+                    if a > ox_ - 4 or b < ox_ + (ni - 1) * 4.5 + 4: continue
+                bed(x0 + 2, z0 + 2, x0 + 4.5, z1 - 2, False); bed(x1 - 4.5, z0 + 2, x1 - 2, z1 - 2, False)
+                for q in range(int((d - 6) / 7)):
+                    self.trees.append((x0 + 3.25, z0 + 4 + q * 7, 'folhosa', 1.0, y + 0.47)); self.trees.append((x1 - 3.25, z0 + 4 + q * 7, 'ornamental', 1.0, y + 0.47))
+            for i in range(ni):
+                for k in range(nk):
+                    tx, tz = ox_ + i * 4.5, oz_ + k * 4.5
                     M.m('metal'); M.cyl(tx, tz, 0.05, y, y + 0.74, (50, 52, 56), 6); M.cyl(tx, tz, 0.3, y, y + 0.03, (50, 52, 56), 8)
                     M.m('madeira'); M.cyl(tx, tz, 0.42, y + 0.74, y + 0.78, (180, 140, 96), 12)
                     for (ox, oz) in ((0.75, 0), (-0.75, 0)):
@@ -500,7 +509,8 @@ class Lots:
                         M.m('liso'); M.cyl(tx, tz, 1.3, y + 2.0, y + 2.45, r.choice(((200, 60, 50), (240, 230, 210), (40, 110, 90))), 8, False, 0.05)
             # cordao de luzes atravessando o patio
             M.m('liso')
-            for k in range(int(w / 1.5)): M.sphere(x0 + 0.75 + k * 1.5, y + 3.2 - 0.25 * math.sin(math.pi * k / max(1, int(w / 1.5))), cz, 0.07, GLOW6, 4, 3)
+            lw = ni * 4.5 + 2
+            for k in range(int(lw / 1.5)): M.sphere(cx - lw / 2 + 0.75 + k * 1.5, y + 3.2 - 0.25 * math.sin(math.pi * k / max(1, int(lw / 1.5))), cz, 0.07, GLOW6, 4, 3)
         elif kind == 'jardim':
             bed(x0 + 1.5, z0 + 1.5, x1 - 1.5, z0 + 3.0); bed(x0 + 1.5, z1 - 3.0, x1 - 1.5, z1 - 1.5)
             # pergolado central com bancos dos dois lados
@@ -541,6 +551,15 @@ class Lots:
                 M.box(lx - 0.35, lx + 0.35, y, y + 0.35, lz - 1.0, lz - 0.9, (150, 110, 70)); M.box(lx - 0.35, lx + 0.35, y, y + 0.75, lz + 0.7, lz + 0.8, (150, 110, 70))
                 M.m('liso'); M.box(lx - 0.3, lx + 0.3, y + 0.37, y + 0.43, lz - 0.9, lz - 0.1, r.choice(((240, 240, 240), (90, 160, 210), (240, 190, 60))))
             for k in range(2): self.trees.append((cx + (k * 2 - 1) * w * 0.25, cz, 'folhosa', 1.1, y))
+        # patio grande: fileiras de arvores em golas nas bordas (sombra e sem piso vazio), com bancos entre elas
+        if kind != 'cafe' and w > 28 and d > 22:
+            for zz in (z0 + 3.0, z1 - 3.0):
+                q = x0 + 5.0
+                while q < x1 - 4.0:
+                    M.m('pedra'); M.prism([(q - 0.9, zz - 0.9), (q + 0.9, zz - 0.9), (q + 0.9, zz + 0.9), (q - 0.9, zz + 0.9)], y, y + 0.12, (200, 194, 182))
+                    self.trees.append((q, zz, r.choice(('folhosa', 'ornamental', 'florida')), r.uniform(0.9, 1.15), y + 0.12))
+                    if q + 3.5 < x1 - 4.0: self.benches.append((q + 3.5, zz, 0, 1 if zz < cz else -1, y))
+                    q += 7.0
         # sempre: postes baixos nos cantos, lixeiras e painel de cartazes
         for (px, pz) in ((x0 + 1.2, z0 + 1.2), (x1 - 1.2, z1 - 1.2), (x0 + 1.2, z1 - 1.2), (x1 - 1.2, z0 + 1.2)):
             self.plights.append((px, pz, y))
