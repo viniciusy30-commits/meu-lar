@@ -30,7 +30,7 @@ object Relevo {
     private const val ROADY = 0.12f
     private const val CS = 16   // células de terreno por pedaço (16 x 8 m = 128 m): metade das chamadas de desenho por quadro e menos pedaços para controlar
 
-    class House(val k: Int, val x: Float, val z: Float, val lvl: Float, val yaw: Float = 0f)
+    class House(val k: Int, val x: Float, val z: Float, val lvl: Float, val yaw: Float = 0f, val car: FloatArray? = null)
     /** Etapa 180b: [cs] = distância acumulada de cada ponto; [ta]/[tb] = quanto da faixa central some junto aos cruzamentos; [gl]/[gr] = "bocas" do meio-fio (pares início/fim) nos lados +n e -n */
     private class Road(val c: Int, val w: Float, val x: FloatArray, val z: FloatArray, val y: FloatArray, val br: BooleanArray, val nx: FloatArray, val nz: FloatArray, val keep: BooleanArray,
                        val cs: FloatArray, val ta: Float, val tb: Float, val gl: FloatArray, val gr: FloatArray)
@@ -290,6 +290,7 @@ object Relevo {
     /** Etapa 178: vaga do carro junto à calçada, em frente da Casa 1: (x, z, rumo em rad; frente = (sin h, -cos h)). null se não achar rua perto. */
     fun carSpot(): FloatArray? {
         val h = houses[0] ?: return null
+        h.car?.let { return floatArrayOf(CX + it[0], CZ + it[1], it[2]) }   // Cidade 6: vaga gravada pelo gerador, junto ao meio-fio em frente da casa
         val hx = CX + h.x; val hz = CZ + h.z
         var bd = 80f; var res: FloatArray? = null
         for (r in roads) {
@@ -391,7 +392,9 @@ object Relevo {
             val ha = js.getJSONArray("houses")
             for (i in 0 until ha.length()) {
                 val o = ha.getJSONObject(i); val k = o.getInt("k")
-                houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat(), o.optDouble("yaw", 0.0).toFloat())
+                val ca = o.optJSONArray("car")
+                val car = if (ca != null && ca.length() >= 3) floatArrayOf(ca.getDouble(0).toFloat(), ca.getDouble(1).toFloat(), ca.getDouble(2).toFloat()) else null
+                houses[k] = House(k, o.getDouble("x").toFloat(), o.getDouble("z").toFloat(), o.getDouble("lvl").toFloat(), o.optDouble("yaw", 0.0).toFloat(), car)
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
