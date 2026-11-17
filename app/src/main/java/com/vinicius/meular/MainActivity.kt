@@ -166,12 +166,15 @@ class MainActivity : AppCompatActivity() {
     /** Etapa 88: botão do canto superior direito (vidro colorido com brilho e borda branca); devolve o ícone. */
     private fun topBtn(icon: Int, tone: Tone, acao: () -> Unit): Pair<FrameLayout, IconView> {
         val f = FrameLayout(this)
-        f.background = Ui.chunky(tone, dpf(16f), dpf(3f), true, 0xFFFFFFFF.toInt(), dpf(1.8f))
-        f.setPadding(0, 0, 0, dp(3))
-        f.elevation = dpf(5f)
-        val ic = IconView(this, icon, Color.WHITE, tone.edge).fancy(0x99FFFFFF.toInt())
-        f.addView(ic, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
-        f.layoutParams = LinearLayout.LayoutParams(dp(46), dp(48)).also { it.leftMargin = dp(8) }
+        // botão redondo e macio: degradê da cor, brilho no alto, sem contorno, sombra suave
+        f.background = android.graphics.drawable.LayerDrawable(arrayOf(
+            android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(tone.top, tone.bot)).also { it.shape = android.graphics.drawable.GradientDrawable.OVAL },
+            android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x55FFFFFF, 0x00FFFFFF)).also { it.shape = android.graphics.drawable.GradientDrawable.OVAL })).also { it.setLayerInset(1, dp(5), dp(2), dp(5), dp(20)) }
+        f.elevation = dpf(6f)
+        f.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+        val ic = IconView(this, icon, Color.WHITE, tone.edge)
+        f.addView(ic, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        f.layoutParams = LinearLayout.LayoutParams(dp(46), dp(46)).also { it.leftMargin = dp(9) }
         press(f, acao)
         return Pair(f, ic)
     }
@@ -408,7 +411,7 @@ class MainActivity : AppCompatActivity() {
         miniMap.visibility = View.GONE
         miniMap.elevation = dpf(5f)
         // Etapa 125: minimapa no canto de cima (no lugar do retrato); tocar abre o mapa
-        root.addView(miniMap, FrameLayout.LayoutParams(dp(118), dp(118), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
+        root.addView(miniMap, FrameLayout.LayoutParams(dp(150), dp(150), Gravity.TOP or Gravity.START).also { it.setMargins(dp(12), dp(8), 0, 0) })
         miniMap.setOnClickListener { abrirMapa() }
         game.r.onMap = { bmp, rect -> runOnUiThread { MapPaint.photo?.let { if (it !== bmp) it.recycle() }; MapPaint.photo = bmp; MapPaint.photoRect = rect; miniMap.invalidate(); mapView?.invalidate() } }
         mapRoot = root
@@ -1124,18 +1127,16 @@ class MainActivity : AppCompatActivity() {
         head.gravity = Gravity.CENTER_VERTICAL
         if (ic >= 0) {
             val badge = FrameLayout(this)
-            badge.background = Ui.chunky(tone, dpf(42f), dpf(3f))
-            badge.setPadding(0, 0, 0, dp(3))
+            badge.background = softBall(tone)
             badge.addView(IconView(this, ic, Color.WHITE, tone.edge), FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER))
             head.addView(badge, LinearLayout.LayoutParams(dp(42), dp(42)).also { it.rightMargin = dp(12) })
         }
         head.addView(tvShadow(tv(titulo, 23f, Pal.TEXT, true)), LinearLayout.LayoutParams(0, -2, 1f))
         val x = FrameLayout(this)
-        x.background = Ui.chunky(Tn.CORAL, dpf(40f), dpf(3f))
-        x.setPadding(0, 0, 0, dp(3))
-        x.addView(IconView(this, Ic.CLOSE, Color.WHITE, Tn.CORAL.edge), FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER))
+        x.background = softBall(Tn.CORAL)
+        x.addView(IconView(this, Ic.CLOSE, Color.WHITE, Tn.CORAL.edge), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
         press(x) { d.dismiss() }
-        head.addView(x, LinearLayout.LayoutParams(dp(40), dp(40)))
+        head.addView(x, LinearLayout.LayoutParams(dp(38), dp(38)))
         panel.addView(head, LinearLayout.LayoutParams(-1, -2).also { it.bottomMargin = dp(12) })
         // conteúdo com rolagem: antes as opções passavam do fim da tela e não dava para descer
         val rolar = object : android.widget.ScrollView(this) {
@@ -1571,15 +1572,20 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------ configurações e novidades
 
+    /** bolinha macia (degradê da cor + brilho), sem a borda grossa antiga */
+    private fun softBall(tone: Tone): android.graphics.drawable.Drawable = android.graphics.drawable.LayerDrawable(arrayOf(
+        android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(tone.top, tone.bot)).also { it.shape = android.graphics.drawable.GradientDrawable.OVAL },
+        android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0x50FFFFFF, 0x00FFFFFF)).also { it.shape = android.graphics.drawable.GradientDrawable.OVAL })).also { it.setLayerInset(1, dp(5), dp(2), dp(5), dp(16)) }
+
     private fun linha(panel: LinearLayout, icon: Int, txt: String, tone: Tone, acao: () -> Unit): TextView {
         val l = LinearLayout(this)
         l.orientation = LinearLayout.HORIZONTAL
         l.gravity = Gravity.CENTER_VERTICAL
-        l.setPadding(dp(12), dp(10), dp(16), dp(13))
-        l.background = Ui.chunky(Tn.CARD, dpf(22f), dpf(3f), false, Pal.LINE, dpf(1f))
+        l.setPadding(dp(12), dp(10), dp(16), dp(10))
+        l.background = android.graphics.drawable.GradientDrawable().also { it.cornerRadius = dpf(18f); it.setColor(0xF5FFFFFF.toInt()) }   // cartão liso, sem contorno
+        l.elevation = dpf(2f)
         val badge = FrameLayout(this)
-        badge.background = Ui.chunky(tone, dpf(44f), dpf(3f))
-        badge.setPadding(0, 0, 0, dp(3))
+        badge.background = softBall(tone)
         badge.addView(IconView(this, icon, Color.WHITE, tone.edge), FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
         l.addView(badge, LinearLayout.LayoutParams(dp(44), dp(44)).also { it.rightMargin = dp(14) })
         val t = tv(txt, 16f, Pal.TEXT, true)
