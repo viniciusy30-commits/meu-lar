@@ -46,7 +46,15 @@ object Relevo {
     private class SubRec(val off: Long, val mat: Int, val nv: Int, val ymax: Float, val src: Int = 0, val vb: Int = 35, val cell: Int = 0)   // src: 0 = malha do chão (c5_mesh.bin), 1 = construções (c5_bld.bin)
     private val subIdx = HashMap<Int, ArrayList<SubRec>>()
     private var subFile: java.io.RandomAccessFile? = null
-    private val subExtra = ArrayList<java.io.RandomAccessFile>()     // Etapa E: malhas extras (construções...); SubRec.src = posição + 1
+    /** leitor de uma malha: direto de dentro do APK (sem copiar nada para o celular) ou de uma cópia em arquivo */
+    class SubSrc(private val ch: java.nio.channels.FileChannel, private val base: Long, private val owner: java.io.Closeable) {
+        fun readAt(off: Long, b: ByteArray, len: Int = b.size) {
+            val bb = ByteBuffer.wrap(b, 0, len); var p = base + off
+            while (bb.hasRemaining()) { val n = ch.read(bb, p); if (n < 0) throw java.io.EOFException(); p += n }
+        }
+        fun close() { try { owner.close() } catch (e: Throwable) { } }
+    }
+    private val subExtra = ArrayList<SubSrc>()     // Etapa E: malhas extras (construções...); SubRec.src = posição + 1
     private var subSolR = FloatArray(0)                         // colisões girados das construções: cx, cz, cos, sen, x0, z0, x1, z1
     private var subMem: ByteArray? = null          // plano B: se não der para gravar o arquivo, mantém tudo na memória
     private val subLock = Any()
@@ -125,11 +133,16 @@ object Relevo {
             val f = java.io.File(dir, name.substringAfterLast('/'))
             if (want > 0 && f.exists() && f.length() == want) return f
             val tmp = java.io.File(dir, f.name + ".tmp")
+            // libera espaço antes de copiar (a versão velha e cópias pela metade não ficam ocupando o celular)
+            if (f.exists()) f.delete(); if (tmp.exists()) tmp.delete()
+            dir.listFiles()?.forEach { o -> if (o.name.endsWith(".tmp")) o.delete() }
+            val free = dir.usableSpace
+            if (want > 0 && free < want + 20_000_000L) { lastErr = "pouco espaço no celular (precisa de ${(want + 20_000_000L) / 1_000_000} MB livres, tem ${free / 1_000_000} MB)"; return null }
             am.open(name).use { ins -> java.io.FileOutputStream(tmp).use { os -> val buf = ByteArray(1 shl 16); while (true) { val n = ins.read(buf); if (n < 0) break; os.write(buf, 0, n) } } }
             if (f.exists()) f.delete()
             if (!tmp.renameTo(f)) return null
             return f
-        } catch (e: Throwable) { android.util.Log.w("Relevo", "copia da malha: $e"); return null }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "copia da malha: $e"); lastErr = "cópia de $name: $e"; return null }
     }
 
     /** lê só os cabeçalhos (16 bytes por registro) e guarda onde estão os vértices de cada pedaço de 64 m */
@@ -168,25 +181,38 @@ object Relevo {
     /** Etapa E: segunda malha (construções dos lotes), mesmo formato SUB1; os registros entram no mesmo índice de células */
     private fun loadExtraSub(am: AssetManager, name: String) {
         try {
-            val f = ensureSubFile(am, name) ?: return
-            val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-            val raf = java.io.RandomAccessFile(f, "r")
+            // 1) direto do APK (o arquivo fica guardado sem compressão): nenhuma cópia, nenhum espaço extra no celular
+            var src: SubSrc? = null
             try {
-                val src = subExtra.size + 1
-                hd.clear(); raf.readFully(hd.array(), 0, 8)
+                val afd = am.openFd(name)
+                val fis = java.io.FileInputStream(afd.fileDescriptor)
+                src = SubSrc(fis.channel, afd.startOffset, java.io.Closeable { try { fis.close() } catch (e: Throwable) { }; afd.close() })
+            } catch (e: Throwable) { }
+            // 2) se não der (arquivo comprimido), copia uma vez para a memória do app
+            if (src == null) {
+                val f = ensureSubFile(am, name) ?: run { if (lastErr == null) lastErr = "sem arquivo $name"; return }
+                val raf = java.io.RandomAccessFile(f, "r")
+                src = SubSrc(raf.channel, 0L, raf)
+
+            } else dataDir?.let { d -> try { java.io.File(d, name.substringAfterLast('/')).delete() } catch (e: Throwable) { } }   // cópia antiga não serve mais
+            val hd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+            val raf = src!!
+            try {
+                val srcI = subExtra.size + 1
+                hd.clear(); raf.readAt(0L, hd.array(), 8)
                 val vb = if (hd.get(0) == 'S'.code.toByte() && hd.get(3) == '2'.code.toByte()) SUB2_VB else SUB_VB   // SUB2: vértice compacto
                 hd.position(4)
                 val n = hd.getInt()
                 var pos = 8L
                 for (r in 0 until n) {
-                    raf.seek(pos); hd.clear(); raf.readFully(hd.array(), 0, 16)
+                    hd.clear(); raf.readAt(pos, hd.array(), 16)
                     val cell = hd.getInt(0); val mat = hd.getInt(4); val nv = hd.getInt(8); val ymax = hd.getFloat(12)
-                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, src, vb, cell))
+                    subIdx.getOrPut(cell) { ArrayList() }.add(SubRec(pos + 16, mat, nv, ymax, srcI, vb, cell))
                     pos += 16L + nv.toLong() * vb
                 }
                 subExtra.add(raf)
             } catch (e: Throwable) { try { raf.close() } catch (x: Throwable) { }; throw e }
-        } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e") }
+        } catch (e: Throwable) { android.util.Log.w("Relevo", "malha das construcoes: $e"); lastErr = "malha $name: $e" }
     }
 
     private const val SUB2_VB = 20  // SUB2: posição int16 x3 (2 cm, relativa ao canto da célula), normal int8 x3, uv 2 floats, cor 3 bytes
@@ -211,7 +237,10 @@ object Relevo {
         val mem = subMem
         val bytes0 = if (mem != null && rc.src == 0) mem.copyOfRange(rc.off.toInt(), rc.off.toInt() + n) else {
             val b = ByteArray(n)
-            synchronized(subLock) { val raf = (if (rc.src >= 1) subExtra.getOrNull(rc.src - 1) else subFile) ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            synchronized(subLock) {
+                if (rc.src >= 1) { val sx = subExtra.getOrNull(rc.src - 1) ?: throw IllegalStateException("malha fechada"); sx.readAt(rc.off, b) }
+                else { val raf = subFile ?: throw IllegalStateException("malha fechada"); raf.seek(rc.off); raf.readFully(b) }
+            }
             b
         }
         val bytes = if (rc.src >= 1 && rc.vb == SUB2_VB) expandSub2(bytes0, rc.nv, rc.cell) else bytes0
@@ -296,7 +325,7 @@ object Relevo {
 
     /** Lê os dados do relevo. false se os arquivos não existem (aí vale a Cidade 2 antiga). */
     fun load(am: AssetManager, wantSub: Boolean = false, user: Boolean = false, c5: Boolean = false): Boolean {
-        on = false; sub = false
+        on = false; sub = false; lastErr = null
         val c6 = c5 && City.C6   // Cidade 6: mesmo caminho da Cidade 5, arquivos hds/c6*
         try {
             val h: ShortArray
@@ -366,10 +395,16 @@ object Relevo {
             }
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
-            lagoa = js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null }
-            fa("fauna").let { if (it.isNotEmpty() && c6) TownPark.buildC6(it, CX, CZ, 0.7f) }
+            // lagoa e fauna: opcionais (um erro aqui nunca pode impedir a cidade de carregar)
+            lagoa = try { js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null } } catch (e: Throwable) { null }
+            try {
+                val fl = ArrayList<Float>()
+                js.optJSONArray("fauna")?.let { a -> for (i in 0 until a.length()) { val q = a.get(i); if (q is org.json.JSONArray) { for (k in 0 until q.length()) fl.add(q.getDouble(k).toFloat()) } else fl.add((q as Number).toFloat()) } }
+                if (fl.isNotEmpty() && c6) TownPark.buildC6(fl.toFloatArray(), CX, CZ, 0.7f)
+            } catch (e: Throwable) { android.util.Log.w("Relevo", "fauna: $e") }
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
+            try {
             js.optJSONArray("jobs")?.let { ja -> for (i in 0 until ja.length()) { val o = ja.getJSONObject(i); jobPl.add(City.Place(o.getString("nome"), o.getDouble("x").toFloat() + CX, o.getDouble("z").toFloat() + CZ, o.optLong("cor", 0xFF1565C0L).toInt(), o.optString("icone", "T").first(), o.optString("emoji", ""))) } }
             js.optJSONObject("mapa")?.let { m ->
                 C6Map.load(m, CX, CZ)
@@ -377,10 +412,13 @@ object Relevo {
                 val seen = HashSet<String>()
                 m.optJSONArray("pois")?.let { pa -> for (i in 0 until pa.length()) { val o = pa.getJSONArray(i); val nm = o.getString(2); if (o.getString(3) == "parque" && !seen.add(nm + i / 3)) continue
                     jobPl.add(City.Place(nm, o.getDouble(0).toFloat() + CX, o.getDouble(1).toFloat() + CZ, cols[o.getString(3)] ?: 0xFF607D8B.toInt(), nm.first(), o.optString(4, ""))) } }
-            }   // Etapa 184: população (gen_pop.py)
+            }
+            } catch (e: Throwable) { android.util.Log.w("Relevo", "mapa/trabalhos: $e") }   // Etapa 184: população (gen_pop.py)
             if (wantSub) {
                 if (c6) {   // três malhas no formato compacto SUB2 (chão/ruas, construções, vegetação/carros)
                     subIdx.clear(); try { subFile?.close() } catch (e: Throwable) { }; subFile = null; subMem = null; for (x in subExtra) try { x.close() } catch (e: Throwable) { }; subExtra.clear()
+                    // cópias de outras cidades ocupam espaço à toa: saem antes de copiar as da Cidade 6
+                    dataDir?.let { d -> for (o in arrayOf("c5_mesh.bin", "c5_bld.bin", "sub_mesh.bin")) try { java.io.File(d, o).delete() } catch (e: Throwable) { } }
                     for (nm in arrayOf("hds/c6_mesh.bin", "hds/c6_bld.bin", "hds/c6_bld2.bin", "hds/c6_veg.bin")) loadExtraSub(am, nm)
                     loadTree6(am)
                 } else {
@@ -409,7 +447,7 @@ object Relevo {
             indexRoads()
             return true
         } catch (e: Throwable) {
-            android.util.Log.w("Relevo", "sem relevo: $e")
+            android.util.Log.w("Relevo", "sem relevo: $e"); lastErr = "relevo: $e"
             clear()
             return false
         }
@@ -993,6 +1031,8 @@ object Relevo {
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
     @Volatile var lagoa: FloatArray? = null
+    /** último problema ao carregar a cidade (mostrado na tela para o jogador) */
+    @Volatile var lastErr: String? = null
     /** Cidade 6: prédios das profissões e prefeitura (porta de entrada) para o GPS e o bater ponto */
     val jobPl = ArrayList<City.Place>()
     const val SEA6_Z0 = 1720f

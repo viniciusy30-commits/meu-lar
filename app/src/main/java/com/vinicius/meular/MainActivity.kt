@@ -287,8 +287,16 @@ class MainActivity : AppCompatActivity() {
         UserMap.init(filesDir)   // Etapa 187: mapa do jogador
         Relevo.dataDir = filesDir   // Cidade 5: a malha assada é copiada para cá e lida por pedaços (não cabe inteira na memória)
         City.C4 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade4", false)
-        City.C5 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade5", false)
-        City.C6 = City.C5 && getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade6", false)
+        // Cidade 6 é o mapa principal: no padrão e, uma vez, para quem estava em outro mapa (ex.: depois de reinstalar)
+        run {
+            val sp = getSharedPreferences("meular", MODE_PRIVATE)
+            if (!sp.getBoolean("mig_c6_padrao", false)) {
+                sp.edit().putBoolean("mig_c6_padrao", true).putBoolean("cidade2", true).putBoolean("cidade3", false).putBoolean("cidade4", false).putBoolean("cidade5", true).putBoolean("cidade6", true).apply()
+                City.HDS = true; City.C3 = false; City.C4 = false
+            }
+        }
+        City.C5 = getSharedPreferences("meular", MODE_PRIVATE).getBoolean("cidade5", true)
+        City.C6 = City.C5   // Cidade 5 saiu do jogo (os arquivos dela foram removidos): o mapa 5 agora é a Cidade 6
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -440,6 +448,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 // Etapa 154: se a cidade falhar ao montar, avisa na hora (em vez de ficar sem aparecer sem explicação)
                 City.error?.let { e -> if (e != lastCityErr && jogando) { lastCityErr = e; msg("A cidade não carregou: $e") } }
+                Relevo.lastErr?.let { e -> if (e != lastCityErr && jogando) { lastCityErr = e; msg("Problema ao carregar a cidade: $e") } }
                 val mm = City.on && game.mode == 0 && mapView == null
                 miniMap.visibility = if (mm) View.VISIBLE else View.GONE
                 portrait.visibility = if (mm) View.GONE else View.VISIBLE   // o retrato volta quando não há cidade (sala de testes, vista aérea)
@@ -1556,7 +1565,7 @@ class MainActivity : AppCompatActivity() {
                 if (!City.HDS) { City.HDS = true; City.C3 = false; City.C4 = false; City.C5 = false; City.C6 = false }
                 else if (City.C5 && City.C6) { City.HDS = false; City.C3 = false; City.C4 = false; City.C5 = false; City.C6 = false }
                 else if (City.C5) { City.C6 = true }
-                else if (City.C4) { City.C4 = false; City.C3 = false; City.C5 = true }
+                else if (City.C4) { City.C4 = false; City.C3 = false; City.C5 = true; City.C6 = true }   // Cidade 5 saiu do jogo: vai direto para a 6
                 else if (City.C3) { City.C4 = true }
                 else { City.C3 = true }
                 getSharedPreferences("meular", MODE_PRIVATE).edit().putBoolean("cidade2", City.HDS).putBoolean("cidade3", City.C3).putBoolean("cidade4", City.C4).putBoolean("cidade5", City.C5).putBoolean("cidade6", City.C6).apply()

@@ -35,6 +35,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // malhas grandes da cidade ficam sem compressão no APK: o jogo lê direto delas, sem copiar 250 MB para o celular
+    androidResources { noCompress += listOf("bin") }
 }
 
 dependencies {
