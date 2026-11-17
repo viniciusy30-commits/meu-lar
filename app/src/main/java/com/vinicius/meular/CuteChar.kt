@@ -49,6 +49,9 @@ object CuteChar {
     const val STAIR_DOWN = 16
     const val STAIR_RUN_UP = 17
     const val STAIR_RUN_DOWN = 18
+    /** entrar no carro (termina sentado com as mãos no volante) e sair do carro (Mixamo Entering_Car / Exiting_Car) */
+    const val CAR_IN = 19
+    const val CAR_OUT = 20
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -940,6 +943,7 @@ object CuteChar {
     fun hasInteract(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 9
     /** Etapa 88: o corpo atual tem os clipes de agachar? */
     fun hasStairs(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 19
+    fun hasCar(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 21
     fun hasCrouch(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 11
 
     /** Etapa 118: o corpo atual tem os clipes de piscina (só os corpos do Sims 4)? */
@@ -1139,7 +1143,7 @@ object CuteChar {
         }
         val d = if (c == RUNJUMP && slotMir[sl]) (mirroredClip(cset, c, d0) ?: d0) else d0
         val isJ = c == JUMP || c == RUNJUMP
-        val once = isJ || c == RUN_DIVE || c == SWIM_EDGE || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
+        val once = isJ || c == RUN_DIVE || c == SWIM_EDGE || c == CAR_IN || c == CAR_OUT || ((c == SIT_IN || c == SIT_OUT || c == INTERACT) && simGrp.isNotEmpty())   // clipes que tocam uma vez, no tempo [t] dado
         lt = if (once) t else (t - slotT0[sl]) * (if (c0 == WALK) WALK_RATE else 1f)
         if (once && lt > len) lt = len
         if (!once) {

@@ -20,6 +20,10 @@ class TeslaCar(val g: GModel) {
     private val loc = FloatArray(16)
     /** abertura de cada porta, 0..1: frente-esquerda (motorista), frente-direita, trás-esquerda, trás-direita */
     val door = FloatArray(4)
+    /** abertura pedida por quem anima (entrar/sair do carro); as portas nunca abrem sozinhas */
+    val doorWant = FloatArray(4)
+    /** eixo de giro do volante (no espaço do nó) */
+    private var volAx = floatArrayOf(0f, 0.37f, 0.93f)
     /** giro acumulado das rodas (rad) */
     var roll = 0f
     /** inclinação suavizada da carroceria (graus): cabeceio e rolagem */
@@ -33,6 +37,7 @@ class TeslaCar(val g: GModel) {
                 nd.name.startsWith("roda_") -> kind[i] = 1
                 nd.name.startsWith("dir_") -> kind[i] = 2
                 nd.name.startsWith("porta_") -> doorOf[i] = DOORS.indexOf(nd.name.substring(6))
+                nd.name == "volante" -> kind[i] = 3
             }
         }
     }
@@ -42,16 +47,10 @@ class TeslaCar(val g: GModel) {
      * A porta mais perto do jogador abre quando ele chega; dirigindo, todas fecham.
      */
     fun update(dt: Float, driving: Boolean, lx: Float, lz: Float, speed: Float, yawRate: Float) {
-        var best = -1; var bd = 2.7f
-        if (!driving) for (k in 0..3) {
-            val sx = if (k % 2 == 0) 1f else -1f
-            val hz = if (k < 2) 0.2f else -0.75f
-            val d = hypot(lx - sx * 1.5f, lz - hz)
-            if (d < bd) { bd = d; best = k }
-        }
+        // portas: seguem o que a animação de entrar/sair pede (a mão do personagem abre e fecha); nada automático
         for (k in 0..3) {
-            val tgt = if (k == best) 1f else 0f
-            door[k] += (tgt - door[k]) * min(1f, dt * (if (tgt > door[k]) 5f else 4f))
+            val tgt = doorWant[k]
+            door[k] += (tgt - door[k]) * min(1f, dt * 14f)
             if (door[k] < 0.002f) door[k] = 0f
         }
         roll += speed * dt / WHEEL_R
@@ -66,7 +65,7 @@ class TeslaCar(val g: GModel) {
     }
 
     /** Calcula a matriz de mundo de cada nó; [base] = carro no mundo; [steerDeg] = esterço das rodas da frente. */
-    fun pose(base: FloatArray, steerDeg: Float) {
+    fun pose(base: FloatArray, steerDeg: Float, wheelDeg: Float = steerDeg * 3f) {
         val rollDeg = Math.toDegrees(roll.toDouble()).toFloat()
         for (i in 0 until n) {
             val nd = g.nodes[i]
@@ -76,6 +75,7 @@ class TeslaCar(val g: GModel) {
                 nd.local(loc, 0f)
                 if (kind[i] == 1) Matrix.rotateM(loc, 0, rollDeg, 1f, 0f, 0f)
                 else if (kind[i] == 2) Matrix.rotateM(loc, 0, steerDeg, 0f, 1f, 0f)
+                else if (kind[i] == 3) Matrix.rotateM(loc, 0, wheelDeg, volAx[0], volAx[1], volAx[2])
             }
             val pw = if (nd.parent >= 0 && nd.parent < i) w[nd.parent] else base
             Matrix.multiplyMM(w[i], 0, pw, 0, loc, 0)
@@ -89,5 +89,16 @@ class TeslaCar(val g: GModel) {
         const val WHEEL_R = 0.355f
         const val HALF_L = 2.5f
         const val HALF_W = 1.05f
+        /** quadril do motorista sentado (espaço do carro, m) e onde o clipe de entrar/sair encosta no chão */
+        const val SEAT_X = 0.37f
+        const val SEAT_Y = 0.64f
+        const val SEAT_Z = 0.22f
+        /** clipe 19 (entrar): quadril final relativo ao 1o quadro (m, espaço do clipe) e altura do quadril sentado */
+        const val IN_HX = -0.101f
+        const val IN_HZ = 1.56f
+        const val CLIP_SEAT_Y = 0.663f
+        /** clipe 20 (sair): quadril final relativo ao 1o quadro */
+        const val OUT_HX = 1.59f
+        const val OUT_HZ = 0.151f
     }
 }

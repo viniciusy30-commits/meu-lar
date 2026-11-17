@@ -769,11 +769,117 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         City.ownCar = if (driving) null else floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
     }
 
+    // ---------------------------------------------------------------- entrar / sair do Tesla com animação
+    /** 0 nada, 1 entrando (clipe 19), 2 saindo (clipe 20), 3 andando até a porta do motorista */
+    private var carPh = 0
+    private var carPhT = 0f
+    private val carPM = FloatArray(16)
+    private val carPT = FloatArray(16)
+    private fun carAnimOk() = tesla != null && CuteChar.ready && CuteChar.hasCar()
+    /** ponto do espaço do carro (lx = +esquerda/motorista, lz = +frente) no mundo */
+    private fun carW(lx: Float, lz: Float): FloatArray {
+        val c = cos(carH); val s = sin(carH)
+        return floatArrayOf(carX - lx * c + lz * s, carZ - lx * s - lz * c)
+    }
+    /** onde o clipe de entrar começa: em pé ao lado da porta do motorista, olhando para o carro */
+    private fun carInStart() = carW(TeslaCar.SEAT_X + TeslaCar.IN_HZ + DOOR_OX, TeslaCar.SEAT_Z - TeslaCar.IN_HX + DOOR_OZ)
+    /** a porta do Tesla é mais comprida que a do clipe: fora do carro o corpo fica um pouco para trás e para fora, longe do arco da porta */
+    private val DOOR_OX = 0.15f
+    private val DOOR_OZ = -0.20f
+    private fun doorOffK(clip: Int, t: Float) = if (clip == CuteChar.CAR_OUT) smooth01(3.0f, 4.0f, t) else 1f - smooth01(1.9f, 3.2f, t)
+    private fun carHdeg() = Math.toDegrees(carH.toDouble()).toFloat()
+    private fun smooth01(a: Float, b: Float, t: Float): Float { val u = ((t - a) / (b - a)).coerceIn(0f, 1f); return u * u * (3f - 2f * u) }
+
+    private fun startCarIn() {
+        path = null; markX = Float.NaN; jumping = false; crouch = false; py = 0f
+        thirdBefore = third
+        val st0 = carInStart()
+        carPh = if (kotlin.math.hypot(px - st0[0], pz - st0[1]) > 0.12f) 3 else 1; carPhT = 0f
+        City.ownCar = null
+    }
+
+    private fun startCarOut() {
+        if (abs(carSpeed) > 1.2f) { toast = "Pare o carro para sair"; return }
+        driving = false; City.driverHalf = 0f
+        carSpeed = 0f; carVx = 0f; carVz = 0f; yawRate = 0f; gasIn = false; brakeIn = false; hbIn = false
+        carPh = 2; carPhT = 0f
+        City.ownCar = floatArrayOf(carX, carZ, carH, carHalfL(), carHalfW())
+    }
+
+    /** anda até a porta, entra (porta abre na mão, fecha depois de sentar) ou sai (abre, desce, fecha) */
+    private fun updateCarPh(dt: Float) {
+        val t = tesla
+        if (t == null || carX.isNaN()) { carPh = 0; return }
+        jumpReq = false; pMoving = false; pRun = false
+        when (carPh) {
+            3 -> {
+                val g = carInStart()
+                val dx = g[0] - px; val dz = g[1] - pz; val d = kotlin.math.hypot(dx, dz)
+                val tyaw = 90f - carHdeg()
+                if (d < 0.06f) {
+                    px = g[0]; pz = g[1]
+                    var dl = tyaw - pYaw; while (dl > 180f) dl -= 360f; while (dl < -180f) dl += 360f
+                    pYaw += dl * min(1f, dt * 9f)
+                    if (abs(dl) < 6f) { pYaw = tyaw; carPh = 1; carPhT = 0f }
+                } else {
+                    val sp = min(d, WALK_SPEED * dt)
+                    px += dx / d * sp; pz += dz / d * sp; pMoving = true
+                    val dir = Math.toDegrees(atan2(dx.toDouble(), dz.toDouble())).toFloat()
+                    var dl = (if (d < 0.5f) tyaw else dir) - pYaw; while (dl > 180f) dl -= 360f; while (dl < -180f) dl += 360f
+                    pYaw += dl * min(1f, dt * 8f)
+                }
+            }
+            1 -> {
+                carPhT += dt
+                val len = CuteChar.clipSeconds(CuteChar.CAR_IN)
+                // a mão puxa a porta (1,0 s), entra, e puxa a porta de volta depois de sentar
+                t.doorWant[0] = smooth01(0.95f, 1.85f, carPhT) * (1f - smooth01(3.75f, 4.45f, carPhT))
+                // a câmera acompanha o corpo indo para dentro do carro
+                val g = carInStart(); val k = smooth01(1.3f, 3.4f, carPhT)
+                px = g[0] + (carX - g[0]) * k; pz = g[1] + (carZ - g[1]) * k
+                if (carPhT >= len) { t.doorWant[0] = 0f; carPh = 0; enterCar() }
+            }
+            2 -> {
+                carPhT += dt
+                val len = CuteChar.clipSeconds(CuteChar.CAR_OUT)
+                t.doorWant[0] = smooth01(0.75f, 1.6f, carPhT) * (1f - smooth01(4.0f, 4.7f, carPhT))
+                val e = carW(TeslaCar.SEAT_X + TeslaCar.OUT_HX + DOOR_OX, TeslaCar.SEAT_Z + TeslaCar.OUT_HZ + DOOR_OZ)
+                val k = smooth01(1.6f, 3.6f, carPhT)
+                px = carX + (e[0] - carX) * k; pz = carZ + (e[1] - carZ) * k
+                if (carPhT >= len) {
+                    t.doorWant[0] = 0f; carPh = 0
+                    px = e[0]; pz = e[1]; baseY = groundH(px, pz)
+                    pYaw = 270f - carHdeg()
+                    fyaw = Math.toRadians((180.0 - pYaw)).toFloat()
+                    third = thirdBefore
+                }
+            }
+        }
+    }
+
+    /** matriz do personagem no carro: clipe ancorado no banco do motorista */
+    private fun carPlayerMatrix(out: FloatArray, clip: Int, t: Float) {
+        Matrix.setIdentityM(carPT, 0)
+        val ok = doorOffK(clip, t)
+        if (ok > 0f) Matrix.translateM(carPT, 0, DOOR_OX * ok, 0f, DOOR_OZ * ok)
+        val ty = TeslaCar.SEAT_Y - TeslaCar.CLIP_SEAT_Y
+        if (clip == CuteChar.CAR_OUT) {
+            Matrix.translateM(carPT, 0, TeslaCar.SEAT_X, ty, TeslaCar.SEAT_Z)
+        } else {
+            // clipe de entrar: +x do clipe = frente do carro, +z do clipe = para dentro (de fora da porta até o banco)
+            Matrix.translateM(carPT, 0, TeslaCar.SEAT_X + TeslaCar.IN_HZ, ty, TeslaCar.SEAT_Z - TeslaCar.IN_HX)
+            Matrix.rotateM(carPT, 0, -90f, 0f, 1f, 0f)
+        }
+        Matrix.multiplyMM(out, 0, teslaBase, 0, carPT, 0)
+    }
+
     /** O jogador some e assume o veículo; a câmera passa a seguir de trás. */
     private fun enterCar() {
         if (carMesh == null) return
+        val animated = carAnimOk()
         driving = true; carSpeed = 0f; steerS = 0f; carVx = 0f; carVz = 0f; yawRate = 0f; gasIn = false; brakeIn = false; hbIn = false
-        thirdBefore = third; third = true
+        if (!animated) thirdBefore = third
+        third = true
         path = null; markX = Float.NaN; jumping = false; crouch = false
         flying = false; landing = false; py = 0f; fvx = 0f; fvy = 0f; fvz = 0f
         px = carX; pz = carZ
@@ -1101,7 +1207,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         Matrix.rotateM(teslaBase, 0, 180f - Math.toDegrees(carH.toDouble()).toFloat(), 0f, 1f, 0f)
         if (t.pitch != 0f) Matrix.rotateM(teslaBase, 0, t.pitch, 1f, 0f, 0f)     // acelera: frente sobe (pitch < 0); freia: frente mergulha
         if (t.lean != 0f) Matrix.rotateM(teslaBase, 0, t.lean, 0f, 0f, 1f)
-        t.pose(teslaBase, if (driving) -Math.toDegrees(steerS.toDouble()).toFloat() else 0f)
+        val sd = if (driving) -Math.toDegrees(steerS.toDouble()).toFloat() else 0f
+        t.pose(teslaBase, sd, -sd * 3.2f)
         val nodes = t.g.nodes
         for (i in nodes.indices) {
             val ms = nodes[i].mesh ?: continue
@@ -1588,6 +1695,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             }
         }
         ensureCar()
+        if (carPh != 0) { if (mode != 0) mode = 0; updateCarPh(dt); return }
         if (driving) { if (mode != 0) mode = 0; updateDrive(dt); return }
         // Etapa 128: voo
         if (flyReq) { flyReq = false; toggleFly() }
@@ -1925,6 +2033,16 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
+        if ((carPh == 1 || carPh == 2 || driving) && tesla != null && carAnimOk()) {
+            // no carro: entrando / sentado dirigindo (último quadro do entrar: mãos no volante) / saindo
+            CuteChar.fpOn = mode == 0 && !third && CuteChar.ready
+            val clip = if (carPh == 2) CuteChar.CAR_OUT else CuteChar.CAR_IN
+            val tt = if (carPh == 0) CuteChar.clipSeconds(CuteChar.CAR_IN) * 0.999f else carPhT
+            val m = CuteChar.frame(clip, tt) ?: return
+            carPlayerMatrix(carPM, clip, tt)
+            draw(m, carPM, 1f)
+            return
+        }
         var gNow = groundH(px, pz)
         // escada da Cidade 6: linha exata da escada (registro do gerador), sentido pelo passo, animação casada com o degrau
         onStair = Relevo.on && City.C6 && Relevo.stairAt(px, pz, stOut)
@@ -2265,6 +2383,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 val nearP = if (inRoom) 0.08f else if (cb != null) 0.16f else if (Hds.inside(px, pz)) 0.25f else if (fly && py > 6f) 0.5f else 0.3f
                 Matrix.perspectiveM(proj, 0, 60f + (if (fly) min(14f, flySpeed / 3.5f) else 0f), aspect, nearP, if (fly) 520f else if (Relevo.on) 430f else 260f)
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
+            } else if (driving && tesla != null) {
+                // cockpit (estilo Forza): olho do motorista, olhando para onde o jogador vira a cabeça; vê painel, volante e mãos
+                val e0 = TeslaCar.SEAT_X; val e1 = 1.17f; val e2 = TeslaCar.SEAT_Z - 0.02f
+                val b = teslaBase
+                ex = b[0] * e0 + b[4] * e1 + b[8] * e2 + b[12]
+                ey = b[1] * e0 + b[5] * e1 + b[9] * e2 + b[13]
+                ez = b[2] * e0 + b[6] * e1 + b[10] * e2 + b[14]
+                Matrix.perspectiveM(proj, 0, 66f, aspect, 0.05f, if (Relevo.on) 430f else 260f)
+                Matrix.setLookAtM(view, 0, ex, ey, ez, ex + fx, ey + fy, ez + fz, 0f, 1f, 0f)
             } else {
                 // 1ª pessoa: a câmera fica no olho do personagem, seguindo a cabeça animada (corrida, pulo...)
                 val lift = if (CuteChar.ready) CuteChar.lift(0) else 0f
@@ -2372,7 +2499,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             stepObjects(dtc)
             findNear(dtc)
             // Etapa 123: veículo
-            if (driving) { nearKind = 21; nearLabel = if (isMoto()) "Descer da moto" else "Sair do carro" }
+            if (carPh != 0) { nearKind = 0; nearLabel = "" }
+            else if (driving) { nearKind = 21; nearLabel = if (isMoto()) "Descer da moto" else "Sair do carro" }
             else if (mode == 0 && sitPh == 0 && swimPh == 0 && !carX.isNaN() && carMesh != null && kotlin.math.hypot(px - carX, pz - carZ) < carHalfL() + 1.6f) {
                 nearKind = 20; nearLabel = if (isMoto()) "Subir na moto" else "Dirigir"
             }
@@ -2406,8 +2534,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                         else if (sitPh == 10) { sitPh = 7; o.sleep = ""; saveReq = true }
                     }
                     9 -> nearItem?.let { startWash(it, nearSeat) }
-                    20 -> enterCar()
-                    21 -> exitCar()
+                    20 -> if (carAnimOk()) startCarIn() else enterCar()
+                    21 -> if (carAnimOk()) startCarOut() else exitCar()
                     30 -> if (buyIdx >= 0) {
                         val h = HdsEstate.houses[buyIdx]
                         HdsEstate.buy(h.idx)
@@ -2469,7 +2597,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             draw(mesh, mdl, 1f)
         }
 
-        if ((mode == 1 || fp) && !driving) drawPlayer(now)
+        if ((mode == 1 || fp) && (!driving || (tesla != null && carAnimOk()))) drawPlayer(now)
 
         GLES20.glDepthMask(false)
         val tt = (now / 1_000_000L % 100000L) / 1000f

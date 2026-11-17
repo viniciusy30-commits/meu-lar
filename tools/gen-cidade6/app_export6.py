@@ -179,7 +179,7 @@ def run(P, G, L, M, assets):
             f.write(struct.pack('<iifff', n2x, n2z, 2.0, float(x0), float(z0))); f.write(cm2.tobytes())
         print(f'  tabuleiros (andar de cima): {int((W2 > -1e8).sum())} pontos')
     # ---- json
-    houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(Y_LAWN + 0.01 + DY - 0.08 - 0.10, 3), 'yaw': h['yaw']} for h in L.player]
+    houses = [{'k': h['k'], 'x': h['centro'][0], 'z': h['centro'][2], 'lvl': round(Y_LAWN + 0.01 + DY - 0.08 - 0.10, 3), 'yaw': h['yaw'], **({'car': h['carro']} if h.get('carro') else {})} for h in L.player]
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)

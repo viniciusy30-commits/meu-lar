@@ -340,7 +340,20 @@ class Lots:
         self.gate_err = max(getattr(self, 'gate_err', 0.0), math.hypot(gwx - ex_, gwz - ez_))
         if os.environ.get('DBG_GATE'): print('   portao', k, 'face', face, 'flip', flip, 'du_err', round((gwx - ex_) * F.ux + (gwz - ez_) * F.uz, 2), 'dv_err', round((gwx - ex_) * F.vx + (gwz - ez_) * F.vz, 2))
         B.drives.append((*F.xz(du, -2.6), 1.5))
-        self.player.append({'k': k, 'casa': f'Casa {k + 1}', 'modelo': pl['name'], 'bairro': HOUSE_BAIRRO[k],
+        # vaga do carro do jogador: na rua, encostada no meio-fio, ao lado do portao (paralela a calcada)
+        from shapely.geometry import Point as _Pt
+        car = None
+        asf = self.G.P.asphalt
+        for cu_ in (du + 6.5, du - 6.5, du + 11.0, du - 11.0, du + 15.0, du - 15.0):
+            va = None
+            for i in range(1, 80):
+                vv = -0.25 * i
+                if asf.contains(_Pt(*F.xz(cu_, vv))): va = vv; break
+            if va is None: continue
+            vcar = va - 1.2
+            ok = all(asf.contains(_Pt(*F.xz(cu_ + a, vcar + b))) for a in (-2.7, 0, 2.7) for b in (-1.05, 1.05))
+            if ok: car = [round(c, 3) for c in F.xz(cu_, vcar)] + [round(math.atan2(F.ux, -F.uz), 5)]; break
+        self.player.append({'k': k, 'carro': car, 'casa': f'Casa {k + 1}', 'modelo': pl['name'], 'bairro': HOUSE_BAIRRO[k],
                             'centro': [round(cx, 3), round(Y_LAWN, 2), round(cz, 3)], 'yaw': round(yaw, 5), 'yaw_graus': round(math.degrees(yaw), 2),
                             'frente': [round(-F.vx, 4), round(-F.vz, 4)], 'face_modelo': 'sul(+z)' if face > 0 else 'norte(-z)',
                             'lote': [[round(p[0], 2), round(p[1], 2)] for p in F.rect(0, w, 0, d)], 'lote_m': [round(w, 1), round(d, 1)],
