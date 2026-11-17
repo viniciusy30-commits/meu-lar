@@ -343,14 +343,15 @@ class Lots:
         # vaga do carro do jogador: na rua, encostada no meio-fio, ao lado do portao (paralela a calcada)
         from shapely.geometry import Point as _Pt
         car = None
-        for cu_ in (du + 6.5, du - 6.5, du + 11.0, du - 11.0):
-            vc = None
-            for i in range(1, 60):
+        asf = self.G.P.asphalt
+        for cu_ in (du + 6.5, du - 6.5, du + 11.0, du - 11.0, du + 15.0, du - 15.0):
+            va = None
+            for i in range(1, 80):
                 vv = -0.25 * i
-                if not self.G.walks.buffer(0.05).contains(_Pt(*F.xz(cu_, vv))): vc = vv; break
-            if vc is None: continue
-            vcar = vc - 1.25
-            ok = all(not self.G.walks.contains(_Pt(*F.xz(cu_ + a, vcar + b))) for a in (-2.6, 0, 2.6) for b in (-1.0, 1.0))
+                if asf.contains(_Pt(*F.xz(cu_, vv))): va = vv; break
+            if va is None: continue
+            vcar = va - 1.2
+            ok = all(asf.contains(_Pt(*F.xz(cu_ + a, vcar + b))) for a in (-2.7, 0, 2.7) for b in (-1.05, 1.05))
             if ok: car = [round(c, 3) for c in F.xz(cu_, vcar)] + [round(math.atan2(F.ux, -F.uz), 5)]; break
         self.player.append({'k': k, 'carro': car, 'casa': f'Casa {k + 1}', 'modelo': pl['name'], 'bairro': HOUSE_BAIRRO[k],
                             'centro': [round(cx, 3), round(Y_LAWN, 2), round(cz, 3)], 'yaw': round(yaw, 5), 'yaw_graus': round(math.degrees(yaw), 2),
