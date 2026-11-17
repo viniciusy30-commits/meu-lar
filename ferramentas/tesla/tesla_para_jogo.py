@@ -262,7 +262,7 @@ for xx, w_ in ((0.30, 0.10), (0.44, 0.06)):
 # retrovisor interno e quebra-sois
 addgeo(plast, rbox((0, 1.15, 0.58), (0.24, 0.065, 0.03), rx=-10)); addgeo(cromo, rbox((0, 1.15, 0.564), (0.22, 0.05, 0.004), rx=-10))
 addgeo(plast, box(0, 1.205, 0.61, 0.02, 0.07, 0.02))                            # haste colada no para-brisa
-for s_ in (+1, -1): addgeo(couro, rbox((s_ * 0.34, 1.20, 0.44), (0.32, 0.015, 0.14), rx=-14))
+# (sem quebra-sois: na altura do teto do Model S eles tapavam a vista do motorista em 1a pessoa)
 # soleiras e colunas internas
 for s_ in (+1, -1):
     addgeo(cromo, box(s_ * 0.80, 0.30, 0.0, 0.06, 0.02, 1.86))
