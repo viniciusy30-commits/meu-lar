@@ -249,13 +249,36 @@ class Lots:
             self.pocc.append(Polygon(F.rect(0, L, 0, D)))
             return
         if nm == 'hospital':
-            import jobs6
-            self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+            # complexo hospitalar ocupando a quadra inteira: predio principal de frente para a rua, praca de entrada,
+            # jardim com bancos dos dois lados e estacionamento de visitantes nos fundos (acessivel pelas ruas laterais)
             import jobs2_6
+            self.lawn(poly)
             ww = jobs2_6.width('medico'); dd = jobs2_6.depth('medico'); off = (L - ww) / 2
             Fh = self.frame(side, minx, maxx, minz, maxz, off)
+            M = self.M; M.free('lotes')
+            M.m('paver'); M.prism(F.rect(0, L, 0, 7.0), Y_LAWN, Y_WALK + 0.02, (226, 222, 214))                # calcada larga da frente
+            M.m('paver'); M.prism(F.rect(off - 8, off + ww + 8, 7.0, dd + 6), Y_LAWN, Y_WALK + 0.02, (232, 228, 220))   # praca em volta
             jobs2_6.place(self, Fh, 'medico')
-            self.pocc.append(Polygon(Fh.rect(-6, ww + 6, -1, dd + 2)))
+            self.pocc.append(Polygon(Fh.rect(-8, ww + 8, -1, dd + 6)))
+            # jardins laterais com arvores e bancos
+            for (a, b) in ((0, off - 8), (off + ww + 8, L)):
+                if b - a < 6: continue
+                for k in range(int((b - a) / 7)):
+                    x, z = F.xz(a + 3.5 + k * 7, 14 + (k % 2) * 6)
+                    self.trees.append((x, z, 'folhosa', r.uniform(0.9, 1.2), Y_LAWN))
+                x, z = F.xz((a + b) / 2, 10.0); self.benches.append((x, z, -F.vx, -F.vz, Y_LAWN))
+            # estacionamento dos fundos
+            v0 = dd + 10; v1 = D - 4
+            if v1 - v0 > 12:
+                M.m('asfalto'); M.prism(F.rect(4, L - 4, v0, v1), Y_LAWN, Y_WALK + 0.01, (80, 80, 84))
+                M.m('liso')
+                for row in (v0 + 2.8, v1 - 2.8):
+                    u = 7.0
+                    while u < L - 7:
+                        M.prism(F.rect(u - 0.06, u + 0.06, row - 2.5, row + 2.5), Y_WALK + 0.01, Y_WALK + 0.022, (240, 240, 240))
+                        if r.random() < 0.6:
+                            x, z = F.xz(u + 1.3, row); self.park_car(x, z, F.vx, F.vz, Y_WALK + 0.01)
+                        u += 2.6
             return
         if nm.startswith('escola'):
             self.lawn(poly); B.school(F, L, D, self.park_car)
@@ -557,6 +580,8 @@ class Lots:
                     pw = gap[0] - s
                     if pw < 6: s = gap[1]; continue
                 F = self.frame(side, minx, maxx, minz, maxz, s)
+                _fp = Polygon(F.rect(0, pw, 0, depths[side]))                    # quadra em L: nada de predio fora dela (em cima do hospital etc.)
+                if _fp.intersection(poly).area < 0.85 * _fp.area: s += pw; continue
                 fl = max(3, min(hmax + 3, int(r.uniform(0.35, 1.1) * hmax)))
                 if resid: fl = max(4, int(fl * 0.9))
                 self.M.at(*F.xz(pw / 2, depths[side] / 2), 'lotes')
@@ -876,7 +901,8 @@ class Lots:
         self.plights = []
         for bi, blk in enumerate(self.P.blocks):
             z = blk['zone']; self.pocc = []; c0 = len(self.B.colliders)
-            if z in ('centro', 'orla') or (z == 'marina' and blk['poly'].bounds[0] > 2040) or (bi in self.special and not self.special[bi][0].startswith('escola')): blk['encher'] = c0
+            if self.special.get(bi, ('',))[0] == 'hospital': pass
+            elif z in ('centro', 'orla') or (z == 'marina' and blk['poly'].bounds[0] > 2040) or (bi in self.special and not self.special[bi][0].startswith('escola') and self.special[bi][0] != 'hospital'): blk['encher'] = c0
             if bi in self.special: self.special_block(bi, blk, *self.special[bi])
             elif z == 'suburbio': pass
             elif z == 'centro': self.centro(bi, blk)

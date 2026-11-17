@@ -52,6 +52,9 @@ class MainActivity : AppCompatActivity() {
     private var wasDriving = false
     // Etapa 128: voo
     private lateinit var flyBtn: TextView
+    private lateinit var workBtn: TextView
+    private var workOverlay: View? = null
+    private lateinit var rootL: FrameLayout
     private lateinit var flyPad: FrameLayout
     private lateinit var turboBtn: TextView
     private var wasFlying = false
@@ -306,6 +309,7 @@ class MainActivity : AppCompatActivity() {
         val overlay = Overlay(this, game)
 
         val root = FrameLayout(this)
+        rootL = root
         root.setBackgroundColor(Color.BLACK)
         root.addView(game, FrameLayout.LayoutParams(-1, -1))
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
@@ -382,7 +386,7 @@ class MainActivity : AppCompatActivity() {
         dockR.addView(dv.first)
         dockR.addView(topBtn(Ic.MAP, Tn.SUN) { abrirMapa() }.first)   // Etapa 122: mapa da cidade + GPS
         dockR.addView(topBtn(Ic.WORK, Tn.CORAL) { profissoes() }.first)   // Etapa 143: profissões
-        dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
+        dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { lojaHds() }.first)   // o catálogo é a loja principal
         // ciclo de dia e noite: o ícone mostra para onde o botão leva (lua = virar noite, sol = virar dia)
         val dn = topBtn(if (DayNight.isNight) Ic.SUNI else Ic.MOON, Tn.SKY) {
             DayNight.toggle()
@@ -420,6 +424,13 @@ class MainActivity : AppCompatActivity() {
                 if (show) gpsHud.invalidate()
                 val dv = game.r.driving
                 val fl = game.r.flying
+                run {   // marcador e botão de trabalho na porta do local de trabalho
+                    val j = Jobs.byId(st.job); val p = j?.let { lugarDe(it) }
+                    if (p != null && City.on) { Jobs.markX = p.x; Jobs.markZ = p.z; Jobs.markOn = true } else Jobs.markOn = false
+                    val perto = p != null && workOverlay == null && !dv && !fl && game.mode == 0 && mapView == null && kotlin.math.hypot(p.x - game.r.px, p.z - game.r.pz) < 6f
+                    if (perto && j != null) workBtn.text = "${WorkScreen.EMOJI[j.id] ?: "💼"}  TRABALHAR  ·  ${j.place}"
+                    workBtn.visibility = if (perto) View.VISIBLE else View.GONE
+                }
                 speedTv.visibility = if (dv || fl) View.VISIBLE else View.GONE
                 if (dv) speedTv.text = "${(kotlin.math.abs(game.r.carSpeed) * 3.6f).toInt()} km/h   ${game.r.gear}" + (if (game.r.drifting) "   DRIFT!" else "")
                 else if (fl) speedTv.text = "VOANDO   ${game.r.py.toInt()} m   ${(game.r.flySpeed * 3.6f).toInt()} km/h" + (if (game.r.turbo) "   TURBO" else "")
@@ -528,6 +539,15 @@ class MainActivity : AppCompatActivity() {
         pedal("FREIO DE MÃO", 0x3A4A66, 140, 50, 206, 20) { game.r.hbIn = it }
         drivePad.visibility = View.GONE
         root.addView(drivePad, FrameLayout.LayoutParams(dp(360), dp(170), Gravity.BOTTOM or Gravity.END))
+        // trabalho: botão grande que aparece na porta do local de trabalho atual
+        workBtn = tvShadow(tv("TRABALHAR", 16f, Color.WHITE, true))
+        workBtn.gravity = Gravity.CENTER
+        workBtn.background = Ui.frost(dpf(26f), 0x1FA37A, 0xF0, 0xC0, dpf(2f), edge = 0xEEFFFFFF.toInt())
+        workBtn.elevation = dpf(8f)
+        workBtn.setPadding(dp(26), 0, dp(26), 0)
+        workBtn.visibility = View.GONE
+        press(workBtn) { Jobs.byId(st.job)?.let { trabalhar(it) } }
+        root.addView(workBtn, FrameLayout.LayoutParams(-2, dp(54), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(84) })
         // Etapa 128: voar — liga/desliga ao lado do agachar; voando, subir e descer (segurar) e turbo (liga/desliga)
         flyBtn = tvShadow(tv("VOAR", 12f, Color.WHITE, true))
         flyBtn.gravity = Gravity.CENTER
@@ -1367,6 +1387,13 @@ class MainActivity : AppCompatActivity() {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setDimAmount(0.0f)
+            // tela cheia de verdade: sem a barra de notificação e sem a barra de navegação (voltam com um deslize)
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(this, false)
+            androidx.core.view.WindowInsetsControllerCompat(this, decorView).let { c ->
+                c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 28) attributes = attributes.also { it.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
         }
         shopDialog = d
         d.show()
@@ -1455,6 +1482,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------ Etapa 143: profissões
+
+    /** entra no turno: tela temática (o minigame entra aqui no futuro) e paga o turno no fim */
+    private fun trabalhar(j: Jobs.Job) {
+        val agora = System.currentTimeMillis()
+        if (agora - st.lastShift < Jobs.SHIFT_MS) { msg("Descanse um pouco: o próximo turno libera em ${((Jobs.SHIFT_MS - (agora - st.lastShift)) / 1000)} s"); return }
+        if (workOverlay != null) return
+        val ov = WorkScreen(this, j, 5000L) {
+            val antes = (1..4).lastOrNull { Jobs.unlocked(it, st.shifts) } ?: 1
+            st.shifts++; st.earned += j.salary; st.lastShift = System.currentTimeMillis(); st.save()
+            val depois = (1..4).lastOrNull { Jobs.unlocked(it, st.shifts) } ?: 1
+            workOverlay?.animate()?.alpha(0f)?.setDuration(350)?.withEndAction { (workOverlay?.parent as? android.view.ViewGroup)?.removeView(workOverlay); workOverlay = null }?.start()
+            msg(if (depois > antes) "Turno feito! +${moeda(j.salary.toLong())} · Nível ${depois} liberado!" else "Turno feito! +${moeda(j.salary.toLong())}")
+        }
+        ov.alpha = 0f; ov.elevation = dpf(40f)
+        workOverlay = ov
+        rootL.addView(ov, FrameLayout.LayoutParams(-1, -1))
+        ov.animate().alpha(1f).setDuration(300).start()
+        workBtn.visibility = View.GONE
+    }
 
     private fun lugarDe(j: Jobs.Job): City.Place? = City.places.firstOrNull { it.name == j.place } ?: Relevo.jobPl.firstOrNull { it.name == j.place }
         ?: Town.urban.firstOrNull { it.type == "job:" + j.id }?.let { City.Place(j.place, (it.x0 + it.x1) / 2, (it.z0 + it.z1) / 2, 0, 'T') }

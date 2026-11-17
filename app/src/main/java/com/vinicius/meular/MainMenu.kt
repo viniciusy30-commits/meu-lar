@@ -47,7 +47,7 @@ object MenuPal {
 
 
 /** Cena da cidade à beira-mar (parte fixa guardada em bitmap; nuvens, ondas, luz do farol e gaivotas animadas). */
-class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
+class CityScene(ctx: Context, private val dusk: Float = 0f, private val night: Float = 0f, private val sunU: Float = 0.62f, private val sunV: Float = 0.06f) : View(ctx) {
     private var cache: Bitmap? = null
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
@@ -70,6 +70,7 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
         // céu e sol já no bitmap; nuvens por cima do céu e atrás da cidade não dá (bitmap único): ficam altas, sobre o céu
         c.drawBitmap(bmp, 0f, 0f, null)
         val hz = h * 0.66f
+        if (night > 0f) { fill(Color.argb((115 * night).toInt(), 8, 12, 38)); c.drawRect(0f, hz - h * 0.36f, w, h, p) }   // cidade e mar no escuro (janelas continuam acesas por baixo do véu)
         for (k in 0 until 5) {
             val sp = 6f + k * 3f
             val cx = ((k * 0.27f * w + t * sp) % (w * 1.4f)) - w * 0.2f
@@ -133,13 +134,24 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
     private fun paintStatic(c: Canvas, w: Float, h: Float) {
         val hz = h * 0.66f
         // céu do fim da tarde
-        val top = lerp(0xFF3E6FC6.toInt(), 0xFF2A2E6E.toInt(), dusk); val mid = lerp(0xFF8EC5F0.toInt(), 0xFFE58A7C.toInt(), dusk); val low = lerp(0xFFFFE2B0.toInt(), 0xFFFFC27A.toInt(), dusk)
+        var top = lerp(0xFF3E6FC6.toInt(), 0xFF2A2E6E.toInt(), dusk); var mid = lerp(0xFF8EC5F0.toInt(), 0xFFE58A7C.toInt(), dusk); var low = lerp(0xFFFFE2B0.toInt(), 0xFFFFC27A.toInt(), dusk)
+        top = lerp(top, 0xFF070B24.toInt(), night); mid = lerp(mid, 0xFF1B2452.toInt(), night); low = lerp(low, 0xFF3A3F72.toInt(), night)
         p.shader = LinearGradient(0f, 0f, 0f, hz, intArrayOf(top, mid, low), floatArrayOf(0f, 0.62f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, hz + 2f, p); p.shader = null
         // sol com halo
-        val sx = w * 0.62f; val sy = hz - h * 0.06f
-        p.maskFilter = BlurMaskFilter(h * 0.12f, BlurMaskFilter.Blur.NORMAL); p.color = 0x88FFD27A.toInt(); c.drawCircle(sx, sy, h * 0.12f, p); p.maskFilter = null
-        fill(0xFFFFE9A8.toInt()); c.drawCircle(sx, sy, h * 0.07f, p)
+        val sx = w * sunU; val sy = hz - h * sunV
+        if (night > 0.5f) {
+            // estrelas e lua
+            val rs = java.util.Random(3)
+            for (k in 0 until 140) { fill(Color.argb((60 + rs.nextInt(150) * night).toInt().coerceIn(0, 255), 255, 255, 240)); c.drawCircle(w * rs.nextFloat(), hz * 0.85f * rs.nextFloat(), h * (0.0015f + rs.nextFloat() * 0.0025f), p) }
+            val mx = w * 0.72f; val my = h * 0.17f
+            p.maskFilter = BlurMaskFilter(h * 0.08f, BlurMaskFilter.Blur.NORMAL); p.color = 0x55CFE0FF; c.drawCircle(mx, my, h * 0.08f, p); p.maskFilter = null
+            fill(0xFFF4F1E4.toInt()); c.drawCircle(mx, my, h * 0.045f, p)
+            fill(0x22000033); c.drawCircle(mx - h * 0.012f, my - h * 0.01f, h * 0.009f, p); c.drawCircle(mx + h * 0.014f, my + h * 0.012f, h * 0.006f, p)
+        } else {
+            p.maskFilter = BlurMaskFilter(h * 0.12f, BlurMaskFilter.Blur.NORMAL); p.color = lerp(0x88FFF0C0.toInt(), 0x88FFB060.toInt(), dusk); c.drawCircle(sx, sy, h * 0.12f, p); p.maskFilter = null
+            fill(lerp(0xFFFFF6D8.toInt(), 0xFFFFC86E.toInt(), dusk)); c.drawCircle(sx, sy, h * 0.07f, p)
+        }
         // morros ao fundo
         fill(lerp(0xFF7FA8C9.toInt(), 0xFF8A6E9E.toInt(), dusk))
         path.reset(); path.moveTo(0f, hz); path.cubicTo(w * 0.1f, hz - h * 0.2f, w * 0.25f, hz - h * 0.12f, w * 0.34f, hz - h * 0.18f); path.cubicTo(w * 0.45f, hz - h * 0.26f, w * 0.55f, hz - h * 0.1f, w * 0.7f, hz - h * 0.14f); path.cubicTo(w * 0.82f, hz - h * 0.17f, w * 0.92f, hz - h * 0.08f, w, hz - h * 0.1f); path.lineTo(w, hz); path.close()
@@ -352,58 +364,45 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
 
     init {
         isClickable = true
-        setBackgroundColor(0xFFC4EAF8.toInt())
-        addView(SoftScene(ctx), LayoutParams(-1, -1))
-        val dm = resources.displayMetrics
-        val H = dm.heightPixels.toFloat()
-
-        // centro-direita: plataforma redonda e o personagem com os pés no meio dela
-        val stageW = (H * 0.75f).toInt(); val stageH = (H * 0.94f).toInt()
-        addView(stage, LayoutParams(stageW, stageH, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.leftMargin = dp(170f); it.bottomMargin = dp(4f) })
-        val platH = dp(54f)
-        val plat = object : View(ctx) {
+        setBackgroundColor(0xFF8FD3F0.toInt())
+        // fundo: a cidade à beira-mar ilustrada, com a luz da hora real (tarde vira pôr do sol)
+        val hr = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) + java.util.Calendar.getInstance().get(java.util.Calendar.MINUTE) / 60f
+        // manhã (sol baixo à esquerda), meio-dia (sol alto), fim de tarde (pôr do sol à direita), noite (lua e estrelas)
+        val night = when { hr >= 19.5f || hr < 5.5f -> 1f; hr >= 18.5f -> hr - 18.5f; hr < 6.5f -> 6.5f - hr; else -> 0f }.coerceIn(0f, 1f)
+        val dusk = when { hr in 16.5f..19.5f -> 1f - kotlin.math.abs(hr - 18.3f) / 1.8f; hr in 5.5f..7.5f -> 1f - kotlin.math.abs(hr - 6.3f) / 1.2f; else -> 0f }.coerceIn(0f, 1f)
+        val dayK = ((hr - 6f) / 12.5f).coerceIn(0f, 1f)
+        val sunU = 0.12f + 0.76f * dayK; val sunV = 0.04f + 0.42f * kotlin.math.sin(dayK * Math.PI.toFloat())
+        addView(CityScene(ctx, dusk, night, sunU, sunV), LayoutParams(-1, -1))
+        // véu claro no meio (o texto e os botões ficam legíveis sem caixas nem contornos)
+        addView(object : View(ctx) {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(c: Canvas) {
                 val w = width.toFloat(); val h = height.toFloat()
-                p.maskFilter = BlurMaskFilter(h * 0.18f, BlurMaskFilter.Blur.NORMAL); p.color = 0x3326506E
-                c.drawOval(RectF(w * 0.14f, h * 0.38f, w * 0.86f, h * 0.98f), p); p.maskFilter = null
-                p.shader = LinearGradient(0f, h * 0.3f, 0f, h * 0.9f, 0xFFFFFFFF.toInt(), 0xFFDCEFF7.toInt(), Shader.TileMode.CLAMP)
-                c.drawOval(RectF(w * 0.12f, h * 0.25f, w * 0.88f, h * 0.85f), p); p.shader = null
-                p.style = Paint.Style.STROKE; p.strokeWidth = h * 0.045f; p.color = 0xFF7FCFE6.toInt()
-                c.drawOval(RectF(w * 0.18f, h * 0.33f, w * 0.82f, h * 0.77f), p)
-                p.strokeWidth = h * 0.02f; p.color = 0x99FFFFFF.toInt(); c.drawOval(RectF(w * 0.12f, h * 0.25f, w * 0.88f, h * 0.85f), p)
-                p.style = Paint.Style.FILL
+                p.shader = android.graphics.RadialGradient(w / 2f, h * 0.52f, w * 0.42f, intArrayOf(0xC8F4FBFF.toInt(), 0x80EAF6FC.toInt(), 0x00EAF6FC), floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, w, h, p)
             }
-        }
-        plat.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-        stage.addView(plat, LayoutParams(-1, platH, Gravity.BOTTOM))
-        sim.scaleType = ImageView.ScaleType.FIT_CENTER; sim.adjustViewBounds = true
-        stage.addView(sim, LayoutParams(-2, stageH - platH / 2 - dp(6f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = (platH * 0.45f).toInt() })
-        sim.alpha = 0f
-        (lastSim ?: loadCached())?.let { showSim(it, false) }
-
-        // esquerda: logo e o menu em cartões brancos arredondados
-        val col = LinearLayout(ctx); col.orientation = LinearLayout.VERTICAL
+        }, LayoutParams(-1, -1))
+        val col = LinearLayout(ctx); col.orientation = LinearLayout.VERTICAL; col.gravity = Gravity.CENTER_HORIZONTAL
         val logo = LinearLayout(ctx); logo.orientation = LinearLayout.HORIZONTAL; logo.gravity = Gravity.CENTER_VERTICAL
-        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(54f), dp(54f)))
+        logo.addView(HouseLogo(ctx), LinearLayout.LayoutParams(dp(60f), dp(60f)))
         val lt = LinearLayout(ctx); lt.orientation = LinearLayout.VERTICAL
-        lt.addView(txt("MEU", 13f, 0xFF2D7FA8.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.letterSpacing = 0.35f })
-        lt.addView(txt("LAR", 38f, 0xFF16466E.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(8f, 0f, 3f, 0x33FFFFFF); it.letterSpacing = 0.06f })
-        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(10f) })
-        col.addView(logo)
-        col.addView(txt("A vida na cidade à beira-mar", 12.5f, 0xFF3C7FA0.toInt(), MenuPal.TITLE), LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2f); it.bottomMargin = dp(16f) })
-        val play = MenuButton(ctx, "JOGAR", "Continuar de onde parou", 0, true); pressable(play) { onPlay() }
-        col.addView(play, LinearLayout.LayoutParams(dp(250f), dp(60f)))
-        val b1 = MenuButton(ctx, "PERSONAGEM", "Criar e mudar o visual", 1, false); pressable(b1) { onCreator() }
-        col.addView(b1, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(10f) })
-        val b2 = MenuButton(ctx, "CONFIGURAÇÕES", "Gráficos, som e controles", 2, false); pressable(b2) { onSettings() }
-        col.addView(b2, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(8f) })
-        val b3 = MenuButton(ctx, "SAIR", "Fechar o jogo", 3, false); pressable(b3) { (context as? android.app.Activity)?.finish() }
-        col.addView(b3, LinearLayout.LayoutParams(dp(250f), dp(50f)).also { it.topMargin = dp(8f) })
-        addView(col, LayoutParams(-2, -2, Gravity.CENTER_VERTICAL or Gravity.START).also { it.leftMargin = dp(40f) })
-
-        col.alpha = 0f; col.translationX = -dp(30f).toFloat()
-        col.animate().alpha(1f).translationX(0f).setDuration(550).setStartDelay(100).start()
+        lt.addView(txt("MEU", 14f, 0xFF2D7FA8.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.letterSpacing = 0.4f })
+        lt.addView(txt("LAR", 44f, 0xFF16466E.toInt(), MenuPal.BLACK).also { it.includeFontPadding = false; it.setShadowLayer(10f, 0f, 3f, 0x55FFFFFF); it.letterSpacing = 0.06f })
+        logo.addView(lt, LinearLayout.LayoutParams(-2, -2).also { it.leftMargin = dp(12f) })
+        col.addView(logo, LinearLayout.LayoutParams(-2, -2))
+        col.addView(txt("A vida na cidade à beira-mar", 13f, 0xFF2F6E92.toInt(), MenuPal.TITLE).also { it.gravity = Gravity.CENTER }, LinearLayout.LayoutParams(-2, -2).also { it.topMargin = dp(2f); it.bottomMargin = dp(18f) })
+        val play = PillButton(ctx, "JOGAR", 0, 0xFF5FD3A0.toInt(), 0xFF22A67A.toInt(), Color.WHITE); pressable(play) { onPlay() }
+        col.addView(play, LinearLayout.LayoutParams(dp(270f), dp(58f)))
+        val b1 = PillButton(ctx, "Personagem", 1, 0xF7FFFFFF.toInt(), 0xEEF1F8FC.toInt(), 0xFF1D4D72.toInt()); pressable(b1) { onCreator() }
+        col.addView(b1, LinearLayout.LayoutParams(dp(270f), dp(48f)).also { it.topMargin = dp(12f) })
+        val b2 = PillButton(ctx, "Configurações", 2, 0xF7FFFFFF.toInt(), 0xEEF1F8FC.toInt(), 0xFF1D4D72.toInt()); pressable(b2) { onSettings() }
+        col.addView(b2, LinearLayout.LayoutParams(dp(270f), dp(48f)).also { it.topMargin = dp(9f) })
+        val b3 = PillButton(ctx, "Sair", 3, 0xF7FFFFFF.toInt(), 0xEEF1F8FC.toInt(), 0xFF1D4D72.toInt()); pressable(b3) { (context as? android.app.Activity)?.finish() }
+        col.addView(b3, LinearLayout.LayoutParams(dp(270f), dp(48f)).also { it.topMargin = dp(9f) })
+        addView(col, LayoutParams(-2, -2, Gravity.CENTER))
+        addView(txt(version, 11f, 0xAA16466E.toInt(), MenuPal.TITLE), LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(16f), dp(10f)) })
+        col.alpha = 0f; col.translationY = dp(18f).toFloat()
+        col.animate().alpha(1f).translationY(0f).setDuration(600).setStartDelay(120).start()
     }
 
     /** Foto do personagem chegou: recorta as bordas transparentes (fica centrado e com os pés na plataforma) e guarda. */
@@ -446,6 +445,35 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
             }
             true
         }
+    }
+}
+
+/** Botão em pílula sem contorno: degradê suave, sombra difusa embaixo, brilho no alto, ícone simples e texto centrado. */
+class PillButton(ctx: Context, private val title: String, private val icon: Int, private val c0: Int, private val c1: Int, private val ink: Int) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
+    override fun onDraw(c: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat(); val m = h * 0.1f
+        val box = RectF(m, m * 0.6f, w - m, h - m * 1.4f); val r = box.height() / 2f
+        p.maskFilter = BlurMaskFilter(h * 0.14f, BlurMaskFilter.Blur.NORMAL); p.color = 0x2A12415F
+        c.drawRoundRect(RectF(box.left + h * 0.08f, box.top + h * 0.16f, box.right - h * 0.08f, box.bottom + h * 0.1f), r, r, p); p.maskFilter = null
+        p.shader = LinearGradient(0f, box.top, 0f, box.bottom, c0, c1, Shader.TileMode.CLAMP); c.drawRoundRect(box, r, r, p); p.shader = null
+        p.shader = LinearGradient(0f, box.top, 0f, box.centerY(), 0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRoundRect(RectF(box.left + r * 0.4f, box.top + h * 0.04f, box.right - r * 0.4f, box.centerY()), r, r, p); p.shader = null
+        p.typeface = MenuPal.BLACK; p.textSize = box.height() * (if (icon == 0) 0.42f else 0.36f); p.color = ink; p.textAlign = Paint.Align.CENTER
+        val tw = p.measureText(title); val iconS = box.height() * 0.22f; val gap = box.height() * 0.28f
+        val tx = box.centerX() + (iconS + gap) / 2f; val ty = box.centerY() - (p.descent() + p.ascent()) / 2f
+        c.drawText(title, tx, ty, p)
+        val ix = tx - tw / 2f - gap - iconS * 0.5f; val iy = box.centerY(); val s = iconS
+        p.color = ink; p.alpha = if (icon == 0) 255 else 200
+        when (icon) {
+            0 -> { path.reset(); path.moveTo(ix - s * 0.55f, iy - s); path.lineTo(ix + s * 0.95f, iy); path.lineTo(ix - s * 0.55f, iy + s); path.close(); c.drawPath(path, p) }
+            1 -> { c.drawCircle(ix, iy - s * 0.42f, s * 0.48f, p); c.drawRoundRect(RectF(ix - s * 0.9f, iy + s * 0.15f, ix + s * 0.9f, iy + s * 1.05f), s * 0.45f, s * 0.45f, p) }
+            2 -> { for (k in 0 until 8) { c.save(); c.rotate(k * 45f, ix, iy); c.drawRect(ix - s * 0.2f, iy - s * 1.05f, ix + s * 0.2f, iy - s * 0.6f, p); c.restore() }; c.drawCircle(ix, iy, s * 0.72f, p); p.color = c1; c.drawCircle(ix, iy, s * 0.3f, p) }
+            else -> { p.style = Paint.Style.STROKE; p.strokeWidth = s * 0.26f; p.strokeCap = Paint.Cap.ROUND; c.drawArc(RectF(ix - s * 0.8f, iy - s * 0.7f, ix + s * 0.8f, iy + s * 0.9f), -50f, 280f, false, p); c.drawLine(ix, iy - s, ix, iy, p); p.style = Paint.Style.FILL }
+        }
+        p.alpha = 255; p.textAlign = Paint.Align.LEFT
     }
 }
 

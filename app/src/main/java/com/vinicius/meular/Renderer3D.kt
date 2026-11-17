@@ -1132,6 +1132,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var routeMesh: Mesh? = null
     private var routeVer = -1
     private var beaconMesh: Mesh? = null
+    private var workMesh: Mesh? = null
 
     /** Jogador entrou/saiu de uma construção: paredes de cima, telhado e placas dela deixam de ser desenhados. */
     private fun setInside(b: City.Bld?) {
@@ -1335,6 +1336,24 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 }
                 b.al = 1f
                 routeMesh = b.toMesh(true)
+            }
+        }
+        // ponto de trabalho: círculo dourado pulsando no chão da porta e coluna de luz suave
+        if (Jobs.markOn) {
+            if (workMesh == null) {
+                val b = MB(); b.m(Mt.GLASS)
+                b.al = 0.55f; b.cyl(0f, 0f, 0f, 1.6f, 1.6f, 0.04f, C("#FFC94D"), false, 32)
+                b.al = 0.9f; b.cyl(0f, 0.045f, 0f, 1.25f, 1.25f, 0.02f, C("#FFFFFF"), false, 32)
+                b.al = 0.16f; b.cyl(0f, 0f, 0f, 1.2f, 0.6f, 3.2f, C("#FFE08A"), false, 20)
+                b.al = 1f
+                workMesh = b.toMesh(true)
+            }
+            workMesh?.let {
+                val sc = 1f + 0.08f * kotlin.math.sin(System.nanoTime() / 1.6e8).toFloat()
+                Matrix.setIdentityM(mdl, 0)
+                Matrix.translateM(mdl, 0, Jobs.markX, groundH(Jobs.markX, Jobs.markZ) + 0.03f, Jobs.markZ)
+                Matrix.scaleM(mdl, 0, sc, 1f, sc)
+                draw(it, mdl, 1f, true)
             }
         }
         if (Gps.active) {
@@ -1624,7 +1643,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             // histerese: corre com o analógico quase no limite; solta abaixo disso e volta a andar
             pRun = if (crouch) false else if (pRun) mag > 0.70f else mag > 0.88f
             // andar: velocidade proporcional ao arrasto (como antes); correr: velocidade fixa (casada com o clipe)
-            val sp = if (crouch) CROUCH_SPEED * dt else if (pRun) RUN_SPEED * dt / mag else WALK_SPEED * dt  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
+            val stairF = if (kotlin.math.abs(stairS) > 0.5f && CuteChar.hasStairs()) 0.32f else 1f   // na escada o passo é mais curto (casado com a animação de degrau)
+            val sp = (if (crouch) CROUCH_SPEED * dt else if (pRun) RUN_SPEED * dt / mag else WALK_SPEED * dt) * stairF  // casado com o passo da animação (CuteChar.WALK_RATE / RUN)
             val fyw = if (mode == 1) -yaw else fyaw   // vista aérea: o analógico segue a direção da câmera
             val fx = sin(fyw)
             val fz = -cos(fyw)
@@ -1896,6 +1916,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         return 0f
     }
     private var baseY = 0f
+    private var stairS = 0f; private var stPx = 0f; private var stPz = 0f; private var stGy = 0f
 
     /** Põe o personagem na porta da casa de novo (ao trocar de casa/sala de testes). */
     fun resetPlayer() { posInit = false; baseY = 0f; sleepChecked = false; if (swimPh >= 5) sitLift = 0f; swimPh = 0; edgeHold = 0f; if (py < 0f) py = 0f }
@@ -1903,7 +1924,15 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
 
     /** Desenha o personagem do jogador (câmera em 3ª pessoa). */
     private fun drawPlayer(now: Long) {
-        baseY += (groundH(px, pz) - baseY) * 0.3f
+        val gNow = groundH(px, pz)
+        baseY += (gNow - baseY) * 0.3f
+        // escada: inclinação do chão no sentido do passo (degraus dão ~0,9; rampas e terreno ficam bem abaixo de 0,5)
+        run {
+            val ds = kotlin.math.hypot(px - stPx, pz - stPz)
+            if (ds > 0.12f) { val sl = ((gNow - stGy) / ds).coerceIn(-2f, 2f); stairS += (sl - stairS) * 0.45f; stPx = px; stPz = pz; stGy = gNow }
+            else if (!pMoving) { stairS *= 0.8f; stGy = gNow }
+            if (ds > 3f) { stPx = px; stPz = pz; stGy = gNow; stairS = 0f }
+        }
         if (City.HDS) Hds.refY = baseY
         Relevo.footY = baseY
         val t = (now / 1_000_000L % 100000L) / 1000f
@@ -1933,6 +1962,9 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                    else if ((flying || landing) && py > 0.05f) CuteChar.frame(if (flySpeed > 14f) CuteChar.RUNJUMP else CuteChar.JUMP, CuteChar.clipSeconds(if (flySpeed > 14f) CuteChar.RUNJUMP else CuteChar.JUMP) * 0.42f)   // Etapa 128: voando
                    else if (air) CuteChar.frame(jc, minOf(jumpT, CuteChar.clipSeconds(jc) * 0.999f))
                    else if (crouch && CuteChar.hasCrouch()) CuteChar.frame(if (pMoving) CuteChar.CROUCH_WALK else CuteChar.CROUCH, t)
+                   else if (pMoving && CuteChar.hasStairs() && kotlin.math.abs(stairS) > 0.5f)
+                       CuteChar.frame(if (stairS > 0f) (if (pRun) CuteChar.STAIR_RUN_UP else CuteChar.STAIR_UP) else (if (pRun) CuteChar.STAIR_RUN_DOWN else CuteChar.STAIR_DOWN),
+                           t * (if (stairS > 0f) (if (pRun) 1.45f else 1.75f) else (if (pRun) 1.6f else 1.3f)))   // ritmo do degrau casado com a velocidade na escada
                    else CuteChar.frame(if (pMoving) (if (pRun) CuteChar.RUN else CuteChar.WALK) else CuteChar.IDLE, t)
         val m = cute ?: avMesh ?: return
         val up = if (cute != null) CuteChar.lift(0) else 0f   // Etapa 20: sola em cima do chão

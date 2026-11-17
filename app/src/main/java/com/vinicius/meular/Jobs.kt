@@ -6,6 +6,10 @@ package com.vinicius.meular
  * Os minigames serão definidos depois; aqui ficam os dados e o lugar de cada profissão.
  */
 object Jobs {
+    /** porta do local de trabalho atual (o jogo desenha o círculo brilhante ali) */
+    @Volatile var markOn = false
+    @Volatile var markX = 0f
+    @Volatile var markZ = 0f
     class Job(val id: String, val name: String, val level: Int, val place: String, val sign: String, val salary: Int, val perk: String, val requires: String)
 
     val ALL = listOf(

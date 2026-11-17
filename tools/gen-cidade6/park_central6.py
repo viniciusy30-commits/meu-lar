@@ -15,6 +15,7 @@ from roads6 import Y_LAWN
 from mesh import shade, WHITE, Frame
 
 WY = Y_LAWN + 0.06           # espelho d'agua da lagoa (abaixo da borda)
+WALK_EXTRA = []              # pisos andaveis que o filtro geral nao pega (tabuleiro alto da ponte)
 GLOW = (255, 238, 196)
 
 
@@ -149,6 +150,7 @@ def build(pr, blk):
         for q in range(5): fauna.append([round(px + r.uniform(-0.6, 0.6), 2), round(pz + r.uniform(-0.6, 0.6), 2), round(r.uniform(1.2, 3.4), 2), round(r.uniform(0, 6.28), 2), round(sp, 2), r.randint(0, 5), round(WY - 0.06, 3)])
     for k in range(7): fauna.append([round(isl_c[0], 2), round(isl_c[1], 2), round(11.5 + (k % 3) * 1.6, 2), round(k * 0.9, 2), 0.26, 6 + k % 2, round(WY + 0.0, 3)])
     for k in range(3): fauna.append([round(lx + RX * 0.2, 2), round(lz + RZ * 0.25, 2), round(14.0 + k * 3.5, 2), round(k * 2.1, 2), -0.12, 8, round(WY + 0.0, 3)])
+    pr.__dict__.setdefault('walk_extra', []).extend(WALK_EXTRA)
     M.free()
 
 
@@ -208,6 +210,7 @@ def red_bridge(M, x, z0, z1):
     for k in range(n):
         t0, t1 = k / n, (k + 1) / n; a0, a1 = z0 + L * t0, z0 + L * t1
         M.m('madeira'); M.quad((x - 1.3, yy(t0), a0), (x + 1.3, yy(t0), a0), (x + 1.3, yy(t1), a1), (x - 1.3, yy(t1), a1), (176, 128, 84), (0, 1, 0))
+        WALK_EXTRA.extend([[(x - 1.2, yy(t0), a0), (x + 1.2, yy(t0), a0), (x + 1.2, yy(t1), a1)], [(x - 1.2, yy(t0), a0), (x + 1.2, yy(t1), a1), (x - 1.2, yy(t1), a1)]])
         M.quad((x - 1.3, yy(t0) - 0.12, a0), (x + 1.3, yy(t0) - 0.12, a0), (x + 1.3, yy(t1) - 0.12, a1), (x - 1.3, yy(t1) - 0.12, a1), (120, 86, 56), (0, -1, 0))
         M.m('liso')
         for s in (-1, 1):
