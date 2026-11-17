@@ -256,8 +256,8 @@ class Lots:
             ww = jobs2_6.width('medico'); dd = jobs2_6.depth('medico'); off = (L - ww) / 2
             Fh = self.frame(side, minx, maxx, minz, maxz, off)
             M = self.M; M.free('lotes')
-            M.m('paver'); M.prism(F.rect(0, L, 0, 7.0), Y_WALK - 0.1, Y_WALK, (226, 222, 214))                # calcada larga da frente
-            M.m('paver'); M.prism(F.rect(off - 8, off + ww + 8, 7.0, dd + 6), Y_WALK - 0.1, Y_WALK, (232, 228, 220))   # praca em volta
+            M.m('paver'); M.prism(F.rect(0, L, 0, 7.0), Y_LAWN, Y_WALK + 0.02, (226, 222, 214))                # calcada larga da frente
+            M.m('paver'); M.prism(F.rect(off - 8, off + ww + 8, 7.0, dd + 6), Y_LAWN, Y_WALK + 0.02, (232, 228, 220))   # praca em volta
             jobs2_6.place(self, Fh, 'medico')
             self.pocc.append(Polygon(Fh.rect(-8, ww + 8, -1, dd + 6)))
             # jardins laterais com arvores e bancos
@@ -270,14 +270,14 @@ class Lots:
             # estacionamento dos fundos
             v0 = dd + 10; v1 = D - 4
             if v1 - v0 > 12:
-                M.m('asfalto'); M.prism(F.rect(4, L - 4, v0, v1), Y_LAWN, Y_LAWN + 0.06, (80, 80, 84))
+                M.m('asfalto'); M.prism(F.rect(4, L - 4, v0, v1), Y_LAWN, Y_WALK + 0.01, (80, 80, 84))
                 M.m('liso')
                 for row in (v0 + 2.8, v1 - 2.8):
                     u = 7.0
                     while u < L - 7:
-                        M.prism(F.rect(u - 0.06, u + 0.06, row - 2.5, row + 2.5), Y_LAWN + 0.06, Y_LAWN + 0.075, (240, 240, 240))
+                        M.prism(F.rect(u - 0.06, u + 0.06, row - 2.5, row + 2.5), Y_WALK + 0.01, Y_WALK + 0.022, (240, 240, 240))
                         if r.random() < 0.6:
-                            x, z = F.xz(u + 1.3, row); self.park_car(x, z, F.vx, F.vz, Y_LAWN + 0.06)
+                            x, z = F.xz(u + 1.3, row); self.park_car(x, z, F.vx, F.vz, Y_WALK + 0.01)
                         u += 2.6
             return
         if nm.startswith('escola'):
