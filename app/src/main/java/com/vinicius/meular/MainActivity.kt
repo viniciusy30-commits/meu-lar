@@ -392,7 +392,7 @@ class MainActivity : AppCompatActivity() {
             DayNight.toggle()
             val vaiNoite = DayNight.phase() >= 0.5f
             dnIcon?.set(if (vaiNoite) Ic.SUNI else Ic.MOON)
-            android.widget.Toast.makeText(this, if (vaiNoite) "Anoitecendo… (o céu segue a hora do celular; toque de novo para voltar)" else "Amanhecendo… (o céu segue a hora do celular; toque de novo para voltar)", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, if (vaiNoite) "Anoitecendo… o dia volta sozinho em 30 min" else "Amanhecendo… a noite chega sozinha em 30 min", android.widget.Toast.LENGTH_SHORT).show()
         }
         dnIcon = dn.second
         dockR.addView(dn.first)
@@ -1387,8 +1387,13 @@ class MainActivity : AppCompatActivity() {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setDimAmount(0.0f)
-            addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-            statusBarColor = 0xFF1D5683.toInt(); navigationBarColor = 0xFF0E2D4C.toInt()   // tela cheia com a barra de notificação à mostra
+            // tela cheia de verdade: sem a barra de notificação e sem a barra de navegação (voltam com um deslize)
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(this, false)
+            androidx.core.view.WindowInsetsControllerCompat(this, decorView).let { c ->
+                c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 28) attributes = attributes.also { it.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
         }
         shopDialog = d
         d.show()

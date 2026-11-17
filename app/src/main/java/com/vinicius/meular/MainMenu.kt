@@ -47,7 +47,7 @@ object MenuPal {
 
 
 /** Cena da cidade à beira-mar (parte fixa guardada em bitmap; nuvens, ondas, luz do farol e gaivotas animadas). */
-class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
+class CityScene(ctx: Context, private val dusk: Float = 0f, private val night: Float = 0f, private val sunU: Float = 0.62f, private val sunV: Float = 0.06f) : View(ctx) {
     private var cache: Bitmap? = null
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
@@ -70,6 +70,7 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
         // céu e sol já no bitmap; nuvens por cima do céu e atrás da cidade não dá (bitmap único): ficam altas, sobre o céu
         c.drawBitmap(bmp, 0f, 0f, null)
         val hz = h * 0.66f
+        if (night > 0f) { fill(Color.argb((115 * night).toInt(), 8, 12, 38)); c.drawRect(0f, hz - h * 0.36f, w, h, p) }   // cidade e mar no escuro (janelas continuam acesas por baixo do véu)
         for (k in 0 until 5) {
             val sp = 6f + k * 3f
             val cx = ((k * 0.27f * w + t * sp) % (w * 1.4f)) - w * 0.2f
@@ -133,13 +134,24 @@ class CityScene(ctx: Context, private val dusk: Float = 0f) : View(ctx) {
     private fun paintStatic(c: Canvas, w: Float, h: Float) {
         val hz = h * 0.66f
         // céu do fim da tarde
-        val top = lerp(0xFF3E6FC6.toInt(), 0xFF2A2E6E.toInt(), dusk); val mid = lerp(0xFF8EC5F0.toInt(), 0xFFE58A7C.toInt(), dusk); val low = lerp(0xFFFFE2B0.toInt(), 0xFFFFC27A.toInt(), dusk)
+        var top = lerp(0xFF3E6FC6.toInt(), 0xFF2A2E6E.toInt(), dusk); var mid = lerp(0xFF8EC5F0.toInt(), 0xFFE58A7C.toInt(), dusk); var low = lerp(0xFFFFE2B0.toInt(), 0xFFFFC27A.toInt(), dusk)
+        top = lerp(top, 0xFF070B24.toInt(), night); mid = lerp(mid, 0xFF1B2452.toInt(), night); low = lerp(low, 0xFF3A3F72.toInt(), night)
         p.shader = LinearGradient(0f, 0f, 0f, hz, intArrayOf(top, mid, low), floatArrayOf(0f, 0.62f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, hz + 2f, p); p.shader = null
         // sol com halo
-        val sx = w * 0.62f; val sy = hz - h * 0.06f
-        p.maskFilter = BlurMaskFilter(h * 0.12f, BlurMaskFilter.Blur.NORMAL); p.color = 0x88FFD27A.toInt(); c.drawCircle(sx, sy, h * 0.12f, p); p.maskFilter = null
-        fill(0xFFFFE9A8.toInt()); c.drawCircle(sx, sy, h * 0.07f, p)
+        val sx = w * sunU; val sy = hz - h * sunV
+        if (night > 0.5f) {
+            // estrelas e lua
+            val rs = java.util.Random(3)
+            for (k in 0 until 140) { fill(Color.argb((60 + rs.nextInt(150) * night).toInt().coerceIn(0, 255), 255, 255, 240)); c.drawCircle(w * rs.nextFloat(), hz * 0.85f * rs.nextFloat(), h * (0.0015f + rs.nextFloat() * 0.0025f), p) }
+            val mx = w * 0.72f; val my = h * 0.17f
+            p.maskFilter = BlurMaskFilter(h * 0.08f, BlurMaskFilter.Blur.NORMAL); p.color = 0x55CFE0FF; c.drawCircle(mx, my, h * 0.08f, p); p.maskFilter = null
+            fill(0xFFF4F1E4.toInt()); c.drawCircle(mx, my, h * 0.045f, p)
+            fill(0x22000033); c.drawCircle(mx - h * 0.012f, my - h * 0.01f, h * 0.009f, p); c.drawCircle(mx + h * 0.014f, my + h * 0.012f, h * 0.006f, p)
+        } else {
+            p.maskFilter = BlurMaskFilter(h * 0.12f, BlurMaskFilter.Blur.NORMAL); p.color = lerp(0x88FFF0C0.toInt(), 0x88FFB060.toInt(), dusk); c.drawCircle(sx, sy, h * 0.12f, p); p.maskFilter = null
+            fill(lerp(0xFFFFF6D8.toInt(), 0xFFFFC86E.toInt(), dusk)); c.drawCircle(sx, sy, h * 0.07f, p)
+        }
         // morros ao fundo
         fill(lerp(0xFF7FA8C9.toInt(), 0xFF8A6E9E.toInt(), dusk))
         path.reset(); path.moveTo(0f, hz); path.cubicTo(w * 0.1f, hz - h * 0.2f, w * 0.25f, hz - h * 0.12f, w * 0.34f, hz - h * 0.18f); path.cubicTo(w * 0.45f, hz - h * 0.26f, w * 0.55f, hz - h * 0.1f, w * 0.7f, hz - h * 0.14f); path.cubicTo(w * 0.82f, hz - h * 0.17f, w * 0.92f, hz - h * 0.08f, w, hz - h * 0.1f); path.lineTo(w, hz); path.close()
@@ -355,8 +367,12 @@ class MainMenu(ctx: Context, version: String, household: String, money: String,
         setBackgroundColor(0xFF8FD3F0.toInt())
         // fundo: a cidade à beira-mar ilustrada, com a luz da hora real (tarde vira pôr do sol)
         val hr = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) + java.util.Calendar.getInstance().get(java.util.Calendar.MINUTE) / 60f
-        val dusk = when { hr < 6f || hr >= 19.5f -> 1f; hr >= 16.5f -> ((hr - 16.5f) / 2f).coerceIn(0f, 1f); hr < 7.5f -> 1f - (hr - 6f) / 1.5f; else -> 0f }
-        addView(CityScene(ctx, dusk), LayoutParams(-1, -1))
+        // manhã (sol baixo à esquerda), meio-dia (sol alto), fim de tarde (pôr do sol à direita), noite (lua e estrelas)
+        val night = when { hr >= 19.5f || hr < 5.5f -> 1f; hr >= 18.5f -> hr - 18.5f; hr < 6.5f -> 6.5f - hr; else -> 0f }.coerceIn(0f, 1f)
+        val dusk = when { hr in 16.5f..19.5f -> 1f - kotlin.math.abs(hr - 18.3f) / 1.8f; hr in 5.5f..7.5f -> 1f - kotlin.math.abs(hr - 6.3f) / 1.2f; else -> 0f }.coerceIn(0f, 1f)
+        val dayK = ((hr - 6f) / 12.5f).coerceIn(0f, 1f)
+        val sunU = 0.12f + 0.76f * dayK; val sunV = 0.04f + 0.42f * kotlin.math.sin(dayK * Math.PI.toFloat())
+        addView(CityScene(ctx, dusk, night, sunU, sunV), LayoutParams(-1, -1))
         // véu claro no meio (o texto e os botões ficam legíveis sem caixas nem contornos)
         addView(object : View(ctx) {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
