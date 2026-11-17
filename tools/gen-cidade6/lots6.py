@@ -736,6 +736,19 @@ class Lots:
         # ---- miolo: jardim, estacionamento ou parquinho
         ix0, iz0, ix1, iz1 = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5, maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5
         if garage: iz1 -= 12
+        # quadra em L ou torta: o miolo tem que caber DENTRO da quadra (antes o retangulo do contorno invadia as ruas)
+        inner = poly.buffer(-max(min(depths.values()), 6.0) - 1.5)
+        if not inner.is_empty and not sbox(ix0, iz0, ix1, iz1).within(poly.buffer(-1.0)):
+            q = sbox(ix0, iz0, ix1, iz1).intersection(inner)
+            ok = False
+            for _ in range(40):
+                bx0, bz0, bx1, bz1 = q.bounds if not q.is_empty else (0, 0, 0, 0)
+                cand = sbox(bx0, bz0, bx1, bz1)
+                if not q.is_empty and cand.within(poly.buffer(-1.0)) and cand.difference(q).area < 1.0: ix0, iz0, ix1, iz1 = bx0, bz0, bx1, bz1; ok = True; break
+                q = q.buffer(-1.5, join_style='mitre') if not q.is_empty else q
+                if q.is_empty: break
+                q = max(getattr(q, 'geoms', [q]), key=lambda g: g.area)
+            if not ok: ix1 = ix0                                       # sem miolo valido: fica so o piso da quadra
         if ix1 - ix0 > 10 and iz1 - iz0 > 10:
             if job and gaps:
                 for sd, (g0, g1) in gaps.items():
