@@ -541,6 +541,9 @@ class Lots:
         if job:
             import jobs2_6
             depths[job[1]] = max(depths[job[1]], jobs2_6.depth(job[0]))
+            opp = {'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'}[job[1]]
+            span = d if job[1] in ('N', 'S') else w
+            depths[opp] = max(8.0, min(depths[opp], span - depths[job[1]] - 4.0))     # o predio grande nao encosta nos fundos do vizinho
         # ---- o miolo vira estacionamento? entao duas aberturas no perimetro, no eixo do miolo (entrada e saida em lados opostos)
         opt = r.random() if not job else 0.6; gaps = {}
         ix0_, iz0_ = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5

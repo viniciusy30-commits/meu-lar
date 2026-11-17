@@ -21,24 +21,24 @@ FH = 3.4                                 # altura dos andares de cima
 
 # id -> (letreiro, estilo, andares, largura, fundo, piso, parede, detalhe)
 SPEC = {
-    'repositor':  ('SUPERBOM', 'loja', 1, 36, 26, 'ceramica', (238, 236, 230), (60, 150, 70)),
-    'atendente':  ('LANCHONETE DO ZE', 'loja', 2, 18, 16, 'ceramica', (250, 240, 214), (200, 50, 40)),
-    'diarista':   ('BRILHO LIMPEZA', 'loja', 2, 16, 16, 'ceramica', (226, 240, 246), (40, 150, 190)),
-    'frentista':  ('POSTO ROTA SUL', 'loja', 1, 22, 18, 'ceramica', (240, 242, 244), (30, 100, 180)),
-    'medico':     ('HOSPITAL SANTA CLARA', 'inst', 6, 58, 32, 'ceramica', (244, 246, 248), (200, 40, 50)),
-    'entregador': ('EXPRESSO JA', 'tijolo', 2, 24, 20, 'concreto', (176, 96, 70), (240, 140, 40)),
-    'lixeiro':    ('CENTRAL DE COLETA', 'tijolo', 2, 30, 22, 'concreto', (150, 96, 74), (70, 150, 70)),
-    'mecanico':   ('OFICINA DO TONINHO', 'tijolo', 1, 26, 20, 'concreto', (160, 92, 70), (230, 170, 30)),
-    'bombeiro':   ('BOMBEIROS', 'tijolo', 2, 30, 24, 'concreto', (178, 70, 56), (200, 40, 36)),
-    'policial':   ('DELEGACIA', 'inst', 3, 26, 20, 'ceramica', (232, 234, 238), (30, 60, 140)),
-    'enfermeiro': ('CLINICA AURORA', 'inst', 3, 22, 18, 'ceramica', (244, 246, 244), (30, 150, 130)),
-    'professor':  ('ESCOLA PRIMAVERA', 'inst', 3, 32, 22, 'madeira', (244, 226, 180), (230, 120, 40)),
-    'juiz':       ('FORUM DA COMARCA', 'classico', 3, 30, 24, 'pedra', (226, 216, 196), (150, 120, 70)),
-    'advogado':   ('ALMEIDA & PRADO', 'classico', 4, 18, 16, 'madeira', (214, 200, 178), (40, 80, 60)),
-    'secretario': ('ESCRITORIO CENTRAL', 'vidro', 6, 22, 18, 'madeira', (220, 224, 228), (60, 90, 150)),
-    'engenheiro': ('PILAR CONSTRUTORA', 'vidro', 5, 24, 18, 'madeira', (210, 206, 198), (230, 170, 30)),
-    'programador': ('NOVA TECH', 'vidro', 7, 26, 20, 'madeira', (230, 232, 238), (120, 70, 210)),
-    'empresario': ('GRUPO ATLAS', 'vidro', 12, 28, 22, 'pedra', (40, 46, 56), (200, 170, 90)),
+    'repositor':  ('SUPERBOM', 'loja', 1, 64, 40, 'ceramica', (238, 236, 230), (60, 150, 70)),
+    'atendente':  ('LANCHONETE DO ZE', 'loja', 3, 34, 24, 'ceramica', (250, 240, 214), (200, 50, 40)),
+    'diarista':   ('BRILHO LIMPEZA', 'loja', 4, 32, 24, 'ceramica', (226, 240, 246), (40, 150, 190)),
+    'frentista':  ('POSTO ROTA SUL', 'loja', 2, 44, 28, 'ceramica', (240, 242, 244), (30, 100, 180)),
+    'medico':     ('HOSPITAL SANTA CLARA', 'inst', 7, 62, 34, 'ceramica', (244, 246, 248), (200, 40, 50)),
+    'entregador': ('EXPRESSO JA', 'tijolo', 3, 46, 30, 'concreto', (176, 96, 70), (240, 140, 40)),
+    'lixeiro':    ('CENTRAL DE COLETA', 'tijolo', 3, 54, 34, 'concreto', (150, 96, 74), (70, 150, 70)),
+    'mecanico':   ('OFICINA DO TONINHO', 'tijolo', 2, 46, 30, 'concreto', (160, 92, 70), (230, 170, 30)),
+    'bombeiro':   ('BOMBEIROS', 'tijolo', 3, 52, 34, 'concreto', (178, 70, 56), (200, 40, 36)),
+    'policial':   ('DELEGACIA', 'inst', 5, 48, 30, 'ceramica', (232, 234, 238), (30, 60, 140)),
+    'enfermeiro': ('CLINICA AURORA', 'inst', 6, 46, 28, 'ceramica', (244, 246, 244), (30, 150, 130)),
+    'professor':  ('ESCOLA PRIMAVERA', 'inst', 4, 62, 34, 'madeira', (244, 226, 180), (230, 120, 40)),
+    'juiz':       ('FORUM DA COMARCA', 'classico', 4, 54, 34, 'pedra', (226, 216, 196), (150, 120, 70)),
+    'advogado':   ('ALMEIDA & PRADO', 'classico', 9, 36, 24, 'madeira', (214, 200, 178), (40, 80, 60)),
+    'secretario': ('ESCRITORIO CENTRAL', 'vidro', 13, 42, 28, 'madeira', (220, 224, 228), (60, 90, 150)),
+    'engenheiro': ('PILAR CONSTRUTORA', 'vidro', 11, 42, 28, 'madeira', (210, 206, 198), (230, 170, 30)),
+    'programador': ('NOVA TECH', 'vidro', 15, 46, 30, 'madeira', (230, 232, 238), (120, 70, 210)),
+    'empresario': ('GRUPO ATLAS', 'vidro', 26, 48, 34, 'pedra', (40, 46, 56), (200, 170, 90)),
 }
 ORDER = ['repositor', 'policial', 'bombeiro', 'juiz', 'empresario', 'programador', 'professor', 'enfermeiro', 'engenheiro',
          'advogado', 'secretario', 'mecanico', 'entregador', 'lixeiro', 'atendente', 'diarista', 'frentista']
@@ -298,6 +298,63 @@ def signature(j, jid, w, d, top, spec, door_u):
 
 
 # ---------------------------------------------------------------- interiores planejados
+def grand(j, jid, w, d, top, spec, door_u):
+    """o que faz o predio da profissao se destacar na cidade: torres de quina mais altas com coroa iluminada,
+    portal de entrada de dois andares com colunas e vidro na cor da marca, letreiro grande no alto (letras em relevo
+    sobre estrutura), faixa vertical luminosa, iluminacao de fachada e praca de entrada (floreiras, mastros, balizadores)."""
+    sign, style, floors, _, _, _, wall, acc = spec
+    clad = shade(acc, -25) if style != 'classico' else (232, 222, 200)
+    cm = 'metal' if style == 'vidro' else 'pedra'
+    tw = min(5.0, w * 0.12)
+    # ---- torres das quinas (sobem 3,5 m acima da cobertura)
+    for (a, b) in ((-0.3, tw), (w - tw, w + 0.3)):
+        j.bx(a, b, -0.6, 4.2, Y_WALK, top + 3.5, clad, cm)
+        j.bx(a - 0.15, b + 0.15, -0.75, 4.35, top + 3.5, top + 3.85, shade(clad, 25), 'concreto')
+        j.bx(a + 0.4, b - 0.4, -0.62, -0.6, top + 2.4, top + 3.2, GLOW, 'liso')                       # coroa acesa
+        for f in range(max(1, int((top - Y0 - HH) / FH))):                                             # janelas estreitas da torre
+            y = Y0 + HH + 0.9 + f * FH
+            if y + 1.8 < top + 2.2: j.bx(a + tw * 0.32, b - tw * 0.32, -0.66, -0.6, y, y + 1.8, (170, 200, 220) if style != 'tijolo' else (60, 70, 80), 'janela')
+        j.bx(a + 0.2, b - 0.2, -0.64, -0.6, Y_WALK + 0.05, Y_WALK + 0.25, GLOW, 'liso')               # luz rasante na base
+    # ---- portal de entrada de dois andares
+    pw = min(9.0, w * 0.3); ph = min(top - Y_WALK - 0.5, Y0 + HH + FH + 1.2)
+    for s_ in (-1, 1):
+        cu = door_u + s_ * pw / 2
+        j.cyl(cu, -2.6, 0.38, Y_WALK, ph, (246, 244, 238) if style != 'vidro' else (210, 214, 220), 'pedra' if style != 'vidro' else 'metal', 16)
+        j.cyl(cu, -2.6, 0.5, Y_WALK, Y_WALK + 0.35, shade(clad, 10), 'pedra', 16)
+        j.cyl(cu, -2.6, 0.5, ph - 0.3, ph, shade(clad, 10), 'pedra', 16)
+    j.bx(door_u - pw / 2 - 0.7, door_u + pw / 2 + 0.7, -3.3, 0.05, ph, ph + 1.1, clad, cm)
+    j.bx(door_u - pw / 2 - 0.85, door_u + pw / 2 + 0.85, -3.45, 0.05, ph + 1.1, ph + 1.25, shade(clad, 25), 'concreto')
+    sign_text(j, sign, door_u, -3.31, ph + 0.18, 0.62, (255, 250, 236), 0.06, pw + 0.8)
+    j.bx(door_u - pw / 2 + 0.6, door_u + pw / 2 - 0.6, -0.08, -0.02, Y0 + HH + 0.2, ph - 0.1, shade(acc, 30), 'vidro')   # vidro colorido sobre a porta
+    j.M.m('liso'); j.M.poly([j.F.p(door_u - pw / 2, -3.3, ph - 0.01), j.F.p(door_u + pw / 2, -3.3, ph - 0.01), j.F.p(door_u + pw / 2, -0.1, ph - 0.01), j.F.p(door_u - pw / 2, -0.1, ph - 0.01)], GLOW, (0, -1, 0))
+    j.bx(door_u - pw / 2 - 0.4, door_u + pw / 2 + 0.4, -3.6, 0.0, Y_WALK, Y_WALK + 0.12, (214, 208, 196), 'pedra')            # piso do portal
+    # ---- letreiro grande no alto, sobre estrutura metalica, de frente para a rua
+    sw = min(w - 2 * tw - 2.0, max(10.0, len(sign) * 1.05))
+    if sw > 6:
+        for q in range(4): uu = w / 2 - sw / 2 + sw * q / 3; j.bx(uu - 0.08, uu + 0.08, 1.2, 1.36, top + 0.32, top + 1.2, DARK, 'metal')
+        j.bx(w / 2 - sw / 2 - 0.3, w / 2 + sw / 2 + 0.3, 1.1, 1.2, top + 1.1, top + 3.1, shade(acc, -40), 'liso')
+        sign_text(j, sign, w / 2, 1.1, top + 1.35, 1.45, (255, 248, 230), 0.08, sw)
+    # ---- faixa vertical luminosa (marca) na torre direita
+    j.bx(w - tw + 0.6, w - 0.6, -0.72, -0.64, Y0 + HH + 0.8, top + 1.8, acc, 'liso')
+    j.bx(w - tw / 2 - 0.12, w - tw / 2 + 0.12, -0.74, -0.72, Y0 + HH + 1.0, top + 1.6, GLOW, 'liso')
+    # ---- praca de entrada: floreiras com arbustos, mastros com bandeiras e balizadores
+    for s_ in (-1, 1):
+        fu = door_u + s_ * (pw / 2 + 3.2)
+        if 1.5 < fu < w - 1.5:
+            j.bx(fu - 1.4, fu + 1.4, -4.2, -2.4, Y_WALK, Y_WALK + 0.55, (200, 194, 182), 'pedra')
+            j.bx(fu - 1.25, fu + 1.25, -4.05, -2.55, Y_WALK + 0.55, Y_WALK + 0.58, (90, 70, 50), 'liso')
+            x, z = j.F.xz(fu, -3.3); j.L.trees.append((x, z, 'arbusto', 1.0, Y_WALK + 0.58))
+            j.solid(fu - 1.4, fu + 1.4, -4.2, -2.4)
+    for q, fc in enumerate((acc, (40, 140, 70), (30, 60, 150))):
+        mu = tw + 1.5 + q * 1.4
+        if mu < door_u - pw / 2 - 1.0:
+            j.cyl(mu, -3.8, 0.06, Y_WALK, Y_WALK + 8.5, (230, 230, 232), 'metal', 8)
+            G = j.sub(mu, -3.8, 0); J(j.L, G).bx(0.06, 1.7, -0.01, 0.01, Y_WALK + 7.2, Y_WALK + 8.3, fc, 'liso')
+    q = door_u - pw / 2 - 0.6
+    while q < door_u + pw / 2 + 0.7:
+        j.cyl(q, -4.6, 0.12, Y_WALK, Y_WALK + 0.8, (60, 62, 66), 'metal', 8); q += 1.5
+
+
 def interior2(j, jid, w, d, spec, door_u, garage_doors=()):
     """sem interior mobiliado: o predio e fechado (vidro escurecido com cortinas por dentro), a porta e o ponto de
     trabalho na calcada (o jogo mostra o marcador e o botao TRABALHAR)"""
@@ -331,6 +388,7 @@ def place(L, F, jid):
     top = upper(j, w, d, spec)
     storefront(j, w, nb, bw, spec, door_u)
     signature(j, jid, w, d, top, spec, door_u)
+    grand(j, jid, w, d, top, spec, door_u)
     interior2(j, jid, w, d, spec, door_u, extra)
     L.M.free('lotes')
     dx, dz = F.xz(door_u, -1.5)
