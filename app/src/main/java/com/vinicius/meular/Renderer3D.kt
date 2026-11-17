@@ -775,6 +775,17 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var carPhT = 0f
     private val carPM = FloatArray(16)
     private val carPT = FloatArray(16)
+    /** giro do volante (graus) e peso das mãos no aro (sobe devagar depois de sentar) */
+    private var wheelDeg = 0f
+    private var wheelW = 0f
+    private val wheelIk = FloatArray(14)
+    /** espaço do carro -> espaço do modelo do personagem sentado (clipe 19 no fim, ancorado no banco) */
+    private fun carToModel(x: Float, y: Float, z: Float, o: Int, pt: Boolean) {
+        val ax = if (pt) TeslaCar.SEAT_X + TeslaCar.IN_HZ else 0f
+        val ay = if (pt) TeslaCar.SEAT_Y - TeslaCar.CLIP_SEAT_Y else 0f
+        val az = if (pt) TeslaCar.SEAT_Z - TeslaCar.IN_HX else 0f
+        wheelIk[o] = z - az; wheelIk[o + 1] = y - ay; wheelIk[o + 2] = -(x - ax)
+    }
     private fun carAnimOk() = tesla != null && CuteChar.ready && CuteChar.hasCar()
     /** ponto do espaço do carro (lx = +esquerda/motorista, lz = +frente) no mundo */
     private fun carW(lx: Float, lz: Float): FloatArray {
@@ -1172,6 +1183,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             val qx = x + fx * a + rx * b; val qz = z + fz * a + rz * b
             if (City.inLot(qx, qz) || ((carY < 0.9f || Relevo.on) && City.blocked(qx, qz)) || Elevado.blockedCar(qx, qz, carY)) { n++; sx += qx; sz += qz }
         }
+        if (Relevo.on && City.C6 && driving) Relevo.obstHit(x, z, fx, fz, hl - 0.05f, hw - 0.05f)?.let { p -> n++; sx += p[0]; sz += p[1] }   // árvores, postes, carros parados
         if (n > 0) { hitCX = sx / n; hitCZ = sz / n }
         return n
     }
@@ -1208,7 +1220,8 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
         if (t.pitch != 0f) Matrix.rotateM(teslaBase, 0, t.pitch, 1f, 0f, 0f)     // acelera: frente sobe (pitch < 0); freia: frente mergulha
         if (t.lean != 0f) Matrix.rotateM(teslaBase, 0, t.lean, 0f, 0f, 1f)
         val sd = if (driving) -Math.toDegrees(steerS.toDouble()).toFloat() else 0f
-        t.pose(teslaBase, sd, -sd * 3.2f)
+        wheelDeg = (-sd * 3.2f).coerceIn(-120f, 120f)
+        t.pose(teslaBase, sd, wheelDeg)
         val nodes = t.g.nodes
         for (i in nodes.indices) {
             val ms = nodes[i].mesh ?: continue
@@ -2038,7 +2051,18 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
             CuteChar.fpOn = mode == 0 && !third && CuteChar.ready
             val clip = if (carPh == 2) CuteChar.CAR_OUT else CuteChar.CAR_IN
             val tt = if (carPh == 0) CuteChar.clipSeconds(CuteChar.CAR_IN) * 0.999f else carPhT
-            val m = CuteChar.frame(clip, tt) ?: return
+            if (carPh == 0 && driving) {
+                wheelW = min(1f, wheelW + 0.016f * 2.5f)
+                carToModel(TeslaCar.WHEEL_C[0], TeslaCar.WHEEL_C[1], TeslaCar.WHEEL_C[2], 0, true)
+                carToModel(TeslaCar.WHEEL_AX[0], TeslaCar.WHEEL_AX[1], TeslaCar.WHEEL_AX[2], 3, false)
+                wheelIk[6] = Math.toRadians(wheelDeg.toDouble()).toFloat()
+                carToModel(TeslaCar.GRIP_L[0], TeslaCar.GRIP_L[1], TeslaCar.GRIP_L[2], 7, true)
+                carToModel(TeslaCar.GRIP_R[0], TeslaCar.GRIP_R[1], TeslaCar.GRIP_R[2], 10, true)
+                wheelIk[13] = wheelW * wheelW * (3f - 2f * wheelW)
+                CuteChar.wheelIK = wheelIk
+            } else { wheelW = 0f; CuteChar.wheelIK = null }
+            val m = CuteChar.frame(clip, tt) ?: run { CuteChar.wheelIK = null; return }
+            CuteChar.wheelIK = null
             carPlayerMatrix(carPM, clip, tt)
             draw(m, carPM, 1f)
             return
@@ -2385,7 +2409,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 Matrix.setLookAtM(view, 0, ex, ey, ez, tx, ty, tz, 0f, 1f, 0f)
             } else if (driving && tesla != null) {
                 // cockpit (estilo Forza): olho do motorista, olhando para onde o jogador vira a cabeça; vê painel, volante e mãos
-                val e0 = TeslaCar.SEAT_X; val e1 = 1.17f; val e2 = TeslaCar.SEAT_Z - 0.02f
+                val e0 = TeslaCar.EYE[0]; val e1 = TeslaCar.EYE[1]; val e2 = TeslaCar.EYE[2]
                 val b = teslaBase
                 ex = b[0] * e0 + b[4] * e1 + b[8] * e2 + b[12]
                 ey = b[1] * e0 + b[5] * e1 + b[9] * e2 + b[13]

@@ -183,7 +183,7 @@ def run(P, G, L, M, assets):
     solidr = [v for (cx, cz, ux, uz, hu, hv) in L.B.colliders for v in (cx, cz, ux, uz, -hu, -hv, hu, hv)]
     trees = [v for t in L.props.app_trees for v in t]
     tree_y = [round(y + DY, 2) for y in L.props.app_y]                 # altura do chao de cada planta (canteiro, calcada, gramado)
-    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'fauna': [v for f in getattr(L.props, 'fauna', []) for v in f], 'lagoa': getattr(L.props, 'lagoa', []), 'escadas': [v for f in __import__('stairs6').FL for v in f], 'solid': [], 'solidr': solidr,
+    js = {'world': [float(W), float(H)], 'roads': [], 'rounds': [], 'nodes': [], 'houses': houses, 'bld': [], 'lamp': [], 'hyd': [], 'tree': trees, 'tree_y': tree_y, 'luzes': getattr(L.props, 'luzes', []), 'postes': [v for p in getattr(L.props, 'postes', []) + getattr(G, 'bridge_lamps', []) + getattr(L, 'props_lights', []) for v in p], 'jobs': getattr(L, 'jobs', []), 'fauna': [v for f in getattr(L.props, 'fauna', []) for v in f], 'lagoa': getattr(L.props, 'lagoa', []), 'escadas': [v for f in __import__('stairs6').FL for v in f], 'solid': [], 'solidr': solidr, 'obst': [v for o_ in getattr(L.props, 'obst', []) + [(p_[0], p_[1], 0.22) for p_ in getattr(L.props, 'postes', [])] for v in o_],
           'c6': {'dy': DY, 'mats': MAT_ORDER}}
     import map6
     js['mapa'] = map6.build(P, G, L, assets)

@@ -23,7 +23,7 @@ class TeslaCar(val g: GModel) {
     /** abertura pedida por quem anima (entrar/sair do carro); as portas nunca abrem sozinhas */
     val doorWant = FloatArray(4)
     /** eixo de giro do volante (no espaço do nó) */
-    private var volAx = floatArrayOf(0f, 0.37f, 0.93f)
+    private var volAx = WHEEL_AX
     /** giro acumulado das rodas (rad) */
     var roll = 0f
     /** inclinação suavizada da carroceria (graus): cabeceio e rolagem */
@@ -100,5 +100,13 @@ class TeslaCar(val g: GModel) {
         /** clipe 20 (sair): quadril final relativo ao 1o quadro */
         const val OUT_HX = 1.59f
         const val OUT_HZ = 0.151f
+        /** volante (espaço do carro): centro do aro, eixo de giro (normal do aro, para a frente/cima) — igual ao GLB (ferramentas/tesla) */
+        val WHEEL_C = floatArrayOf(0.352f, 0.89f, 0.66f)
+        val WHEEL_AX = floatArrayOf(0f, 0.342f, 0.940f)
+        /** pulsos com o volante reto: mão na posição 9h15 do aro (raio 0,165 m), palma no aro */
+        val GRIP_L = floatArrayOf(0.534f, 0.874f, 0.602f)
+        val GRIP_R = floatArrayOf(0.183f, 0.892f, 0.599f)
+        /** olho do motorista sentado (cabeça do clipe 19 + 8 cm acima e 9 cm à frente) */
+        val EYE = floatArrayOf(0.35f, 1.255f, 0.31f)
     }
 }
