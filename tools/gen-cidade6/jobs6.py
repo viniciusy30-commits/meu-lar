@@ -774,6 +774,17 @@ def prefeitura(L, F, Lw, D):
             j.bx(a, b, c, e, Y0, Y0 + 0.75, (62, 110, 60), 'folhagem'); j.solid(a, b, c, e)
         for k in range(3):
             x2, z2 = Fb.xz(gu - 6 + k * 6, (v0 - 3) / 2); L.trees.append((x2, z2, 'palmeira', 1.5, Y0 + 0.08))
+        # canteiros de flores em losango entre as palmeiras e estatua de bronze no pedestal
+        for k in range(2):
+            bu = gu - 3 + k * 6; bv = (v0 - 3) / 2
+            j.bx(bu - 1.6, bu + 1.6, bv - 1.6, bv + 1.6, Y0 + 0.08, Y0 + 0.3, (210, 204, 190), 'pedra')
+            for q in range(5):
+                x2, z2 = Fb.xz(bu - 1.0 + q * 0.5, bv + (0.6 if q % 2 else -0.6)); L.trees.append((x2, z2, 'flores', 1.1, Y0 + 0.3))
+        su, sv = gu + s * 6.5, 6.0
+        j.bx(su - 0.9, su + 0.9, sv - 0.9, sv + 0.9, Y0 + 0.08, Y0 + 1.6, (226, 220, 206), 'pedra')
+        j.bx(su - 1.05, su + 1.05, sv - 1.05, sv + 1.05, Y0 + 1.6, Y0 + 1.75, (210, 204, 190), 'pedra')
+        j.cyl(su, sv, 0.32, Y0 + 1.75, Y0 + 3.0, (120, 96, 60), 'metal', 10); j.cyl(su, sv, 0.24, Y0 + 3.0, Y0 + 3.4, (120, 96, 60), 'metal', 10, True, 0.18)
+        j.solid(su - 1.05, su + 1.05, sv - 1.05, sv + 1.05)
         for k in range(10): x2, z2 = Fb.xz(gu - 7 + (k % 5) * 3.5, 6.0 + (k // 5) * (v0 - 14)); L.trees.append((x2, z2, 'flores', 1.0, Y0 + 0.08))
     for k in range(3):                                                  # mastros (pais, estado, cidade)
         mu = fc - 3.0 + k * 3.0
