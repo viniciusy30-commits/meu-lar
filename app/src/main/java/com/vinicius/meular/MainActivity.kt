@@ -386,13 +386,13 @@ class MainActivity : AppCompatActivity() {
         dockR.addView(dv.first)
         dockR.addView(topBtn(Ic.MAP, Tn.SUN) { abrirMapa() }.first)   // Etapa 122: mapa da cidade + GPS
         dockR.addView(topBtn(Ic.WORK, Tn.CORAL) { profissoes() }.first)   // Etapa 143: profissões
-        dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { loja(0) }.first)
+        dockR.addView(topBtn(Ic.CART, Tn.SIMS_PURPLE) { lojaHds() }.first)   // o catálogo é a loja principal
         // ciclo de dia e noite: o ícone mostra para onde o botão leva (lua = virar noite, sol = virar dia)
         val dn = topBtn(if (DayNight.isNight) Ic.SUNI else Ic.MOON, Tn.SKY) {
             DayNight.toggle()
             val vaiNoite = DayNight.phase() >= 0.5f
             dnIcon?.set(if (vaiNoite) Ic.SUNI else Ic.MOON)
-            android.widget.Toast.makeText(this, if (vaiNoite) "Anoitecendo… o dia volta sozinho em 30 min" else "Amanhecendo… a noite chega sozinha em 30 min", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, if (vaiNoite) "Anoitecendo… (o céu segue a hora do celular; toque de novo para voltar)" else "Amanhecendo… (o céu segue a hora do celular; toque de novo para voltar)", android.widget.Toast.LENGTH_SHORT).show()
         }
         dnIcon = dn.second
         dockR.addView(dn.first)
@@ -1387,6 +1387,8 @@ class MainActivity : AppCompatActivity() {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setDimAmount(0.0f)
+            addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+            statusBarColor = 0xFF1D5683.toInt(); navigationBarColor = 0xFF0E2D4C.toInt()   // tela cheia com a barra de notificação à mostra
         }
         shopDialog = d
         d.show()

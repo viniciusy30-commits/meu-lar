@@ -44,6 +44,11 @@ object CuteChar {
     const val SWIM = 12
     const val SWIM_EDGE = 13
     const val TREAD = 14
+    /** escadas (Mixamo Ascending/Descending_Stairs e as versões correndo; ferramentas/etapa_escadas_clipes.py), clipes 15 a 18 */
+    const val STAIR_UP = 15
+    const val STAIR_DOWN = 16
+    const val STAIR_RUN_UP = 17
+    const val STAIR_RUN_DOWN = 18
     /** Velocidade de reprodução do andar (Etapa 11): o clip (Walking.fbx do Mixamo) anda a 1,335 m/s; × 0,96 = 1,28 m/s no jogo, sem o pé deslizar no chão. */
     private const val WALK_RATE = 1.0f
     /** Etapa 16: o masculino do pack usa as mesmas animações do feminino. true = volta aos clipes 4-6 (etapa 14). */
@@ -934,6 +939,7 @@ object CuteChar {
     /** Etapa 86: o corpo atual tem o clipe de interagir? */
     fun hasInteract(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 9
     /** Etapa 88: o corpo atual tem os clipes de agachar? */
+    fun hasStairs(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 19
     fun hasCrouch(): Boolean = loaded && simGrp.isNotEmpty() && clipSet.data.size >= 11
 
     /** Etapa 118: o corpo atual tem os clipes de piscina (só os corpos do Sims 4)? */

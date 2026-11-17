@@ -145,13 +145,16 @@ def run(P, G, L, M, assets):
         if m == 'madeira': up &= T[:, :, 1].max(1) < 0.75                     # tampos de mesa/balcao de madeira nao viram chao
         if m != 'concreto': up &= T[:, :, 2].mean(1) < 1718.5          # na praia so pisos de concreto (escadas, molhes): nada de subir em barraca, pedra ou castelo
         if up.any(): wt.append(T[up][:, :, :3])
+    ex = getattr(L.props, 'walk_extra', [])                            # pisos altos de verdade (ponte da lagoa...)
+    if ex: wt.append(np.array(ex, np.float64))
     wt = np.concatenate(wt).astype(np.float64)
-    wnx, wnz = int(W / 2.0) + 3, int(H / 2.0) + 3
-    Wk = walk_raster(wt, wnx, wnz)
+    WS = 1.0                                                           # grade de 1 m: degraus, guias e pontes sem afundar
+    wnx, wnz = int(W / WS) + 3, int(H / WS) + 3
+    Wk = walk_raster(wt, wnx, wnz, WS)
     # seguranca: o terreno nunca fica acima do chao andavel vizinho (gramados/ruas perto do pe dos morros)
     from scipy.ndimage import minimum_filter
     big = np.where(Wk < -1e8, 1e9, Wk + DY)
-    mn = minimum_filter(big, size=9)[::4, ::4]                       # menor chao andavel num raio de ~8 m, na grade de 8 m
+    mn = minimum_filter(big, size=17)[::8, ::8]                      # menor chao andavel num raio de ~8 m, na grade de 8 m
     mn = np.pad(mn, ((0, max(0, nz - mn.shape[0])), (0, max(0, nx - mn.shape[1]))), constant_values=1e9)[:nz, :nx]
     fix = (mn < 1e8) & (Hh > mn - 0.25)
     Hh = np.where(fix, mn - 0.25, Hh)
@@ -160,7 +163,7 @@ def run(P, G, L, M, assets):
         f.write(struct.pack('<iif', nx, nz, G8)); f.write(np.clip(np.round(Hh * 100.0), -32000, 32000).astype('<i2').tobytes())
     cmw = np.where(Wk < -1e8, -32768, np.clip(np.round((Wk + DY) * 100.0), -32000, 32000)).astype('<i2')
     with open(os.path.join(assets, 'c6_walk.bin'), 'wb') as f:
-        f.write(struct.pack('<iif', wnx, wnz, 2.0)); f.write(cmw.tobytes())
+        f.write(struct.pack('<iif', wnx, wnz, WS)); f.write(cmw.tobytes())
     print(f'  chao andavel: {len(wt)} triangulos, {int((Wk > -1e8).sum())} pontos')
     # ---- segundo andar: tabuleiros do pier e da marina (o jogo usa quando os pes estao perto da altura deles)
     pt = [T for m, T in _tris(M, ('pier',)).items()]

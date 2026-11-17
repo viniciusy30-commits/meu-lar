@@ -19,11 +19,17 @@ object DayNight {
     private var lastT = 0L
 
     /** fase do ciclo 0..1: 0..0.5 dia, 0.5..1 noite */
+    /** hora real do celular: dia das 6h às 18h30 (fase 0..0,5), noite das 18h30 às 6h (0,5..1); o botão soma um desvio */
     fun phase(): Float {
-        val s = (System.nanoTime() - base) / 1e9f
-        val p = phase0 + s / CYCLE
+        val c = java.util.Calendar.getInstance()
+        val h = c.get(java.util.Calendar.HOUR_OF_DAY) + c.get(java.util.Calendar.MINUTE) / 60f + c.get(java.util.Calendar.SECOND) / 3600f
+        val rise = 6f; val set = 18.5f
+        val real = if (h >= rise && h < set) (h - rise) / (set - rise) * 0.5f
+                   else 0.5f + ((if (h >= set) h - set else h + 24f - set) / (24f - set + rise)) * 0.5f
+        val p = real + ofs
         return p - kotlin.math.floor(p)
     }
+    private var ofs = 0f
 
     private fun smooth(a: Float, b: Float, x: Float): Float { val t = ((x - a) / (b - a)).coerceIn(0f, 1f); return t * t * (3f - 2f * t) }
 
@@ -54,14 +60,15 @@ object DayNight {
     /** botão: troca entre dia e noite (pula a fase; a luz acompanha em poucos segundos) */
     fun toggle() {
         val goNight = !isNight
-        val p = if (goNight) 0.5f + EDGE + 0.01f else EDGE + 0.01f
-        phase0 = p; base = System.nanoTime()
+        val want = if (goNight) 0.5f + EDGE + 0.01f else EDGE + 0.01f
+        ofs = 0f; ofs = want - phase()
     }
 
     /** minutos que faltam para a próxima troca (para mostrar no botão) */
     fun minutesLeft(): Int {
         val p = phase()
         val next = if (p < 0.5f) 0.5f else 1f
-        return ((next - p) * CYCLE / 60f).toInt() + 1
+        val span = if (p < 0.5f) 12.5f else 11.5f            // horas de dia / de noite
+        return ((next - p) * 2f * span * 60f).toInt() + 1
     }
 }
