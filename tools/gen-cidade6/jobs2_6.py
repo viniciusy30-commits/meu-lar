@@ -25,7 +25,7 @@ SPEC = {
     'atendente':  ('LANCHONETE DO ZE', 'loja', 2, 18, 16, 'ceramica', (250, 240, 214), (200, 50, 40)),
     'diarista':   ('BRILHO LIMPEZA', 'loja', 2, 16, 16, 'ceramica', (226, 240, 246), (40, 150, 190)),
     'frentista':  ('POSTO ROTA SUL', 'loja', 1, 22, 18, 'ceramica', (240, 242, 244), (30, 100, 180)),
-    'medico':     ('HOSPITAL SANTA CLARA', 'inst', 5, 40, 28, 'ceramica', (244, 246, 248), (200, 40, 50)),
+    'medico':     ('HOSPITAL SANTA CLARA', 'inst', 6, 58, 32, 'ceramica', (244, 246, 248), (200, 40, 50)),
     'entregador': ('EXPRESSO JA', 'tijolo', 2, 24, 20, 'concreto', (176, 96, 70), (240, 140, 40)),
     'lixeiro':    ('CENTRAL DE COLETA', 'tijolo', 2, 30, 22, 'concreto', (150, 96, 74), (70, 150, 70)),
     'mecanico':   ('OFICINA DO TONINHO', 'tijolo', 1, 26, 20, 'concreto', (160, 92, 70), (230, 170, 30)),
@@ -196,7 +196,8 @@ def storefront(j, w, nb, bw, spec, door_u):
     j.bx(door_u - 2.0, door_u + 2.0, -1.9, 0.0, Y0 + 3.0, Y0 + 3.18, (54, 58, 64), 'metal')
     j.M.m('liso'); j.M.poly([j.F.p(door_u - 1.8, -1.75, Y0 + 2.99), j.F.p(door_u + 1.8, -1.75, Y0 + 2.99), j.F.p(door_u + 1.8, -0.2, Y0 + 2.99), j.F.p(door_u - 1.8, -0.2, Y0 + 2.99)], GLOW, (0, -1, 0))
     for s_ in (-1, 1):
-        j.bx(door_u + s_ * 1.4 - 0.4, door_u + s_ * 1.4 + 0.4, -0.06, -0.03, Y0, Y0 + 2.8, (170, 200, 214), 'vidro')       # folhas abertas
+        j.bx(door_u + s_ * 0.55 - 0.55, door_u + s_ * 0.55 + 0.55, -0.06, -0.03, Y0, Y0 + 2.8, (150, 186, 204), 'vidro')     # porta de vidro fechada (sem interior)
+        j.bx(door_u + s_ * 0.12 - 0.03, door_u + s_ * 0.12 + 0.03, -0.1, -0.06, Y0 + 0.9, Y0 + 1.5, (200, 200, 206), 'metal')   # puxador
         j.bx(door_u + s_ * 2.0 - 0.06, door_u + s_ * 2.0 + 0.06, -2.0, -1.88, Y0 + 0.05, Y0 + 3.0, (54, 58, 64), 'metal')
     j.bx(door_u - 1.2, door_u + 1.2, -1.2, 0.2, Y0 - 0.03, Y0 - 0.005, (120, 116, 110), 'liso')                         # capacho
     # arandelas entre os vaos
@@ -298,8 +299,10 @@ def signature(j, jid, w, d, top, spec, door_u):
 
 # ---------------------------------------------------------------- interiores planejados
 def interior2(j, jid, w, d, spec, door_u, garage_doors=()):
-    import interiors6
-    interiors6.build(j, jid, w, d, spec, door_u, garage_doors)
+    """sem interior mobiliado: o predio e fechado (vidro escurecido com cortinas por dentro), a porta e o ponto de
+    trabalho na calcada (o jogo mostra o marcador e o botao TRABALHAR)"""
+    j.bx(0.3, w - 0.3, 0.3, 0.42, Y0, Y0 + 3.4, (70, 78, 88), 'liso')                     # fundo atras das vitrines
+    j.solid(door_u - 1.2, door_u + 1.2, -0.1, 0.5)
 
 
 # ---------------------------------------------------------------- montagem

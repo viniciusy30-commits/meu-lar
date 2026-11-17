@@ -1132,6 +1132,7 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
     private var routeMesh: Mesh? = null
     private var routeVer = -1
     private var beaconMesh: Mesh? = null
+    private var workMesh: Mesh? = null
 
     /** Jogador entrou/saiu de uma construção: paredes de cima, telhado e placas dela deixam de ser desenhados. */
     private fun setInside(b: City.Bld?) {
@@ -1335,6 +1336,24 @@ class Renderer3D(private val st: GameState) : GLSurfaceView.Renderer {
                 }
                 b.al = 1f
                 routeMesh = b.toMesh(true)
+            }
+        }
+        // ponto de trabalho: círculo dourado pulsando no chão da porta e coluna de luz suave
+        if (Jobs.markOn) {
+            if (workMesh == null) {
+                val b = MB(); b.m(Mt.GLASS)
+                b.al = 0.55f; b.cyl(0f, 0f, 0f, 1.6f, 1.6f, 0.04f, C("#FFC94D"), false, 32)
+                b.al = 0.9f; b.cyl(0f, 0.045f, 0f, 1.25f, 1.25f, 0.02f, C("#FFFFFF"), false, 32)
+                b.al = 0.16f; b.cyl(0f, 0f, 0f, 1.2f, 0.6f, 3.2f, C("#FFE08A"), false, 20)
+                b.al = 1f
+                workMesh = b.toMesh(true)
+            }
+            workMesh?.let {
+                val sc = 1f + 0.08f * kotlin.math.sin(System.nanoTime() / 1.6e8).toFloat()
+                Matrix.setIdentityM(mdl, 0)
+                Matrix.translateM(mdl, 0, Jobs.markX, groundH(Jobs.markX, Jobs.markZ) + 0.03f, Jobs.markZ)
+                Matrix.scaleM(mdl, 0, sc, 1f, sc)
+                draw(it, mdl, 1f, true)
             }
         }
         if (Gps.active) {
