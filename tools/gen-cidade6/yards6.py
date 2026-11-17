@@ -146,13 +146,24 @@ def build(L, jid, x0, z0, x1, z1):
         M.m('metal'); M.cyl(x0 + 2.5, z0 + 3, 0.7, Y + 0.6, Y + 1.0, (200, 30, 28), 12)
     elif jid == 'policial':
         _floor(L, x0, z0, x1, z1, 'asfalto', (70, 70, 74))
-        _stalls(L, x0 + 3, z0 + 2, x1 - 3, z0 + 7, True, 2.8); _stalls(L, x0 + 3, z1 - 7, x1 - 3, z1 - 2, True, 2.8)
-        q = x0 + 4.4
-        while q < x1 - 3:
-            _car(L, q, z0 + 4.5, (240, 240, 244) if r.random() < 0.7 else (30, 40, 70), False, (40, 90, 220))
-            if r.random() < 0.6: _car(L, q, z1 - 4.5, (240, 240, 244), False, (40, 90, 220))
-            q += 2.8 * 2
-        for k in range(int((w - 8) / 2.2)):                                   # barreiras de transito
+        if ax:
+            _stalls(L, x0 + 3, z0 + 2, x1 - 3, z0 + 7, True, 2.8); _stalls(L, x0 + 3, z1 - 7, x1 - 3, z1 - 2, True, 2.8)
+            q = x0 + 4.4
+            while q < x1 - 3:
+                _car(L, q, z0 + 4.5, (240, 240, 244) if r.random() < 0.7 else (30, 40, 70), False, (40, 90, 220))
+                if r.random() < 0.75: _car(L, q, z1 - 4.5, (240, 240, 244), False, (40, 90, 220))
+                q += 2.8 * 2
+        else:
+            _stalls(L, x0 + 2, z0 + 3, x0 + 7, z1 - 3, False, 2.8); _stalls(L, x1 - 7, z0 + 3, x1 - 2, z1 - 3, False, 2.8)
+            q = z0 + 4.4
+            while q < z1 - 3:
+                _car(L, x0 + 4.5, q, (240, 240, 244) if r.random() < 0.7 else (30, 40, 70), True, (40, 90, 220))
+                if r.random() < 0.75: _car(L, x1 - 4.5, q, (240, 240, 244), True, (40, 90, 220))
+                q += 2.8 * 2
+            # guarita e canil no meio do patio
+            M.m('concreto'); M.box(cx - 1.5, cx + 1.5, Y, Y + 2.6, cz - 1.5, cz + 1.5, (220, 222, 226)); M.m('liso'); M.box(cx - 1.7, cx + 1.7, Y + 2.6, Y + 2.8, cz - 1.7, cz + 1.7, (30, 60, 140))
+            L.B.solid(Frame((cx, cz), (1, 0)), -1.5, 1.5, -1.5, 1.5)
+        for k in range(int((w - 8) / 2.2) if ax else 0):                       # barreiras de transito
             bxx = x0 + 4 + k * 2.2; M.m('liso'); M.box(bxx - 0.9, bxx + 0.9, Y + 0.5, Y + 0.8, cz - 0.1, cz + 0.1, (240, 240, 240) if k % 2 else (220, 40, 40))
             M.box(bxx - 0.85, bxx - 0.75, Y, Y + 0.5, cz - 0.3, cz + 0.3, (60, 60, 64)); M.box(bxx + 0.75, bxx + 0.85, Y, Y + 0.5, cz - 0.3, cz + 0.3, (60, 60, 64))
     elif jid == 'lixeiro':

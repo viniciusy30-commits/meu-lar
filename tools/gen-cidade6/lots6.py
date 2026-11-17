@@ -89,6 +89,7 @@ class Lots:
             if blk['zone'] != 'centro' or bi in self.special: continue
             x0, z0, x1, z1 = blk['poly'].bounds
             if z1 > 1640 or x1 - x0 < 60 or z1 - z0 < 60: continue
+            if blk['poly'].area < 0.95 * (x1 - x0) * (z1 - z0): continue      # so quadras retangulares (o campus ocupa a quadra toda)
             cand.append((bi, (x0 + x1) / 2, (z0 + z1) / 2, (x0, z0, x1, z1)))
         self.jobblk = {}
         chosen = []
