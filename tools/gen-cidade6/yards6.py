@@ -73,9 +73,47 @@ def _lamps(L, x0, z0, x1, z1):
     for (px, pz) in ((x0 + 1.0, z0 + 1.0), (x1 - 1.0, z1 - 1.0), (x0 + 1.0, z1 - 1.0), (x1 - 1.0, z0 + 1.0)): L.plights.append((px, pz, Y))
 
 
+def staff_area(L, x0, z0, x1, z1):
+    """area de convivencia dos funcionarios: gramado com arvores em grade, mesas com bancos, cobertura de
+    estacionamento com placas solares e bicicletario"""
+    r = L.rnd; M = L.M; w, d = x1 - x0, z1 - z0
+    _floor(L, x0, z0, x1, z1, 'paver', (228, 222, 210))
+    M.m('grama'); M.prism([(x0 + 1.5, z0 + 1.5), (x1 - 1.5, z0 + 1.5), (x1 - 1.5, z1 - 1.5), (x0 + 1.5, z1 - 1.5)], Y, Y + 0.04, (110, 160, 80))
+    gx = x0 + 4.5
+    while gx < x1 - 3.5:
+        gz = z0 + 4.5
+        while gz < z1 - 3.5:
+            k = int((gx - x0) / 7) + int((gz - z0) / 7)
+            if k % 3 == 0: L.trees.append((gx, gz, r.choice(('folhosa', 'oval', 'florida')), r.uniform(0.9, 1.15), Y + 0.04))
+            elif k % 3 == 1:                                                  # mesa com bancos
+                M.m('madeira'); M.box(gx - 0.9, gx + 0.9, Y + 0.72, Y + 0.77, gz - 0.4, gz + 0.4, (164, 118, 74))
+                for s_ in (-1, 1): M.box(gx - 0.9, gx + 0.9, Y + 0.42, Y + 0.46, gz + s_ * 0.72 - 0.15, gz + s_ * 0.72 + 0.15, (164, 118, 74))
+                for u_ in (-0.7, 0.7): M.box(gx + u_ - 0.05, gx + u_ + 0.05, Y + 0.04, Y + 0.72, gz - 0.75, gz + 0.75, (128, 90, 56))
+                L.B.solid(Frame((gx, gz), (1, 0)), -0.95, 0.95, -0.9, 0.9)
+            else:
+                L.plights.append((gx, gz, Y + 0.04)) if (int(gx) + int(gz)) % 2 == 0 else L.benches.append((gx, gz, 0, 1, Y + 0.04))
+            gz += 7.0
+        gx += 7.0
+    # cobertura com placas solares ao longo de um lado
+    if w > 14:
+        cz0 = z1 - 6.5; M.m('metal')
+        q = x0 + 2.0
+        while q <= x1 - 2.0: M.cyl(q, cz0 + 0.4, 0.1, Y, Y + 2.8, (180, 184, 190), 8); M.cyl(q, z1 - 0.8, 0.1, Y, Y + 2.6, (180, 184, 190), 8); q += 5.0
+        M.prism([(x0 + 1.6, cz0), (x1 - 1.6, cz0), (x1 - 1.6, z1 - 0.4), (x0 + 1.6, z1 - 0.4)], Y + 2.6, Y + 2.8, (60, 70, 100))
+        M.m('vidro'); q = x0 + 2.0
+        while q < x1 - 3.0: M.box(q, q + 1.7, Y + 2.81, Y + 2.84, cz0 + 0.3, z1 - 0.7, (40, 60, 110)); q += 1.8
+
+
 def build(L, jid, x0, z0, x1, z1):
     r = L.rnd; M = L.M
     L.pocc.append(sbox(x0, z0, x1, z1))
+    w0, d0 = x1 - x0, z1 - z0
+    if w0 * d0 > 1300 and max(w0, d0) > 36:
+        # patio grande: metade com a funcao da profissao, metade com a area dos funcionarios (nada de chao vazio)
+        if w0 >= d0:
+            xm = x0 + w0 * 0.55; M.at((xm + x1) / 2, (z0 + z1) / 2, 'lotes'); staff_area(L, xm + 0.1, z0, x1, z1); x1 = xm
+        else:
+            zm = z0 + d0 * 0.55; M.at((x0 + x1) / 2, (zm + z1) / 2, 'lotes'); staff_area(L, x0, zm + 0.1, x1, z1); z1 = zm
     w, d = x1 - x0, z1 - z0; cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
     M.at(cx, cz, 'lotes')
     if w < 14 or d < 14:
@@ -166,6 +204,13 @@ def build(L, jid, x0, z0, x1, z1):
     else:   # juiz, advogado, secretario, programador, empresario, atendente: jardim executivo
         _floor(L, x0, z0, x1, z1, 'paver', (224, 216, 204))
         M.m('grama'); M.prism([(x0 + 3, z0 + 3), (x1 - 3, z0 + 3), (x1 - 3, z1 - 3), (x0 + 3, z1 - 3)], Y, Y + 0.04, (110, 160, 80))
+        M.m('paver')                                                            # caminhos em cruz
+        M.prism([(x0 + 3, cz - 1.2), (x1 - 3, cz - 1.2), (x1 - 3, cz + 1.2), (x0 + 3, cz + 1.2)], Y, Y + 0.07, (230, 222, 206))
+        M.prism([(cx - 1.2, z0 + 3), (cx + 1.2, z0 + 3), (cx + 1.2, z1 - 3), (cx - 1.2, z1 - 3)], Y, Y + 0.07, (230, 222, 206))
+        for (qx, qz) in ((x0 + (cx - x0) / 2, z0 + (cz - z0) / 2), (cx + (x1 - cx) / 2, z0 + (cz - z0) / 2), (x0 + (cx - x0) / 2, cz + (z1 - cz) / 2), (cx + (x1 - cx) / 2, cz + (z1 - cz) / 2)):
+            M.m('pedra'); M.cyl(qx, qz, 2.2, Y, Y + 0.4, (210, 204, 192), 16)
+            for q in range(8): a = q * math.pi / 4; L.trees.append((qx + math.cos(a) * 1.5, qz + math.sin(a) * 1.5, 'flores', 1.1, Y + 0.4))
+            L.trees.append((qx, qz, 'ornamental', 0.9, Y + 0.4))
         # espelho d'agua com repuxos, escultura e bancos de pedra
         M.m('pedra'); M.prism([(cx - 5, cz - 1.6), (cx + 5, cz - 1.6), (cx + 5, cz + 1.6), (cx - 5, cz + 1.6)], Y, Y + 0.5, (210, 204, 192))
         M.m('agua'); M.prism([(cx - 4.7, cz - 1.3), (cx + 4.7, cz - 1.3), (cx + 4.7, cz + 1.3), (cx - 4.7, cz + 1.3)], Y + 0.5, Y + 0.45, (120, 180, 200))
