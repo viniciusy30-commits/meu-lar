@@ -469,13 +469,17 @@ class Lots:
             if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
 
     # ------------------------------------------------------------ patios internos (miolo das quadras)
+    def job_yard(self, jid, x0, z0, x1, z1):
+        import yards6
+        yards6.build(self, jid, x0, z0, x1, z1)
+
     def courtyard(self, x0, z0, x1, z1):
         """patio interno de verdade, cada um com um uso: terraco de cafe, jardim com pergolado, patio da escultura,
         descanso com redario e mesas de jogos. Sempre com postes, bancos, lixeiras e painel de cartazes."""
-        r = self.rnd; M = self.M; y = Y_WALK
+        r = self.rnd; M = self.M; y = Y_WALK + 0.06                          # piso do patio 6 cm acima do piso da quadra (sem piscar)
         self.pocc.append(sbox(x0, z0, x1, z1))
         w, d = x1 - x0, z1 - z0; cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
-        M.at(cx, cz, 'lotes'); M.free('lotes'); M.m('paver'); M.shp(sbox(x0, z0, x1, z1), y + 0.02, (226, 220, 210))
+        M.at(cx, cz, 'lotes'); M.free('lotes'); M.m('paver'); M.prism([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], Y_WALK - 0.05, y, (226, 220, 210))
         if w < 12 or d < 12: self.planter(x0 + 1, z0 + 1, x1 - 1, z1 - 1); return
         kind = r.choice(('cafe', 'jardim', 'escultura', 'descanso'))
         G = (242, 240, 236)
@@ -686,6 +690,12 @@ class Lots:
             for sd in pair:
                 s_c = {'N': xc - minx, 'S': maxx - xc, 'W': maxz - zc, 'E': zc - minz}[sd]
                 gaps[sd] = (s_c - 3.6, s_c + 3.6)
+        if job and ix1_ - ix0_ > 12 and iz1_ - iz0_ > 12:
+            # patio do predio da profissao ligado a rua: entrada no lado oposto ao predio
+            opp = {'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'}[job[1]]
+            xc, zc = (ix0_ + ix1_) / 2, (iz0_ + iz1_) / 2
+            s_c = {'N': xc - minx, 'S': maxx - xc, 'W': maxz - zc, 'E': zc - minz}[opp]
+            gaps = {opp: (s_c - 3.8, s_c + 3.8)}
         for side in ('N', 'E', 'S', 'W'):
             Lside = w if side in ('N', 'S') else d
             nxt = {'N': 'E', 'E': 'S', 'S': 'W', 'W': 'N'}[side]
@@ -727,6 +737,11 @@ class Lots:
         ix0, iz0, ix1, iz1 = minx + depths['W'] + 1.5, minz + depths['N'] + 1.5, maxx - depths['E'] - 1.5, maxz - depths['S'] - 1.5
         if garage: iz1 -= 12
         if ix1 - ix0 > 10 and iz1 - iz0 > 10:
+            if job and gaps:
+                for sd, (g0, g1) in gaps.items():
+                    self.access(self.frame(sd, minx, maxx, minz, maxz, g0), 0.0, g1 - g0, depths[sd] + 1.6)
+                self.job_yard(job[0], ix0, iz0, ix1, iz1)
+                return
             if opt < 0.4 and not gaps: opt = 0.5                     # sem abertura no perimetro nao ha estacionamento
             if opt < 0.4:
                 for sd, (g0, g1) in gaps.items():

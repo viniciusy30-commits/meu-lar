@@ -579,19 +579,21 @@ def stairs(M, pr, x, y):
     """abertura na mureta: escadaria de concreto do calcadao ate a areia (degraus de 17 cm), muretas laterais com
     corrimao e chuveiro ao lado"""
     M.at(x, ZW, 'orla'); M.m('concreto')
-    k = 0; ys = y
+    import stairs6
+    k = 0; ys = y; RR, RN = stairs6.R, stairs6.RUN
     while True:
-        top = y - 0.17 * (k + 1); z0 = ZW - 0.3 + 0.32 * k
-        if top < sand_y(x, z0 + 0.32) - 0.02: break
-        M.box(x - 3.0, x + 3.0, -2.2, top, z0, z0 + 0.32, (226, 222, 212)); k += 1
-    zE = ZW - 0.3 + 0.32 * k
+        top = y - RR * (k + 1); z0 = ZW - 0.3 + RN * k
+        if top < sand_y(x, z0 + RN) - 0.02: break
+        M.box(x - 3.0, x + 3.0, -2.2, top, z0, z0 + RN, (226, 222, 212)); k += 1
+    zE = ZW - 0.3 + RN * k
+    if k > 0: stairs6.add(x, zE, 0.0, -1.0, 5.6, k, RR, RN, y - RR * k)
     for s_ in (-1, 1):
         M.prism([(x + s_ * 3.0 - 0.2, ZW - 0.3), (x + s_ * 3.0 + 0.2, ZW - 0.3), (x + s_ * 3.0 + 0.2, zE), (x + s_ * 3.0 - 0.2, zE)], -2.2, y + 0.6, (236, 232, 222))
     M.m('metal')
     for s_ in (-1, 1):
-        hx = x + s_ * 2.7; yt0, yt1 = y + 0.9, y - 0.17 * k + 0.9
+        hx = x + s_ * 2.7; yt0, yt1 = y + 0.9, y - RR * k + 0.9
         M.quad((hx - 0.04, yt0, ZW - 0.2), (hx + 0.04, yt0, ZW - 0.2), (hx + 0.04, yt1, zE), (hx - 0.04, yt1, zE), (200, 204, 208), (0, 1, 0))
-        for (zz, yy) in ((ZW - 0.2, y), (zE - 0.2, y - 0.17 * k)): M.box(hx - 0.04, hx + 0.04, yy, yy + 0.92, zz - 0.04, zz + 0.04, (200, 204, 208))
+        for (zz, yy) in ((ZW - 0.2, y), (zE - 0.2, y - RR * k)): M.box(hx - 0.04, hx + 0.04, yy, yy + 0.92, zz - 0.04, zz + 0.04, (200, 204, 208))
     sx = x + 4.2; sz_ = zE + 1.0                                       # chuveiro (na areia, ao pe da escada)
     M.cyl(sx, sz_, 0.05, sand_y(sx, sz_), sand_y(sx, sz_) + 2.3, (200, 204, 208), 5, False)
     M.box(sx - 0.05, sx + 0.05, sand_y(sx, sz_) + 2.25, sand_y(sx, sz_) + 2.35, sz_, sz_ + 0.5, (200, 204, 208)); M.cyl(sx, sz_ + 0.5, 0.12, sand_y(sx, sz_) + 2.15, sand_y(sx, sz_) + 2.25, (220, 224, 228), 6)
