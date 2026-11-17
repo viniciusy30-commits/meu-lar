@@ -89,6 +89,7 @@ class Lots:
             if blk['zone'] != 'centro' or bi in self.special: continue
             x0, z0, x1, z1 = blk['poly'].bounds
             if z1 > 1640 or x1 - x0 < 60 or z1 - z0 < 60: continue
+            if blk['poly'].area < 0.95 * (x1 - x0) * (z1 - z0): continue      # so quadras retangulares (o campus ocupa a quadra toda)
             cand.append((bi, (x0 + x1) / 2, (z0 + z1) / 2, (x0, z0, x1, z1)))
         self.jobblk = {}
         chosen = []
@@ -102,7 +103,7 @@ class Lots:
             c = max(cand, key=score); cand.remove(c)
             bi, cx, cz, (x0, z0, x1, z1) = c
             jid = ids.pop(0)
-            need = jobs2_6.width(jid) + 4
+            need = 50.0                                     # o campus usa a quadra inteira
             sides = []
             for sd, mid, Ls in (('N', ((x0 + x1) / 2, z0 - 6), x1 - x0), ('S', ((x0 + x1) / 2, z1 + 6), x1 - x0), ('W', (x0 - 6, (z0 + z1) / 2), z1 - z0), ('E', (x1 + 6, (z0 + z1) / 2), z1 - z0)):
                 if Ls < need + 30: continue
@@ -250,37 +251,7 @@ class Lots:
             self.pocc.append(Polygon(F.rect(0, L, 0, D)))
             return
         if nm == 'hospital':
-            # complexo hospitalar ocupando a quadra inteira: predio principal de frente para a rua, praca de entrada,
-            # jardim com bancos dos dois lados e estacionamento de visitantes nos fundos (acessivel pelas ruas laterais)
-            import jobs2_6
-            self.lawn(poly)
-            ww = jobs2_6.width('medico'); dd = jobs2_6.depth('medico'); off = (L - ww) / 2
-            Fh = self.frame(side, minx, maxx, minz, maxz, off)
-            M = self.M; M.free('lotes')
-            M.m('paver'); M.prism(F.rect(0, L, 0, 7.0), Y_LAWN, Y_WALK + 0.02, (226, 222, 214))                # calcada larga da frente
-            M.m('paver'); M.prism(F.rect(off - 8, off + ww + 8, 7.0, dd + 6), Y_LAWN, Y_WALK + 0.02, (232, 228, 220))   # praca em volta
-            jobs2_6.place(self, Fh, 'medico')
-            self.pocc.append(Polygon(Fh.rect(-8, ww + 8, -1, dd + 6)))
-            # jardins laterais com arvores e bancos
-            for (a, b) in ((0, off - 8), (off + ww + 8, L)):
-                if b - a < 6: continue
-                for k in range(int((b - a) / 7)):
-                    x, z = F.xz(a + 3.5 + k * 7, 14 + (k % 2) * 6)
-                    self.trees.append((x, z, 'folhosa', r.uniform(0.9, 1.2), Y_LAWN))
-                x, z = F.xz((a + b) / 2, 10.0); self.benches.append((x, z, -F.vx, -F.vz, Y_LAWN))
-            # estacionamento dos fundos
-            v0 = dd + 10; v1 = D - 4
-            if v1 - v0 > 12:
-                M.m('asfalto'); M.prism(F.rect(4, L - 4, v0, v1), Y_LAWN, Y_WALK + 0.01, (80, 80, 84))
-                M.m('liso')
-                for row in (v0 + 2.8, v1 - 2.8):
-                    u = 7.0
-                    while u < L - 7:
-                        M.prism(F.rect(u - 0.06, u + 0.06, row - 2.5, row + 2.5), Y_WALK + 0.01, Y_WALK + 0.022, (240, 240, 240))
-                        if r.random() < 0.6:
-                            x, z = F.xz(u + 1.3, row); self.park_car(x, z, F.vx, F.vz, Y_WALK + 0.01)
-                        u += 2.6
-            return
+            self.campus(bi, blk, 'medico', side); return
         if nm.startswith('escola'):
             self.lawn(poly); import grand6; grand6.school(B, F, L, D, self.park_car)
             self.access(F, 0.6, 5.6, min(D - 6, 52.0), Y_LAWN + 0.07)          # acesso ao estacionamento dos fundos, pela lateral
@@ -469,6 +440,54 @@ class Lots:
             if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
 
     # ------------------------------------------------------------ patios internos (miolo das quadras)
+    # ------------------------------------------------------------ campus das profissoes (quadra inteira)
+    CAMPUS_FLOORS = {'medico': 8, 'professor': 4, 'policial': 5, 'bombeiro': 4, 'juiz': 5, 'enfermeiro': 6, 'repositor': 2,
+                     'empresario': 28, 'programador': 16, 'engenheiro': 12, 'secretario': 14, 'advogado': 10}
+
+    def campus(self, bi, blk, jid, side):
+        """a profissao ocupa a quadra inteira: predio principal em toda a frente, duas alas laterais formando um U,
+        e o patio tematico no meio (ligado a rua de tras por uma entrada de carros)"""
+        import jobs2_6
+        poly = blk['poly']; minx, minz, maxx, maxz = poly.bounds
+        for _ in range(20):
+            if sbox(minx, minz, maxx, maxz).buffer(-0.5).within(poly): break
+            minx += 1.5; minz += 1.5; maxx -= 1.5; maxz -= 1.5
+        L = (maxx - minx) if side in ('N', 'S') else (maxz - minz); D = (maxz - minz) if side in ('N', 'S') else (maxx - minx)
+        self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
+        spec = jobs2_6.SPEC[jid]
+        mw = min(L - 4.0, 104.0); md = max(22.0, min(34.0, D * 0.36)); off = (L - mw) / 2
+        F = self.frame(side, minx, maxx, minz, maxz, off)
+        jobs2_6.place(self, F, jid, mw, md, self.CAMPUS_FLOORS.get(jid, max(3, spec[2])))
+        self.M.free('lotes')
+        Ff = self.frame(side, minx, maxx, minz, maxz, 0.0)
+        self.pocc.append(Polygon(Ff.rect(off - 1, off + mw + 1, -1, md + 1)))
+        # alas laterais (U): mesmo acabamento, menos andares, janelas nas duas faces longas
+        wall, acc = spec[6], spec[7]
+        wf = max(2, min(5, self.CAMPUS_FLOORS.get(jid, spec[2]) // 2)); hh = 3.4 * wf + 1.2
+        ww = min(16.0, L * 0.18); v0, v1 = md + 2.0, D - 2.0
+        if v1 - v0 > 12:
+            for (u0, u1) in ((2.0, 2.0 + ww), (L - 2.0 - ww, L - 2.0)):
+                self.M.at(*Ff.xz((u0 + u1) / 2, (v0 + v1) / 2), 'lotes')
+                self.B.box(Ff, u0, u1, v0, v1, Y_WALK, Y_WALK + hh, wall, 'reboco' if spec[1] != 'tijolo' else 'tijolo', top=False)
+                self.B.flat_roof(Ff, u0, u1, v0, v1, Y_WALK + hh, 0.8, shade(wall, -8), True)
+                for f in range(wf):
+                    y = Y_WALK + 1.0 + f * 3.4
+                    q = v0 + 1.6
+                    while q < v1 - 1.2:
+                        for (uu, sd) in ((u0, -1), (u1, 1)): self.B.window(Ff, uu, q, y, 1.6, 1.8, sd, None, 'u')
+                        q += 3.2
+                    self.B.panel_u(Ff, v0, v1, u0, y - 0.5, y - 0.3, acc, 'liso', -1, 0.04); self.B.panel_u(Ff, v0, v1, u1, y - 0.5, y - 0.3, acc, 'liso', 1, 0.04)
+                self.B.solid(Ff, u0, u1, v0, v1)
+                self.M.free('lotes')
+            self.pocc.append(Polygon(Ff.rect(2.0, L - 2.0, v0, v1)))
+            # patio tematico entre as alas + entrada de carros pela rua de tras
+            ya0, ya1 = 2.0 + ww + 1.5, L - 2.0 - ww - 1.5
+            a = Ff.xz(ya0, v0 + 0.5); b = Ff.xz(ya1, v1 - 2.5)
+            x0, x1 = sorted((a[0], b[0])); z0, z1 = sorted((a[1], b[1]))
+            Fb = self.frame({'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'}[side], minx, maxx, minz, maxz, 0.0)
+            self.access(self.frame({'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'}[side], minx, maxx, minz, maxz, L / 2 - 3.8), 0.0, 7.6, 3.0)
+            if x1 - x0 > 14 and z1 - z0 > 14: self.job_yard(jid, x0, z0, x1, z1)
+
     def job_yard(self, jid, x0, z0, x1, z1):
         import yards6
         yards6.build(self, jid, x0, z0, x1, z1)
@@ -1086,10 +1105,11 @@ class Lots:
         self.plights = []
         for bi, blk in enumerate(self.P.blocks):
             z = blk['zone']; self.pocc = []; c0 = len(self.B.colliders)
-            if self.special.get(bi, ('',))[0] == 'hospital': pass
+            if self.special.get(bi, ('',))[0] == 'hospital' or bi in getattr(self, 'jobblk', {}): pass
             elif z in ('centro', 'orla') or (z == 'marina' and blk['poly'].bounds[0] > 2040) or (bi in self.special and not self.special[bi][0].startswith('escola') and self.special[bi][0] != 'hospital'): blk['encher'] = c0
             if bi in self.special: self.special_block(bi, blk, *self.special[bi])
             elif z == 'suburbio': pass
+            elif bi in getattr(self, 'jobblk', {}): self.campus(bi, blk, *self.jobblk[bi])
             elif z == 'centro': self.centro(bi, blk)
             elif z == 'orla': self.orla(bi, blk)
             elif z == 'marina' and blk['poly'].bounds[0] > 2040: blk['feito'] = True; self.orla(bi, blk)      # orla leste: hoteis e predios (a marina fica so na quadra junto ao rio)

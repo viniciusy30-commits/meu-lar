@@ -371,9 +371,13 @@ def width(jid):
     return SPEC[jid][3]
 
 
-def place(L, F, jid):
-    """predio na fileira: F na divisa com a calcada, u ao longo da rua, v para dentro; ocupa width x depth"""
-    spec = SPEC[jid]; sign, style, floors, w, d, fl, wall, acc = spec
+def place(L, F, jid, w_=None, d_=None, floors_=None):
+    """predio na fileira: F na divisa com a calcada, u ao longo da rua, v para dentro; ocupa width x depth
+    (w_, d_, floors_: tamanho do predio principal do campus da profissao, que ocupa a frente inteira da quadra)"""
+    spec = SPEC[jid]
+    if w_ or d_ or floors_:
+        spec = (spec[0], spec[1], floors_ or spec[2], w_ or spec[3], d_ or spec[4], spec[5], spec[6], spec[7])
+    sign, style, floors, w, d, fl, wall, acc = spec
     j = J(L, F)
     x, z = F.xz(w / 2, d / 2); L.M.at(x, z, 'lotes')
     door_u = w / 2 if jid not in ('bombeiro', 'mecanico', 'lixeiro', 'entregador') else 2.4
