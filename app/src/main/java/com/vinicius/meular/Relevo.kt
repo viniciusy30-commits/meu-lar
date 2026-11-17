@@ -406,6 +406,7 @@ object Relevo {
                 js.optJSONArray("fauna")?.let { a -> for (i in 0 until a.length()) { val q = a.get(i); if (q is org.json.JSONArray) { for (k in 0 until q.length()) fl.add(q.getDouble(k).toFloat()) } else fl.add((q as Number).toFloat()) } }
                 if (fl.isNotEmpty() && c6) TownPark.buildC6(fl.toFloatArray(), CX, CZ, 0.7f)
             } catch (e: Throwable) { android.util.Log.w("Relevo", "fauna: $e") }
+            try { buildObst(fa("obst")) } catch (e: Throwable) { obstCell.clear() }
             postesA = fa("postes"); worldA = fa("world"); luzesJ = js.optJSONArray("luzes")?.toString() ?: ""
             jobPl.clear()
             try {
@@ -1032,6 +1033,38 @@ object Relevo {
     /** Cidade 6: z (no mapa) onde começa o mar animado e a linha média da praia */
     /** Cidade 6: postes (x, z, raio da poça de luz), tamanho do mundo e luzes especiais (faróis) do c6.json */
     @Volatile var postesA = FloatArray(0)
+
+    // ---- Cidade 6: troncos, postes e carros estacionados (círculos x, z, raio) que o carro do jogador não atravessa
+    private val obstCell = HashMap<Long, FloatArray>()
+    private const val OBST_CS = 8f
+    private fun buildObst(a: FloatArray) {
+        obstCell.clear()
+        val tmp = HashMap<Long, ArrayList<Float>>()
+        var i = 0
+        while (i + 2 < a.size) {
+            val x = a[i] + CX; val z = a[i + 1] + CZ; val r = a[i + 2]
+            val k = ((x / OBST_CS).toInt().toLong() shl 32) or ((z / OBST_CS).toInt().toLong() and 0xffffffffL)
+            tmp.getOrPut(k) { ArrayList() }.apply { add(x); add(z); add(r) }
+            i += 3
+        }
+        for ((k, l) in tmp) obstCell[k] = l.toFloatArray()
+    }
+    /** algum obstáculo encosta no retângulo (centro x,z; frente fx,fz; meio-comprimento hl, meia-largura hw)? devolve o ponto ou null */
+    fun obstHit(x: Float, z: Float, fx: Float, fz: Float, hl: Float, hw: Float): FloatArray? {
+        if (obstCell.isEmpty()) return null
+        val ci = (x / OBST_CS).toInt(); val cj = (z / OBST_CS).toInt()
+        for (di in -1..1) for (dj in -1..1) {
+            val a = obstCell[((ci + di).toLong() shl 32) or ((cj + dj).toLong() and 0xffffffffL)] ?: continue
+            var i = 0
+            while (i + 2 < a.size) {
+                val dx = a[i] - x; val dz = a[i + 1] - z; val r = a[i + 2]
+                val u = dx * fx + dz * fz; val v = dx * fz - dz * fx
+                if (kotlin.math.abs(u) < hl + r && kotlin.math.abs(v) < hw + r) return floatArrayOf(a[i], a[i + 1])
+                i += 3
+            }
+        }
+        return null
+    }
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
     @Volatile var lagoa: FloatArray? = null

@@ -17,7 +17,7 @@ class Props:
         self.P, self.G, self.L, self.M = P, G, L, M
         self.rnd = random.Random(seed)
         self.drives = L.B.drives
-        self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []; self.app_y = []
+        self.nlights = 0; self.ncars = 0; self.ntrees = 0; self.app_trees = []; self.app_y = []; self.obst = []   # obst: (x, z, raio) que o carro do jogador nao atravessa
 
     # ------------------------------------------------------------ arvores
     APP_TREE = {'folhosa': (0, 1), 'oval': (1, 0), 'ornamental': (1,), 'frutifera': (0,), 'conifera': (3,), 'florida': (2,), 'colunar': (3,)}
@@ -45,6 +45,7 @@ class Props:
             self.app_trees.append([round(x, 1), round(z, 1), self.rnd.choice(ids), round(sc * f, 2), round(self.rnd.uniform(0, 6.28), 2), round(self.rnd.random(), 2)])
             self.app_y.append(round(y, 2))
         else: layer = 'vegetacao'
+        if kind not in ('arbusto', 'flores', 'buxo') and kind not in self.APP_PLANT: self.obst.append((round(x, 2), round(z, 2), 0.35))   # tronco
         PL.tree(self.M, self.rnd, x, z, kind, sc, y, layer, 0 if mata else lod)
         self.ntrees += 1
 
@@ -139,7 +140,12 @@ class Props:
         M = self.M; M.at(x, z, 'mobiliario'); M.m('metal'); M.cyl(x, z, 0.28, Y_WALK, Y_WALK + 0.95, (46, 80, 60), 8); M.free()
 
     def car(self, x, z, dx, dz, col=None, yb=Y_ASF):
+        for h in getattr(self.L, 'player', []):                            # a vaga do carro do jogador fica livre
+            c = h.get('carro')
+            if c and math.hypot(x - c[0], z - c[1]) < 6.5: return
         PL.car(self.M, self.rnd, x, z, dx, dz, col, yb); self.ncars += 1
+        l = math.hypot(dx, dz) or 1.0
+        for k in (-1.45, 0.0, 1.45): self.obst.append((round(x + dx / l * k, 2), round(z + dz / l * k, 2), 0.95))   # carro estacionado
 
     def street_species(self, i):
         return ('folhosa', 'folhosa', 'oval', 'florida', 'folhosa', 'oval', 'folhosa', 'ornamental')[i % 8]

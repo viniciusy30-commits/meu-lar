@@ -73,7 +73,7 @@ for k in range(6):
             zc = (q[:, 2].min() + q[:, 2].max()) / 2
             for nm, (s, z0, z1, hz) in DOORS.items():
                 if s != side: continue
-                lo = z0 if nm[0] == 'F' else -1.12
+                lo = z0 - 0.10 if nm[0] == 'F' else -1.12        # o vidro da porta da frente passa 7 cm da divisa (fica na porta)
                 if ax.min() >= 0.6 and q[:, 2].min() >= lo - 0.005 and z0 <= zc <= z1:
                     group[k][c] = 'porta_' + nm; break
         elif k == 3:   # cromados: por triângulo (a moldura da janela é cortada na divisa)
@@ -213,35 +213,35 @@ def cyl(c, r, h, axis='y', seg=14, rx=0.0):
 # couro creme nos bancos, painel escuro com friso de madeira, tela vertical de 17", quadro de instrumentos digital,
 # carpete, pedais, console com descansa-braco e porta-copos, saidas de ar, retrovisor, quebra-sois, cintos.
 couro, costura, plast, madeira, carpete, tela, cromo, cluster = [], [], [], [], [], [], [], []
-FLOOR = 0.27
-addgeo(carpete, box(0, FLOOR, -0.15, 1.52, 0.04, 2.30))                  # assoalho
-addgeo(carpete, rbox((0, 0.36, 1.05), (1.44, 0.04, 0.42), rx=-40))       # rampa dos pes (parede de fogo)
+# medidas do interior tiradas da carroceria (raios: teto/para-brisa, paredes, assoalho em y=0,14) -> nada atravessa a lataria
+addgeo(carpete, box(0, 0.17, 0.01, 1.44, 0.04, 1.96))                 # assoalho (topo 0,22: pe do motorista apoiado)
+addgeo(carpete, rbox((0, 0.30, 1.08), (1.16, 0.04, 0.30), rx=-40))       # rampa dos pes (parede de fogo)
 for s_ in (+1, -1):
     x = s_ * 0.37
     # banco dianteiro: base, almofada com abas laterais, encosto inclinado com abas, cabeceira
-    addgeo(plast, box(x, 0.36, 0.36, 0.44, 0.14, 0.50))
-    addgeo(couro, box(x, 0.47, 0.38, 0.46, 0.10, 0.52))
-    for e in (-1, 1): addgeo(couro, box(x + e * 0.21, 0.52, 0.38, 0.06, 0.08, 0.50))
-    addgeo(couro, rbox((x, 0.82, 0.08), (0.48, 0.62, 0.12), rx=-12))
-    for e in (-1, 1): addgeo(couro, rbox((x + e * 0.22, 0.80, 0.11), (0.06, 0.56, 0.15), rx=-12))
-    addgeo(costura, rbox((x, 0.82, 0.145), (0.30, 0.50, 0.01), rx=-12))           # painel central do encosto (costura)
-    addgeo(costura, box(x, 0.525, 0.38, 0.30, 0.01, 0.40))
-    addgeo(couro, rbox((x, 1.22, 0.01), (0.26, 0.20, 0.10), rx=-8))                # cabeceira
-    for e in (-1, 1): addgeo(cromo, box(x + e * 0.07, 1.10, 0.02, 0.012, 0.08, 0.012))
-    addgeo(plast, box(x - s_ * 0.2, 0.06 + 0.41, 0.14, 0.02, 0.5, 0.02))           # cinto (faixa)
+    addgeo(plast, box(x, 0.33, 0.33, 0.40, 0.18, 0.36))
+    addgeo(couro, box(x, 0.47, 0.36, 0.46, 0.10, 0.48))
+    for e in (-1, 1): addgeo(couro, box(x + e * 0.21, 0.52, 0.36, 0.06, 0.08, 0.46))
+    addgeo(couro, rbox((x, 0.82, -0.02), (0.48, 0.62, 0.12), rx=-12))
+    for e in (-1, 1): addgeo(couro, rbox((x + e * 0.22, 0.80, 0.01), (0.06, 0.56, 0.15), rx=-12))
+    addgeo(costura, rbox((x, 0.82, 0.045), (0.30, 0.50, 0.01), rx=-12))           # painel central do encosto (costura)
+    addgeo(costura, box(x, 0.525, 0.36, 0.30, 0.01, 0.38))
+    addgeo(couro, rbox((x, 1.22, -0.11), (0.26, 0.20, 0.10), rx=-8))                # cabeceira
+    for e in (-1, 1): addgeo(cromo, box(x + e * 0.07, 1.10, -0.10, 0.012, 0.08, 0.012))
+    addgeo(plast, rbox((x + s_ * 0.24, 0.86, 0.05), (0.05, 0.50, 0.012), rx=-12))   # cinto (faixa junto a coluna)
     # banco traseiro (assento inteirico + encostos)
-    addgeo(couro, box(x * 1.05, 0.46, -0.78, 0.62, 0.12, 0.54))
-addgeo(couro, rbox((0, 0.80, -1.08), (1.40, 0.60, 0.12), rx=-14))
-for xx in (-0.44, 0, 0.44): addgeo(couro, rbox((xx, 1.17, -1.15), (0.26, 0.18, 0.10), rx=-10))
-addgeo(costura, rbox((0, 0.80, -1.015), (0.02, 0.56, 0.01), rx=-14))
+    addgeo(couro, box(x, 0.46, -0.76, 0.54, 0.12, 0.48))
+addgeo(couro, rbox((0, 0.80, -1.06), (1.22, 0.60, 0.12), rx=-14))
+for xx in (-0.40, 0, 0.40): addgeo(couro, rbox((xx, 1.17, -1.12), (0.24, 0.18, 0.10), rx=-10))
+addgeo(costura, rbox((0, 0.80, -0.995), (0.02, 0.56, 0.01), rx=-14))
 # console central com descansa-braco, porta-copos e tampa de madeira
 addgeo(plast, box(0, 0.40, 0.42, 0.26, 0.26, 0.86))
 addgeo(madeira, box(0, 0.535, 0.55, 0.22, 0.01, 0.40))
 addgeo(couro, box(0, 0.60, 0.05, 0.24, 0.08, 0.36))
 for zz in (0.62, 0.74): addgeo(plast, cyl((0, 0.54, zz), 0.04, 0.012, seg=12))
 # painel: corpo, tampo macio, friso de madeira de lado a lado, saidas de ar, porta-luvas
-addgeo(plast, rbox((0, 0.80, 0.98), (1.50, 0.26, 0.42), rx=8))
-addgeo(plast, rbox((0, 0.95, 0.92), (1.48, 0.05, 0.50), rx=-6))
+addgeo(plast, rbox((0, 0.77, 0.92), (1.46, 0.24, 0.34), rx=8))
+addgeo(plast, rbox((0, 0.905, 0.88), (1.44, 0.05, 0.30), rx=-6))
 addgeo(madeira, box(0, 0.80, 0.765, 1.46, 0.06, 0.02))
 addgeo(cromo, box(0, 0.835, 0.76, 1.46, 0.006, 0.012))
 for xx in (-0.62, -0.20, 0.20, 0.62):
@@ -249,36 +249,36 @@ for xx in (-0.62, -0.20, 0.20, 0.62):
     for k in range(3): addgeo(cromo, box(xx, 0.872 + k * 0.009, 0.749, 0.15, 0.003, 0.004))
 addgeo(plast, box(-0.40, 0.68, 0.78, 0.46, 0.14, 0.02))
 # tela central vertical (17") com moldura
-addgeo(plast, rbox((0, 0.90, 0.80), (0.27, 0.36, 0.03), rx=-14))
-addgeo(tela, rbox((0, 0.90, 0.783), (0.24, 0.33, 0.005), rx=-14))
+addgeo(plast, rbox((0, 0.88, 0.78), (0.27, 0.34, 0.03), rx=-14))
+addgeo(tela, rbox((0, 0.88, 0.763), (0.24, 0.31, 0.005), rx=-14))
 # quadro de instrumentos atras do volante
-addgeo(plast, rbox((0.37, 0.98, 0.86), (0.36, 0.14, 0.05), rx=-18))
-addgeo(cluster, rbox((0.37, 0.98, 0.833), (0.32, 0.11, 0.005), rx=-18))
-addgeo(plast, rbox((0.37, 0.75, 0.78), (0.30, 0.10, 0.08), rx=0))               # coluna (capa)
+addgeo(plast, rbox((0.352, 0.955, 0.82), (0.34, 0.12, 0.05), rx=-18))
+addgeo(cluster, rbox((0.352, 0.955, 0.795), (0.30, 0.095, 0.005), rx=-18))
+addgeo(plast, rbox((0.352, 0.835, 0.745), (0.09, 0.09, 0.16), rx=-20))          # coluna de direcao ate o cubo
 # pedais
 for xx, w_ in ((0.30, 0.10), (0.44, 0.06)):
     addgeo(plast, rbox((xx, 0.37, 0.92), (w_, 0.12, 0.015), rx=-35))
     addgeo(cromo, rbox((xx, 0.37, 0.912), (w_ - 0.01, 0.10, 0.004), rx=-35))
 # retrovisor interno e quebra-sois
-addgeo(plast, rbox((0, 1.30, 0.62), (0.26, 0.07, 0.03), rx=-10)); addgeo(cromo, rbox((0, 1.30, 0.603), (0.24, 0.055, 0.004), rx=-10))
-addgeo(plast, box(0, 1.36, 0.66, 0.02, 0.06, 0.02))
-for s_ in (+1, -1): addgeo(couro, rbox((s_ * 0.38, 1.33, 0.55), (0.40, 0.015, 0.17), rx=-12))
+addgeo(plast, rbox((0, 1.15, 0.58), (0.24, 0.065, 0.03), rx=-10)); addgeo(cromo, rbox((0, 1.15, 0.564), (0.22, 0.05, 0.004), rx=-10))
+addgeo(plast, box(0, 1.205, 0.61, 0.02, 0.07, 0.02))                            # haste colada no para-brisa
+# (sem quebra-sois: na altura do teto do Model S eles tapavam a vista do motorista em 1a pessoa)
 # soleiras e colunas internas
 for s_ in (+1, -1):
-    addgeo(cromo, box(s_ * 0.80, 0.30, -0.15, 0.06, 0.02, 2.1))
-    addgeo(plast, box(s_ * 0.80, 0.30, -0.15, 0.10, 0.06, 2.12))
+    addgeo(cromo, box(s_ * 0.80, 0.30, 0.0, 0.06, 0.02, 1.86))
+    addgeo(plast, box(s_ * 0.80, 0.27, 0.0, 0.10, 0.06, 1.88))
 
 # volante: no proprio no (gira com a direcao); centro do aro no centro do no, aro no plano XY inclinado
-VOL = (0.37, 0.88, 0.66); VTILT = 22.0
+VOL = (0.352, 0.89, 0.66); VTILT = -20.0
 vol, volc, vols = [], [], []
-addgeo(vol, torus((0, 0, 0), 0.175, 0.018, VTILT, seg=28, ring=8))
+addgeo(vol, torus((0, 0, 0), 0.165, 0.017, VTILT, seg=32, ring=8))
 addgeo(vols, rbox((0, -0.005, 0.0), (0.12, 0.09, 0.05), rx=VTILT))              # cubo (airbag)
 for ang in (0, 180, 270):                                                        # 3 raios
     a_ = math.radians(ang); cx_, cy_ = math.cos(a_) * 0.10, math.sin(a_) * 0.10
     ca_, sa_ = math.cos(math.radians(VTILT)), math.sin(math.radians(VTILT))
     addgeo(vols, rbox((cx_, cy_ * ca_, cy_ * sa_), (0.11 if ang != 270 else 0.03, 0.03 if ang != 270 else 0.11, 0.02), rx=VTILT))
-addgeo(volc, rbox((0, 0.0, -0.028), (0.05, 0.035, 0.002), rx=VTILT))            # logo cromado
-volante = add('volante', VOL, root, {'giro': 'volante', 'eixo': [0, math.sin(math.radians(VTILT)), math.cos(math.radians(VTILT))]})
+addgeo(volc, rbox((0, 0.026 * math.sin(math.radians(VTILT)), -0.026 * math.cos(math.radians(VTILT))), (0.05, 0.035, 0.002), rx=VTILT))            # logo cromado
+volante = add('volante', VOL, root, {'giro': 'volante', 'eixo': [0, -math.sin(math.radians(VTILT)), math.cos(math.radians(VTILT))]})
 
 # forro interno das portas da frente e de tras (vista de dentro com a porta aberta: nada de vazio escuro)
 def door_trim(side, z0, z1):
@@ -286,7 +286,7 @@ def door_trim(side, z0, z1):
     L = {'couro': [], 'plast': [], 'madeira': [], 'cromo': []}
     xi = -side * 0.10                                       # para dentro do carro
     zc = (z0 + z1) / 2; zl = (z1 - z0)
-    addgeo(L['plast'], box(xi, 0.58, zc, 0.04, 0.64, zl - 0.06))                       # forro
+    addgeo(L['plast'], box(xi, 0.61, zc, 0.04, 0.58, zl - 0.06))                       # forro
     addgeo(L['couro'], box(xi - side * 0.03, 0.70, zc, 0.03, 0.16, zl - 0.14))         # faixa de couro
     addgeo(L['madeira'], box(xi - side * 0.025, 0.86, zc, 0.03, 0.05, zl - 0.12))     # friso de madeira
     addgeo(L['couro'], box(xi - side * 0.07, 0.62, zc - 0.05, 0.10, 0.05, zl * 0.55)) # descansa-braco
@@ -296,7 +296,7 @@ def door_trim(side, z0, z1):
     addgeo(L['plast'], box(xi - side * 0.06, 0.36, zc, 0.08, 0.08, zl - 0.25))        # bolsa da porta
     return L
 for nm, (s_, z0, z1, hz) in DOORS.items():
-    L = door_trim(s_, z0 - hz + 0.04, z1 - hz - 0.05 if nm[0] == 'F' else -0.03)
+    L = door_trim(s_, z0 - hz + (0.04 if nm[0] == 'F' else 0.36), z1 - hz - 0.05 if nm[0] == 'F' else -0.03)
     for lst, mt_ in ((L['plast'], 'plast'), (L['couro'], 'couro'), (L['madeira'], 'madeira'), (L['cromo'], 'cromo')):
         if lst: p, n, u, i = pack(lst); nd['porta_' + nm].prims.append((mt_, p, n, u, None, i))
 

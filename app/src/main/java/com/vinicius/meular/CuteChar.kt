@@ -122,6 +122,8 @@ object CuteChar {
     @Volatile var hideAbove = Float.NaN   // (antigo, não usado)
     /** 1ª pessoa ligada: a cabeça sai da frente da câmera e o olho passa a seguir a cabeça animada. */
     @Volatile var fpOn = false
+    /** dirigindo: mãos presas no aro do volante (espaço do modelo, m): centro, eixo, ângulo (rad), pulsos alvo com o volante reto (E, D), peso 0..1 */
+    @Volatile var wheelIK: FloatArray? = null
     /** Deslocamento extra do olho para a frente (m) quando olha para baixo. */
     @Volatile var fpAdjF = 0f
     /** Posição do olho no espaço do modelo (m): x, y, z (z = para a frente), seguindo a cabeça animada. */
@@ -1186,6 +1188,9 @@ object CuteChar {
         slotFist[sl] += (fistT - slotFist[sl]) * (dt * 14f).coerceAtMost(1f)
         if (Math.abs(fistT - slotFist[sl]) < 0.003f) slotFist[sl] = fistT   // Etapa 114: encosta no alvo (antes levava ~0,6 s só para chegar a 0,9999)
         if (slotFist[sl] > 0.01f) fistHands(bone, slotFist[sl])
+        // dirigindo: braços em cinemática inversa (2 ossos) até o aro do volante; as mãos giram junto com ele
+        val wk = wheelIK
+        if (wk != null && sl == 0 && c == CAR_IN && wk.size >= 14) try { wheelArms(bone, wk) } catch (e: Throwable) { }
 
         // as mesmas matrizes de osso vestem o corpo-base e todas as peças ativas
         // Etapa 7: rosto/proporções (só recalcula quando os controles mudam)
@@ -1300,6 +1305,101 @@ object CuteChar {
     // Postura masculina dos braços, no plano frente (X/Y): deg gira o braço inteiro em torno do ombro e
     // deg2 gira só antebraço e mão em torno do cotovelo (cotovelo afastado, mão perto da coxa).
     // mm = matrizes 3x4 de osso (12 floats por osso). Ombro (13,3; 142,5; -2,9) e cotovelo (32,1; 122,0; 0) de repouso, em cm.
+    private val ikA = DoubleArray(3); private val ikB = DoubleArray(3)
+    private fun jointP(mm: FloatArray, rj: FloatArray, b: Int, out: DoubleArray) {
+        val o = b * 12; val rx = rj[b * 3]; val ry = rj[b * 3 + 1]; val rz = rj[b * 3 + 2]
+        out[0] = (mm[o] * rx + mm[o + 1] * ry + mm[o + 2] * rz + mm[o + 3]).toDouble()
+        out[1] = (mm[o + 4] * rx + mm[o + 5] * ry + mm[o + 6] * rz + mm[o + 7]).toDouble()
+        out[2] = (mm[o + 8] * rx + mm[o + 9] * ry + mm[o + 10] * rz + mm[o + 11]).toDouble()
+    }
+    /** matriz de giro (linha a linha) em torno do eixo (x,y,z) normalizado */
+    private fun axisRot(x: Double, y: Double, z: Double, a: Double, q: DoubleArray) {
+        val l = Math.sqrt(x * x + y * y + z * z).coerceAtLeast(1e-12); val ux = x / l; val uy = y / l; val uz = z / l
+        val c = Math.cos(a); val s = Math.sin(a); val t = 1 - c
+        q[0] = t * ux * ux + c; q[1] = t * ux * uy - s * uz; q[2] = t * ux * uz + s * uy
+        q[3] = t * ux * uy + s * uz; q[4] = t * uy * uy + c; q[5] = t * uy * uz - s * ux
+        q[6] = t * ux * uz - s * uy; q[7] = t * uy * uz + s * ux; q[8] = t * uz * uz + c
+    }
+    private fun fromTo(a: DoubleArray, b: DoubleArray, q: DoubleArray) {
+        val cx = a[1] * b[2] - a[2] * b[1]; val cy = a[2] * b[0] - a[0] * b[2]; val cz = a[0] * b[1] - a[1] * b[0]
+        val sn = Math.sqrt(cx * cx + cy * cy + cz * cz); val cs = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+        if (sn < 1e-9) { q.fill(0.0); q[0] = 1.0; q[4] = 1.0; q[8] = 1.0; return }
+        axisRot(cx, cy, cz, Math.atan2(sn, cs), q)
+    }
+    /** aplica o giro q em torno do ponto p às matrizes dos ossos [bones] */
+    private fun rotBones(mm: FloatArray, bones: IntArray, q: DoubleArray, p: DoubleArray) {
+        for (b in bones) {
+            val o = b * 12
+            for (k in 0..3) {
+                val x = mm[o + k].toDouble(); val y = mm[o + 4 + k].toDouble(); val z = mm[o + 8 + k].toDouble()
+                var nx = q[0] * x + q[1] * y + q[2] * z; var ny = q[3] * x + q[4] * y + q[5] * z; var nz = q[6] * x + q[7] * y + q[8] * z
+                if (k == 3) {
+                    nx += p[0] - (q[0] * p[0] + q[1] * p[1] + q[2] * p[2])
+                    ny += p[1] - (q[3] * p[0] + q[4] * p[1] + q[5] * p[2])
+                    nz += p[2] - (q[6] * p[0] + q[7] * p[1] + q[8] * p[2])
+                }
+                mm[o + k] = nx.toFloat(); mm[o + 4 + k] = ny.toFloat(); mm[o + 8 + k] = nz.toFloat()
+            }
+        }
+    }
+    private val IK_ARM = arrayOf(intArrayOf(10, 11, 12) + IntArray(15) { 25 + it }, intArrayOf(14, 15, 16) + IntArray(15) { 40 + it })
+    private val ikR = DoubleArray(9); private val ikQ = DoubleArray(9); private val ikQ2 = DoubleArray(9); private val ikT = DoubleArray(9)
+    private val ikS = DoubleArray(3); private val ikE = DoubleArray(3); private val ikW = DoubleArray(3); private val ikG = DoubleArray(3); private val ikE2 = DoubleArray(3)
+
+    /** Cinemática inversa de dois ossos (ombro-cotovelo-pulso) até o pulso alvo no aro do volante, mantendo o plano do cotovelo;
+     *  depois a mão gira com o volante. p = [cx,cy,cz, ax,ay,az, ang, Lx,Ly,Lz, Rx,Ry,Rz, peso] (espaço do modelo, m). */
+    private fun wheelArms(mm: FloatArray, p: FloatArray) {
+        val rj = restJoints() ?: return
+        val wgt = p[13].toDouble().coerceIn(0.0, 1.0)
+        if (wgt <= 0.001) return
+        for (side in 0..1) {
+            val bones = IK_ARM[side]
+            val tail = bones.copyOfRange(1, bones.size); val hand = bones.copyOfRange(2, bones.size)
+            jointP(mm, rj, bones[0], ikS); jointP(mm, rj, bones[1], ikE); jointP(mm, rj, bones[2], ikW)
+            val a = Math.sqrt((ikE[0] - ikS[0]).let { it * it } + (ikE[1] - ikS[1]).let { it * it } + (ikE[2] - ikS[2]).let { it * it })
+            val b = Math.sqrt((ikW[0] - ikE[0]).let { it * it } + (ikW[1] - ikE[1]).let { it * it } + (ikW[2] - ikE[2]).let { it * it })
+            // alvo: pulso de volante reto girado em torno do centro; a mão que não alcança desliza pelo aro até onde o braço chega
+            val o = 7 + side * 3
+            for (i in 0..2) ikA[i] = (p[o + i] - p[i]).toDouble()
+            var fr = 1.0
+            for (it in 0 until 12) {
+                axisRot(p[3].toDouble(), p[4].toDouble(), p[5].toDouble(), p[6].toDouble() * wgt * fr, ikR)
+                for (i in 0..2) ikG[i] = p[i] + ikR[i * 3] * ikA[0] + ikR[i * 3 + 1] * ikA[1] + ikR[i * 3 + 2] * ikA[2]
+                val dx = ikG[0] - ikS[0]; val dy = ikG[1] - ikS[1]; val dz = ikG[2] - ikS[2]
+                if (Math.sqrt(dx * dx + dy * dy + dz * dz) <= a + b - 0.012) break
+                fr = (fr - 0.085).coerceAtLeast(0.0)
+            }
+            for (i in 0..2) ikG[i] = ikW[i] + (ikG[i] - ikW[i]) * wgt
+            for (i in 0..2) ikA[i] = ikG[i] - ikS[i]
+            var d = Math.sqrt(ikA[0] * ikA[0] + ikA[1] * ikA[1] + ikA[2] * ikA[2])
+            if (d < 1e-6 || a < 1e-6 || b < 1e-6) continue
+            for (i in 0..2) ikA[i] /= d
+            d = d.coerceIn(Math.abs(a - b) + 1e-4, a + b - 1e-4)
+            // direção do cotovelo: parte de (cotovelo - ombro) perpendicular à linha ombro-alvo
+            for (i in 0..2) ikB[i] = ikE[i] - ikS[i]
+            val dp = ikB[0] * ikA[0] + ikB[1] * ikA[1] + ikB[2] * ikA[2]
+            for (i in 0..2) ikB[i] -= dp * ikA[i]
+            var bl = Math.sqrt(ikB[0] * ikB[0] + ikB[1] * ikB[1] + ikB[2] * ikB[2])
+            if (bl < 1e-6) { ikB[0] = 0.0; ikB[1] = -1.0; ikB[2] = 0.0; bl = 1.0 }
+            for (i in 0..2) ikB[i] /= bl
+            val ca = ((a * a + d * d - b * b) / (2 * a * d)).coerceIn(-1.0, 1.0); val sa = Math.sqrt(1 - ca * ca)
+            for (i in 0..2) ikE2[i] = ikS[i] + ikA[i] * a * ca + ikB[i] * a * sa
+            // ombro: leva o cotovelo ao lugar novo
+            val v0 = DoubleArray(3) { ikE[it] - ikS[it] }; val v1 = DoubleArray(3) { ikE2[it] - ikS[it] }
+            fromTo(v0, v1, ikQ); rotBones(mm, bones, ikQ, ikS)
+            // cotovelo: leva o pulso ao alvo (alvo limitado ao alcance do braço)
+            jointP(mm, rj, bones[2], ikW)
+            val tg = DoubleArray(3) { ikS[it] + ikA[it] * d }
+            val w0 = DoubleArray(3) { ikW[it] - ikE2[it] }; val w1 = DoubleArray(3) { tg[it] - ikE2[it] }
+            fromTo(w0, w1, ikQ2); rotBones(mm, tail, ikQ2, ikE2)
+            // mão: orientação final = giro do volante x orientação do clipe (desfaz o que o ombro e o cotovelo giraram)
+            for (r in 0..2) for (k in 0..2) ikT[r * 3 + k] = ikQ2[r * 3] * ikQ[k] + ikQ2[r * 3 + 1] * ikQ[3 + k] + ikQ2[r * 3 + 2] * ikQ[6 + k]
+            val ex = DoubleArray(9)
+            for (r in 0..2) for (k in 0..2) ex[r * 3 + k] = ikR[r * 3] * ikT[k * 3] + ikR[r * 3 + 1] * ikT[k * 3 + 1] + ikR[r * 3 + 2] * ikT[k * 3 + 2]
+            rotBones(mm, hand, ex, tg)
+        }
+    }
+
     private fun armIn(mm: FloatArray, deg: Float, deg2: Float) {
         for (side in 0..1) {
             val sx = if (side == 0) 1f else -1f
