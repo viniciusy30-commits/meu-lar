@@ -425,7 +425,7 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
                 // e nomes só onde não encostam em outro nome
                 val used = ArrayList<RectF>()
                 val big = scale > 0.7f
-                val rr = dp(if (big) 11f else 8f)
+                val rr = dp(if (big) 15f else 12f)   // alfinetes grandes e legíveis
                 val list = MapPaint.allPlaces().sortedBy { if (MapPaint.isHouse(it)) 1 else 0 }
                 for (pl2 in list) {
                     val main = pl2.name in MapPaint.MAIN || (Relevo.on && City.C6)
@@ -436,7 +436,7 @@ class MapOverlay(ctx: Context, private val player: () -> FloatArray, private val
                     else MapPaint.pin(c, px, py, pl2.color, pl2.icon, rr, pl2.emoji)
                     if (big && scale > 1.1f) {
                         val nm = pl2.name.substringBefore(" ·").let { if (MapPaint.isHouse(pl2)) it + (if (MapPaint.houseOwned(pl2)) " (sua)" else " · à venda") else it }
-                        MapPaint.label.textSize = dp(11f)
+                        MapPaint.label.textSize = dp(12.5f)
                         val tw = MapPaint.label.measureText(nm)
                         val box = RectF(px - tw / 2 - dp(3f), py + rr * 1.9f, px + tw / 2 + dp(3f), py + rr * 1.9f + dp(14f))
                         if (used.none { RectF.intersects(it, box) }) { used.add(box); MapPaint.tag(c, nm, px, box.bottom - dp(3f), dp(11f)) }
@@ -636,7 +636,7 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
         c.save(); c.clipPath(clip)
         // gira com a câmera: para onde se olha fica para cima
         val rot = -Math.toDegrees(pl[2].toDouble()).toFloat()
-        val s = r / 55f
+        val s = r / 75f                       // ~75 m de raio: dá para ver a próxima esquina
         MapPaint.drawCity(c, s, pl[0], pl[1], r, r, rot, false)
         if (Gps.active) {
             c.save(); c.translate(r, r); c.rotate(rot); c.scale(s, s); c.translate(-pl[0], -pl[1])
@@ -646,10 +646,10 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
         // lugares por perto no minimapa (ícone pequeno, sempre de pé)
         if (Relevo.on && City.C6) for (q in MapPaint.allPlaces()) {
             val dx = q.x - pl[0]; val dz = q.z - pl[1]
-            if (dx * dx + dz * dz > 52f * 52f) continue
+            if (dx * dx + dz * dz > 72f * 72f) continue
             val ar = Math.toRadians(rot.toDouble()); val cs = kotlin.math.cos(ar).toFloat(); val sn = kotlin.math.sin(ar).toFloat()
             val sx2 = r + (dx * cs - dz * sn) * s; val sy2 = r + (dx * sn + dz * cs) * s
-            if (MapPaint.isHouse(q)) MapPaint.housePin(c, sx2, sy2 - 9 * dens, 6 * dens, MapPaint.houseOwned(q)) else MapPaint.pin(c, sx2, sy2 - 9 * dens, q.color, q.icon, 6 * dens, q.emoji)
+            if (MapPaint.isHouse(q)) MapPaint.housePin(c, sx2, sy2 - 13 * dens, 9 * dens, MapPaint.houseOwned(q)) else MapPaint.pin(c, sx2, sy2 - 13 * dens, q.color, q.icon, 9 * dens, q.emoji)
         }
         c.restore()
         MapPaint.arrow(c, r, r, 0f, 6 * dens)
@@ -665,5 +665,17 @@ class MiniMap(ctx: Context, private val player: () -> FloatArray) : View(ctx) {
         p.color = 0xFFE53935.toInt(); c.drawCircle(nx, ny, 7 * dens, p)
         p.color = Color.WHITE; p.textSize = 9 * dens; p.textAlign = Paint.Align.CENTER; p.typeface = Typeface.DEFAULT_BOLD
         c.drawText("N", nx, ny + 3.2f * dens, p)
+        // nome da rua onde o jogador está (pílula embaixo do minimapa)
+        if (Relevo.on && City.C6 && C6Map.ready) {
+            val now = System.currentTimeMillis()
+            if (now - streetT > 700L) { streetT = now; street = C6Map.streetAt(pl[0], pl[1]) }
+            if (street.isNotEmpty()) {
+                p.textSize = 10.5f * dens; p.typeface = Typeface.DEFAULT_BOLD
+                val tw = p.measureText(street) + 16 * dens; val y0 = w - 22 * dens
+                p.color = 0xE61D2B3A.toInt(); c.drawRoundRect(android.graphics.RectF(r - tw / 2, y0, r + tw / 2, y0 + 18 * dens), 9 * dens, 9 * dens, p)
+                p.color = Color.WHITE; c.drawText(street, r, y0 + 12.8f * dens, p)
+            }
+        }
     }
+    private var street = ""; private var streetT = 0L
 }
