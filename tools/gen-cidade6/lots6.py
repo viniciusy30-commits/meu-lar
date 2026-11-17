@@ -580,6 +580,8 @@ class Lots:
                     pw = gap[0] - s
                     if pw < 6: s = gap[1]; continue
                 F = self.frame(side, minx, maxx, minz, maxz, s)
+                _fp = Polygon(F.rect(0, pw, 0, depths[side]))                    # quadra em L: nada de predio fora dela (em cima do hospital etc.)
+                if _fp.intersection(poly).area < 0.85 * _fp.area: s += pw; continue
                 fl = max(3, min(hmax + 3, int(r.uniform(0.35, 1.1) * hmax)))
                 if resid: fl = max(4, int(fl * 0.9))
                 self.M.at(*F.xz(pw / 2, depths[side] / 2), 'lotes')
