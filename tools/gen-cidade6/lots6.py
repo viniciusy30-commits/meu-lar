@@ -1,5 +1,6 @@
 """Cidade 6 - quadras -> lotes -> construcoes. Reserva os lotes das 17 casas do jogador (Cidade 5, city2.glb)."""
 import math, random, json, os
+GLOW6 = (255, 238, 196)
 import numpy as np
 from shapely.geometry import Polygon, box as sbox, Point
 from mesh import rgb, shade, mix, WHITE, Frame
@@ -467,6 +468,118 @@ class Lots:
             self.benches.append((cx + dx * 7.5, cz + dz * 7.5, -dx, -dz, Y_WALK))
             if min(w, d) > 40: self.benches.append((cx + dx * 7.5 + dz * 3, cz + dz * 7.5 + dx * 3, -dx, -dz, Y_WALK))
 
+    # ------------------------------------------------------------ patios internos (miolo das quadras)
+    def courtyard(self, x0, z0, x1, z1):
+        """patio interno de verdade, cada um com um uso: terraco de cafe, jardim com pergolado, patio da escultura,
+        descanso com redario e mesas de jogos. Sempre com postes, bancos, lixeiras e painel de cartazes."""
+        r = self.rnd; M = self.M; y = Y_WALK
+        self.pocc.append(sbox(x0, z0, x1, z1))
+        w, d = x1 - x0, z1 - z0; cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+        M.at(cx, cz, 'lotes'); M.free('lotes'); M.m('paver'); M.shp(sbox(x0, z0, x1, z1), y + 0.02, (226, 220, 210))
+        if w < 12 or d < 12: self.planter(x0 + 1, z0 + 1, x1 - 1, z1 - 1); return
+        kind = r.choice(('cafe', 'jardim', 'escultura', 'descanso'))
+        G = (242, 240, 236)
+        def bed(a, b, c, e, flowers=True):                                   # canteiro elevado com borda de pedra
+            M.m('pedra'); M.prism([(a, b), (c, b), (c, e), (a, e)], y, y + 0.45, (200, 194, 182))
+            M.m('grama'); M.prism([(a + 0.25, b + 0.25), (c - 0.25, b + 0.25), (c - 0.25, e - 0.25), (a + 0.25, e - 0.25)], y + 0.45, y + 0.47, (110, 160, 80))
+            if flowers:
+                q = a + 0.8
+                while q < c - 0.5: self.trees.append((q, (b + e) / 2, 'flores', 1.0, y + 0.47)); q += 1.4
+        if kind == 'cafe':
+            for i in range(int((w - 6) / 4.5)):
+                for k in range(int((d - 6) / 4.5)):
+                    tx, tz = x0 + 4 + i * 4.5, z0 + 4 + k * 4.5
+                    M.m('metal'); M.cyl(tx, tz, 0.05, y, y + 0.74, (50, 52, 56), 6); M.cyl(tx, tz, 0.3, y, y + 0.03, (50, 52, 56), 8)
+                    M.m('madeira'); M.cyl(tx, tz, 0.42, y + 0.74, y + 0.78, (180, 140, 96), 12)
+                    for (ox, oz) in ((0.75, 0), (-0.75, 0)):
+                        M.m('metal'); M.box(tx + ox - 0.2, tx + ox + 0.2, y + 0.44, y + 0.48, tz - 0.2, tz + 0.2, (40, 80, 70))
+                        M.box(tx + ox * 1.25 - 0.03, tx + ox * 1.25 + 0.03, y + 0.48, y + 0.9, tz - 0.2, tz + 0.2, (40, 80, 70))
+                        for (ex, ez) in ((-0.17, -0.17), (0.17, -0.17), (0.17, 0.17), (-0.17, 0.17)): M.box(tx + ox + ex - 0.015, tx + ox + ex + 0.015, y, y + 0.44, tz + ez - 0.015, tz + ez + 0.015, (40, 44, 48))
+                    if (i + k) % 2 == 0:
+                        M.m('metal'); M.cyl(tx, tz, 0.03, y + 0.78, y + 2.4, (220, 220, 224), 6)
+                        M.m('liso'); M.cyl(tx, tz, 1.3, y + 2.0, y + 2.45, r.choice(((200, 60, 50), (240, 230, 210), (40, 110, 90))), 8, False, 0.05)
+            # cordao de luzes atravessando o patio
+            M.m('liso')
+            for k in range(int(w / 1.5)): M.sphere(x0 + 0.75 + k * 1.5, y + 3.2 - 0.25 * math.sin(math.pi * k / max(1, int(w / 1.5))), cz, 0.07, GLOW6, 4, 3)
+        elif kind == 'jardim':
+            bed(x0 + 1.5, z0 + 1.5, x1 - 1.5, z0 + 3.0); bed(x0 + 1.5, z1 - 3.0, x1 - 1.5, z1 - 1.5)
+            # pergolado central com bancos dos dois lados
+            M.m('madeira'); L_ = min(w - 8, 14.0); u0 = cx - L_ / 2
+            n = max(2, int(L_ / 3.5))
+            for i in range(n + 1):
+                u = u0 + i * L_ / n
+                for s_ in (-1, 1): M.box(u - 0.1, u + 0.1, y, y + 2.6, cz + s_ * 1.6 - 0.1, cz + s_ * 1.6 + 0.1, (150, 108, 70))
+            for s_ in (-1, 1): M.box(u0 - 0.3, u0 + L_ + 0.3, y + 2.45, y + 2.62, cz + s_ * 1.6 - 0.07, cz + s_ * 1.6 + 0.07, (150, 108, 70))
+            q = u0
+            while q <= u0 + L_: M.box(q - 0.03, q + 0.03, y + 2.62, y + 2.7, cz - 2.0, cz + 2.0, (150, 108, 70)); q += 0.6
+            M.m('folhagem')
+            for i in range(int(L_ / 1.4)): M.sphere(u0 + 0.7 + i * 1.4, y + 2.78, cz, 0.8, (80, 140, 70) if i % 3 else (200, 90, 150), 6, 3, 0.35)
+            for i in range(n):
+                u = u0 + (i + 0.5) * L_ / n
+                for s_ in (-1, 1): self.benches.append((u, cz + s_ * 0.9, 0, -s_, y))
+        elif kind == 'escultura':
+            self.fountain(cx, cz, min(3.2, min(w, d) / 7)) if min(w, d) > 18 else None
+            # escultura abstrata em pedestal num canto e arcos de metal
+            sx, sz = x0 + 4, z0 + 4
+            M.m('pedra'); M.box(sx - 0.8, sx + 0.8, y, y + 1.0, sz - 0.8, sz + 0.8, (220, 216, 208))
+            M.m('metal'); M.sphere(sx, y + 2.0, sz, 0.75, (200, 90, 50), 8, 6); M.cyl(sx, sz, 0.12, y + 1.0, y + 1.4, (60, 60, 64), 6)
+            for k in range(4):
+                a = k * math.pi / 2 + 0.4; M.sphere(cx + math.cos(a) * (min(w, d) / 2 - 3), y + 0.4, cz + math.sin(a) * (min(w, d) / 2 - 3), 0.4, (190, 186, 178), 6, 4)
+            for (dx, dz) in ((1, 0), (-1, 0), (0, 1), (0, -1)): self.benches.append((cx + dx * 6.0, cz + dz * 6.0, -dx, -dz, y))
+        else:   # descanso: espreguicadeiras, mesas de xadrez e redes
+            for i in range(int((w - 6) / 6)):
+                tx = x0 + 4 + i * 6
+                M.m('liso'); M.box(tx - 0.45, tx + 0.45, y + 0.68, y + 0.74, z0 + 3.5, z0 + 4.4, (210, 208, 202))
+                for c_ in range(8):
+                    for k_ in range(8):
+                        if (c_ + k_) % 2: M.box(tx - 0.32 + c_ * 0.08, tx - 0.24 + c_ * 0.08, y + 0.741, y + 0.745, z0 + 3.63 + k_ * 0.08, z0 + 3.71 + k_ * 0.08, (40, 40, 40))
+                M.m('concreto'); M.cyl(tx, z0 + 3.95, 0.16, y, y + 0.68, (200, 198, 192), 8)
+                for s_ in (-1, 1): M.m('concreto'); M.cyl(tx + s_ * 0.85, z0 + 3.95, 0.2, y, y + 0.45, (200, 198, 192), 8)
+            for i in range(int((w - 6) / 3.0)):
+                lx = x0 + 3.5 + i * 3.0; lz = z1 - 4.0
+                M.m('madeira'); M.poly([(lx - 0.35, y + 0.35, lz - 1.0), (lx + 0.35, y + 0.35, lz - 1.0), (lx + 0.35, y + 0.75, lz + 0.8), (lx - 0.35, y + 0.75, lz + 0.8)], (200, 170, 120), None)
+                M.box(lx - 0.35, lx + 0.35, y, y + 0.35, lz - 1.0, lz - 0.9, (150, 110, 70)); M.box(lx - 0.35, lx + 0.35, y, y + 0.75, lz + 0.7, lz + 0.8, (150, 110, 70))
+                M.m('liso'); M.box(lx - 0.3, lx + 0.3, y + 0.37, y + 0.43, lz - 0.9, lz - 0.1, r.choice(((240, 240, 240), (90, 160, 210), (240, 190, 60))))
+            for k in range(2): self.trees.append((cx + (k * 2 - 1) * w * 0.25, cz, 'folhosa', 1.1, y))
+        # sempre: postes baixos nos cantos, lixeiras e painel de cartazes
+        for (px, pz) in ((x0 + 1.2, z0 + 1.2), (x1 - 1.2, z1 - 1.2), (x0 + 1.2, z1 - 1.2), (x1 - 1.2, z0 + 1.2)):
+            self.plights.append((px, pz, y))
+        M.m('metal'); M.cyl(x1 - 2.2, z0 + 1.0, 0.25, y, y + 0.9, (46, 80, 60), 8); M.cyl(x0 + 2.2, z1 - 1.0, 0.25, y, y + 0.9, (46, 80, 60), 8)
+        self.poster(x0 + 0.6, cz, 0, 1)
+        M.free()
+
+    def poster(self, x, z, ux, uz):
+        """painel de cartazes (mupi) de dupla face, aceso por dentro, com propaganda colorida"""
+        r = self.rnd; M = self.M; y = Y_WALK; vx, vz = -uz, ux
+        F = Frame((x, z), (ux if ux or uz else 1, uz))
+        M.m('metal'); M.prism(F.rect(-0.62, 0.62, -0.12, 0.12), y, y + 2.1, (60, 64, 70))
+        M.m('liso')
+        for s_ in (-1, 1):
+            c1 = r.choice(((230, 70, 60), (40, 120, 200), (250, 190, 40), (90, 170, 80), (160, 80, 200)))
+            M.poly([F.p(-0.5, s_ * 0.125, y + 0.3), F.p(0.5, s_ * 0.125, y + 0.3), F.p(0.5, s_ * 0.125, y + 1.95), F.p(-0.5, s_ * 0.125, y + 1.95)], (250, 248, 240), None)
+            M.poly([F.p(-0.42, s_ * 0.127, y + 1.0), F.p(0.42, s_ * 0.127, y + 1.0), F.p(0.42, s_ * 0.127, y + 1.85), F.p(-0.42, s_ * 0.127, y + 1.85)], c1, None)
+            M.poly([F.p(-0.42, s_ * 0.127, y + 0.45), F.p(0.42, s_ * 0.127, y + 0.45), F.p(0.42, s_ * 0.127, y + 0.85), F.p(-0.42, s_ * 0.127, y + 0.85)], shade(c1, -40), None)
+        self.B.solid(F, -0.62, 0.62, -0.12, 0.12)
+
+    def billboard(self, F, u, v):
+        """outdoor de duas colunas (frente para a rua), com refletores e propaganda"""
+        r = self.rnd; M = self.M; y = Y_WALK
+        x, z = F.xz(u, v); M.at(x, z, 'lotes')
+        for s_ in (-1, 1):
+            M.m('metal'); a, b = F.xz(u + s_ * 3.0, v); M.cyl(a, b, 0.18, y, y + 5.2, (90, 94, 100), 8)
+        G = Frame(F.xz(u, v), (F.ux, F.uz))
+        M.m('metal'); M.prism(G.rect(-4.4, 4.4, -0.15, 0.15), y + 5.0, y + 8.2, (70, 74, 80))
+        c1 = r.choice(((230, 70, 60), (40, 120, 200), (250, 190, 40), (90, 170, 80), (30, 30, 40)))
+        M.m('liso')
+        M.poly([G.p(-4.2, -0.16, y + 5.2), G.p(4.2, -0.16, y + 5.2), G.p(4.2, -0.16, y + 8.0), G.p(-4.2, -0.16, y + 8.0)], c1, None)
+        M.poly([G.p(-3.6, -0.17, y + 6.2), G.p(1.0, -0.17, y + 6.2), G.p(1.0, -0.17, y + 7.5), G.p(-3.6, -0.17, y + 7.5)], (250, 248, 240), None)
+        M.poly([G.p(1.6, -0.17, y + 5.6), G.p(3.8, -0.17, y + 5.6), G.p(3.8, -0.17, y + 7.7), G.p(1.6, -0.17, y + 7.7)], shade(c1, 40), None)
+        M.m('metal'); M.prism(G.rect(-4.2, 4.2, -0.9, -0.15), y + 4.9, y + 5.0, (90, 94, 100))
+        for k in range(3):
+            a, b = G.xz(-3.0 + k * 3.0, -1.0); M.box(a - 0.2, a + 0.2, y + 4.95, y + 5.2, b - 0.2, b + 0.2, (40, 40, 44))
+        self.B.solid(F, u - 3.3, u + 3.3, v - 0.4, v + 0.4)
+        M.free('lotes')
+
     def access(self, F, u0, u1, v_in, y=None):
         """acesso de carros a um estacionamento: rebaixo na guia + faixa de concreto sobre a calcada (recortada na calcada
         real) e pista de asfalto da divisa ate dentro do lote (v de 0 a v_in). F: frame na divisa, v para dentro."""
@@ -601,11 +714,7 @@ class Lots:
                     self.access(self.frame(sd, minx, maxx, minz, maxz, g0), 0.0, g1 - g0, depths[sd] + 1.6)
                 Fp = Frame((ix0, iz0), (1, 0)); self.M.at((ix0 + ix1) / 2, (iz0 + iz1) / 2, 'lotes')
                 B.parking(Fp, 0.5, ix1 - ix0 - 0.5, 0.5, iz1 - iz0 - 0.5, self.park_car, Y_WALK + 0.01); self.M.free('lotes'); self.pocc.append(sbox(ix0, iz0, ix1, iz1))
-            elif opt < 0.85: self.plaza(ix0, iz0, ix1, iz1, False, False)        # praca interna: canteiros so com flores
-            else:
-                self.pocc.append(sbox(ix0, iz0, ix1, iz1))
-                self.M.free('lotes'); self.M.m('grama'); self.M.shp(sbox(ix0, iz0, ix1, iz1), Y_WALK + 0.06, WHITE)
-                pass                                                  # miolo cercado de predios: gramado sem arvores (so peso)
+            else: self.courtyard(ix0, iz0, ix1, iz1)                  # patio interno com uso (varia de quadra para quadra)
 
     def orla(self, bi, blk):
         import centro6 as C6
@@ -889,6 +998,7 @@ class Lots:
         if w < 50 and r.random() < 0.45: B.gas_station(F, w, d - 1, r.choice(signs)); self.access(F, 1.5, 7.5, 0.6); self.access(F, w - 7.5, w - 1.5, 0.6); return
         pk = 15.0 if d > 30 else 8.0
         B.parking(F, 1, w - 1, 0.5, pk, self.park_car)
+        if pk >= 8 and w > 30 and r.random() < 0.55: self.billboard(F, 6.0 if r.random() < 0.5 else w - 6.0, 1.2)   # outdoor na frente do estacionamento
         self.access(F, 2.0, 8.0, 0.6); self.access(F, w - 8.0, w - 2.0, 0.6)
         bd = min(d - pk - 2, 22)
         Fs = Frame(F.xz(1, pk + 0.5), (F.ux, F.uz)); Fs.vx, Fs.vz = F.vx, F.vz
