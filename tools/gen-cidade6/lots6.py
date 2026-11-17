@@ -282,7 +282,7 @@ class Lots:
                         u += 2.6
             return
         if nm.startswith('escola'):
-            self.lawn(poly); B.school(F, L, D, self.park_car)
+            self.lawn(poly); import grand6; grand6.school(B, F, L, D, self.park_car)
             self.access(F, 0.6, 5.6, min(D - 6, 52.0), Y_LAWN + 0.07)          # acesso ao estacionamento dos fundos, pela lateral
             bw = min(L * 0.45, 80)
             ex = [Polygon(F.rect(0, 10 + bw, 0, min(D - 6, 54) + 2))]
@@ -292,7 +292,7 @@ class Lots:
         self.lawn(poly, 'paver', Y_WALK, (236, 232, 224))
         if nm == 'prefeitura': B.city_hall(F, L, D)
         elif nm == 'igreja':
-            B.church(F, L * 0.6, D)
+            import grand6; grand6.church(B, F, L * 0.6, D)
             # praca da matriz: jardim e arvores na outra metade
             Fp = Frame(F.xz(L * 0.62, 6), (F.ux, F.uz))
             self.M.free('lotes'); self.M.m('grama')
