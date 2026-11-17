@@ -899,7 +899,8 @@ class Lots:
         self.plights = []
         for bi, blk in enumerate(self.P.blocks):
             z = blk['zone']; self.pocc = []; c0 = len(self.B.colliders)
-            if z in ('centro', 'orla') or (z == 'marina' and blk['poly'].bounds[0] > 2040) or (bi in self.special and not self.special[bi][0].startswith('escola') and self.special[bi][0] != 'hospital'): blk['encher'] = c0
+            if self.special.get(bi, ('',))[0] == 'hospital': pass
+            elif z in ('centro', 'orla') or (z == 'marina' and blk['poly'].bounds[0] > 2040) or (bi in self.special and not self.special[bi][0].startswith('escola') and self.special[bi][0] != 'hospital'): blk['encher'] = c0
             if bi in self.special: self.special_block(bi, blk, *self.special[bi])
             elif z == 'suburbio': pass
             elif z == 'centro': self.centro(bi, blk)
