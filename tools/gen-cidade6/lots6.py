@@ -748,7 +748,32 @@ class Lots:
                 q = q.buffer(-1.5, join_style='mitre') if not q.is_empty else q
                 if q.is_empty: break
                 q = max(getattr(q, 'geoms', [q]), key=lambda g: g.area)
-            if not ok: ix1 = ix0                                       # sem miolo valido: fica so o piso da quadra
+            if not ok:
+                # quadra em L: os dois maiores retangulos que cabem dentro dela viram patios (nada de piso vazio)
+                ix1 = ix0
+                free = inner.buffer(0)
+                for _ in range(2):
+                    best = None
+                    bx0, bz0, bx1, bz1 = free.bounds
+                    gx = bx0
+                    while gx < bx1 - 14:
+                        gz = bz0
+                        while gz < bz1 - 14:
+                            if free.contains(Point(gx + 1, gz + 1)):
+                                x1_ = gx + 14
+                                while x1_ + 4 <= bx1 and sbox(gx, gz, x1_ + 4, gz + 14).within(free): x1_ += 4
+                                z1_ = gz + 14
+                                while z1_ + 4 <= bz1 and sbox(gx, gz, x1_, z1_ + 4).within(free): z1_ += 4
+                                if sbox(gx, gz, x1_, z1_).within(free):
+                                    a = (x1_ - gx) * (z1_ - gz)
+                                    if best is None or a > best[0]: best = (a, gx, gz, x1_, z1_)
+                            gz += 6
+                        gx += 6
+                    if best is None: break
+                    _, a0, b0, a1, b1 = best
+                    self.courtyard(a0, b0, a1, b1)
+                    free = free.difference(sbox(a0 - 3, b0 - 3, a1 + 3, b1 + 3))
+                    if free.is_empty: break
         if ix1 - ix0 > 10 and iz1 - iz0 > 10:
             if job and gaps:
                 for sd, (g0, g1) in gaps.items():
