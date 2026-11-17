@@ -59,6 +59,12 @@ GL = {
     'U': '10001 10001 10001 10001 10001 10001 01110', 'V': '10001 10001 10001 10001 10001 01010 00100',
     'W': '10001 10001 10001 10101 10101 10101 01010', 'X': '10001 10001 01010 00100 01010 10001 10001',
     'Y': '10001 10001 01010 00100 00100 00100 00100', 'Z': '11111 00001 00010 00100 01000 10000 11111',
+    '0': '01110 10001 10011 10101 11001 10001 01110', '1': '00100 01100 00100 00100 00100 00100 01110',
+    '2': '01110 10001 00001 00010 00100 01000 11111', '3': '11110 00001 00001 01110 00001 00001 11110',
+    '4': '00010 00110 01010 10010 11111 00010 00010', '5': '11111 10000 11110 00001 00001 10001 01110',
+    '6': '00110 01000 10000 11110 10001 10001 01110', '7': '11111 00001 00010 00100 01000 01000 01000',
+    '8': '01110 10001 10001 01110 10001 10001 01110', '9': '01110 10001 10001 01111 00001 00010 01100',
+    '-': '00000 00000 00000 11111 00000 00000 00000', '.': '00000 00000 00000 00000 00000 01100 01100',
     '&': '01100 10010 10100 01000 10101 10010 01101', ' ': '00000 00000 00000 00000 00000 00000 00000',
 }
 
@@ -380,6 +386,15 @@ def place(L, F, jid, w_=None, d_=None, floors_=None):
     sign, style, floors, w, d, fl, wall, acc = spec
     j = J(L, F)
     x, z = F.xz(w / 2, d / 2); L.M.at(x, z, 'lotes')
+    import arch6
+    if w_ and jid in arch6.BUILDERS:                                       # campus: arquitetura propria da profissao
+        door_u, door_v = arch6.build(L, F, jid, w, d, floors, spec)
+        L.M.free('lotes')
+        dx, dz = F.xz(door_u, door_v - 1.5)
+        L.jobs.append({'id': jid, 'nome': NAMES[jid], 'x': round(dx, 1), 'z': round(dz, 1), 'cor': 0xFF000000 | (acc[0] << 16) | (acc[1] << 8) | acc[2], 'icone': NAMES[jid][0], 'emoji': jobs6.EMOJI.get(jid, '💼')})
+        L.__dict__.setdefault('feet', []).append((F.rect(0, w, 0, d), acc))
+        L.B.drives.append((*F.xz(door_u, door_v - 1.2), 2.6))
+        return
     door_u = w / 2 if jid not in ('bombeiro', 'mecanico', 'lixeiro', 'entregador') else 2.4
     extra = []
     if jid in ('bombeiro', 'mecanico', 'lixeiro', 'entregador'):          # portoes de garagem largos
