@@ -800,6 +800,9 @@ def prefeitura(L, F, Lw, D):
     j.bx(-1.0, bw + 1.0, v0, v0 + bd + 1.0, Y_WALK - 0.3, Yp, stone2, 'pedra')
     PF = v0 - 6.2                                                       # frente da plataforma do portico
     j.bx(fc - 11.0, fc + 11.0, PF, v0 + 0.02, Y_WALK - 0.3, Yp, stone2, 'pedra')       # o podio avanca sob o portico
+    import stairs6
+    x_, z_ = j.F.xz(fc, PF - 4.0)
+    stairs6.add(x_, z_, j.F.vx, j.F.vz, 21.2, 8, 0.2, 0.5, Y0 + 0.2)
     for k in range(8):                                                  # escadaria encostada na plataforma
         j.bx(fc - 10.6, fc + 10.6, PF - 4.0 + k * 0.5, PF + 0.02, Y_WALK - 0.3, Y0 + (k + 1) * 0.2 - 0.01, (224, 218, 204), 'pedra')
     for s in (-1, 1):                                                   # muretas laterais da escada com pinha

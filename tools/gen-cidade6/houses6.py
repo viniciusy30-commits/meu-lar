@@ -164,13 +164,20 @@ class House:
         self.door_u = u
 
     def steps(self, u, v_top, wide=1.6, y_top=None, n=None):
-        """degraus descendo da soleira (v_top) para a frente"""
+        """degraus descendo da soleira (v_top) para a frente, na medida da animacao de subir escada (20 x 21 cm);
+        a escada vai para o registro (o jogo poe o personagem na linha dela e casa o passo com o degrau)"""
+        import stairs6
         y_top = self.yb if y_top is None else y_top
-        n = n or max(1, int(round((y_top - Y0) / 0.17)))
-        for k in range(n):
-            y = y_top - (y_top - Y0) * (k + 1) / (n + 0) + (y_top - Y0) / n * 0.0
-            self.box(u - wide / 2, u + wide / 2, v_top - 0.3 * (k + 1), v_top - 0.3 * k, Y0, y_top - (y_top - Y0) * (k + 1) / (n + 1), (208, 204, 196), 'concreto')
-        return v_top - 0.3 * n
+        h = y_top - Y0
+        n = n or max(1, int(round(h / stairs6.R)))
+        rr = h / n; rn = stairs6.RUN
+        for k in range(n - 1):
+            top = y_top - rr * (k + 1)
+            self.box(u - wide / 2, u + wide / 2, v_top - rn * (k + 1), v_top - rn * k, Y0, top, (208, 204, 196), 'concreto')
+        vb = v_top - rn * (n - 1)
+        if n >= 2:
+            x, z = self.F.xz(u, vb); stairs6.add(x, z, self.F.vx, self.F.vz, wide, n - 1, rr, rn, Y0 + rr)
+        return vb
 
     def post(self, u, v, y0, y1, th=0.16, col=None, base=None):
         if base:

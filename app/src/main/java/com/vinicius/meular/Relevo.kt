@@ -396,6 +396,7 @@ object Relevo {
             fun fa(k: String): FloatArray { val a = js.optJSONArray(k); return FloatArray(a?.length() ?: 0) { i -> a!!.getDouble(i).toFloat() } }
             bldA = fa("bld"); lampA = fa("lamp"); hydA = fa("hyd"); treeA = fa("tree"); treeY = fa("tree_y")
             // lagoa e fauna: opcionais (um erro aqui nunca pode impedir a cidade de carregar)
+            stairsA = try { fa("escadas").also { a -> var i = 0; while (i + 8 < a.size) { a[i] += CX; a[i + 1] += CZ; a[i + 8] += 0.7f; i += 9 } } } catch (e: Throwable) { FloatArray(0) }
             lagoa = try { js.optJSONArray("lagoa")?.let { a -> if (a.length() >= 8 && c6) FloatArray(8) { i -> a.getDouble(i).toFloat() + when (i) { 0, 4 -> CX; 1, 5 -> CZ; 7 -> 0.7f; else -> 0f } } else null } } catch (e: Throwable) { null }
             try {
                 val fl = ArrayList<Float>()
@@ -1031,6 +1032,24 @@ object Relevo {
     @Volatile var worldA = FloatArray(0)
     @Volatile var luzesJ = ""
     @Volatile var lagoa: FloatArray? = null
+    /** Cidade 6: escadas (x, z do pe, direcao de subida, largura, degraus, espelho, piso, y do primeiro degrau) */
+    @Volatile var stairsA = FloatArray(0)
+    /** escada sob (x, z): out = [s ao longo da escada, y da linha da escada, dx, dz, espelho, piso]; false fora de escada */
+    fun stairAt(x: Float, z: Float, out: FloatArray): Boolean {
+        val a = stairsA; var i = 0
+        while (i + 8 < a.size) {
+            val dx = a[i + 2]; val dz = a[i + 3]; val rx = x - a[i]; val rz = z - a[i + 1]
+            val s = rx * dx + rz * dz; val lat = -rx * dz + rz * dx
+            val n = a[i + 5]; val rise = a[i + 6]; val run = a[i + 7]
+            if (s > -0.02f && s < n * run + 0.02f && kotlin.math.abs(lat) < a[i + 4] / 2f + 0.15f) {
+                val sc = s.coerceIn(0f, n * run)
+                out[0] = sc; out[1] = a[i + 8] + sc * rise / run; out[2] = dx; out[3] = dz; out[4] = rise; out[5] = run
+                return true
+            }
+            i += 9
+        }
+        return false
+    }
     /** último problema ao carregar a cidade (mostrado na tela para o jogador) */
     @Volatile var lastErr: String? = null
     /** Cidade 6: prédios das profissões e prefeitura (porta de entrada) para o GPS e o bater ponto */
